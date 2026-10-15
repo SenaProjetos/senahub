@@ -548,6 +548,11 @@ a partial remainder (`restanteDeId`) is never recognized again; card purchases p
 one line; M7 accessories and investment yield/IR are one line against the bank. Only a CLOSED month exports
 (`registrarExportacaoNoBanco` stores `ExportacaoContabil` lines + hash, audited); the download route only reads that record.
 Invariant (smoke): the bank account's lines + what was left out = the Extrato por conta's net for the month.
+The accountant's own import model (`docs/financeiro/contabil/modelo-de-importacao-alterdata-lancamentos.xls`, format `alterdata`) has ONLY
+5 columns (`debito, credito, data, valor, complemento historico`, tab `Planilha1`): documento and chave da NF-e go inside the
+complemento, centro de custo/projeto have NO column and are dropped, and a line without account REFUSES the whole month (server:
+`registrarExportacaoNoBanco`; screen mirrors it) — the generic xlsx/csv still leave the account blank and warn. `arquivo-xlsx.ts`
+(exceljs, `node:module`) is imported only by the download route, never by the client view.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

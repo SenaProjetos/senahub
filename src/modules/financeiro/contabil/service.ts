@@ -15,6 +15,7 @@ import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
 import { mesesFechados } from "@/modules/financeiro/fechamento/trava-service";
 import { planejarImportacao, type ContaDoPlano, type PlanoDaImportacao } from "@/modules/financeiro/contabil/plano";
+import { linhasSemConta, MOTIVO_ALTERDATA_SEM_CONTA, type FormatoContabil } from "@/modules/financeiro/contabil/arquivo";
 import { gerarPartidas, type DeParaDoMotor, type LancamentoContabil, type ResumoContabil, type StatusContabil } from "@/modules/financeiro/contabil/partidas";
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -200,12 +201,16 @@ export async function partidasDoMes(mes: string, db: Db = prisma): Promise<Resum
 
 export const hashDasLinhas = (linhas: unknown) => createHash("sha256").update(JSON.stringify(linhas)).digest("hex");
 
-export type Formato = "xlsx" | "csv";
 
 /** Registra a exportação de um mês FECHADO, exatamente como sai no arquivo. Devolve o id para baixar. */
-export async function registrarExportacaoNoBanco(mes: string, formato: Formato, autorId: string): Promise<{ id: string; linhas: number; pendencias: number }> {
+export async function registrarExportacaoNoBanco(mes: string, formato: FormatoContabil, autorId: string): Promise<{ id: string; linhas: number; pendencias: number }> {
   if (!(await mesesFechados()).has(mes)) throw new ActionError(MOTIVO_MES_ABERTO);
   const r = await partidasDoMes(mes);
+  // O layout do contador não aceita conta em branco: a tela já desabilita o botão, mas quem barra é o servidor.
+  if (formato === "alterdata") {
+    const faltam = linhasSemConta(r.linhas);
+    if (faltam > 0) throw new ActionError(MOTIVO_ALTERDATA_SEM_CONTA(faltam));
+  }
   const e = await prisma.exportacaoContabil.create({
     data: {
       competencia: mes,

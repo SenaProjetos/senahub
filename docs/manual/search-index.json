@@ -1759,7 +1759,7 @@
       "titulo": "Financeiro — Integração contábil",
       "path": "financeiro/integracao-contabil.md",
       "descricao": "Ligar as categorias e as contas bancárias ao plano de contas do contador e exportar o mês fechado num arquivo de lançamentos para o Alterdata.",
-      "resumo": "Escolha uma vez a conta contábil de cada categoria e de cada conta bancária; depois de fechar o mês, exporte o arquivo (Excel ou CSV) com cada conta a pagar ou a receber em dois lançamentos, na competência e no pagamento. A folha CLT fica de fora, porque o contador lança.",
+      "resumo": "Escolha uma vez a conta contábil de cada categoria e de cada conta bancária; depois de fechar o mês, exporte o arquivo (layout do contador, Excel ou CSV) com cada conta a pagar ou a receber em dois lançamentos, na competência e no pagamento. A folha CLT fica de fora, porque o contador lança.",
       "tags": [
         "financeiro",
         "contabilidade",
@@ -1774,6 +1774,7 @@
         "de-para",
         "conta contábil",
         "plano de contas do contador",
+        "layout do contador",
         "exportar para o contador",
         "partida dobrada",
         "código reduzido",

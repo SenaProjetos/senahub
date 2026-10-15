@@ -7,6 +7,8 @@
  *       transferência numa linha, folha fora (o contador lança), pendência da categoria sem conta, e a
  *       INVARIANTE: o banco no arquivo + o que ficou fora = entradas − saídas do Extrato por conta.
  *   C3. Exportar mês aberto é recusado; fechado, registra a exportação com as linhas e o hash.
+ *   C5. Layout do contador (modelo .xls dele): recusa o mês com linha sem conta; com o de-para completo registra e as
+ *       linhas viram o modelo de 5 colunas, todas com débito e crédito numéricos.
  *
  * Tudo o que cria é apagado no fim (mesmo com falha). Uso: npm run smoke:contabil
  */
@@ -17,6 +19,7 @@ import { prisma } from "../src/lib/prisma";
 import { utcInicioDoDia } from "../src/lib/data";
 import { lerPlanoCsv } from "../src/modules/financeiro/contabil/plano";
 import { movimentoDaConta } from "../src/modules/financeiro/contabil/partidas";
+import { linhasDoAlterdata, linhasSemConta, MOTIVO_ALTERDATA_SEM_CONTA } from "../src/modules/financeiro/contabil/arquivo";
 import {
   MOTIVO_CONTA_FORA_DO_PLANO,
   MOTIVO_CONTA_SINTETICA,
@@ -62,6 +65,8 @@ async function limpar(ids: { conta?: string; cartao?: string; categoria?: string
     await prisma.deParaContabil.deleteMany({ where: { alvo: "conta_bancaria", alvoId: ids.conta } });
     await prisma.contaBancaria.deleteMany({ where: { id: ids.conta } });
   }
+  const alvos = [ids.cartao, ids.categoria].filter((x): x is string => !!x);
+  if (alvos.length) await prisma.deParaContabil.deleteMany({ where: { alvoId: { in: alvos } } });
   if (ids.categoria) await prisma.categoriaFinanceira.deleteMany({ where: { id: ids.categoria } });
   await prisma.exportacaoContabil.deleteMany({ where: { competencia: MES } });
   await prisma.fechamentoMensal.deleteMany({ where: { ano: 2019, mes: 3 } });
@@ -146,9 +151,32 @@ async function main() {
     const gravada = await prisma.exportacaoContabil.findUniqueOrThrow({ where: { id: e.id } });
     const agora = await partidasDoMes(MES);
     ok(gravada.hash === hashDasLinhas(agora.linhas) && (gravada.linhas as unknown[]).length === agora.linhas.length, "exportação registrada com as linhas e o hash do mês");
+
+    console.log("C5 · layout do contador");
+    const faltam = linhasSemConta(agora.linhas);
+    ok(faltam > 0, `há linhas sem conta no mês de teste (${faltam}: cartão, categoria e a conta de destino da transferência sem de-para)`);
+    await recusa(registrarExportacaoNoBanco(MES, "alterdata", autor.id), "layout do contador recusa mês com linha sem conta", MOTIVO_ALTERDATA_SEM_CONTA(faltam));
+    ok((await prisma.exportacaoContabil.count({ where: { competencia: MES, formato: "alterdata" } })) === 0, "a recusa não deixa registro de exportação");
+
+    await definirContaNoBanco("categoria", semConta.id, 3451);
+    await prisma.deParaContabil.create({ data: { alvo: "cartao", alvoId: cartao.id, contaReduzido: 4221 } });
+    await definirContaNoBanco("conta_bancaria", outra.id, 3402);
+    const completo = await partidasDoMes(MES);
+    ok(linhasSemConta(completo.linhas) === 0, "com o de-para completo não sobra linha sem conta");
+    const e5 = await registrarExportacaoNoBanco(MES, "alterdata", autor.id);
+    const g5 = await prisma.exportacaoContabil.findUniqueOrThrow({ where: { id: e5.id } });
+    ok(g5.formato === "alterdata" && g5.pendencias === 0, "exportação do layout do contador registrada, sem pendência");
+    const modelo = linhasDoAlterdata(g5.linhas as unknown as Parameters<typeof linhasDoAlterdata>[0]);
+    ok(
+      modelo.length === completo.linhas.length && modelo.every((l) => l.length === 5 && Number.isInteger(l[0]) && Number.isInteger(l[1]) && l[2] instanceof Date && typeof l[3] === "number" && l[4].length > 0),
+      "cada linha vira débito, crédito, data, valor e complemento",
+    );
+    const somaModelo = Math.round(modelo.reduce((t, l) => t + l[3], 0) * 100);
+    ok(somaModelo === completo.totalCentavos, `a soma dos valores do arquivo (${somaModelo}) fecha com o total das partidas (${completo.totalCentavos})`);
   } finally {
     const outras = await prisma.contaBancaria.findMany({ where: { nome: { startsWith: MARCA } }, select: { id: true } });
     await limpar(ids);
+    await prisma.deParaContabil.deleteMany({ where: { alvo: "conta_bancaria", alvoId: { in: outras.map((o) => o.id) } } });
     await prisma.contaBancaria.deleteMany({ where: { id: { in: outras.map((o) => o.id) } } });
   }
   console.log(falhas ? `\n${falhas} falha(s).` : "\nTudo certo.");

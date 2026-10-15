@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
-import { createRequire } from "node:module";
 import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { CABECALHO_ARQUIVO, csvDoArquivo, linhasDoArquivo } from "@/modules/financeiro/contabil/arquivo";
+import { csvDoArquivo, linhasSemConta, MOTIVO_ALTERDATA_SEM_CONTA } from "@/modules/financeiro/contabil/arquivo";
+import { planilhaAlterdata, planilhaGenerica } from "@/modules/financeiro/contabil/arquivo-xlsx";
 import type { LinhaContabil } from "@/modules/financeiro/contabil/partidas";
 
-const require = createRequire(import.meta.url);
-// exceljs é CommonJS — evita problema de default export no Turbopack.
-const ExcelJS = require("exceljs") as typeof import("exceljs");
+const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 /**
  * Baixa uma exportação contábil JÁ REGISTRADA (`exportarMesContabil` grava e audita; aqui só se lê o registro,
@@ -20,24 +18,17 @@ export async function GET(req: Request) {
   if (!e) return NextResponse.json({ error: "Exportação não encontrada." }, { status: 404 });
   const linhas = e.linhas as unknown as LinhaContabil[];
   const nome = `Contabil_${e.competencia}`;
+  const baixar = (corpo: BodyInit, tipo: string, arquivo: string) =>
+    new NextResponse(corpo, { headers: { "Content-Type": tipo, "Content-Disposition": `attachment; filename="${arquivo}"` } });
 
-  if (e.formato === "csv") {
-    return new NextResponse(csvDoArquivo(linhas), {
-      headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${nome}.csv"` },
-    });
+  if (e.formato === "csv") return baixar(csvDoArquivo(linhas), "text/csv; charset=utf-8", `${nome}.csv`);
+
+  if (e.formato === "alterdata") {
+    // O registro já foi barrado sem conta ao gravar; conferir de novo evita mandar ao contador uma linha que o Alterdata recusa.
+    const faltam = linhasSemConta(linhas);
+    if (faltam > 0) return NextResponse.json({ error: MOTIVO_ALTERDATA_SEM_CONTA(faltam) }, { status: 409 });
+    return baixar((await planilhaAlterdata(linhas).xlsx.writeBuffer()) as ArrayBuffer, XLSX, `${nome}_layout-contador.xlsx`);
   }
 
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Lançamentos");
-  ws.addRow([...CABECALHO_ARQUIVO]).font = { bold: true };
-  for (const l of linhasDoArquivo(linhas)) ws.addRow(l);
-  [12, 10, 10, 14, 56, 18, 46, 14, 18].forEach((w, i) => (ws.getColumn(i + 1).width = w));
-  ws.getColumn(4).numFmt = "#,##0.00";
-  const buffer = await wb.xlsx.writeBuffer();
-  return new NextResponse(buffer as ArrayBuffer, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${nome}.xlsx"`,
-    },
-  });
+  return baixar((await planilhaGenerica(linhas).xlsx.writeBuffer()) as ArrayBuffer, XLSX, `${nome}.xlsx`);
 }

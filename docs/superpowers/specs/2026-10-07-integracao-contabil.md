@@ -1,6 +1,6 @@
 # Integração contábil (M5) e retenções na NF
 
-**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2 e C3 feitas; C1 só no que o mock aprovou (ver §12); C4 e C5 aguardam o dono e o contador
+**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3 e C5 feitas; C1 só no que o mock aprovou (ver §12 e §13); C4 aguarda o dono e o contador
 
 Fecha as duas pendências que o plano do Financeiro deixou para o contador: a fase **M5 (integração contábil)** e as
 **retenções na NF** (decisão 5 de 2026-10-02). Base: as respostas do contador (GAMA CONTABIL, 2026-10-05 e 2026-10-07),
@@ -11,7 +11,7 @@ prancha "Integração contábil" do mock aprovado (artifact `GjR9EYC2HCt91NjFFCX
 
 | Tema | Resposta | Consequência |
 |---|---|---|
-| Sistema | Alterdata, importa Excel/TXT | Exportação genérica agora; layout Alterdata quando vier o exemplo (§9, C5) |
+| Sistema | Alterdata, importa Excel/TXT | Exportação genérica + o modelo de importação que o contador mandou em 2026-10-13 (§13) |
 | Lançamento | Partida dobrada, regime de competência | Cada linha do arquivo tem conta de débito e de crédito |
 | Títulos | **Dois lançamentos**: reconhecimento e baixa | Conta a pagar/receber gera uma linha na competência e outra no pagamento |
 | Regime | Simples Nacional | — |
@@ -229,15 +229,15 @@ Razão, balancete ou DRE contábil no SenaHub · importação de volta do Alterd
 | **C2** | **Opus** | Motor de partidas puro (§5) com testes + smoke `smoke:contabil` (invariante do extrato, parcial, cartão, transferência, rateio, folha fora) | C0 |
 | **C3** | Sonnet | Aba Exportação (Excel/CSV genérico, prévia, só mês fechado) + `ExportacaoContabil` + hash/diff | C1, C2 |
 | **C4** | **Opus** | Mock → retenções (§7) + E4/E5 no motor + smoke | OK do mock, contas do contador |
-| **C5** | Sonnet | Layout Alterdata | arquivo de exemplo do contador |
+| **C5** | Sonnet | Layout Alterdata (**feito 2026-10-15, §13**) | arquivo de exemplo do contador (chegou) |
 
 Verificação por fase: tsc (`NODE_OPTIONS=--max-old-space-size=8192`), lint sem `--quiet`, suíte, smoke da fase,
 `smoke:financeiro-core`, build, Chrome 1366 (menu aberto) e 390 nas telas.
 
 ## 10. Perguntas que ainda estão com o contador
 
-1. Arquivo/layout de importação do Alterdata (trava a C5).
-2. A importação usa o código reduzido? (premissa deste spec)
+1. ~~Arquivo/layout de importação do Alterdata~~ — chegou em 2026-10-13 (§13). Perguntas novas dele no §13.
+2. A importação usa o código reduzido? (premissa deste spec; o modelo dele usa números pequenos como `2` para o banco, o que é coerente, mas os códigos do exemplo não existem no plano da Sena)
 3. Criação das contas que faltam (§2).
 4. Habilitar centro de custo no plano; quem cria os códigos de centro e projeto.
 5. Pró-labore, FGTS/INSS e bolsa de estágio também ficam fora? Grupo 3.1.1 ou 3.1.2 para pessoal?
@@ -290,3 +290,44 @@ hash já é gravado), retenções (C4) e layout Alterdata (C5).
 
 **Deploy:** `prisma migrate deploy` + `npm run contabil:importar-plano` uma vez (carrega o plano do CSV). Sem o plano a
 tela avisa e o seletor fica vazio; as sugestões da migração já estão gravadas pelo reduzido.
+
+## 13. Layout do contador (C5, 2026-10-15)
+
+O contador mandou o modelo de importação (`docs/financeiro/contabil/modelo-de-importacao-alterdata-lancamentos.xls`, lido
+célula a célula). É uma planilha **Excel 97-2003 (.xls)**, aba `Planilha1`, **5 colunas** e uma partida por linha:
+
+| Coluna | Conteúdo no modelo | Como sai do SenaHub |
+|---|---|---|
+| `debito` | número inteiro (conta) | código reduzido da conta de débito |
+| `credito` | número inteiro | código reduzido da conta de crédito |
+| `data` | data de verdade, `dd/mm/aaaa` | competência (reconhecimento) ou dia do pagamento (baixa) |
+| `valor` | número, `0.00`, sempre positivo | `valorCentavos / 100` |
+| `complemento historico` | texto | histórico + `Doc. <nº>` + `Chave <44 dígitos>` |
+
+O que o modelo decide, e o que isso muda:
+- **Sem coluna para centro de custo, projeto, documento nem chave da NF-e.** Documento e chave viajam dentro do complemento; centro e
+  projeto **ficam de fora** nesse formato (continuam no arquivo genérico Excel/CSV). A resposta do contador ("os dois como
+  hierarquia") não tem onde caber neste modelo — pergunta 4 abaixo.
+- **Conta nunca em branco.** O arquivo genérico deixa a conta vazia e avisa; o layout do contador **recusa o mês** inteiro se
+  qualquer linha (inclusive a do cartão, enquanto o contador não criar a conta) ficar sem débito ou crédito. A recusa é do
+  servidor (`registrarExportacaoNoBanco`, `ActionError` com a quantidade) e a tela só espelha: o botão fica desabilitado com a
+  mesma frase.
+- Formato `alterdata` em `ExportacaoContabil.formato` (coluna texto, **sem migração**); rota de download: `Contabil_AAAA-MM_layout-contador.xlsx`.
+- O exemplo dele tem **uma conta de banco em toda linha** (extrato bancário: despesa contra o banco, sem passar por fornecedor).
+  O que ele respondeu para a Sena foi "dois lançamentos: reconhecimento e baixa", e o layout comporta os dois; fica a pergunta 3.
+
+Implementação: `contabil/arquivo.ts` (puro: cabeçalho, `complementoAlterdata`, `linhasDoAlterdata`, `linhasSemConta`),
+`contabil/arquivo-xlsx.ts` (monta o `.xlsx`; só a rota o importa — `node:module`), botão "Layout do contador" ligado (padrão) na
+aba Exportação. Testes: `arquivo-alterdata.test.ts` (escreve e lê de volta: aba, cabeçalho, tipos, data sem andar de dia,
+centavos) e o bloco C5 do `smoke:contabil`.
+
+**Perguntas novas ao contador (o modelo levantou):**
+1. O Alterdata importa **`.xlsx`**? O modelo dele é `.xls`; o SenaHub gera `.xlsx` (a biblioteca de planilhas do projeto não grava
+   `.xls`). Se só aceitar `.xls`, hoje basta abrir e "Salvar como Excel 97-2003".
+2. `debito` e `credito` são o **código reduzido** (o número entre parênteses no plano)? Os números do exemplo (2, 47, 364, 449,
+   492, 528, 558, 568) não existem no plano da Sena — o exemplo é de outro cliente dele.
+3. O exemplo mostra o banco em toda linha. Para a Sena, ele quer mesmo **reconhecimento + baixa** (duas linhas por título) ou só a
+   movimentação do banco (uma linha, no pagamento)?
+4. Onde vão **centro de custo e projeto**? Existe outro modelo com essas colunas, ou entram no complemento?
+5. Tamanho máximo do **complemento do histórico** (com a chave da NF-e de 44 dígitos a linha passa de 100 caracteres) e se aceita
+   `-`, `:` e acento (o exemplo tem acento).

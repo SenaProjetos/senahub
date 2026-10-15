@@ -24,6 +24,7 @@ import {
   itensDeContaBancariaContabil,
 } from "@/modules/financeiro/contabil/acoes";
 import { copiarContaContabil, definirContaContabil, exportarMesContabil, lancamentosDaCategoriaNoMes, limparContaContabil } from "@/modules/financeiro/contabil/actions";
+import { linhasSemConta, MOTIVO_ALTERDATA_SEM_CONTA, type FormatoContabil } from "@/modules/financeiro/contabil/arquivo";
 import type { CategoriaContabilDto, ContaBancariaContabilDto, ContaDoPlanoDto, TelaContabil } from "@/modules/financeiro/contabil/queries";
 
 type Aba = "depara" | "exportacao";
@@ -46,7 +47,7 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
   const [pendente, iniciar] = useTransition();
   const [aba, setAba] = useState<Aba>(abaInicial);
   const [filtro, setFiltro] = useState<"todas" | "sem">("todas");
-  const [formato, setFormato] = useState<"xlsx" | "csv">("xlsx");
+  const [formato, setFormato] = useState<FormatoContabil>("alterdata");
   const [escolhendo, setEscolhendo] = useState<Alvo | null>(null);
   const [copiandoPara, setCopiandoPara] = useState<CategoriaContabilDto | null>(null);
   const [lista, setLista] = useState<{ titulo: string; itens: LancamentoDoMes[] } | null>(null);
@@ -59,29 +60,63 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
   const faltam = categorias.filter(semConta).length;
   const visiveis = filtro === "sem" ? categorias.filter(semConta) : categorias;
   const pendCategorias = dados.pendencias.filter((p) => p.alvo === "categoria");
+  // O layout do contador não aceita conta em branco (nem a do cartão, que o contador ainda vai criar): o servidor barra igual.
+  const linhasSemContaNoArquivo = linhasSemConta(dados.linhas);
   const motivoExportar = !dados.mesFechado
     ? "Só meses fechados exportam, para o arquivo bater com o relatório que o contador já recebeu."
-    : pendCategorias.length > 0
-      ? "Preencha o de-para antes de exportar."
-      : !dados.linhas.length
-        ? "Nada para exportar neste mês."
-        : null;
+    : !dados.planoImportado
+      ? "Falta importar o plano de contas do contador: sem ele não há conta para escolher."
+      : pendCategorias.length > 0
+        ? "Preencha o de-para antes de exportar."
+        : formato === "alterdata" && linhasSemContaNoArquivo > 0
+          ? MOTIVO_ALTERDATA_SEM_CONTA(linhasSemContaNoArquivo)
+          : !dados.linhas.length
+            ? "Nada para exportar neste mês."
+            : null;
 
+  const semRede = "Não foi possível falar com o servidor. Confira a conexão (ou entre de novo, se a sessão expirou) e tente outra vez.";
   const rodar = (p: Promise<{ ok: boolean; error?: string }>, ok: string) =>
     iniciar(async () => {
-      const r = await p;
-      if (!r.ok) return void toast.error(r.error ?? "Não foi possível.");
-      toast.success(ok);
-      router.refresh();
+      try {
+        const r = await p;
+        if (!r.ok) return void toast.error(r.error ?? "Não foi possível.");
+        toast.success(ok);
+        router.refresh();
+      } catch {
+        toast.error(semRede);
+      }
     });
+
+  /** Baixa o arquivo JÁ registrado. Por fetch (e não por navegação) para a recusa da rota virar aviso na tela, não JSON numa aba. */
+  async function baixarArquivo(id: string) {
+    const res = await fetch(`/api/financeiro/contabil/arquivo?id=${id}`);
+    const tipo = res.headers.get("Content-Type") ?? "";
+    if (!res.ok || tipo.includes("text/html")) {
+      const corpo = tipo.includes("json") ? ((await res.json().catch(() => null)) as { error?: string } | null) : null;
+      return void toast.error(corpo?.error ?? "Não foi possível baixar o arquivo. A exportação ficou registrada: tente de novo.");
+    }
+    const nome = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? `Contabil_${dados.mes}`;
+    const url = URL.createObjectURL(await res.blob());
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nome;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
   function exportar() {
     if (motivoExportar) return;
     iniciar(async () => {
-      const r = await exportarMesContabil({ mes: dados.mes, formato });
-      if (!r.ok) return void toast.error(r.error);
-      toast.success(`Exportação de ${dados.rotuloMes} registrada: ${r.data.linhas} linhas.`);
-      window.location.assign(`/api/financeiro/contabil/arquivo?id=${r.data.id}`);
+      try {
+        const r = await exportarMesContabil({ mes: dados.mes, formato });
+        if (!r.ok) return void toast.error(r.error);
+        toast.success(`Exportação de ${dados.rotuloMes} registrada: ${r.data.linhas} ${r.data.linhas === 1 ? "linha" : "linhas"}.`);
+        await baixarArquivo(r.data.id);
+      } catch {
+        toast.error(semRede);
+      }
     });
   }
 
@@ -158,8 +193,8 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
         <TriangleAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
         {dados.planoImportado ? (
           <div>
-            <b>As contas são do plano do contador (Alterdata).</b> A conta escolhida vale para as filhas da categoria que não tiverem a própria. O layout de importação
-            dele ainda não chegou, então a exportação sai em formato genérico.
+            <b>As contas são do plano do contador (Alterdata).</b> A conta escolhida vale para as filhas da categoria que não tiverem a própria. A exportação já sai no
+            modelo de importação dele (“Layout do contador”); Excel e CSV são o arquivo genérico, com centro de custo e chave da NF-e em colunas próprias.
           </div>
         ) : (
           <div>
@@ -204,17 +239,20 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
             <aside className="flex min-w-0 flex-col gap-4">
               <section className="rounded-sm border bg-card shadow-[var(--card-shadow)]">
                 <h2 className="border-b px-4 py-3 text-sm font-bold">Contas bancárias → conta contábil</h2>
-                <ul className="flex flex-col py-1 text-sm">{dados.contasBancarias.map((b) => renderBanco(b))}</ul>
+                <ul className="flex flex-col py-1 text-sm">
+                  {dados.contasBancarias.length === 0 && <li className="px-4 py-3 text-[13px] text-muted-foreground">Nenhuma conta bancária ativa. Cadastre em Financeiro → Mais → Cadastros.</li>}
+                  {dados.contasBancarias.map((b) => renderBanco(b))}
+                </ul>
               </section>
-              {cartaoExportacao()}
+              {renderCartaoExportacao()}
             </aside>
           </div>
-          {previa(5)}
+          {renderPrevia(5)}
         </>
       ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-[24rem_minmax(0,1fr)]">
-          {cartaoExportacao()}
-          {previa(null)}
+          {renderCartaoExportacao()}
+          {renderPrevia(null)}
         </div>
       )}
 
@@ -330,7 +368,7 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
     );
   }
 
-  function cartaoExportacao() {
+  function renderCartaoExportacao() {
     return (
       <section className="min-w-0 rounded-sm border bg-card shadow-[var(--card-shadow)]">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
@@ -359,22 +397,25 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
           </div>
           <div className="grid gap-1.5">
             <span className="text-xs font-semibold">Formato</span>
-            <div className="inline-flex flex-wrap" role="group" aria-label="Formato">
-              <Button size="sm" variant={formato === "xlsx" ? "default" : "outline"} onClick={() => setFormato("xlsx")} className="rounded-none rounded-l-sm">
+            <div className="inline-flex flex-wrap" role="group" aria-label="Formato" aria-describedby="ct-formato-ajuda">
+              <Button size="sm" variant={formato === "xlsx" ? "default" : "outline"} aria-pressed={formato === "xlsx"} onClick={() => setFormato("xlsx")} className="rounded-none rounded-l-sm">
                 Excel
               </Button>
-              <Button size="sm" variant={formato === "csv" ? "default" : "outline"} onClick={() => setFormato("csv")} className="rounded-none">
+              <Button size="sm" variant={formato === "csv" ? "default" : "outline"} aria-pressed={formato === "csv"} onClick={() => setFormato("csv")} className="rounded-none">
                 CSV
               </Button>
-              <Button size="sm" variant="outline" disabled className="rounded-none rounded-r-sm">
+              <Button size="sm" variant={formato === "alterdata" ? "default" : "outline"} aria-pressed={formato === "alterdata"} onClick={() => setFormato("alterdata")} className="rounded-none rounded-r-sm">
                 Layout do contador
               </Button>
             </div>
-            <span className="text-xs text-muted-foreground">“Layout do contador” entra quando ele mandar o arquivo de exemplo do Alterdata.</span>
+            <span id="ct-formato-ajuda" className="text-xs text-muted-foreground">
+              {formato === "alterdata"
+                ? "Modelo de importação do contador: débito, crédito, data, valor e complemento do histórico. O número do documento e a chave da NF-e vão dentro do complemento; centro de custo e projeto não têm coluna nesse modelo e ficam de fora."
+                : "Arquivo genérico: data, conta de débito, conta de crédito, valor, histórico, documento, chave da NF-e, centro de custo e projeto."}
+            </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Uma linha por lançamento: data, conta de débito, conta de crédito, valor, histórico e documento. Cada conta a pagar ou a receber sai duas vezes: na competência e no
-            pagamento. Só meses fechados exportam, para o arquivo bater com o relatório que o contador já recebeu.
+            Cada conta a pagar ou a receber sai duas vezes: na competência e no pagamento. Só meses fechados exportam, para o arquivo bater com o relatório que o contador já recebeu.
           </p>
           {dados.fora.naoExportar > 0 && (
             <p className="text-xs text-muted-foreground">
@@ -387,7 +428,7 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
             </p>
           )}
           {dados.pendencias.length > 0 && (
-            <div role="alert" className="rounded-sm border border-destructive/60 bg-destructive/5 px-3 py-2">
+            <div role="status" className="rounded-sm border border-destructive/60 bg-destructive/5 px-3 py-2">
               <b>
                 {dados.pendencias.length} {dados.pendencias.length === 1 ? "conta aparece" : "contas aparecem"} em branco no arquivo.
               </b>{" "}
@@ -401,16 +442,20 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
               </ul>
             </div>
           )}
-          <Button disabled={pendente || !!motivoExportar} onClick={exportar}>
-            <Download className="size-4" aria-hidden /> Exportar {mes}
+          <Button disabled={pendente || !!motivoExportar} aria-describedby={motivoExportar ? "ct-motivo-exportar" : undefined} onClick={exportar}>
+            <Download className="size-4" aria-hidden /> {pendente ? "Exportando…" : `Exportar ${mes}`}
           </Button>
-          {motivoExportar && <p className="text-xs text-muted-foreground">{motivoExportar}</p>}
+          {motivoExportar && (
+            <p id="ct-motivo-exportar" className="text-xs text-muted-foreground">
+              {motivoExportar}
+            </p>
+          )}
         </div>
       </section>
     );
   }
 
-  function previa(limite: number | null) {
+  function renderPrevia(limite: number | null) {
     const linhas = limite == null ? dados.linhas : dados.linhas.slice(0, limite);
     return (
       <section aria-label={`Prévia do arquivo de ${mes}`} className="min-w-0 rounded-sm border bg-card shadow-[var(--card-shadow)]">

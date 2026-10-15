@@ -3,7 +3,7 @@ titulo: Integração contábil
 descricao: Ligar as categorias e as contas bancárias ao plano de contas do contador e exportar o mês fechado num arquivo de lançamentos para o Alterdata.
 resumo: Escolha uma vez a conta contábil de cada categoria e de cada conta bancária; depois de fechar o mês, exporte o arquivo (Excel ou CSV) com cada conta a pagar ou a receber em dois lançamentos, na competência e no pagamento. A folha CLT fica de fora, porque o contador lança.
 tags: [financeiro, contabilidade, contador, exportação, de-para, plano de contas, alterdata]
-palavras-chave: [integração contábil, de-para, conta contábil, plano de contas do contador, exportar para o contador, partida dobrada, código reduzido, mês fechado]
+palavras-chave: [integração contábil, de-para, conta contábil, plano de contas do contador, exportar para o contador, layout do contador, partida dobrada, código reduzido, mês fechado]
 sinonimos: [exportação contábil, arquivo do contador, lançamentos contábeis, Alterdata]
 ---
 
@@ -48,7 +48,7 @@ arquivo. A classificação ("3.1.2.03.0009") aparece na tela só para leitura.
 
 1. Feche o mês em **Fechamento mensal**. Mês aberto não exporta, para o arquivo bater com o que o contador já
    recebeu.
-2. Na **Integração contábil**, escolha o mês e o formato (**Excel** ou **CSV**) e clique em **Exportar &lt;mês&gt;**.
+2. Na **Integração contábil**, escolha o mês e o formato (**Layout do contador**, **Excel** ou **CSV**) e clique em **Exportar &lt;mês&gt;**.
 3. O arquivo baixa na hora e a exportação fica registrada (quem gerou, quando e as linhas como saíram).
 
 Como os lançamentos viram linhas:
@@ -69,10 +69,21 @@ Como os lançamentos viram linhas:
 Conta sem de-para sai **em branco** no arquivo, e a tela lista o que falta. Com categoria sem conta, a exportação fica
 bloqueada até você escolher; o que depende de conta que o contador ainda vai criar (cartão, por exemplo) só avisa.
 
+## Formatos do arquivo
+
+- **Layout do contador** (o padrão): o modelo de importação que o contador mandou. Cinco colunas — `debito`, `credito`, `data`,
+  `valor`, `complemento historico` — na aba `Planilha1`. O número do documento e a chave da NF-e vão dentro do complemento do
+  histórico. **Centro de custo e projeto não vão**, porque o modelo não tem coluna para eles. Esse formato **não aceita conta em
+  branco**: se alguma linha ficar sem conta (por exemplo, o cartão de crédito enquanto o contador não criar a conta), o botão
+  Exportar fica desabilitado e diz quantas linhas faltam.
+- **Excel** e **CSV** (genérico): as mesmas partidas, com colunas separadas para documento, chave da NF-e, centro de custo e
+  subcentro. Conta sem de-para sai em branco.
+
 ## O que ainda depende do contador
 
-- O **layout de importação do Alterdata**: até ele chegar, o arquivo sai no formato genérico (data, débito, crédito,
-  valor, histórico, documento, chave da NF-e, centro e subcentro).
+- Confirmar que o Alterdata importa **`.xlsx`** (o modelo dele é `.xls`; se não aceitar, abra o arquivo no Excel e salve como
+  Excel 97-2003) e que o débito e o crédito são o **código reduzido**.
 - Contas que faltam no plano dele (ISS/INSS a compensar, ISS a recolher, adiantamento de sócio, cartão a pagar,
   aplicações) e a habilitação de centro de custo.
+- Onde vão centro de custo e projeto, já que o modelo não tem coluna para eles.
 - **Retenções na nota** (ISS, INSS, IRRF…): entram numa próxima etapa.

@@ -9480,7 +9480,7 @@ model ExportacaoContabil {
   id          String   @id @default(cuid())
   /// "YYYY-MM"
   competencia String
-  /// "xlsx" | "csv"
+  /// "xlsx" | "csv" (arquivo genérico) | "alterdata" (layout do contador, 5 colunas)
   formato     String
   linhas      Json
   hash        String
