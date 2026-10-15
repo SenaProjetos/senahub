@@ -119,6 +119,11 @@ Cada disciplina passa por um ciclo de status:
   - O **cronograma novo nasce em rascunho**. Informe o **início do cronograma novo** (opcional) e o
     sistema calcula as datas a partir dele; sem data, elas partem das do projeto original — defina o
     início depois, em [Planejamento](planejamento.md) — as datas se recalculam ao salvar.
+- **Linkar a uma ficha do funil / Desfazer link** (exige `projetos:gerir` e `comercial:gerir`): liga o projeto
+  a uma ficha **Contratado do mesmo cliente** e traz para ele anexos e informações da ficha (veja
+  [Comercial](../clientes-comercial/comercial.md)). Com o link feito, o cabeçalho do projeto mostra
+  **Ficha: …** (com atalho para a ficha) e o item do menu vira **Desfazer link com a ficha**. O que foi
+  importado fica na pasta **Geral** (categoria *Comercial*) e continua no projeto se o link for desfeito.
 - **Cancelar / Arquivar:** muda a situação e notifica os membros; o motivo é registrado
   na descrição.
 - **Reabrir disciplina aprovada:** exige **motivo** e **novo prazo**. Se o novo prazo

@@ -20,6 +20,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Comercial × Projetos: linkar o projeto à ficha do funil (outubro/2026)
+
+- **Projeto criado à mão agora pode ser ligado à ficha Contratado do mesmo cliente.** Na ficha, aba
+  **Dados → Projetos linkados → Linkar projeto**; ou, no projeto, menu **⋯ → Linkar a uma ficha do funil**.
+- **Uma prévia mostra tudo antes de gravar:** valor, área e tipo de empreendimento passam para o projeto
+  **só se estiverem vazios** (nada é sobrescrito); o responsável da ficha entra como coordenador; e dá
+  para resumir o histórico comercial na descrição.
+- **Anexos da ficha e PDFs das propostas vão para a pasta Geral do projeto**, por cópia. Em cada arquivo
+  você decide se ele também aparece em **Recebidos do cliente** para os projetistas.
+- **Desfazer link** está disponível; o que já foi importado continua no projeto. As disciplinas da ficha
+  não são trazidas.
+
 ## Compatibilização: realinhar, conflitos e filtros (outubro/2026)
 
 - **Realinhar IFC ficou mais completo.** Além de mover o modelo, agora dá para **girar em planta** (em graus

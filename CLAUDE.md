@@ -37,6 +37,7 @@ npm run smoke:historico-documento  # histórico por documento: agrupamento atôm
 npm run smoke:status-documento     # status documental automático (só FORA do ciclo documental): Enviado/Aprovado/Correção pela chave, revisão vigente, evento automático
 npm run smoke:ciclo-documental     # ciclo ISO 19650: I1–I8, publicar arquiva a anterior e revoga a obra (A1), liberação automática (A2), apontamentos (A3), integridade corrige I5 (A7)
 npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: revisão marcada na lista/árvore, contagem, validação desfeita
+npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
 npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um aberto por tipo (índice parcial), quem marca o quê, lembrete 1×/dia, recontratação
@@ -659,6 +660,17 @@ toolbar fixa (`comercial/layout.tsx`), follow-ups em calendário e **proposta ex
 versão, sem link público, `Proposta.externa`). Decisões: `docs/adr/0004-funil-comercial-unico.md`
 e `docs/adr/0005-proposta-externa.md`; plano e desvios em
 `docs/superpowers/specs/2026-09-16-comercial-funil-unico.md`.
+
+**Link projeto × ficha** (`modules/comercial/vinculo/`, spec `docs/superpowers/specs/2026-10-15-vinculo-projeto-ficha-design.md`):
+o comercial não usa proposta, então o projeto nasce à mão em Projetos. O link grava `Projeto.negociacaoId` de uma ficha
+**Contratado do mesmo cliente** (1 ficha por projeto, vários projetos por ficha), preenche só campo VAZIO (valor, área, tipo de
+empreendimento, descrição com o resumo do histórico) e inclui o responsável como coordenador se ainda não for membro. Os anexos
+escolhidos (anexos do lead + PDF vigente de cada proposta) são COPIADOS — nunca compartilhados por caminho, porque excluir o anexo
+no funil apaga o arquivo — para a Geral do projeto (`Documento` origem `interno`, categoria "Comercial"), com
+`exibirEmRecebidos` por arquivo (desmarcado por padrão). `previaVinculo` é a única fonte do que a tela mostra e do que o serviço
+grava; a cópia acontece antes e uma transação grava o resto (falhou → apaga as cópias). Disciplinas da ficha NÃO entram. Desfazer só
+zera `negociacaoId` e é recusado quando o projeto tem `Proposta.projetoId` (nasceu do aceite: os dois caminhos andam juntos).
+Permissão: `comercial:gerir` + `projetos:gerir`; importar para o Geral dispensa `arquivos_gerais:gerir`.
 
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em
 `docs/superpowers/specs/2026-09-19-proposta-composta.md`) — a proposta montada NO sistema: modelo +
