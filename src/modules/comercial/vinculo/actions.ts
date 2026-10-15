@@ -3,20 +3,30 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { can } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
 import { brl } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
 import { ensureCanaisProjeto } from "@/modules/chat/service";
 import { refletirSincroniaCanais } from "@/lib/socket";
 import { fichasLinkaveis, previaVinculo, projetosLinkaveis } from "./queries";
 import { desvincularProjetoDaFicha, vincularProjetoNaFicha } from "./service";
+import { previaParaTela } from "./regras";
 import { candidatosSchema, desfazerSchema, linkarSchema, previaSchema } from "./schemas";
 
-const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir" } as const;
+// `interno`: o link lê anexos e notas do funil — cliente do portal nunca entra, nem com perfil mal configurado.
+const base = { modulo: "comercial", recurso: "comercial", permissao: "gerir", interno: true } as const;
 
 /** Linkar mexe num projeto: além de `comercial:gerir` (do `base`), exige `projetos:gerir`. */
 async function exigirProjetosGerir(user: SessionUser) {
   if (!(await can(user, "projetos", "gerir"))) throw new ActionError("Sem permissão para alterar projetos.");
 }
+
+/** O que o link pode mudar no projeto — vai para o `AuditLog` como "antes". */
+const projetoAntes = (projetoId: string) =>
+  prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: { negociacaoId: true, valorContrato: true, areaM2: true, tipoEmpreendimentoId: true, descricao: true },
+  });
 
 function revalidar(projetoId: string) {
   revalidatePath("/comercial/funil");
@@ -45,7 +55,8 @@ export const previaDoVinculo = defineAction(
   { ...base, acao: "previa-vinculo", entidade: "Projeto", schema: previaSchema, audit: false },
   async (i, ctx) => {
     await exigirProjetosGerir(ctx.user);
-    return previaVinculo(ctx.user, i.projetoId, i.negociacaoId);
+    // Sem caminho de storage, hash ou tamanho no navegador; o serviço recalcula a prévia completa ao gravar.
+    return previaParaTela(await previaVinculo(ctx.user, i.projetoId, i.negociacaoId));
   },
 );
 
@@ -56,12 +67,20 @@ export const linkarProjeto = defineAction(
     entidade: "Projeto",
     schema: linkarSchema,
     entidadeId: (_d, i) => i.projetoId,
+    capturarAntes: (i) => projetoAntes(i.projetoId),
   },
   async (i, ctx) => {
     await exigirProjetosGerir(ctx.user);
     const r = await vincularProjetoNaFicha(ctx.user, i);
-    // Novo coordenador entra no chat do projeto (mesma sincronia das outras mudanças de equipe).
-    if (r.coordenadorCriado) refletirSincroniaCanais(await ensureCanaisProjeto(i.projetoId));
+    // Novo coordenador entra no chat do projeto. Já gravado o link, uma falha aqui não pode virar "erro ao
+    // linkar" (a nova tentativa daria "já linkado"): registra e segue.
+    if (r.coordenadorCriado) {
+      try {
+        refletirSincroniaCanais(await ensureCanaisProjeto(i.projetoId));
+      } catch (e) {
+        console.error("[vinculo] falha ao sincronizar os canais do projeto:", e);
+      }
+    }
     revalidar(i.projetoId);
     return r;
   },
@@ -74,6 +93,7 @@ export const desfazerLinkProjeto = defineAction(
     entidade: "Projeto",
     schema: desfazerSchema,
     entidadeId: (_d, i) => i.projetoId,
+    capturarAntes: (i) => projetoAntes(i.projetoId),
   },
   async (i, ctx) => {
     await exigirProjetosGerir(ctx.user);

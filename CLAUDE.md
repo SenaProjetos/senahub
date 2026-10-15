@@ -667,10 +667,13 @@ o comercial não usa proposta, então o projeto nasce à mão em Projetos. O lin
 empreendimento, descrição com o resumo do histórico) e inclui o responsável como coordenador se ainda não for membro. Os anexos
 escolhidos (anexos do lead + PDF vigente de cada proposta) são COPIADOS — nunca compartilhados por caminho, porque excluir o anexo
 no funil apaga o arquivo — para a Geral do projeto (`Documento` origem `interno`, categoria "Comercial"), com
-`exibirEmRecebidos` por arquivo (desmarcado por padrão). `previaVinculo` é a única fonte do que a tela mostra e do que o serviço
-grava; a cópia acontece antes e uma transação grava o resto (falhou → apaga as cópias). Disciplinas da ficha NÃO entram. Desfazer só
-zera `negociacaoId` e é recusado quando o projeto tem `Proposta.projetoId` (nasceu do aceite: os dois caminhos andam juntos).
-Permissão: `comercial:gerir` + `projetos:gerir`; importar para o Geral dispensa `arquivos_gerais:gerir`.
+`exibirEmRecebidos` por arquivo (desmarcado por padrão). `previaVinculo` é a regra única do que a tela mostra e do que o serviço
+grava, e o serviço a recalcula ao gravar (a action devolve à tela só `previaParaTela`, sem caminho/hash); a cópia acontece antes e
+uma transação grava o resto (falhou → apaga as cópias). `AnexoLead.caminho` vem do cliente: só vale em `comercial/leads/<arquivo>`
+(`caminhoAnexoLeadValido`, no schema do anexo, no remover e na lista do link) — fora disso seria arquivo de outro cliente.
+Disciplinas da ficha NÃO entram. Desfazer só zera `negociacaoId` e é recusado quando a proposta aceita do projeto é DESTA ficha
+(`Proposta.projetoId` + mesma `negociacaoId`: os dois caminhos andam juntos); aceite de proposta sem negociação não trava.
+Permissão: `comercial:gerir` + `projetos:gerir`, só interno; importar para o Geral dispensa `arquivos_gerais:gerir`.
 
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em
 `docs/superpowers/specs/2026-09-19-proposta-composta.md`) — a proposta montada NO sistema: modelo +

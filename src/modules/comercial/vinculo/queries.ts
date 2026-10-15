@@ -8,6 +8,7 @@ import type { SessionUser } from "@/lib/session";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import {
   ROTULO_CAMPO,
+  caminhoAnexoLeadValido,
   dataBr,
   descricaoComResumo,
   marcarArquivos,
@@ -24,8 +25,12 @@ const num = (v: { toString(): string } | null) => (v == null ? null : Number(v))
 
 /** Projetos do MESMO cliente da ficha, sem ficha ainda, dentro do escopo de quem pede. */
 export async function projetosLinkaveis(user: SessionUser, negociacaoId: string) {
-  const n = await prisma.negociacao.findUnique({ where: { id: negociacaoId }, select: { clienteId: true } });
-  if (!n) return [];
+  const n = await prisma.negociacao.findUnique({
+    where: { id: negociacaoId },
+    select: { clienteId: true, estagio: true, excluidoEm: true },
+  });
+  // Ficha que não pode ser linkada não oferece candidato (a prévia recusaria qualquer um).
+  if (!n || n.excluidoEm || n.estagio !== "CONTRATADO") return [];
   return prisma.projeto.findMany({
     where: { clienteId: n.clienteId, negociacaoId: null, AND: [escopoProjeto(user)] },
     orderBy: { createdAt: "desc" },
@@ -108,8 +113,8 @@ async function carregarFicha(negociacaoId: string) {
         orderBy: { createdAt: "asc" },
         select: {
           numero: true,
+          // A VIGENTE (a de número maior), com ou sem PDF: vigente sem PDF não oferece o PDF de uma versão velha.
           versoes: {
-            where: { pdfPath: { not: null } },
             orderBy: { numero: "desc" },
             take: 1,
             select: { id: true, numero: true, pdfPath: true },
@@ -125,6 +130,9 @@ type FichaCarregada = NonNullable<Awaited<ReturnType<typeof carregarFicha>>>;
 async function itensDaFicha(ficha: FichaCarregada): Promise<ItemArquivo[]> {
   const itens: ItemArquivo[] = [];
   for (const a of ficha.lead?.anexos ?? []) {
+    // Caminho fora de `comercial/leads/` (linha antiga gravada sem validação) pode ser arquivo de outro cliente:
+    // nem aparece na lista, então o serviço também recusa a chave.
+    if (!caminhoAnexoLeadValido(a.caminho)) continue;
     itens.push({
       chave: `lead:${a.id}`,
       origem: "anexo_lead",
@@ -190,8 +198,9 @@ async function atividadesParaResumo(ficha: FichaCarregada): Promise<AtividadePar
 const PLANO_VAZIO: PlanoCampos = { preenche: {}, mantem: [], coordenadorId: null };
 
 /**
- * Tudo o que o diálogo mostra E o que o serviço usa para gravar — a prévia é a única fonte, então o
- * que a pessoa viu é exatamente o que será feito. Só leitura.
+ * Tudo o que o diálogo mostra E o que o serviço usa para gravar — uma regra só. O serviço a RECALCULA ao gravar
+ * (nunca confia na que foi à tela): se algo mudou no meio (ex.: o projeto ganhou valor), o resultado pode diferir
+ * do que a pessoa viu, mas sempre para o lado seguro — nada é sobrescrito. Só leitura.
  */
 export async function previaVinculo(
   user: SessionUser,
@@ -293,12 +302,16 @@ export async function origemComercialDoProjeto(projetoId: string) {
   const p = await prisma.projeto.findUnique({
     where: { id: projetoId },
     select: {
-      negociacao: { select: { id: true, titulo: true } },
-      proposta: { select: { id: true } },
+      negociacaoId: true,
+      negociacao: { select: { id: true, titulo: true, excluidoEm: true } },
+      proposta: { select: { negociacaoId: true } },
     },
   });
+  // Leitura aninhada não passa pelo filtro de soft delete: ficha excluída não aparece como origem.
+  const ficha = p?.negociacao && !p.negociacao.excluidoEm ? { id: p.negociacao.id, titulo: p.negociacao.titulo } : null;
   return {
-    ficha: p?.negociacao ? { id: p.negociacao.id, titulo: p.negociacao.titulo } : null,
-    criadoPeloAceite: p?.proposta != null,
+    ficha,
+    // Mesma regra de `desvincularProjetoDaFicha`: só trava quando a proposta aceita é desta ficha.
+    criadoPeloAceite: p?.proposta != null && p.negociacaoId != null && p.proposta.negociacaoId === p.negociacaoId,
   };
 }

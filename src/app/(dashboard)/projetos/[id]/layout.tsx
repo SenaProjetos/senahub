@@ -164,13 +164,13 @@ export default async function ProjetoLayout({
           (podeComercialVer ? (
             <Link
               href={`/comercial/funil?card=NEGOCIACAO:${origemComercial.ficha.id}`}
-              title="Ficha do funil comercial"
-              className="min-w-0 shrink truncate text-xs text-muted-foreground hover:underline"
+              title={`Ficha do funil comercial: ${origemComercial.ficha.titulo}`}
+              className="min-w-0 max-w-56 shrink-[3] truncate text-xs text-muted-foreground hover:underline"
             >
               · Ficha: {origemComercial.ficha.titulo}
             </Link>
           ) : (
-            <span className="min-w-0 shrink truncate text-xs text-muted-foreground">
+            <span className="min-w-0 max-w-56 shrink-[3] truncate text-xs text-muted-foreground">
               · Ficha: {origemComercial.ficha.titulo}
             </span>
           ))}

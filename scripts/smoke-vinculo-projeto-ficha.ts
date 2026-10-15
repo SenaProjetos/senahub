@@ -17,7 +17,7 @@ import {
   desvincularProjetoDaFicha,
   vincularProjetoNaFicha,
 } from "../src/modules/comercial/vinculo/service";
-import { previaVinculo } from "../src/modules/comercial/vinculo/queries";
+import { previaVinculo, projetosLinkaveis } from "../src/modules/comercial/vinculo/queries";
 import type { SessionUser } from "../src/lib/session";
 
 async function main() {
@@ -45,6 +45,7 @@ async function main() {
   const cliente = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli` } });
   const cliente2 = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_cli2` } });
   const caminhos: string[] = [];
+  const projetosExtras: string[] = [];
 
   const novoProjeto = (nome: string, extra: { valorContrato?: number } = {}) =>
     prisma.$transaction(async (tx) => {
@@ -170,17 +171,57 @@ async function main() {
     await vincularProjetoNaFicha(user, { projetoId: p4.id, negociacaoId: fichaSemLead.id, arquivos: [], incluirResumo: false });
     check("12b. link com zero arquivos grava o vínculo", (await prisma.projeto.findUnique({ where: { id: p4.id }, select: { negociacaoId: true } }))?.negociacaoId === fichaSemLead.id);
 
-    // 13. Projeto criado pelo aceite não desfaz (só se o banco de dev tiver um)
-    const doAceite = await prisma.proposta.findFirst({
-      where: { projetoId: { not: null }, projeto: { negociacaoId: { not: null } } },
-      select: { projetoId: true },
+    // 14. Anexo cujo caminho aponta para fora de comercial/leads (ex.: arquivo de outro cliente) nunca é oferecido
+    const docDeOutro = await prisma.documentoVersao.findFirst({ where: { documento: { projetoId: p1.id } }, select: { caminho: true } });
+    const anexoForjado = await prisma.anexoLead.create({
+      data: { leadId: lead.id, nome: "Forjado", caminho: docDeOutro!.caminho, nomeArquivo: "f.txt", mime: "text/plain", tamanho: 1, hashSha256: "x" },
     });
-    if (doAceite?.projetoId) {
-      const m13 = await rejeita(desvincularProjetoDaFicha(user, doAceite.projetoId));
-      check("13. projeto criado pelo aceite: desfazer recusado", (m13 ?? "").includes("aceite"));
-    } else {
-      console.log("[PULOU] 13. banco de dev sem projeto criado pelo aceite");
-    }
+    const previaForjada = await previaVinculo(user, p1.id, ficha.id);
+    check("14a. anexo com caminho fora de comercial/leads não aparece na lista", !previaForjada.arquivos.some((a) => a.chave === `lead:${anexoForjado.id}`));
+    const m14 = await rejeita(vincularProjetoNaFicha(user, { projetoId: p1.id, negociacaoId: ficha.id, arquivos: [{ chave: `lead:${anexoForjado.id}`, exibirEmRecebidos: false }], incluirResumo: false }));
+    check("14b. o servidor recusa a chave do anexo forjado", m14 !== null);
+    await prisma.anexoLead.delete({ where: { id: anexoForjado.id } });
+
+    // 15. A lista de projetos candidatos de uma ficha fora de Contratado vem vazia
+    check("15. ficha fora de Contratado não lista projeto candidato", (await projetosLinkaveis(user, fichaAberta.id)).length === 0);
+
+    // 13. Aceite: só trava o desfazer quando a proposta aceita é DESTA ficha (os dois caminhos gravados juntos).
+    const proposta = (projetoId: string, negociacaoId: string | null, n: number) =>
+      prisma.proposta.create({
+        data: {
+          ano: 2099, sequencial: 900000 + n + (Date.now() % 90000), numero: `${tag}-PR${n}`, titulo: `${tag} PR${n}`,
+          clienteId: cliente.id, token: `${tag}-tk${n}`, autorId: usuario.id, projetoId, negociacaoId,
+        },
+      });
+    // 13a. Projeto do aceite de proposta SEM negociação, linkado à mão depois: o desfazer tem que funcionar.
+    const p5 = await novoProjeto("p5");
+    projetosExtras.push(p5.id);
+    await proposta(p5.id, null, 1);
+    await vincularProjetoNaFicha(user, { projetoId: p5.id, negociacaoId: ficha.id, arquivos: [], incluirResumo: false });
+    check("13a. linkado à mão (proposta sem ficha): desfazer funciona", (await rejeita(desvincularProjetoDaFicha(user, p5.id))) === null);
+    // 13b. Projeto nascido do aceite desta ficha (proposta e projeto apontam para a mesma ficha): desfazer recusado.
+    const p6 = await novoProjeto("p6");
+    projetosExtras.push(p6.id);
+    await prisma.projeto.update({ where: { id: p6.id }, data: { negociacaoId: ficha.id } });
+    await proposta(p6.id, ficha.id, 2);
+    const m13 = await rejeita(desvincularProjetoDaFicha(user, p6.id));
+    check("13b. nascido do aceite desta ficha: desfazer recusado", (m13 ?? "").includes("aceite"));
+
+    // 16. PDF de proposta: só o da versão VIGENTE. v1 com PDF + v2 sem PDF = nada a oferecer; v3 com PDF = oferecido.
+    const pdf = await salvarArquivo(`comercial/propostas/${tag}-v1.pdf`, Buffer.from(`${tag} pdf v1`));
+    caminhos.push(pdf.caminho);
+    const prFicha = await proposta((await novoProjeto("p7")).id, ficha.id, 3);
+    projetosExtras.push(prFicha.projetoId!);
+    await prisma.propostaVersao.create({ data: { propostaId: prFicha.id, numero: 1, snapshot: {}, autorId: usuario.id, pdfPath: pdf.caminho } });
+    await prisma.propostaVersao.create({ data: { propostaId: prFicha.id, numero: 2, snapshot: {}, autorId: usuario.id } });
+    const semVigente = await previaVinculo(user, p1.id, ficha.id);
+    check("16a. versão vigente sem PDF: o PDF antigo não é oferecido", !semVigente.arquivos.some((a) => a.origem === "proposta_pdf"));
+    const pdf3 = await salvarArquivo(`comercial/propostas/${tag}-v3.pdf`, Buffer.from(`${tag} pdf v3`));
+    caminhos.push(pdf3.caminho);
+    await prisma.propostaVersao.create({ data: { propostaId: prFicha.id, numero: 3, snapshot: {}, autorId: usuario.id, pdfPath: pdf3.caminho } });
+    const comVigente = await previaVinculo(user, p1.id, ficha.id);
+    const itemPdf = comVigente.arquivos.find((a) => a.origem === "proposta_pdf");
+    check("16b. versão vigente com PDF: oferecido com o número da versão", itemPdf?.caminho === pdf3.caminho && (itemPdf?.nome ?? "").includes("v3"));
   } finally {
     // Limpeza: documentos (e os arquivos copiados), atividades, vínculos, projetos, fichas, lead, clientes.
     const versoes = await prisma.documentoVersao.findMany({ where: { documento: { clienteId: { in: [cliente.id, cliente2.id] } } }, select: { caminho: true } });
@@ -188,7 +229,9 @@ async function main() {
     for (const c of caminhos) await removerArquivo(c).catch(() => undefined);
     await prisma.atividade.deleteMany({ where: { clienteId: { in: [cliente.id, cliente2.id] } } });
     await prisma.documento.deleteMany({ where: { clienteId: { in: [cliente.id, cliente2.id] } } });
-    await prisma.projeto.deleteMany({ where: { id: { in: [p1.id, p2.id, p3.id, p4.id] } } });
+    await prisma.propostaVersao.deleteMany({ where: { proposta: { clienteId: cliente.id } } });
+    await prisma.proposta.deleteMany({ where: { clienteId: cliente.id } });
+    await prisma.projeto.deleteMany({ where: { id: { in: [p1.id, p2.id, p3.id, p4.id, ...projetosExtras] } } });
     await prisma.anexoLead.deleteMany({ where: { leadId: lead.id } });
     await prisma.negociacao.deleteMany({ where: { id: { in: [ficha.id, fichaAberta.id, fichaOutroCliente.id, fichaSemLead.id] } } });
     await prisma.lead.delete({ where: { id: lead.id } }).catch(() => undefined);

@@ -171,6 +171,20 @@ export function descricaoComResumo(descricaoAtual: string | null, resumo: string
   return resumo;
 }
 
+const PASTA_ANEXOS_LEAD = "comercial/leads/";
+
+/**
+ * O caminho de um `AnexoLead` só vale dentro de `comercial/leads/`, num arquivo direto (sem subpasta nem `..`).
+ * O caminho vem do cliente (a rota de upload devolve e a action grava), então sem esta trava um anexo poderia
+ * apontar para o arquivo de OUTRO cliente — e o link o copiaria para o projeto. Usada ao cadastrar, ao remover e
+ * ao montar a lista do link.
+ */
+export function caminhoAnexoLeadValido(caminho: string): boolean {
+  if (!caminho.startsWith(PASTA_ANEXOS_LEAD)) return false;
+  const nome = caminho.slice(PASTA_ANEXOS_LEAD.length);
+  return nome.length > 0 && !/[\\/]/.test(nome) && !nome.includes("..");
+}
+
 /** Extensão segura para o caminho copiado: minúscula, com ponto, só letras/números. */
 export function extensaoDe(nomeArquivo: string): string {
   const i = nomeArquivo.lastIndexOf(".");
@@ -196,3 +210,25 @@ export type PreviaVinculo = {
   /** `descricaoComResumo(...)`: o texto final a gravar, ou null. */
   novaDescricao: string | null;
 };
+
+/** O que de cada arquivo vai ao navegador: nada de caminho de storage, hash ou tamanho. */
+export type ItemArquivoTela = Pick<
+  ItemArquivoPrevia,
+  "chave" | "origem" | "nome" | "existe" | "importarPadrao" | "motivoNaoImportar"
+>;
+export type PreviaVinculoTela = Omit<PreviaVinculo, "arquivos"> & { arquivos: ItemArquivoTela[] };
+
+/** A prévia como a action devolve à tela. O serviço usa a prévia COMPLETA, sempre recalculada no servidor. */
+export function previaParaTela(previa: PreviaVinculo): PreviaVinculoTela {
+  return {
+    ...previa,
+    arquivos: previa.arquivos.map((a) => ({
+      chave: a.chave,
+      origem: a.origem,
+      nome: a.nome,
+      existe: a.existe,
+      importarPadrao: a.importarPadrao,
+      motivoNaoImportar: a.motivoNaoImportar,
+    })),
+  };
+}

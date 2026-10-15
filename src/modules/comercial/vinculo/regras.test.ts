@@ -8,7 +8,9 @@ import {
   MOTIVO_NAO_CONTRATADA,
   MOTIVO_REPETIDO,
   MOTIVO_SEM_ARQUIVO,
+  caminhoAnexoLeadValido,
   dataBr,
+  previaParaTela,
   descricaoComResumo,
   extensaoDe,
   marcarArquivos,
@@ -201,6 +203,44 @@ describe("extensaoDe", () => {
   });
   it("tira caractere que não seja letra, número ou ponto", () => {
     expect(extensaoDe("x.p$f")).toBe(".pf");
+  });
+});
+
+describe("caminhoAnexoLeadValido", () => {
+  it("aceita o caminho que a rota de upload gera", () => {
+    expect(caminhoAnexoLeadValido("comercial/leads/0a1b2c3d4e5f60718293a4b5.pdf")).toBe(true);
+    expect(caminhoAnexoLeadValido("comercial/leads/0a1b2c3d4e5f60718293a4b5")).toBe(true);
+  });
+  it("recusa caminho de outra área do storage (arquivo de outro cliente, RH, backup)", () => {
+    expect(caminhoAnexoLeadValido("documentos/cli123/abc.pdf")).toBe(false);
+    expect(caminhoAnexoLeadValido("rh/docs/rg.pdf")).toBe(false);
+  });
+  it("recusa subida de diretório e subpasta", () => {
+    expect(caminhoAnexoLeadValido("comercial/leads/../../documentos/x.pdf")).toBe(false);
+    expect(caminhoAnexoLeadValido("comercial/leads/sub/x.pdf")).toBe(false);
+    expect(caminhoAnexoLeadValido("comercial\\leads\\x.pdf")).toBe(false);
+  });
+});
+
+describe("previaParaTela", () => {
+  it("nunca leva caminho, hash, mime, tamanho ou nome de arquivo ao navegador", () => {
+    const [a] = marcarArquivos([item()], new Set());
+    const tela = previaParaTela({
+      projeto: { id: "p1", codigo: "260001", nome: "P", clienteId: "c1", descricao: null },
+      ficha: { id: "n1", titulo: "F" },
+      motivo: null,
+      plano: { preenche: {}, mantem: [], coordenadorId: null },
+      preencheTexto: [],
+      mantemTexto: [],
+      coordenador: null,
+      arquivos: [a],
+      resumo: null,
+      descricaoVazia: true,
+      novaDescricao: null,
+    });
+    expect(Object.keys(tela.arquivos[0]).sort()).toEqual(
+      ["chave", "existe", "importarPadrao", "motivoNaoImportar", "nome", "origem"].sort(),
+    );
   });
 });
 

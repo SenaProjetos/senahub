@@ -60,24 +60,34 @@ export function ProjetosLinkados({
         )}
       </div>
       {projetos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nenhum projeto linkado a esta ficha ainda.</p>
+        <p className="text-sm text-muted-foreground">
+          {podeVincular && contratada
+            ? "Nenhum projeto linkado a esta ficha ainda. Use “Linkar projeto” para trazer os anexos para o projeto."
+            : "Nenhum projeto linkado a esta ficha ainda."}
+        </p>
       ) : (
         <ul className="space-y-1.5">
           {projetos.map((p) => (
-            <li key={p.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm">
-              <Link href={`/projetos/${p.id}`} className="min-w-0 truncate font-medium hover:underline">
-                {p.codigo} · {p.nome}
-              </Link>
-              {podeVincular && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => desfazer(p)}
-                  disabled={pending || p.criadoPeloAceite}
-                  title={p.criadoPeloAceite ? MOTIVO_CRIADO_PELO_ACEITE : undefined}
-                >
-                  <Unlink className="size-3.5" /> Desfazer link
-                </Button>
+            <li key={p.id} className="min-w-0 text-sm">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                <Link href={`/projetos/${p.id}`} className="min-w-0 truncate font-medium hover:underline">
+                  {p.codigo} · {p.nome}
+                </Link>
+                {podeVincular && !p.criadoPeloAceite && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => desfazer(p)}
+                    disabled={pending}
+                    aria-label={`Desfazer link com o projeto ${p.codigo}`}
+                  >
+                    <Unlink className="size-3.5" /> {pending ? "Desfazendo…" : "Desfazer link"}
+                  </Button>
+                )}
+              </div>
+              {/* ADR-0002: estado proibido mostra o motivo escrito, não só um botão apagado. */}
+              {podeVincular && p.criadoPeloAceite && (
+                <p className="text-xs text-muted-foreground">{MOTIVO_CRIADO_PELO_ACEITE}</p>
               )}
             </li>
           ))}

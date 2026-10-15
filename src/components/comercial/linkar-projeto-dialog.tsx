@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogBody,
@@ -16,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { candidatosParaVinculo, linkarProjeto, previaDoVinculo } from "@/modules/comercial/vinculo/actions";
-import type { PreviaVinculo } from "@/modules/comercial/vinculo/regras";
+import type { PreviaVinculoTela } from "@/modules/comercial/vinculo/regras";
 
 export type AlvoLink = { modo: "ficha"; negociacaoId: string } | { modo: "projeto"; projetoId: string };
 
@@ -24,6 +25,7 @@ type Candidato = { id: string; rotulo: string; detalhe: string | null };
 type Escolha = { importar: boolean; exibir: boolean };
 
 const ROTULO_ORIGEM = { anexo_lead: "Anexo", proposta_pdf: "Proposta" } as const;
+const ERRO_REDE = "Não foi possível falar com o servidor. Tente de novo.";
 
 /**
  * Um diálogo, dois pontos de entrada (ficha contratada e ⋯ do projeto). Passo 1: escolher o outro lado
@@ -53,28 +55,39 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [candidatos, setCandidatos] = useState<Candidato[] | null>(null);
+  const [erroCandidatos, setErroCandidatos] = useState<string | null>(null);
   const [carregandoPrevia, setCarregandoPrevia] = useState(false);
-  const [previa, setPrevia] = useState<PreviaVinculo | null>(null);
+  const [previa, setPrevia] = useState<PreviaVinculoTela | null>(null);
   const [escolhas, setEscolhas] = useState<Record<string, Escolha>>({});
   const [incluirResumo, setIncluirResumo] = useState(true);
 
   const modo = alvo.modo;
   const idDoAlvo = alvo.modo === "ficha" ? alvo.negociacaoId : alvo.projetoId;
 
+  // Erro NÃO vira lista vazia: "nenhum projeto livre" seria mentira quando a busca falhou.
+  const carregarCandidatos = useCallback(
+    async (vivo: () => boolean) => {
+      setErroCandidatos(null);
+      setCandidatos(null);
+      try {
+        const r = await candidatosParaVinculo({ modo, id: idDoAlvo });
+        if (!vivo()) return;
+        if (r.ok) setCandidatos(r.data);
+        else setErroCandidatos(r.error);
+      } catch {
+        if (vivo()) setErroCandidatos(ERRO_REDE);
+      }
+    },
+    [modo, idDoAlvo],
+  );
+
   useEffect(() => {
     let vivo = true;
-    candidatosParaVinculo({ modo, id: idDoAlvo }).then((r) => {
-      if (!vivo) return;
-      if (r.ok) setCandidatos(r.data);
-      else {
-        toast.error(r.error);
-        setCandidatos([]);
-      }
-    });
+    void carregarCandidatos(() => vivo);
     return () => {
       vivo = false;
     };
-  }, [modo, idDoAlvo]);
+  }, [carregarCandidatos]);
 
   async function escolher(c: Candidato) {
     setCarregandoPrevia(true);
@@ -82,15 +95,20 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
       alvo.modo === "ficha"
         ? { projetoId: c.id, negociacaoId: alvo.negociacaoId }
         : { projetoId: alvo.projetoId, negociacaoId: c.id };
-    const r = await previaDoVinculo(ids);
-    setCarregandoPrevia(false);
-    if (!r.ok) {
-      toast.error(r.error);
-      return;
+    try {
+      const r = await previaDoVinculo(ids);
+      if (!r.ok) {
+        toast.error(r.error);
+        return;
+      }
+      setPrevia(r.data);
+      setEscolhas(Object.fromEntries(r.data.arquivos.map((a) => [a.chave, { importar: a.importarPadrao, exibir: false }])));
+      setIncluirResumo(r.data.novaDescricao != null);
+    } catch {
+      toast.error(ERRO_REDE);
+    } finally {
+      setCarregandoPrevia(false);
     }
-    setPrevia(r.data);
-    setEscolhas(Object.fromEntries(r.data.arquivos.map((a) => [a.chave, { importar: a.importarPadrao, exibir: false }])));
-    setIncluirResumo(r.data.novaDescricao != null);
   }
 
   function atualizar(chave: string, parte: Partial<Escolha>) {
@@ -100,24 +118,28 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
   function confirmar() {
     if (!previa) return;
     start(async () => {
-      const r = await linkarProjeto({
-        projetoId: previa.projeto.id,
-        negociacaoId: previa.ficha.id,
-        arquivos: previa.arquivos
-          .filter((a) => escolhas[a.chave]?.importar)
-          .map((a) => ({ chave: a.chave, exibirEmRecebidos: escolhas[a.chave].exibir })),
-        incluirResumo: incluirResumo && previa.novaDescricao != null,
-      });
-      if (r.ok) {
-        toast.success(
-          r.data.arquivos > 0
-            ? `Projeto linkado. ${r.data.arquivos} arquivo(s) na pasta Geral do projeto.`
-            : "Projeto linkado.",
-        );
-        fechar();
-        router.refresh();
-      } else {
-        toast.error(r.error);
+      try {
+        const r = await linkarProjeto({
+          projetoId: previa.projeto.id,
+          negociacaoId: previa.ficha.id,
+          arquivos: previa.arquivos
+            .filter((a) => escolhas[a.chave]?.importar)
+            .map((a) => ({ chave: a.chave, exibirEmRecebidos: escolhas[a.chave].exibir })),
+          incluirResumo: incluirResumo && previa.novaDescricao != null,
+        });
+        if (r.ok) {
+          toast.success(
+            r.data.arquivos > 0
+              ? `Projeto linkado. ${r.data.arquivos} arquivo(s) na pasta Geral do projeto.`
+              : "Projeto linkado.",
+          );
+          fechar();
+          router.refresh();
+        } else {
+          toast.error(r.error);
+        }
+      } catch {
+        toast.error(ERRO_REDE);
       }
     });
   }
@@ -139,13 +161,32 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
 
       <DialogBody>
         {!previa && (
-          <div className="space-y-2">
-            {candidatos === null && <p className="text-sm text-muted-foreground">Carregando…</p>}
+          <div className="space-y-2" aria-busy={candidatos === null || carregandoPrevia}>
+            {candidatos === null && !erroCandidatos && (
+              <div role="status" aria-label="Carregando a lista" className="space-y-2">
+                <Skeleton className="h-11 w-full" />
+                <Skeleton className="h-11 w-full" />
+                <Skeleton className="h-11 w-full" />
+              </div>
+            )}
+            {erroCandidatos && (
+              <div role="alert" className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                <p>{erroCandidatos}</p>
+                <Button size="sm" variant="outline" onClick={() => void carregarCandidatos(() => true)}>
+                  Tentar de novo
+                </Button>
+              </div>
+            )}
             {candidatos?.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 {alvo.modo === "ficha"
-                  ? "Nenhum projeto deste cliente está livre para linkar."
-                  : "Nenhuma ficha Contratado deste cliente encontrada."}
+                  ? "Nenhum projeto deste cliente está livre para linkar. Crie o projeto em Projetos (com o mesmo cliente) e volte aqui."
+                  : "Nenhuma ficha em Contratado deste cliente. Mova a ficha para Contratado no funil e volte aqui."}
+              </p>
+            )}
+            {carregandoPrevia && (
+              <p role="status" className="text-sm text-muted-foreground">
+                Montando a prévia…
               </p>
             )}
             {candidatos?.map((c) => (
@@ -154,7 +195,7 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
                 type="button"
                 disabled={carregandoPrevia}
                 onClick={() => escolher(c)}
-                className="flex w-full min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-left text-sm hover:bg-muted/50 disabled:opacity-50"
+                className="flex w-full min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2.5 text-left text-sm outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50"
               >
                 <span className="min-w-0 truncate font-medium">{c.rotulo}</span>
                 {c.detalhe && <span className="shrink-0 text-xs text-muted-foreground">{c.detalhe}</span>}
@@ -163,7 +204,11 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
           </div>
         )}
 
-        {previa?.motivo && <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">{previa.motivo}</p>}
+        {previa?.motivo && (
+          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+            {previa.motivo}
+          </p>
+        )}
 
         {previa && !previa.motivo && (
           <div className="space-y-4 text-sm">
@@ -192,13 +237,19 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
             {previa.resumo && (
               <section>
                 {previa.descricaoVazia ? (
-                  <label className="flex cursor-pointer items-start gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/50">
-                    <Checkbox checked={incluirResumo} onCheckedChange={(v) => setIncluirResumo(v as boolean)} />
-                    <span>
+                  <div className="space-y-1 rounded-md border px-3 py-2.5">
+                    <label className="flex cursor-pointer items-center gap-3">
+                      <Checkbox
+                        checked={incluirResumo}
+                        onCheckedChange={(v) => setIncluirResumo(v as boolean)}
+                        aria-describedby="vinculo-resumo"
+                      />
                       Resumir o histórico comercial na descrição do projeto
-                      <span className="mt-1 block whitespace-pre-wrap text-xs text-muted-foreground">{previa.resumo}</span>
-                    </span>
-                  </label>
+                    </label>
+                    <p id="vinculo-resumo" className="whitespace-pre-wrap pl-7 text-xs text-muted-foreground">
+                      {previa.resumo}
+                    </p>
+                  </div>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     A descrição do projeto já está preenchida: o resumo do histórico não será gravado.
@@ -212,14 +263,16 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
                 Arquivos para a pasta Geral
               </h3>
               {previa.arquivos.length === 0 && <p className="text-muted-foreground">Esta ficha não tem arquivos para importar.</p>}
-              {previa.arquivos.map((a) => {
+              {previa.arquivos.map((a, i) => {
                 const e = escolhas[a.chave] ?? { importar: false, exibir: false };
+                const idMotivo = `vinculo-motivo-${i}`;
                 return (
                   <div key={a.chave} className="min-w-0 space-y-1.5 rounded-md border px-3 py-2.5">
                     <label className="flex min-w-0 cursor-pointer items-center gap-3">
                       <Checkbox
                         checked={e.importar}
                         disabled={!a.existe}
+                        aria-describedby={a.motivoNaoImportar ? idMotivo : undefined}
                         onCheckedChange={(v) => atualizar(a.chave, { importar: v as boolean, exibir: v ? e.exibir : false })}
                       />
                       <span className="min-w-0 flex-1 truncate font-medium">{a.nome}</span>
@@ -227,14 +280,20 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
                         {ROTULO_ORIGEM[a.origem]}
                       </Badge>
                     </label>
-                    {a.motivoNaoImportar && <p className="pl-7 text-xs text-muted-foreground">{a.motivoNaoImportar}</p>}
+                    {a.motivoNaoImportar && (
+                      <p id={idMotivo} className="pl-7 text-xs text-muted-foreground">
+                        {a.motivoNaoImportar}
+                      </p>
+                    )}
                     <label className="flex cursor-pointer items-center gap-3 pl-7 text-xs text-muted-foreground">
                       <Checkbox
                         checked={e.exibir}
                         disabled={!e.importar}
                         onCheckedChange={(v) => atualizar(a.chave, { exibir: v as boolean })}
                       />
-                      Mostrar também em &ldquo;Recebidos do cliente&rdquo; (os projetistas passam a ver)
+                      {e.importar
+                        ? "Mostrar também em “Recebidos do cliente” (os projetistas passam a ver)"
+                        : "Mostrar em “Recebidos do cliente”: marque o arquivo para importar primeiro"}
                     </label>
                   </div>
                 );

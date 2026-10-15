@@ -47,7 +47,14 @@ export async function vincularProjetoNaFicha(user: SessionUser, input: EntradaVi
     for (const { item, exibir } of escolhidos) {
       const buffer = await lerArquivo(item.caminho);
       const rel = `documentos/${previa.projeto.clienteId}/${randomBytes(12).toString("hex")}${extensaoDe(item.nomeArquivo)}`;
-      const salvo = await salvarArquivo(rel, buffer);
+      let salvo;
+      try {
+        salvo = await salvarArquivo(rel, buffer);
+      } catch (erroEscrita) {
+        // Escrita que quebrou no meio (disco cheio) deixa arquivo parcial que ainda não está em `copiados`.
+        await removerArquivo(rel).catch(() => undefined);
+        throw erroEscrita;
+      }
       copiados.push({ ...salvo, item, exibir });
     }
 
@@ -114,10 +121,13 @@ export async function vincularProjetoNaFicha(user: SessionUser, input: EntradaVi
         feitas.push({ versaoId: doc.versoes[0].id, nomeArquivo: c.item.nomeArquivo });
       }
 
-      await registrarAtividade(
+      // `registrarAtividade` engole o próprio erro; dentro da transação isso deixaria o Postgres abortado e o
+      // commit poderia sair "ok" sem gravar nada. Falhou → lança, a transação volta e as cópias são apagadas.
+      const registrou = await registrarAtividade(
         { evento: "PROJETO_LINKADO", codigo: previa.projeto.codigo, nome: previa.projeto.nome },
         { autorId: user.id, clienteId: previa.projeto.clienteId, negociacaoId: input.negociacaoId, tx },
       );
+      if (!registrou) throw new Error("[vinculo] falha ao registrar o evento na timeline da ficha");
       return feitas;
     });
   } catch (erro) {
@@ -152,16 +162,19 @@ export async function desvincularProjetoDaFicha(user: SessionUser, projetoId: st
   if (!p) throw new ActionError("Projeto não encontrado.");
   const negociacaoId = p.negociacaoId;
   if (!negociacaoId) throw new ActionError("Este projeto não está linkado a nenhuma ficha.");
-  if (await prisma.proposta.findFirst({ where: { projetoId }, select: { id: true } })) {
+  // Trava só o projeto que nasceu do aceite DESTA ficha: aí `Proposta.projetoId` e `Projeto.negociacaoId` andam
+  // juntos. Proposta aceita sem negociação (histórica/avulsa) não conta — o link foi feito à mão e se desfaz.
+  if (await prisma.proposta.findFirst({ where: { projetoId, negociacaoId }, select: { id: true } })) {
     throw new ActionError(MOTIVO_CRIADO_PELO_ACEITE);
   }
   await prisma.$transaction(async (tx) => {
     const r = await tx.projeto.updateMany({ where: { id: p.id, negociacaoId }, data: { negociacaoId: null } });
     if (r.count !== 1) throw new ActionError("O link mudou enquanto você olhava. Recarregue a página.");
-    await registrarAtividade(
+    const registrou = await registrarAtividade(
       { evento: "PROJETO_DESLINKADO", codigo: p.codigo, nome: p.nome },
       { autorId: user.id, clienteId: p.clienteId, negociacaoId, tx },
     );
+    if (!registrou) throw new Error("[vinculo] falha ao registrar o evento na timeline da ficha");
   });
   return { negociacaoId };
 }
