@@ -1,6 +1,6 @@
 # Integração contábil (M5) e retenções na NF
 
-**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3 e C5 feitas; C1 só no que o mock aprovou (ver §12 e §13); C4 aguarda o dono e o contador
+**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3 e C5 feitas (C5 com as colunas extras, 2026-10-15); C1 só no que o mock aprovou (ver §12 e §13); C4 aguarda o dono e o contador
 
 Fecha as duas pendências que o plano do Financeiro deixou para o contador: a fase **M5 (integração contábil)** e as
 **retenções na NF** (decisão 5 de 2026-10-02). Base: as respostas do contador (GAMA CONTABIL, 2026-10-05 e 2026-10-07),
@@ -303,11 +303,15 @@ célula a célula). É uma planilha **Excel 97-2003 (.xls)**, aba `Planilha1`, *
 | `data` | data de verdade, `dd/mm/aaaa` | competência (reconhecimento) ou dia do pagamento (baixa) |
 | `valor` | número, `0.00`, sempre positivo | `valorCentavos / 100` |
 | `complemento historico` | texto | histórico + `Doc. <nº>` + `Chave <44 dígitos>` |
+| `centro de custo` (**extra, à direita**) | não existe no modelo | código do centro no de-para; sem ele, o nome do centro no SenaHub |
+| `projeto` (**extra, à direita**) | não existe no modelo | código do projeto no de-para; sem ele, o código do projeto no SenaHub |
 
 O que o modelo decide, e o que isso muda:
-- **Sem coluna para centro de custo, projeto, documento nem chave da NF-e.** Documento e chave viajam dentro do complemento; centro e
-  projeto **ficam de fora** nesse formato (continuam no arquivo genérico Excel/CSV). A resposta do contador ("os dois como
-  hierarquia") não tem onde caber neste modelo — pergunta 4 abaixo.
+- **Sem coluna para centro de custo, projeto, documento nem chave da NF-e.** Documento e chave viajam dentro do complemento. Centro e
+  projeto: **decisão do dono (2026-10-15) = duas colunas adicionais à direita das 5**, `centro de custo` e `projeto` (a hierarquia: o
+  projeto dentro do centro). Só as linhas de receita/despesa (reconhecimento e movimento) levam; a baixa (banco × cliente/fornecedor)
+  não tem conta de resultado e sai em branco. Risco aceito: o Alterdata pode recusar coluna fora do modelo — o primeiro teste de
+  importação diz; se recusar, tiram-se as duas colunas (uma linha em `CABECALHO_EXTRA_ALTERDATA`).
 - **Conta nunca em branco.** O arquivo genérico deixa a conta vazia e avisa; o layout do contador **recusa o mês** inteiro se
   qualquer linha (inclusive a do cartão, enquanto o contador não criar a conta) ficar sem débito ou crédito. A recusa é do
   servidor (`registrarExportacaoNoBanco`, `ActionError` com a quantidade) e a tela só espelha: o botão fica desabilitado com a
@@ -321,13 +325,10 @@ Implementação: `contabil/arquivo.ts` (puro: cabeçalho, `complementoAlterdata`
 aba Exportação. Testes: `arquivo-alterdata.test.ts` (escreve e lê de volta: aba, cabeçalho, tipos, data sem andar de dia,
 centavos) e o bloco C5 do `smoke:contabil`.
 
-**Perguntas novas ao contador (o modelo levantou):**
-1. O Alterdata importa **`.xlsx`**? O modelo dele é `.xls`; o SenaHub gera `.xlsx` (a biblioteca de planilhas do projeto não grava
-   `.xls`). Se só aceitar `.xls`, hoje basta abrir e "Salvar como Excel 97-2003".
-2. `debito` e `credito` são o **código reduzido** (o número entre parênteses no plano)? Os números do exemplo (2, 47, 364, 449,
-   492, 528, 558, 568) não existem no plano da Sena — o exemplo é de outro cliente dele.
-3. O exemplo mostra o banco em toda linha. Para a Sena, ele quer mesmo **reconhecimento + baixa** (duas linhas por título) ou só a
-   movimentação do banco (uma linha, no pagamento)?
-4. Onde vão **centro de custo e projeto**? Existe outro modelo com essas colunas, ou entram no complemento?
+**Respostas do dono em 2026-10-15:** (1) o Alterdata importa `.xlsx` — está certo gerar `.xlsx`; (3) sim, quer reconhecimento + baixa (duas
+linhas por título), como o layout já faz; (4) centro de custo e projeto entram como coluna adicional à direita (feito).
+
+**Ainda em aberto (perguntas ao contador):**
+2. `debito`/`credito` são o **código reduzido**? (os números do exemplo dele não existem no plano da Sena — exemplo de outro cliente)
 5. Tamanho máximo do **complemento do histórico** (com a chave da NF-e de 44 dígitos a linha passa de 100 caracteres) e se aceita
    `-`, `:` e acento (o exemplo tem acento).

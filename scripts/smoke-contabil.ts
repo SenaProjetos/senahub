@@ -8,7 +8,7 @@
  *       INVARIANTE: o banco no arquivo + o que ficou fora = entradas − saídas do Extrato por conta.
  *   C3. Exportar mês aberto é recusado; fechado, registra a exportação com as linhas e o hash.
  *   C5. Layout do contador (modelo .xls dele): recusa o mês com linha sem conta; com o de-para completo registra e as
- *       linhas viram o modelo de 5 colunas, todas com débito e crédito numéricos.
+ *       linhas viram o modelo de 5 colunas + centro de custo e projeto à direita, todas com débito e crédito numéricos.
  *
  * Tudo o que cria é apagado no fim (mesmo com falha). Uso: npm run smoke:contabil
  */
@@ -55,7 +55,7 @@ async function recusa(p: Promise<unknown>, msg: string, motivo: string) {
 
 const dia = (d: number) => utcInicioDoDia(2019, 2, d);
 
-async function limpar(ids: { conta?: string; cartao?: string; categoria?: string }) {
+async function limpar(ids: { conta?: string; cartao?: string; categoria?: string; centro?: string }) {
   await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: MARCA } } });
   if (ids.cartao) {
     await prisma.faturaCartao.deleteMany({ where: { cartaoId: ids.cartao } });
@@ -68,12 +68,13 @@ async function limpar(ids: { conta?: string; cartao?: string; categoria?: string
   const alvos = [ids.cartao, ids.categoria].filter((x): x is string => !!x);
   if (alvos.length) await prisma.deParaContabil.deleteMany({ where: { alvoId: { in: alvos } } });
   if (ids.categoria) await prisma.categoriaFinanceira.deleteMany({ where: { id: ids.categoria } });
+  if (ids.centro) await prisma.centroCusto.deleteMany({ where: { id: ids.centro } });
   await prisma.exportacaoContabil.deleteMany({ where: { competencia: MES } });
   await prisma.fechamentoMensal.deleteMany({ where: { ano: 2019, mes: 3 } });
 }
 
 async function main() {
-  const ids: { conta?: string; cartao?: string; categoria?: string } = {};
+  const ids: { conta?: string; cartao?: string; categoria?: string; centro?: string } = {};
   try {
     console.log("C0 · plano do contador");
     const { contas, erros } = lerPlanoCsv(readFileSync(path.resolve(__dirname, "../docs/financeiro/contabil/plano-de-contas-gama-2026-10.csv"), "utf8"));
@@ -108,7 +109,10 @@ async function main() {
     const pago = (d: number, contaId = conta.id) => ({ status: "confirmado" as const, dataConfirmacao: dia(d), contaId });
     const criar = (d: Parameters<typeof prisma.lancamento.create>[0]["data"]) => prisma.lancamento.create({ data: d, select: { id: true } });
 
-    const rec = await criar({ ...base, tipo: "receita", descricao: `${MARCA} parcela`, valor: 450, categoriaId: receita, ...pago(12), numeroDocumento: "NF 3381" });
+    const centro = await prisma.centroCusto.create({ data: { nome: `${MARCA} centro` } });
+    ids.centro = centro.id;
+    const projeto = await prisma.projeto.findFirst({ select: { id: true, codigo: true } });
+    const rec = await criar({ ...base, tipo: "receita", descricao: `${MARCA} parcela`, valor: 450, categoriaId: receita, ...pago(12), numeroDocumento: "NF 3381", centroId: centro.id, ...(projeto ? { projetoId: projeto.id } : {}) });
     const aluguel = await criar({ ...base, tipo: "despesa", descricao: `${MARCA} aluguel`, valor: 65, categoriaId: admin, ...pago(10) });
     const aberto = await criar({ ...base, tipo: "despesa", descricao: `${MARCA} em aberto`, valor: 20, categoriaId: admin, status: "previsto" });
     const original = await criar({ ...base, tipo: "despesa", descricao: `${MARCA} parcial`, valor: 100, valorEfetivo: 60, categoriaId: admin, ...pago(15) });
@@ -168,8 +172,19 @@ async function main() {
     ok(g5.formato === "alterdata" && g5.pendencias === 0, "exportação do layout do contador registrada, sem pendência");
     const modelo = linhasDoAlterdata(g5.linhas as unknown as Parameters<typeof linhasDoAlterdata>[0]);
     ok(
-      modelo.length === completo.linhas.length && modelo.every((l) => l.length === 5 && Number.isInteger(l[0]) && Number.isInteger(l[1]) && l[2] instanceof Date && typeof l[3] === "number" && l[4].length > 0),
+      modelo.length === completo.linhas.length && modelo.every((l) => l.length === 7 && Number.isInteger(l[0]) && Number.isInteger(l[1]) && l[2] instanceof Date && typeof l[3] === "number" && l[4].length > 0),
       "cada linha vira débito, crédito, data, valor e complemento",
+    );
+    // Centro e projeto só vão nas linhas de receita/despesa (o reconhecimento); a baixa é banco × cliente/fornecedor e não tem.
+    const reconhecimentoDaReceita = modelo.filter((l) => l[4].startsWith(`${MARCA} parcela`));
+    ok(
+      reconhecimentoDaReceita.length === 1 && reconhecimentoDaReceita[0][5] === `${MARCA} centro`,
+      "centro de custo vai na coluna extra à direita (sem de-para, sai o nome do centro no SenaHub)",
+    );
+    if (projeto) ok(reconhecimentoDaReceita[0]?.[6] === projeto.codigo, `projeto vai na coluna extra (código ${projeto.codigo})`);
+    ok(
+      modelo.filter((l) => l !== reconhecimentoDaReceita[0]).every((l) => l[5] === null && l[6] === null),
+      "a baixa e as linhas sem centro nem projeto deixam as colunas extras em branco",
     );
     const somaModelo = Math.round(modelo.reduce((t, l) => t + l[3], 0) * 100);
     ok(somaModelo === completo.totalCentavos, `a soma dos valores do arquivo (${somaModelo}) fecha com o total das partidas (${completo.totalCentavos})`);

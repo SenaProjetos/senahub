@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ABA_ALTERDATA,
   CABECALHO_ALTERDATA,
+  CABECALHO_MODELO_ALTERDATA,
   FORMATOS_CONTABIL,
   complementoAlterdata,
   linhasDoAlterdata,
@@ -43,17 +44,18 @@ describe("layout do contador (modelo-de-importacao-alterdata-lancamentos.xls)", 
     expect(FORMATOS_CONTABIL).toEqual(["xlsx", "csv", "alterdata"]);
   });
 
-  it("cabeçalho e aba iguais aos do modelo dele: 5 colunas, minúsculas, sem acento", () => {
-    expect([...CABECALHO_ALTERDATA]).toEqual(["debito", "credito", "data", "valor", "complemento historico"]);
+  it("as 5 primeiras colunas e a aba são iguais às do modelo dele; centro de custo e projeto vêm depois, à direita", () => {
+    expect([...CABECALHO_MODELO_ALTERDATA]).toEqual(["debito", "credito", "data", "valor", "complemento historico"]);
+    expect([...CABECALHO_ALTERDATA]).toEqual(["debito", "credito", "data", "valor", "complemento historico", "centro de custo", "projeto"]);
     expect(ABA_ALTERDATA).toBe("Planilha1");
   });
 
-  it("a planilha lida de volta tem a aba, o cabeçalho e só 5 colunas", async () => {
+  it("a planilha lida de volta tem a aba, o cabeçalho do modelo e as duas colunas extras", async () => {
     const ws = await ida_e_volta([linha(), linha({ debito: 11, credito: 22, valorCentavos: 1518_00 })]);
     expect(ws.name).toBe("Planilha1");
-    expect(ws.columnCount).toBe(5);
+    expect(ws.columnCount).toBe(7);
     expect(ws.rowCount).toBe(3);
-    expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(["debito", "credito", "data", "valor", "complemento historico"]);
+    expect((ws.getRow(1).values as unknown[]).slice(1)).toEqual(["debito", "credito", "data", "valor", "complemento historico", "centro de custo", "projeto"]);
   });
 
   it("débito e crédito são números, a data é data de verdade (sem andar de dia) e o valor é número com centavos", async () => {
@@ -75,11 +77,21 @@ describe("layout do contador (modelo-de-importacao-alterdata-lancamentos.xls)", 
     expect([2, 3, 4].map((n) => ws.getRow(n).getCell(4).value)).toEqual([45000.05, 7.05, 1]);
   });
 
-  it("centro de custo e subcentro ficam de fora; documento e chave da NF-e viajam no complemento", () => {
+  it("documento e chave da NF-e viajam no complemento; centro e projeto vão nas duas colunas extras à direita", async () => {
     const [l] = linhasDoAlterdata([linha({ documento: "NF 3381", chaveNfe: "3".repeat(44) })]);
-    expect(l).toHaveLength(5);
+    expect(l).toHaveLength(7);
     expect(l[4]).toBe(`Recebimento: Parcela 1/3 - Doc. NF 3381 - Chave ${"3".repeat(44)}`);
-    expect(JSON.stringify(l)).not.toContain("01.007");
+    expect([l[5], l[6]]).toEqual(["01", "01.007"]);
+    const ws = await ida_e_volta([linha()]);
+    expect([6, 7].map((c) => ws.getRow(2).getCell(c).value)).toEqual(["01", "01.007"]);
+  });
+
+  it("linha sem centro nem projeto deixa as duas colunas extras em branco", async () => {
+    const [l] = linhasDoAlterdata([linha({ centro: null, subcentro: null })]);
+    expect([l[5], l[6]]).toEqual([null, null]);
+    const ws = await ida_e_volta([linha({ centro: null, subcentro: null })]);
+    expect(ws.getRow(2).getCell(6).value ?? null).toBeNull();
+    expect(ws.getRow(2).getCell(7).value ?? null).toBeNull();
   });
 
   it("complemento: só o histórico quando não há documento nem chave", () => {

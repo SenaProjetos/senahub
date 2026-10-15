@@ -410,7 +410,7 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
             </div>
             <span id="ct-formato-ajuda" className="text-xs text-muted-foreground">
               {formato === "alterdata"
-                ? "Modelo de importação do contador: débito, crédito, data, valor e complemento do histórico. O número do documento e a chave da NF-e vão dentro do complemento; centro de custo e projeto não têm coluna nesse modelo e ficam de fora."
+                ? "Modelo de importação do contador: débito, crédito, data, valor e complemento do histórico, mais duas colunas à direita: centro de custo e projeto (só nas linhas de receita e despesa). O número do documento e a chave da NF-e vão dentro do complemento."
                 : "Arquivo genérico: data, conta de débito, conta de crédito, valor, histórico, documento, chave da NF-e, centro de custo e projeto."}
             </span>
           </div>

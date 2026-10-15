@@ -87,7 +87,10 @@ export async function deParaDoMotor(db: Db = prisma): Promise<DeParaDoMotor> {
     fornecedor: {},
     contrapartidaDaCategoria: {},
   };
+  // O código do de-para (quando o contador definir) vale; sem ele, sai o nome do centro e o código do projeto no SenaHub.
   const centros: Record<"centro" | "projeto", Record<string, string>> = { centro: {}, projeto: {} };
+  for (const c of await db.centroCusto.findMany({ select: { id: true, nome: true } })) centros.centro[c.id] = c.nome;
+  for (const p of await db.projeto.findMany({ select: { id: true, codigo: true } })) centros.projeto[p.id] = p.codigo;
   const naoExportar = new Set<string>();
   let padraoClientes: number | null = null;
   let padraoFornecedores: number | null = null;

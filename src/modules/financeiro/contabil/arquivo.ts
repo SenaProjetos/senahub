@@ -4,10 +4,11 @@
  *  - `xlsx` / `csv` (genérico, mock: "uma linha por lançamento: data, conta de débito, conta de crédito, valor,
  *    histórico e documento"): leva também chave da NF-e, centro de custo e subcentro. Conta sem de-para sai em branco.
  *  - `alterdata` (C5, "layout do contador"): o modelo de importação que o contador mandou
- *    (`docs/financeiro/contabil/modelo-de-importacao-alterdata-lancamentos.xls`, 2026-10-13) tem SÓ 5 colunas — `debito`, `credito`, `data`,
+ *    (`docs/financeiro/contabil/modelo-de-importacao-alterdata-lancamentos.xls`, 2026-10-13) tem 5 colunas — `debito`, `credito`, `data`,
  *    `valor`, `complemento historico`. Débito e crédito são o código REDUZIDO e nunca podem ficar em branco (o Alterdata
- *    recusaria a linha); documento e chave da NF-e viajam dentro do complemento do histórico; centro de custo e
- *    projeto NÃO têm coluna nesse modelo e ficam de fora.
+ *    recusaria a linha); documento e chave da NF-e viajam dentro do complemento do histórico. Centro de custo e projeto não
+ *    têm coluna no modelo: por decisão do dono (2026-10-15) vão em DUAS COLUNAS EXTRAS À DIREITA das 5, `centro de custo` e
+ *    `projeto` (a hierarquia: o projeto está dentro do centro), em branco quando a linha não tem.
  */
 import type { LinhaContabil } from "@/modules/financeiro/contabil/partidas";
 
@@ -46,8 +47,11 @@ export function csvDoArquivo(linhas: readonly LinhaContabil[]): string {
   return `﻿${[CABECALHO_ARQUIVO.join(";"), ...corpo].join("\r\n")}\r\n`;
 }
 
-/** Cabeçalho do modelo do contador, exatamente como está na planilha dele (minúsculo, sem acento). */
-export const CABECALHO_ALTERDATA = ["debito", "credito", "data", "valor", "complemento historico"] as const;
+/** As 5 colunas do modelo do contador, exatamente como estão na planilha dele (minúsculo, sem acento). */
+export const CABECALHO_MODELO_ALTERDATA = ["debito", "credito", "data", "valor", "complemento historico"] as const;
+/** Colunas extras à direita do modelo (decisão do dono): centro de custo e projeto, no mesmo estilo de cabeçalho. */
+export const CABECALHO_EXTRA_ALTERDATA = ["centro de custo", "projeto"] as const;
+export const CABECALHO_ALTERDATA = [...CABECALHO_MODELO_ALTERDATA, ...CABECALHO_EXTRA_ALTERDATA] as const;
 /** Nome da aba no modelo do contador. */
 export const ABA_ALTERDATA = "Planilha1";
 
@@ -57,12 +61,20 @@ export const linhasSemConta = (linhas: readonly Pick<LinhaContabil, "debito" | "
 export const MOTIVO_ALTERDATA_SEM_CONTA = (n: number) =>
   `${n} ${n === 1 ? "linha está" : "linhas estão"} sem conta contábil. O layout do contador não aceita conta em branco: preencha o de-para (ou peça ao contador a conta que falta) antes de exportar.`;
 
-/** Histórico + documento + chave da NF-e: o modelo não tem coluna para os dois últimos. */
+/** Histórico + documento + chave da NF-e: o modelo não tem coluna para os dois últimos, então viajam aqui. */
 export function complementoAlterdata(l: Pick<LinhaContabil, "historico" | "documento" | "chaveNfe">): string {
   return [l.historico, l.documento ? `Doc. ${l.documento}` : null, l.chaveNfe ? `Chave ${l.chaveNfe}` : null].filter(Boolean).join(" - ");
 }
 
-export type LinhaDoAlterdata = [debito: number, credito: number, data: Date, valor: number, complemento: string];
+export type LinhaDoAlterdata = [
+  debito: number,
+  credito: number,
+  data: Date,
+  valor: number,
+  complemento: string,
+  centroDeCusto: string | null,
+  projeto: string | null,
+];
 
 /** `YYYY-MM-DD` → meia-noite UTC: o Excel guarda data sem fuso, então o dia não anda com o fuso do servidor. */
 const dataUtc = (iso: string) => {
@@ -77,6 +89,6 @@ const dataUtc = (iso: string) => {
 export function linhasDoAlterdata(linhas: readonly LinhaContabil[]): LinhaDoAlterdata[] {
   const faltam = linhasSemConta(linhas);
   if (faltam > 0) throw new Error(MOTIVO_ALTERDATA_SEM_CONTA(faltam));
-  return linhas.map((l) => [l.debito as number, l.credito as number, dataUtc(l.data), l.valorCentavos / 100, complementoAlterdata(l)]);
+  return linhas.map((l) => [l.debito as number, l.credito as number, dataUtc(l.data), l.valorCentavos / 100, complementoAlterdata(l), l.centro, l.subcentro]);
 }
 

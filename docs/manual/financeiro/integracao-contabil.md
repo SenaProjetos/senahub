@@ -72,8 +72,10 @@ bloqueada até você escolher; o que depende de conta que o contador ainda vai c
 ## Formatos do arquivo
 
 - **Layout do contador** (o padrão): o modelo de importação que o contador mandou. Cinco colunas — `debito`, `credito`, `data`,
-  `valor`, `complemento historico` — na aba `Planilha1`. O número do documento e a chave da NF-e vão dentro do complemento do
-  histórico. **Centro de custo e projeto não vão**, porque o modelo não tem coluna para eles. Esse formato **não aceita conta em
+  `valor`, `complemento historico` — na aba `Planilha1`, mais **duas colunas à direita**, `centro de custo` e `projeto`. O número
+  do documento e a chave da NF-e vão dentro do complemento do histórico. Centro de custo e projeto aparecem só nas linhas de
+  receita e despesa (o reconhecimento); a linha do pagamento, que é entre banco e cliente ou fornecedor, fica sem. Sem um código
+  definido pelo contador, saem o nome do centro de custo e o código do projeto no SenaHub. Esse formato **não aceita conta em
   branco**: se alguma linha ficar sem conta (por exemplo, o cartão de crédito enquanto o contador não criar a conta), o botão
   Exportar fica desabilitado e diz quantas linhas faltam.
 - **Excel** e **CSV** (genérico): as mesmas partidas, com colunas separadas para documento, chave da NF-e, centro de custo e
@@ -81,9 +83,10 @@ bloqueada até você escolher; o que depende de conta que o contador ainda vai c
 
 ## O que ainda depende do contador
 
-- Confirmar que o Alterdata importa **`.xlsx`** (o modelo dele é `.xls`; se não aceitar, abra o arquivo no Excel e salve como
-  Excel 97-2003) e que o débito e o crédito são o **código reduzido**.
+- Confirmar que o débito e o crédito são o **código reduzido** (o número que aparece entre parênteses no plano de contas dele).
+- O tamanho máximo do **complemento do histórico**: com a chave da NF-e (44 dígitos) a linha fica comprida.
 - Contas que faltam no plano dele (ISS/INSS a compensar, ISS a recolher, adiantamento de sócio, cartão a pagar,
   aplicações) e a habilitação de centro de custo.
-- Onde vão centro de custo e projeto, já que o modelo não tem coluna para eles.
+- Que o Alterdata aceite as duas colunas extras à direita (`centro de custo` e `projeto`); se recusar, o primeiro teste de
+  importação mostra, e tiramos as colunas.
 - **Retenções na nota** (ISS, INSS, IRRF…): entram numa próxima etapa.
