@@ -1,4 +1,4 @@
-import { BadgeCheck, Download, ListMinus, ListPlus, Send, Share2, ShieldCheck, Trash2 } from "lucide-react";
+import { BadgeCheck, Download, HardHat, ListMinus, ListPlus, Send, Share2, ShieldCheck, Trash2, UserRoundCheck } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 
@@ -14,6 +14,8 @@ export const SELECAO_BAIXAR = "selecao-baixar";
 export const SELECAO_VALIDAR = "selecao-validar";
 export const SELECAO_ENVIAR_ANALISE = "selecao-enviar-analise";
 export const SELECAO_PUBLICAR = "selecao-publicar";
+export const SELECAO_LIBERAR_OBRA = "selecao-liberar-obra";
+export const SELECAO_ENVIAR_CLIENTE = "selecao-enviar-cliente";
 export const SELECAO_ADICIONAR_LISTA = "selecao-adicionar-lista";
 export const SELECAO_REMOVER_LISTA = "selecao-remover-lista";
 export const SELECAO_LINK_PUBLICO = "selecao-link-publico";
@@ -28,6 +30,10 @@ export type ContextoSelecaoDocumentos = {
   totalParaEnviar?: number;
   /** Ciclo documental: revisões da seleção em análise que a pessoa pode publicar. */
   totalParaPublicar?: number;
+  /** Ciclo documental: revisões publicadas da seleção que a pessoa pode liberar para obra (ainda sem a liberação). */
+  totalParaLiberarObra?: number;
+  /** Ciclo documental: revisões publicadas da seleção que a pessoa pode enviar ao cliente (ainda sem o envio). */
+  totalParaEnviarCliente?: number;
   podeExcluir: boolean;
   podeGerirListas: boolean;
   temListas: boolean;
@@ -60,6 +66,12 @@ export function itensDaSelecaoDeDocumentos(ctx: ContextoSelecaoDocumentos): Acao
       : null,
     (ctx.totalParaPublicar ?? 0) > 0
       ? { tipo: "acao", id: SELECAO_PUBLICAR, rotulo: `Publicar (${ctx.totalParaPublicar})`, icone: BadgeCheck }
+      : null,
+    (ctx.totalParaLiberarObra ?? 0) > 0
+      ? { tipo: "acao", id: SELECAO_LIBERAR_OBRA, rotulo: `Liberar para obra (${ctx.totalParaLiberarObra})`, icone: HardHat }
+      : null,
+    (ctx.totalParaEnviarCliente ?? 0) > 0
+      ? { tipo: "acao", id: SELECAO_ENVIAR_CLIENTE, rotulo: `Enviar ao cliente (${ctx.totalParaEnviarCliente})`, icone: UserRoundCheck }
       : null,
     ctx.podeGerirListas && ctx.temListas
       ? { tipo: "acao", id: SELECAO_ADICIONAR_LISTA, rotulo: "Adicionar à lista", icone: ListPlus }

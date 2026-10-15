@@ -10,6 +10,8 @@ import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-
 import { rotuloRevisao } from "@/lib/utils";
 import { HistoricoDocumento } from "@/components/projetos/arquivos/historico-documento";
 import { SeloEstado } from "@/components/projetos/arquivos/ciclo-selos";
+import { CicloAcaoDialog, type PedidoCiclo } from "@/components/projetos/arquivos/ciclo-acao-dialog";
+import { escolhaDoCiclo, itensDoCiclo } from "@/modules/uploads/ciclo/acoes";
 import { ROTULO_CONTROLE } from "@/modules/uploads/ciclo/estados";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +70,9 @@ export function PainelDocumentoDetalhe({
   const [salvamentos, setSalvamentos] = useState(0);
   const [descricao, setDescricao] = useState(linha.descricao ?? "");
   const [faseId, setFaseId] = useState(linha.faseId ?? SEM_FASE);
+  // Ação do ciclo aberta a partir dos botões da seção "Ciclo da revisão" (mesmo diálogo do menu da linha).
+  const [pedidoCiclo, setPedidoCiclo] = useState<PedidoCiclo | null>(null);
+  const acoesCiclo = itensDoCiclo(linha.ciclo).filter((i) => i.tipo === "acao");
 
   // Ao abrir, o formulário recarrega da linha atual — não do que estava em memória desde a montagem.
   const [estavaAberto, setEstavaAberto] = useState(aberto);
@@ -214,8 +219,7 @@ export function PainelDocumentoDetalhe({
                 <div>
                   <h3 id={`ciclo-${linha.id}`} className="text-sm font-semibold">Ciclo da revisão</h3>
                   <p className="text-xs text-muted-foreground">
-                    Estado e controles da {linha.ciclo.numero ? rotuloRevisao(linha.ciclo.numero) : "revisão"} (ISO 19650). As
-                    ações ficam no menu da linha.
+                    Estado e controles da {linha.ciclo.numero ? rotuloRevisao(linha.ciclo.numero) : "revisão"} (ISO 19650).
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -246,6 +250,27 @@ export function PainelDocumentoDetalhe({
                     ))}
                   </ul>
                 )}
+                {acoesCiclo.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {acoesCiclo.map((item) => {
+                      const escolha = escolhaDoCiclo(item.id);
+                      const Icone = item.icone;
+                      return (
+                        <Button
+                          key={item.id}
+                          size="sm"
+                          variant={item.variant === "destructive" ? "destructive" : "outline"}
+                          disabled={!!item.desabilitado}
+                          title={item.desabilitado}
+                          onClick={() => escolha && setPedidoCiclo({ escolha, ciclo: linha.ciclo, nome: linha.nome })}
+                        >
+                          {Icone && <Icone />}
+                          {item.rotulo}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
             )}
 
@@ -261,6 +286,7 @@ export function PainelDocumentoDetalhe({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+      <CicloAcaoDialog pedido={pedidoCiclo} onFechar={() => setPedidoCiclo(null)} />
     </>
   );
 }

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   SELECAO_ADICIONAR_LISTA,
+  SELECAO_ENVIAR_CLIENTE,
+  SELECAO_LIBERAR_OBRA,
   SELECAO_ENVIAR_ANALISE,
   SELECAO_PUBLICAR,
   SELECAO_BAIXAR,
@@ -19,6 +21,8 @@ const tudo: ContextoSelecaoDocumentos = {
   podeValidar: true,
   totalParaEnviar: 2,
   totalParaPublicar: 1,
+  totalParaLiberarObra: 2,
+  totalParaEnviarCliente: 3,
   podeExcluir: true,
   podeGerirListas: true,
   temListas: true,
@@ -35,6 +39,8 @@ describe("itensDaSelecaoDeDocumentos", () => {
       SELECAO_VALIDAR,
       SELECAO_ENVIAR_ANALISE,
       SELECAO_PUBLICAR,
+      SELECAO_LIBERAR_OBRA,
+      SELECAO_ENVIAR_CLIENTE,
       SELECAO_ADICIONAR_LISTA,
       SELECAO_REMOVER_LISTA,
       SELECAO_LINK_PUBLICO,
@@ -48,6 +54,8 @@ describe("itensDaSelecaoDeDocumentos", () => {
       podeValidar: false,
       totalParaEnviar: 0,
       totalParaPublicar: 0,
+      totalParaLiberarObra: 0,
+      totalParaEnviarCliente: 0,
       podeExcluir: false,
       temListas: false,
       listaAberta: false,
@@ -65,6 +73,12 @@ describe("itensDaSelecaoDeDocumentos", () => {
     const itens = itensDaSelecaoDeDocumentos(tudo);
     expect(itens.find((i) => i.id === SELECAO_ENVIAR_ANALISE)).toMatchObject({ rotulo: "Enviar para análise (2)" });
     expect(itens.find((i) => i.id === SELECAO_PUBLICAR)).toMatchObject({ rotulo: "Publicar (1)" });
+  });
+
+  it("liberar para obra e enviar ao cliente dizem quantas revisões entram", () => {
+    const itens = itensDaSelecaoDeDocumentos(tudo);
+    expect(itens.find((i) => i.id === SELECAO_LIBERAR_OBRA)).toMatchObject({ rotulo: "Liberar para obra (2)" });
+    expect(itens.find((i) => i.id === SELECAO_ENVIAR_CLIENTE)).toMatchObject({ rotulo: "Enviar ao cliente (3)" });
   });
 
   it("no menu, o rótulo diz quantos documentos", () => {

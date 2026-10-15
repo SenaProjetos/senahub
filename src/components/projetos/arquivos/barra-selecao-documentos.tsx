@@ -4,7 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { validarArquivosLote, excluirUploadsLote } from "@/modules/uploads/actions";
-import { enviarParaAnalise, publicarRevisao } from "@/modules/uploads/ciclo/actions";
+import { aplicarControlePasta, enviarParaAnalise, publicarRevisao } from "@/modules/uploads/ciclo/actions";
 import { LinkSelecaoArquivosDialog } from "@/components/projetos/link-selecao-arquivos-button";
 import {
   EscopoExclusaoDialog,
@@ -35,6 +35,8 @@ import {
   SELECAO_ADICIONAR_LISTA,
   SELECAO_BAIXAR,
   SELECAO_ENVIAR_ANALISE,
+  SELECAO_ENVIAR_CLIENTE,
+  SELECAO_LIBERAR_OBRA,
   SELECAO_PUBLICAR,
   SELECAO_EXCLUIR,
   SELECAO_LINK_PUBLICO,
@@ -42,6 +44,8 @@ import {
   SELECAO_VALIDAR,
   itensDaSelecaoDeDocumentos,
 } from "@/modules/uploads/acoes-selecao-documentos";
+
+type LoteCiclo = "enviar" | "publicar" | "liberar_obra" | "enviar_cliente";
 
 type ListaDisponivel = { id: string; nome: string };
 
@@ -81,6 +85,8 @@ export function useAcoesSelecaoDocumentos({
   podeValidar,
   paraEnviar,
   paraPublicar,
+  paraLiberarObra,
+  paraEnviarCliente,
   podeExcluir,
   podeGerirListas,
   podeGerirLink,
@@ -100,6 +106,10 @@ export function useAcoesSelecaoDocumentos({
   paraEnviar: RevisaoDoLote[];
   /** Revisões selecionadas em análise que a pessoa pode publicar. */
   paraPublicar: RevisaoDoLote[];
+  /** Revisões selecionadas publicadas, sem liberação para obra, que a pessoa pode liberar. */
+  paraLiberarObra: RevisaoDoLote[];
+  /** Revisões selecionadas publicadas, ainda não enviadas ao cliente, que a pessoa pode enviar. */
+  paraEnviarCliente: RevisaoDoLote[];
   podeExcluir: boolean;
   /** Espelho visual do gate das Actions; o servidor continua validando o escopo. */
   podeGerirListas: boolean;
@@ -117,7 +127,7 @@ export function useAcoesSelecaoDocumentos({
   // Ids no diálogo de escopo da exclusão (`null` = fechado).
   const [escopo, setEscopo] = useState<string[] | null>(null);
   const [listaDestinoId, setListaDestinoId] = useState<string | null>(null);
-  const [loteCiclo, setLoteCiclo] = useState<"enviar" | "publicar" | null>(null);
+  const [loteCiclo, setLoteCiclo] = useState<LoteCiclo | null>(null);
   const [textoLote, setTextoLote] = useState("");
   const lote = useLote();
 
@@ -133,6 +143,8 @@ export function useAcoesSelecaoDocumentos({
     podeValidar,
     totalParaEnviar: paraEnviar.length,
     totalParaPublicar: paraPublicar.length,
+    totalParaLiberarObra: paraLiberarObra.length,
+    totalParaEnviarCliente: paraEnviarCliente.length,
     podeExcluir,
     podeGerirListas,
     temListas: listas.length > 0,
@@ -241,17 +253,43 @@ export function useAcoesSelecaoDocumentos({
     });
   }
 
+  const revisoesDoLote = (tipo: LoteCiclo) =>
+    tipo === "enviar" ? paraEnviar : tipo === "publicar" ? paraPublicar : tipo === "liberar_obra" ? paraLiberarObra : paraEnviarCliente;
+  // Liberar para obra e enviar ao cliente pedem o motivo (vale para todas), como a ação de uma revisão só.
+  const loteExigeTexto = loteCiclo === "liberar_obra" || loteCiclo === "enviar_cliente";
+  const faltaTextoLote = loteExigeTexto && textoLote.trim() === "";
+  const totalDoLote = loteCiclo ? revisoesDoLote(loteCiclo).length : 0;
+
   async function executarLoteCiclo() {
     if (!loteCiclo) return;
-    const revisoes = loteCiclo === "enviar" ? paraEnviar : paraPublicar;
+    const tipo = loteCiclo;
+    const revisoes = revisoesDoLote(tipo);
     const texto = textoLote.trim() || undefined;
+    if (loteExigeTexto && !texto) return;
     const nomes = new Map(revisoes.map((r) => [r.revisaoId, r.nome]));
     const r = await lote.executar({
       ids: revisoes.map((r) => r.revisaoId),
-      acao: (revisaoId) =>
-        loteCiclo === "enviar" ? enviarParaAnalise({ revisaoId, descricao: texto }) : publicarRevisao({ revisaoId, justificativa: texto }),
+      acao: (revisaoId) => {
+        switch (tipo) {
+          case "enviar":
+            return enviarParaAnalise({ revisaoId, descricao: texto });
+          case "publicar":
+            return publicarRevisao({ revisaoId, justificativa: texto });
+          case "liberar_obra":
+            return aplicarControlePasta({ revisaoId, tipo: "liberado_obra", motivo: texto! });
+          case "enviar_cliente":
+            return aplicarControlePasta({ revisaoId, tipo: "enviado_cliente", motivo: texto! });
+        }
+      },
       substantivo: ["revisão", "revisões"],
-      verbo: loteCiclo === "enviar" ? ["enviada para análise", "enviadas para análise"] : ["publicada", "publicadas"],
+      verbo:
+        tipo === "enviar"
+          ? ["enviada para análise", "enviadas para análise"]
+          : tipo === "publicar"
+            ? ["publicada", "publicadas"]
+            : tipo === "liberar_obra"
+              ? ["liberada para obra", "liberadas para obra"]
+              : ["enviada ao cliente", "enviadas ao cliente"],
       rotulo: (id) => nomes.get(id) ?? id,
     });
     if (!r) return;
@@ -270,6 +308,10 @@ export function useAcoesSelecaoDocumentos({
         return setLoteCiclo("enviar");
       case SELECAO_PUBLICAR:
         return setLoteCiclo("publicar");
+      case SELECAO_LIBERAR_OBRA:
+        return setLoteCiclo("liberar_obra");
+      case SELECAO_ENVIAR_CLIENTE:
+        return setLoteCiclo("enviar_cliente");
       case SELECAO_ADICIONAR_LISTA:
         return setDialogoListaAberto(true);
       case SELECAO_REMOVER_LISTA:
@@ -331,18 +373,32 @@ export function useAcoesSelecaoDocumentos({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{loteCiclo === "publicar" ? "Publicar revisões" : "Enviar revisões para análise"}</DialogTitle>
+          <DialogTitle>
+            {loteCiclo === "publicar"
+              ? "Publicar revisões"
+              : loteCiclo === "liberar_obra"
+                ? "Liberar revisões para obra"
+                : loteCiclo === "enviar_cliente"
+                  ? "Enviar revisões ao cliente"
+                  : "Enviar revisões para análise"}
+          </DialogTitle>
           <DialogDescription>
             {loteCiclo === "publicar"
               ? `${paraPublicar.length} ${paraPublicar.length === 1 ? "revisão em análise será publicada" : "revisões em análise serão publicadas"}. Publicado não volta; a revisão anterior de cada documento é arquivada.`
-              : `${paraEnviar.length} ${paraEnviar.length === 1 ? "revisão em andamento vai" : "revisões em andamento vão"} para análise. Cada uma passa pelas verificações do envio; a que não passar aparece no relatório com o que corrigir.`}
+              : loteCiclo === "liberar_obra"
+                ? `${totalDoLote} ${totalDoLote === 1 ? "revisão publicada será liberada" : "revisões publicadas serão liberadas"} para obra. A equipe de obra passa a ver e é avisada; a que não puder (restrição, bloqueio) aparece no relatório com o motivo.`
+                : loteCiclo === "enviar_cliente"
+                  ? `${totalDoLote} ${totalDoLote === 1 ? "revisão publicada será enviada" : "revisões publicadas serão enviadas"} ao cliente. O cliente passa a ver na pasta dele no link; a que não puder aparece no relatório com o motivo.`
+                  : `${paraEnviar.length} ${paraEnviar.length === 1 ? "revisão em andamento vai" : "revisões em andamento vão"} para análise. Cada uma passa pelas verificações do envio; a que não passar aparece no relatório com o que corrigir.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           <Label htmlFor="texto-lote-ciclo">
             {loteCiclo === "publicar"
               ? "Justificativa (só para quem tiver apontamentos em aberto, se o projeto permitir)"
-              : "O que mudou (vale para todas; obrigatório da R01 em diante)"}
+              : loteExigeTexto
+                ? "Motivo (vale para todas; fica no histórico de cada revisão)"
+                : "O que mudou (vale para todas; obrigatório da R01 em diante)"}
           </Label>
           <textarea
             id="texto-lote-ciclo"
@@ -355,12 +411,16 @@ export function useAcoesSelecaoDocumentos({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setLoteCiclo(null)} disabled={lote.pendente}>Cancelar</Button>
-          <Button onClick={() => void executarLoteCiclo()} disabled={lote.pendente}>
+          <Button onClick={() => void executarLoteCiclo()} disabled={lote.pendente || faltaTextoLote}>
             {lote.progresso
               ? `Aguarde… ${lote.progresso.feitos}/${lote.progresso.total}`
               : loteCiclo === "publicar"
                 ? "Publicar"
-                : "Enviar para análise"}
+                : loteCiclo === "liberar_obra"
+                  ? "Liberar para obra"
+                  : loteCiclo === "enviar_cliente"
+                    ? "Enviar ao cliente"
+                    : "Enviar para análise"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -473,6 +473,19 @@ export function TabelaDocumentos({
   // Documento, detalhes e as opcionais visíveis: o nome da pasta vai do Nº até antes das ações.
   const colunasDoNome = 2 + COLUNAS_OPCIONAIS.filter((c) => colunas.has(c)).length;
 
+  function paraControle(tipo: "liberado_obra" | "enviado_cliente") {
+    return documentosSelecionados
+      .filter(
+        (d) =>
+          d.ciclo.participa &&
+          d.ciclo.estado === "publicado" &&
+          d.ciclo.podeAlterarPasta &&
+          d.ciclo.revisaoId &&
+          !d.ciclo.controles.some((c) => c.tipo === tipo),
+      )
+      .map((d) => ({ revisaoId: d.ciclo.revisaoId!, nome: d.titulo ?? d.tituloPrancha ?? d.nome }));
+  }
+
   const selecaoAcoes = useAcoesSelecaoDocumentos({
     projetoId,
     selecionados,
@@ -487,6 +500,9 @@ export function TabelaDocumentos({
     paraPublicar: documentosSelecionados
       .filter((d) => d.ciclo.participa && d.ciclo.estado === "compartilhado" && d.ciclo.podePublicar && d.ciclo.revisaoId)
       .map((d) => ({ revisaoId: d.ciclo.revisaoId!, nome: d.titulo ?? d.tituloPrancha ?? d.nome })),
+    // Liberar para obra / enviar ao cliente: só revisão publicada, sem o controle já aplicado.
+    paraLiberarObra: paraControle("liberado_obra"),
+    paraEnviarCliente: paraControle("enviado_cliente"),
     podeExcluir,
     podeGerirListas,
     podeGerirLink,
