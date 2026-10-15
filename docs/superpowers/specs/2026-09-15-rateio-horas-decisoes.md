@@ -734,6 +734,7 @@ O sócio não bate ponto. Ele **aponta horas**, sem jornada. Pela decisão 1, o 
 - 42: (b).
 - 43: (a) o custo vem do ponto, e o avanço vem da EAP; a comparação já é calculada no Valor Agregado do cronograma. (b) Sim.
 - 44: (a) (i). (b) Sim: ter um card atribuído conta como fazer parte do projeto, e a disciplina vem do card.
+  - **Emenda (2026-10-15):** a tarefa só é obrigatória quando há tarefa para escolher (`tarefasParaPonto` não vazia). Com 2+ disciplinas e nenhuma tarefa disponível (projeto ainda sem planejamento), a hora entra no projeto sem disciplina ("coordenação/apoio"), em vez de travar o ponto.
 - 45: (b).
 
 ---

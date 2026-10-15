@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, ChevronRight, ListChecks, Search } from "lucide-react";
-import { buscarAlocacoesRecentes, buscarProjetosPonto } from "@/modules/ponto/actions";
+import { buscarAlocacoesRecentes, buscarProjetosPonto, buscarTarefasPonto } from "@/modules/ponto/actions";
 import {
   abrirApontamentoAction,
   fecharApontamentoAction,
@@ -27,7 +27,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { useBatida, avisarPontoAtualizado, EVENTO_PONTO } from "@/components/ponto/use-batida";
 import { useJornada } from "@/components/ponto/use-jornada";
 import { rotuloTarefaPonto, useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
-import { MSG_SEM_TAREFA_ABERTA, MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
+import { MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,7 +203,8 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
   // A linha da tarefa só existe quando há o que escolher (mesma regra do seletor do computador).
   const mostrarTarefa = tarefas !== null && tarefas.length > 0;
   // Parado, com 2+ disciplinas no projeto de destino: sem tarefa não abre a sessão (o servidor recusa igual).
-  const exigeTarefa = tarefaObrigatoria(alvo, projetos ?? []);
+  // (sem nenhuma tarefa para escolher, não exige: a hora entra no projeto sem disciplina).
+  const exigeTarefa = tarefaObrigatoria(alvo, projetos ?? [], tarefas?.length);
   const faltaTarefa = !rodando && exigeTarefa && !tarefaId;
   const escolhidaNaLista = tarefaId ? tarefas?.find((t) => t.id === tarefaId) : undefined;
   const tituloTarefa = escolhidaNaLista ? rotuloTarefaPonto(escolhidaNaLista) : null;
@@ -235,9 +236,21 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
     }
     if (selecao === selecaoCorrente) return;
     if (tarefaObrigatoria(selecao, projetos ?? [])) {
-      setPendente(selecao);
-      setGavetaTarefa(true);
-      return;
+      // Só pede a tarefa se o destino tem alguma; sem nenhuma, troca direto (sem disciplina).
+      let disponiveis: number | null = null;
+      setAplicando(true);
+      try {
+        disponiveis = (await buscarTarefasPonto(selecao)).length;
+      } catch {
+        // Sem rede: pede a tarefa como antes; o servidor decide.
+      } finally {
+        setAplicando(false);
+      }
+      if (tarefaObrigatoria(selecao, projetos ?? [], disponiveis)) {
+        setPendente(selecao);
+        setGavetaTarefa(true);
+        return;
+      }
     }
     if (ehPonto) await trocar(selecao);
     else await apontar(() => trocarApontamentoAction({ projetoId: selecao }), "Alocação atualizada.");
@@ -357,7 +370,7 @@ export function CardPontoHoje({ semLinkParaPagina = false }: { semLinkParaPagina
 
         {faltaTarefa && tarefas !== null && (
           <p className="border-t border-border/60 px-3 py-1.5 text-xs text-foreground">
-            {tarefas.length > 0 ? MSG_TAREFA_OBRIGATORIA : MSG_SEM_TAREFA_ABERTA}
+            {MSG_TAREFA_OBRIGATORIA}
           </p>
         )}
 

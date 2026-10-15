@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import type { TipoAlocacaoPonto } from "@/modules/ponto/alocacao";
-import { resolverTarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
+import { resolverTarefaDoPonto, tarefasParaPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { disciplinaDaSessao, motivoParaNaoMarcarNoProjeto } from "@/modules/ponto/disciplina-sessao";
 import { disciplinasDaPessoaNaData } from "@/modules/projetos/responsaveis-service";
 
@@ -24,6 +24,7 @@ export async function disciplinasDaPessoaNoProjeto(db: Db, userId: string, proje
  * que cria `SessaoTrabalho`. Leituras em série: `db` pode ser o cliente de uma transação.
  *
  * - `aoVivo`: marcação na hora (batida, troca, apontamento) — com 2+ disciplinas a tarefa é obrigatória.
+ *   Sem nenhuma tarefa disponível no projeto, não exige: a hora fica no projeto sem disciplina.
  *   Correção do dia passa `false` e nunca falha por disciplina.
  * - `checarAcesso`: só equipe, responsável de disciplina ou quem tem card aberto no projeto.
  */
@@ -60,11 +61,17 @@ export async function resolverDestinoDaSessao(
   if (p.alocacao.tipoAlocacao !== "projeto") return { tarefaId, disciplinaId: null };
 
   const tarefa = tarefaId ? await db.tarefa.findUnique({ where: { id: tarefaId }, select: { disciplinaId: true } }) : null;
+  // 2+ disciplinas e nada para escolher (a coordenação ainda não planejou): as horas entram no
+  // projeto sem disciplina em vez de travar o ponto. Só consulta a lista quando a regra pesaria.
+  let exigirTarefa = p.aoVivo;
+  if (exigirTarefa && !tarefaId && new Set(disciplinas).size >= 2) {
+    exigirTarefa = (await tarefasParaPonto(p.userId, projetoId, undefined, db)).length > 0;
+  }
   const r = disciplinaDaSessao({
     disciplinaDaTarefa: tarefa?.disciplinaId,
     tarefaEscolhida: !!tarefaId,
     disciplinasDaPessoa: disciplinas,
-    exigirTarefa: p.aoVivo,
+    exigirTarefa,
   });
   if ("erro" in r) throw new ActionError(r.erro);
   return { tarefaId, disciplinaId: r.disciplinaId };

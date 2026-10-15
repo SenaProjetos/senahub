@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { buscarTarefasPonto } from "@/modules/ponto/actions";
-import { MSG_SEM_TAREFA_ABERTA, MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
+import { MSG_TAREFA_OBRIGATORIA } from "@/modules/ponto/disciplina-sessao";
 import type { TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import {
   Select,
@@ -55,40 +55,34 @@ export function useTarefasDoPonto(
 /**
  * Tarefa da jornada (F6 — D20). OPCIONAL e discreto: o ponto não pode virar burocracia (Q20).
  * Só aparece quando há projeto escolhido E a pessoa tem alguma tarefa aberta nele no período;
- * do contrário não ocupa lugar nenhum. O padrão é "sem tarefa" — quem não quer escolher bate
- * ponto como sempre bateu.
+ * do contrário não ocupa lugar nenhum (e, com 2+ disciplinas, a hora entra no projeto sem
+ * disciplina). O padrão é "sem tarefa" — quem não quer escolher bate ponto como sempre bateu.
  */
 export function SeletorTarefa({
-  projetoId,
+  opcoes,
   value,
   onChange,
-  tarefaAtual,
   disabled,
   obrigatoria = false,
 }: {
-  /** Projeto REAL escolhido (nunca "sem projeto"/reunião). `null` esconde o seletor. */
-  projetoId: string | null;
+  /**
+   * Lista de `useTarefasDoPonto`, chamado pelo pai: ele precisa saber se há tarefa para escolher
+   * (`tarefaObrigatoria`). `null` enquanto carrega ou sem projeto real — o seletor some.
+   */
+  opcoes: TarefaDoPonto[] | null;
   /** Id da tarefa escolhida, ou "" para nenhuma. */
   value: string;
   onChange: (tarefaId: string) => void;
-  /** Tarefa da sessão em curso — ver `useTarefasDoPonto`. */
-  tarefaAtual?: { id: string; titulo: string } | null;
   disabled?: boolean;
   /**
-   * Pessoa com 2+ disciplinas no projeto (R2 do rateio): sem tarefa não há como saber em qual
-   * disciplina as horas entram, e o servidor recusa. A tela pede a tarefa antes.
+   * Pessoa com 2+ disciplinas no projeto (R2 do rateio) e com tarefa para escolher: sem tarefa não
+   * há como saber em qual disciplina as horas entram, e o servidor recusa. A tela pede a tarefa antes.
    */
   obrigatoria?: boolean;
 }) {
-  const opcoes = useTarefasDoPonto(projetoId, tarefaAtual);
   // "Outras da etapa" começam recolhidas (decisão 1 de 08/10/2026): a lista curta é o padrão.
   const [verOutras, setVerOutras] = useState(false);
-  if (!opcoes) return null;
-  if (opcoes.length === 0) {
-    return obrigatoria ? (
-      <p className="text-xs text-foreground">{MSG_SEM_TAREFA_ABERTA}</p>
-    ) : null;
-  }
+  if (!opcoes || opcoes.length === 0) return null;
 
   const principais = opcoes.filter((t) => t.grupo === "periodo");
   const outras = opcoes.filter((t) => t.grupo === "etapa");

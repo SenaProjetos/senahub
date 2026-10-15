@@ -66,7 +66,9 @@ coordenação para te incluir.
 Quem é responsável por **mais de uma disciplina** no mesmo projeto precisa escolher a **tarefa** em que vai
 trabalhar: é ela que diz em qual disciplina as horas entram. O campo muda para **Tarefa (obrigatória)** e o
 botão de iniciar fica desabilitado até a escolha. Com uma só disciplina, o sistema usa essa disciplina sozinho
-e a tarefa continua opcional. Corrigir o dia no espelho nunca trava: sem tarefa, as horas ficam sem disciplina.
+e a tarefa continua opcional. Se você não tem nenhuma tarefa em aberto no projeto (por exemplo, a coordenação
+ainda não montou o planejamento), não há o que escolher: as horas entram no projeto **sem disciplina** e o ponto
+funciona normalmente. Corrigir o dia no espelho nunca trava: sem tarefa, as horas ficam sem disciplina.
 
 ## Minhas horas
 

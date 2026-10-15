@@ -26,7 +26,7 @@ import { useBatida, avisarPontoAtualizado } from "@/components/ponto/use-batida"
 import { useJornada } from "@/components/ponto/use-jornada";
 import { BOTAO, COR_ESTADO, ESTADO_LABEL } from "@/components/ponto/batida-meta";
 import { SeletorAlocacao } from "@/components/ponto/seletor-alocacao";
-import { SeletorTarefa } from "@/components/ponto/seletor-tarefa";
+import { SeletorTarefa, useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -97,6 +97,16 @@ export function JornadaHeader() {
     }
   }, [projetos]);
 
+  // As tarefas do destino só são buscadas com o popover já aberto (`projetos` carrega junto): a
+  // miniatura do header não pode pesar toda navegação.
+  const tarefasDoDestino = useTarefasDoPonto(
+    projetos !== null && selecaoEhProjeto(alocacao) ? alocacao : null,
+    alocacao === projetoCorrenteId ? tarefaCorrente : null,
+  );
+  // Quem responde por 2+ disciplinas no projeto precisa escolher a tarefa (o servidor recusa igual),
+  // salvo se não há nenhuma para escolher.
+  const exigeTarefa = tarefaObrigatoria(alocacao, projetos ?? [], tarefasDoDestino?.length);
+
   if (resumo === null) return null;
 
   // Placeholder do mesmo tamanho enquanto carrega — evita o header "pular" no primeiro fetch.
@@ -148,8 +158,7 @@ export function JornadaHeader() {
     }
   }
 
-  // Quem responde por 2+ disciplinas no projeto precisa escolher a tarefa (o servidor recusa igual).
-  const faltaTarefa = tarefaObrigatoria(alocacao, projetos ?? []) && !tarefa;
+  const faltaTarefa = exigeTarefa && !tarefa;
   const ocupado = busy || aplicando;
   const rotuloSessao = projeto || rodando ? rotuloDaSessao(tipoAlocacao, projeto ? projetoLabel(projeto) : null) : null;
 
@@ -238,12 +247,11 @@ export function JornadaHeader() {
           )}
           {selecaoEhProjeto(alocacao) && (
             <SeletorTarefa
-              projetoId={alocacao}
+              opcoes={tarefasDoDestino}
               value={tarefa}
               onChange={setTarefa}
-              tarefaAtual={alocacao === projetoCorrenteId ? tarefaCorrente : null}
               disabled={ocupado}
-              obrigatoria={tarefaObrigatoria(alocacao, projetos ?? [])}
+              obrigatoria={exigeTarefa}
             />
           )}
 

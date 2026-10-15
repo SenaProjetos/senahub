@@ -174,4 +174,13 @@ describe("seletor de reunião com projeto (R2.4)", () => {
     expect(tarefaObrigatoria("__reuniao_interna:a", projetos)).toBe(false);
     expect(tarefaObrigatoria(ALOCACAO_SEM_PROJETO, projetos)).toBe(false);
   });
+
+  it("tarefa obrigatória: sem tarefa para escolher, as horas vão ao projeto sem disciplina", () => {
+    const projetos = [{ id: "a", codigo: "1", nome: "A", disciplinasDaPessoa: 2 }];
+    expect(tarefaObrigatoria("a", projetos, 0)).toBe(false);
+    expect(tarefaObrigatoria("a", projetos, 3)).toBe(true);
+    // Lista ainda carregando: segue obrigatória.
+    expect(tarefaObrigatoria("a", projetos, null)).toBe(true);
+    expect(tarefaObrigatoria("a", projetos, undefined)).toBe(true);
+  });
 });

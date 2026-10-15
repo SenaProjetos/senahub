@@ -133,9 +133,19 @@ export function rotuloDaSessao(tipo: TipoAlocacaoPonto, projetoRotulo: string | 
   return projetoRotulo ? `${base} · ${projetoRotulo}` : base;
 }
 
-/** A tarefa é obrigatória neste destino? Projeto real em que a pessoa responde por 2+ disciplinas. */
-export function tarefaObrigatoria(selecao: string | null | undefined, projetos: readonly ProjetoAlocacao[]): boolean {
+/**
+ * A tarefa é obrigatória neste destino? Projeto real em que a pessoa responde por 2+ disciplinas —
+ * e só quando há tarefa para escolher: sem nenhuma (`tarefasDisponiveis === 0`, ex.: coordenação
+ * ainda não planejou) as horas entram no projeto sem disciplina. `null`/`undefined` = lista ainda
+ * não carregada, segue obrigatória (o servidor decide igual: `resolverDestinoDaSessao`).
+ */
+export function tarefaObrigatoria(
+  selecao: string | null | undefined,
+  projetos: readonly ProjetoAlocacao[],
+  tarefasDisponiveis?: number | null,
+): boolean {
   if (!selecaoEhProjeto(selecao)) return false;
+  if (tarefasDisponiveis === 0) return false;
   return (projetos.find((p) => p.id === selecao)?.disciplinasDaPessoa ?? 0) >= 2;
 }
 

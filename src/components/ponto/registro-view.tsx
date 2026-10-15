@@ -19,7 +19,7 @@ import { darCienciaAjuste, contestarAjuste } from "@/modules/ponto/actions";
 import { type TipoBatida } from "@/lib/ponto-offline";
 import { useBatida, useCronometro } from "@/components/ponto/use-batida";
 import { SeletorAlocacao } from "@/components/ponto/seletor-alocacao";
-import { SeletorTarefa } from "@/components/ponto/seletor-tarefa";
+import { SeletorTarefa, useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
 import { ESTADO_LABEL, TIPO_LABEL, BOTAO, COR_ESTADO } from "@/components/ponto/batida-meta";
 import { transicoesPermitidas, type EstadoJornada } from "@/modules/ponto/engine";
 import { fmtHoras } from "@/modules/ponto/format";
@@ -257,8 +257,13 @@ export function RegistroPonto({
   const [tarefa, setTarefa] = useState(usaSugestao ? sugestao!.tarefa.id : (estadoDia.tarefaAtiva?.id ?? ""));
   const { bater, trocar, busy, pendentes, sincronizarFila } = useBatida();
   const projetoEscolhidoId = selecaoEhProjeto(alocacao) ? alocacao : null;
-  // Quem responde por 2+ disciplinas no projeto precisa escolher a tarefa (o servidor recusa igual).
-  const exigeTarefa = tarefaObrigatoria(alocacao, projetos);
+  const tarefasDoDestino = useTarefasDoPonto(
+    projetoEscolhidoId,
+    estadoDia.projetoAtivo?.id === projetoEscolhidoId ? estadoDia.tarefaAtiva : null,
+  );
+  // Quem responde por 2+ disciplinas no projeto precisa escolher a tarefa (o servidor recusa igual),
+  // salvo se não há nenhuma para escolher.
+  const exigeTarefa = tarefaObrigatoria(alocacao, projetos, tarefasDoDestino?.length);
   const faltaTarefa = exigeTarefa && !tarefa;
 
   const trabalhadoMs = useCronometro(
@@ -317,10 +322,9 @@ export function RegistroPonto({
           {projetoEscolhidoId && (
             <div className="w-64">
               <SeletorTarefa
-                projetoId={projetoEscolhidoId}
+                opcoes={tarefasDoDestino}
                 value={tarefa}
                 onChange={setTarefa}
-                tarefaAtual={estadoDia.projetoAtivo?.id === projetoEscolhidoId ? estadoDia.tarefaAtiva : null}
                 disabled={busy}
                 obrigatoria={exigeTarefa}
               />

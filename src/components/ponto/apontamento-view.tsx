@@ -21,7 +21,7 @@ import {
 } from "@/modules/ponto/alocacao";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SeletorAlocacao } from "@/components/ponto/seletor-alocacao";
-import { SeletorTarefa } from "@/components/ponto/seletor-tarefa";
+import { SeletorTarefa, useTarefasDoPonto } from "@/components/ponto/seletor-tarefa";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -86,7 +86,11 @@ export function ApontamentoHoras({
   );
   // Tarefa: segue a do apontamento aberto, ou a atividade sugerida; zera ao escolher outro projeto.
   const [tarefa, setTarefa] = useState(!aberto && sugestao ? sugestao.tarefa.id : (aberto?.tarefa?.id ?? ""));
-  const exigeTarefa = tarefaObrigatoria(alocacao, projetos);
+  const tarefasDoDestino = useTarefasDoPonto(
+    selecaoEhProjeto(alocacao) ? alocacao : null,
+    alocacao === aberto?.projetoId ? (aberto?.tarefa ?? null) : null,
+  );
+  const exigeTarefa = tarefaObrigatoria(alocacao, projetos, tarefasDoDestino?.length);
   const faltaTarefa = exigeTarefa && !tarefa;
   const [pending, start] = useTransition();
   const decorrido = useDecorrido(aberto?.inicio ?? null);
@@ -153,10 +157,9 @@ export function ApontamentoHoras({
           {selecaoEhProjeto(alocacao) && (
             <div className="w-64">
               <SeletorTarefa
-                projetoId={alocacao}
+                opcoes={tarefasDoDestino}
                 value={tarefa}
                 onChange={setTarefa}
-                tarefaAtual={alocacao === aberto?.projetoId ? (aberto?.tarefa ?? null) : null}
                 disabled={pending}
                 obrigatoria={exigeTarefa}
               />
