@@ -1,9 +1,9 @@
 /**
  * Arquivos da exportação contábil — puro.
  *
- * Conta no arquivo = a CLASSIFICAÇÃO do plano do contador ("1.1.1.02.0004"), por resposta dele em 2026-10-15. O código reduzido
- * (3941) é só a chave interna do SenaHub: a classificação se repete no plano real, então ela pode ser ambígua (ver
- * `linhasComContaRepetida`) e o layout do contador recusa o mês enquanto houver conta assim.
+ * Conta no arquivo = a CLASSIFICAÇÃO do plano do contador ("1.1.1.02.0004"), por resposta dele em 2026-10-16. O código reduzido
+ * (3941) é só a chave interna do SenaHub. A classificação se repete no plano real (2.1.3.01.0003 = PIS, COFINS, ICMS, IPI e IE a
+ * recolher) e isso é ACEITO: no Simples esses tributos vêm juntos no DAS, então são uma conta só para o Alterdata (dono, 2026-10-16).
  *
  *  - `xlsx` / `csv` (genérico, mock: "uma linha por lançamento: data, conta de débito, conta de crédito, valor,
  *    histórico e documento"): leva também chave da NF-e, centro de custo e subcentro. Conta sem de-para sai em branco.
@@ -73,13 +73,6 @@ export const linhasSemConta = (linhas: readonly ComContas[]): number =>
 
 export const MOTIVO_ALTERDATA_SEM_CONTA = (n: number) =>
   `${n} ${n === 1 ? "linha está" : "linhas estão"} sem conta contábil. O layout do contador não aceita conta em branco: preencha o de-para (ou peça ao contador a conta que falta) antes de exportar.`;
-
-/** Linhas cuja conta tem classificação que mais de uma conta do plano usa: o Alterdata não saberia qual é. */
-export const linhasComContaRepetida = (linhas: readonly Pick<LinhaExportada, "debitoClassificacao" | "creditoClassificacao">[], repetidas: ReadonlySet<string>): number =>
-  linhas.filter((l) => (l.debitoClassificacao && repetidas.has(l.debitoClassificacao)) || (l.creditoClassificacao && repetidas.has(l.creditoClassificacao))).length;
-
-export const MOTIVO_ALTERDATA_CONTA_REPETIDA = (n: number, classificacoes: readonly string[]) =>
-  `${n} ${n === 1 ? "linha usa" : "linhas usam"} conta cuja classificação (${classificacoes.join(", ")}) se repete no plano do contador. Como o arquivo leva a classificação, o Alterdata não saberia qual conta é: escolha outra conta no de-para ou peça ao contador para corrigir o plano.`;
 
 const DOC = (l: Pick<LinhaContabil, "documento">) => (l.documento ? ` - Doc. ${l.documento}` : "");
 

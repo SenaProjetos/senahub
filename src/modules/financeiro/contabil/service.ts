@@ -15,14 +15,7 @@ import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
 import { mesesFechados } from "@/modules/financeiro/fechamento/trava-service";
 import { planejarImportacao, type ContaDoPlano, type PlanoDaImportacao } from "@/modules/financeiro/contabil/plano";
-import {
-  linhasComContaRepetida,
-  linhasSemConta,
-  MOTIVO_ALTERDATA_CONTA_REPETIDA,
-  MOTIVO_ALTERDATA_SEM_CONTA,
-  type FormatoContabil,
-  type LinhaExportada,
-} from "@/modules/financeiro/contabil/arquivo";
+import { linhasSemConta, MOTIVO_ALTERDATA_SEM_CONTA, type FormatoContabil, type LinhaExportada } from "@/modules/financeiro/contabil/arquivo";
 import { gerarPartidas, type DeParaDoMotor, type LancamentoContabil, type ResumoContabil, type StatusContabil } from "@/modules/financeiro/contabil/partidas";
 
 type Db = Prisma.TransactionClient | typeof prisma;
@@ -202,15 +195,8 @@ export async function lancamentosDoMes(mes: string, db: Db = prisma): Promise<La
   }));
 }
 
-export type ClassificacaoRepetida = { classificacao: string; contas: string[] };
-
-/** Resumo do mês como vai ao arquivo: linhas com a classificação de cada conta + o que o plano do contador tem de ambíguo. */
-export type ResumoExportavel = Omit<ResumoContabil, "linhas"> & {
-  linhas: LinhaExportada[];
-  /** Classificações que mais de uma conta analítica do plano usa E que aparecem nas linhas do mês. */
-  repetidasUsadas: ClassificacaoRepetida[];
-  linhasComContaRepetida: number;
-};
+/** Resumo do mês como vai ao arquivo: as linhas com a classificação de cada conta. */
+export type ResumoExportavel = Omit<ResumoContabil, "linhas"> & { linhas: LinhaExportada[] };
 
 /**
  * As partidas do mês, como o arquivo sairia agora. Só lê. A conta no arquivo é a CLASSIFICAÇÃO do plano do contador; o motor
@@ -220,23 +206,14 @@ export async function partidasDoMes(mes: string, db: Db = prisma): Promise<Resum
   const ls = await lancamentosDoMes(mes, db);
   const dp = await deParaDoMotor(db);
   const r = gerarPartidas(mes, ls, dp);
-  const plano = await db.contaContabil.findMany({ select: { reduzido: true, classificacao: true, nome: true, analitica: true, ativa: true } });
+  const plano = await db.contaContabil.findMany({ select: { reduzido: true, classificacao: true } });
   const classificacaoDe = new Map(plano.map((c) => [c.reduzido, c.classificacao]));
   const linhas: LinhaExportada[] = r.linhas.map((l) => ({
     ...l,
     debitoClassificacao: l.debito != null ? (classificacaoDe.get(l.debito) ?? null) : null,
     creditoClassificacao: l.credito != null ? (classificacaoDe.get(l.credito) ?? null) : null,
   }));
-  const porClassificacao = new Map<string, string[]>();
-  for (const c of plano.filter((x) => x.analitica && x.ativa)) porClassificacao.set(c.classificacao, [...(porClassificacao.get(c.classificacao) ?? []), `${c.nome} (${c.reduzido})`]);
-  const repetidas = new Set([...porClassificacao].filter(([, contas]) => contas.length > 1).map(([k]) => k));
-  const usadas = new Set(linhas.flatMap((l) => [l.debitoClassificacao, l.creditoClassificacao]).filter((k): k is string => !!k && repetidas.has(k)));
-  return {
-    ...r,
-    linhas,
-    repetidasUsadas: [...usadas].sort().map((classificacao) => ({ classificacao, contas: porClassificacao.get(classificacao) ?? [] })),
-    linhasComContaRepetida: linhasComContaRepetida(linhas, usadas),
-  };
+  return { ...r, linhas };
 }
 
 export const hashDasLinhas = (linhas: unknown) => createHash("sha256").update(JSON.stringify(linhas)).digest("hex");
@@ -250,7 +227,6 @@ export async function registrarExportacaoNoBanco(mes: string, formato: FormatoCo
   if (formato === "alterdata") {
     const faltam = linhasSemConta(r.linhas);
     if (faltam > 0) throw new ActionError(MOTIVO_ALTERDATA_SEM_CONTA(faltam));
-    if (r.linhasComContaRepetida > 0) throw new ActionError(MOTIVO_ALTERDATA_CONTA_REPETIDA(r.linhasComContaRepetida, r.repetidasUsadas.map((x) => x.classificacao)));
   }
   const e = await prisma.exportacaoContabil.create({
     data: {

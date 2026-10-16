@@ -28,7 +28,6 @@ import {
   complementosCortados,
   LIMITE_COMPLEMENTO_ALTERDATA,
   linhasSemConta,
-  MOTIVO_ALTERDATA_CONTA_REPETIDA,
   MOTIVO_ALTERDATA_SEM_CONTA,
   type FormatoContabil,
 } from "@/modules/financeiro/contabil/arquivo";
@@ -78,8 +77,6 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
         ? "Preencha o de-para antes de exportar."
         : formato === "alterdata" && linhasSemContaNoArquivo > 0
           ? MOTIVO_ALTERDATA_SEM_CONTA(linhasSemContaNoArquivo)
-          : formato === "alterdata" && dados.linhasComContaRepetida > 0
-            ? MOTIVO_ALTERDATA_CONTA_REPETIDA(dados.linhasComContaRepetida, dados.repetidasUsadas.map((x) => x.classificacao))
           : !dados.linhas.length
             ? "Nada para exportar neste mês."
             : null;

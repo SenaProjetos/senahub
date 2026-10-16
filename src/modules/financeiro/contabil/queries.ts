@@ -45,9 +45,6 @@ export type TelaContabil = {
   categorias: CategoriaContabilDto[];
   contasBancarias: ContaBancariaContabilDto[];
   linhas: LinhaExportada[];
-  /** Classificações do plano do contador que mais de uma conta usa e que aparecem neste mês (o layout dele recusa). */
-  repetidasUsadas: { classificacao: string; contas: string[] }[];
-  linhasComContaRepetida: number;
   totalCentavos: number;
   pendencias: PendenciaDto[];
   fora: { naoExportar: number; aguardandoAprovacao: number };
@@ -167,8 +164,6 @@ export async function telaContabil(mesPedido?: string): Promise<TelaContabil> {
     categorias: categoriasDto,
     contasBancarias: bancos.map((b) => ({ id: b.id, nome: b.nome, investimento: b.investimento != null, conta: doBanco.get(b.id) ?? null })),
     linhas: resumo.linhas,
-    repetidasUsadas: resumo.repetidasUsadas,
-    linhasComContaRepetida: resumo.linhasComContaRepetida,
     totalCentavos: resumo.totalCentavos,
     pendencias: [...agrupadas.values()],
     fora: { naoExportar: resumo.fora.naoExportar, aguardandoAprovacao: resumo.fora.aguardandoAprovacao },

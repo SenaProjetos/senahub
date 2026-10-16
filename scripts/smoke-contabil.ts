@@ -195,18 +195,14 @@ async function main() {
     const somaModelo = Math.round(modelo.reduce((t, l) => t + l[3], 0) * 100);
     ok(somaModelo === completo.totalCentavos, `a soma dos valores do arquivo (${somaModelo}) fecha com o total das partidas (${completo.totalCentavos})`);
 
-    // Classificação repetida no plano do contador (PIS/COFINS/ICMS/IPI/IE = 2.1.3.01.0003): o layout dele não saberia qual é.
+    // Classificação repetida no plano (PIS/COFINS/ICMS/IPI/IE = 2.1.3.01.0003): aceita, vêm juntos no DAS do Simples (dono, 2026-10-16).
     await definirContaNoBanco("categoria", semConta.id, 2177);
     const comRepetida = await partidasDoMes(MES);
-    ok(comRepetida.linhasComContaRepetida === 1 && comRepetida.repetidasUsadas.some((x) => x.classificacao === "2.1.3.01.0003"), "conta de classificação repetida é detectada no mês");
-    try {
-      await registrarExportacaoNoBanco(MES, "alterdata", autor.id);
-      ok(false, "layout do contador recusa conta de classificação repetida (não recusou)");
-    } catch (err) {
-      ok(err instanceof Error && err.message.includes("2.1.3.01.0003"), "layout do contador recusa conta de classificação repetida, dizendo qual");
-    }
+    ok(comRepetida.linhas.some((l) => l.debitoClassificacao === "2.1.3.01.0003"), "conta de classificação repetida sai pela classificação");
+    const eRepetida = await registrarExportacaoNoBanco(MES, "alterdata", autor.id);
+    ok(!!eRepetida.id, "layout do contador aceita a classificação repetida (uma conta só no DAS)");
     const generico = await registrarExportacaoNoBanco(MES, "xlsx", autor.id);
-    ok(!!generico.id, "o arquivo genérico continua exportando (a repetição só barra o layout do contador)");
+    ok(!!generico.id, "o arquivo genérico também exporta");
   } finally {
     const outras = await prisma.contaBancaria.findMany({ where: { nome: { startsWith: MARCA } }, select: { id: true } });
     await limpar(ids);

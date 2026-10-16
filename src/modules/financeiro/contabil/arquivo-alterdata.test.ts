@@ -8,10 +8,8 @@ import {
   LIMITE_COMPLEMENTO_ALTERDATA,
   complementoAlterdata,
   complementosCortados,
-  linhasComContaRepetida,
   linhasDoAlterdata,
   linhasSemConta,
-  MOTIVO_ALTERDATA_CONTA_REPETIDA,
   MOTIVO_ALTERDATA_SEM_CONTA,
   type LinhaExportada,
 } from "@/modules/financeiro/contabil/arquivo";
@@ -136,12 +134,9 @@ describe("layout do contador (modelo-de-importacao-alterdata-lancamentos.xls)", 
     expect(MOTIVO_ALTERDATA_SEM_CONTA(1)).toMatch(/^1 linha está sem conta contábil/);
   });
 
-  it("conta cuja classificação se repete no plano: conta as linhas e diz qual é", () => {
-    const repetidas = new Set(["2.1.3.01.0003"]);
-    const ls = [linha(), linha({ creditoClassificacao: "2.1.3.01.0003" }), linha({ debitoClassificacao: "2.1.3.01.0003", creditoClassificacao: "2.1.3.01.0003" })];
-    expect(linhasComContaRepetida(ls, repetidas)).toBe(2);
-    expect(linhasComContaRepetida(ls, new Set())).toBe(0);
-    expect(MOTIVO_ALTERDATA_CONTA_REPETIDA(2, ["2.1.3.01.0003"])).toMatch(/^2 linhas usam conta cuja classificação \(2\.1\.3\.01\.0003\) se repete/);
+  it("classificação repetida no plano (PIS/COFINS/ICMS/IPI/IE, juntos no DAS) sai como está, sem recusa", () => {
+    const [l] = linhasDoAlterdata([linha({ creditoClassificacao: "2.1.3.01.0003" })]);
+    expect(l[1]).toBe("2.1.3.01.0003");
   });
 
   it("mês sem linhas gera só o cabeçalho", async () => {

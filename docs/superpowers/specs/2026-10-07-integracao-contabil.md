@@ -333,8 +333,6 @@ linhas por título), como o layout já faz; (4) centro de custo e projeto entram
 interna (de-para, motor, pendências), e `partidasDoMes` resolve a classificação de cada conta (`LinhaExportada`, vale também para o
 genérico); (5) o complemento tem no máximo **200 caracteres** e a chave da NF-e vai em **coluna separada** (`chave de acesso`).
 
-**Consequência da classificação:** ela se repete no plano atual do contador — `2.1.3.01.0003` é PIS, COFINS, ICMS, IPI e IE a recolher.
-O layout do contador recusa o mês quando uma linha usa conta de classificação repetida (`linhasComContaRepetida` /
-`MOTIVO_ALTERDATA_CONTA_REPETIDA`, no servidor e na tela); o genérico exporta. Hoje nenhuma sugestão do de-para usa essas contas, mas as
-retenções (C4) vão precisar de PIS/COFINS a recolher: **pedir ao contador para corrigir o plano** (provável erro de digitação: deveriam
-ser `.0003`, `.0006`, `.0007`…).
+**Classificação repetida:** `2.1.3.01.0003` é PIS, COFINS, ICMS, IPI e IE a recolher no plano do contador. **Aceito como está**
+(dono, 2026-10-16): no Simples esses tributos vêm juntos no DAS, então são uma conta só para o Alterdata. Nenhuma trava; as retenções
+(C4) de PIS/COFINS a recolher usam essa classificação.

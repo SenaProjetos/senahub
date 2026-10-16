@@ -44,9 +44,8 @@ Regras que valem:
 No arquivo, a conta sai pela **classificação** do plano do contador ("3.1.2.03.0009"), como ele pediu. Por dentro, o
 SenaHub guarda o código reduzido (o número entre parênteses no plano), que nunca se repete.
 
-**Atenção:** no plano atual do contador, PIS, COFINS, ICMS, IPI e IE a recolher têm a mesma classificação
-(`2.1.3.01.0003`). Se uma categoria apontar para uma delas, o layout do contador não exporta o mês — o Alterdata não
-saberia qual conta é. Escolha outra conta ou peça ao contador para corrigir o plano.
+No plano do contador, PIS, COFINS, ICMS, IPI e IE a recolher têm a mesma classificação (`2.1.3.01.0003`). Está certo: no
+Simples Nacional esses tributos vêm juntos no DAS, então para o Alterdata são uma conta só.
 
 ## Exportar o mês
 
@@ -82,13 +81,12 @@ bloqueada até você escolher; o que depende de conta que o contador ainda vai c
   linhas foram encurtadas. A chave de acesso da NF-e vai na coluna própria. Centro de custo e projeto aparecem só nas linhas
   de receita e despesa (o reconhecimento); a linha do pagamento, que é entre banco e cliente ou fornecedor, fica sem. Sem um
   código definido pelo contador, saem o nome do centro de custo e o código do projeto no SenaHub. Esse formato **não aceita
-  conta em branco** nem conta de classificação repetida: o botão Exportar fica desabilitado e diz o motivo.
+  conta em branco**: o botão Exportar fica desabilitado e diz quantas linhas faltam.
 - **Excel** e **CSV** (genérico): as mesmas partidas, com colunas separadas para documento, chave da NF-e, centro de custo e
   subcentro. Conta sem de-para sai em branco.
 
 ## O que ainda depende do contador
 
-- Corrigir a classificação repetida de PIS, COFINS, ICMS, IPI e IE a recolher (`2.1.3.01.0003`) no plano dele.
 - Contas que faltam no plano dele (ISS/INSS a compensar, ISS a recolher, adiantamento de sócio, cartão a pagar,
   aplicações) e a habilitação de centro de custo.
 - Que o Alterdata aceite as três colunas extras à direita (`centro de custo`, `projeto` e `chave de acesso`); se recusar, o primeiro teste de

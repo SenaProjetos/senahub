@@ -552,8 +552,8 @@ The accountant's own import model (`docs/financeiro/contabil/modelo-de-importaca
 5 columns (`debito, credito, data, valor, complemento historico`, tab `Planilha1`) plus THREE EXTRA COLUMNS to the right added by the
 owner (`centro de custo`, `projeto`, `chave de acesso`). Accounts in EVERY file are the plan's CLASSIFICAÇÃO (owner/accountant,
 2026-10-16), resolved by `partidasDoMes` into `LinhaExportada` — the código reduzido stays the internal key (de-para, motor). The
-classificação REPEATS in his plan (`2.1.3.01.0003` = PIS/COFINS/ICMS/IPI/IE), so the alterdata layout refuses a month with such an
-account (`linhasComContaRepetida`) and with a line without account; the complemento is capped at 200 chars (description shortened,
+classificação repeats in his plan (`2.1.3.01.0003` = PIS/COFINS/ICMS/IPI/IE) and that is ACCEPTED — in the Simples they are paid
+together in the DAS, one account for the Alterdata (owner, 2026-10-16); the alterdata layout refuses a month with a line without account; the complemento is capped at 200 chars (description shortened,
 document kept, `complementoAlterdata`); centro/projeto only on result-account lines, never on the baixa (no de-para code → SenaHub
 centro name / projeto code). `arquivo-xlsx.ts` (exceljs, `node:module`) is imported only by the download route, never by the client view.
 
