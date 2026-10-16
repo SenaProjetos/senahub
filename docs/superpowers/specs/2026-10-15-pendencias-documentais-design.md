@@ -67,6 +67,11 @@ encerra a linha antiga (`desfeitaEm`) e cria outra.
 Uma dispensa vale se existir linha ativa com o mesmo `alvoId`, `tipo` e `chave`. `RevisaoVarrida` ganha
 `qtdNaLixeira` (hoje só há o booleano `arquivoNaLixeira`, e a consulta usa `take: 1`).
 
+Dispensa ativa que não casa com nenhuma violação atual (a pendência sumiu ou a assinatura mudou) é **encerrada pelo
+job diário** (`desfeitaPorId` nulo = sistema). Sem isso, uma ocorrência nova com a mesma assinatura de antes (1 arquivo
+na lixeira → 2 → volta a 1) herdaria a dispensa velha calada. Função pura `dispensasObsoletas`. (Acrescentado ao
+escrever o plano, 2026-10-15.)
+
 ## 6. Leitura
 
 - Extrair de `verificarIntegridadeCiclo` uma função que carrega as revisões varridas, usada pelo job e pela
@@ -110,7 +115,7 @@ Aprovações. Gate com `can()` puro (como `/aprovacoes`), sem o piso de sócio.
 `verificarIntegridadeCiclo` ignora as dispensadas. A notificação vira resumo: "N pendências abertas (X na
 lixeira, Y paradas, Z duplicadas)", com abertura "N liberações indevidas revogadas" quando houver correção
 automática, e `href: "/arquivos/pendencias"`. Sem aberta e sem correção, não notifica (como hoje). Continua
-diário enquanto houver pendência aberta.
+diário enquanto houver pendência aberta. O job também encerra as dispensas obsoletas (§5) antes de avisar.
 
 ## 10. Testes e verificação
 

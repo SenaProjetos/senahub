@@ -32,6 +32,20 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Desfazer link** está disponível; o que já foi importado continua no projeto. As disciplinas da ficha
   não são trazidas.
 
+## Pendências documentais (outubro/2026)
+
+- **Tela nova para administradores: Arquivos › Pendências.** Mostra, em uma lista só, tudo o que o aviso diário
+  das 06:20 ("Ciclo dos documentos: verificação diária") apontava em texto cortado: arquivo de revisão publicada
+  ou arquivada que está na lixeira, revisão parada em análise além do prazo e documento com duas revisões
+  publicadas. As liberações indevidas que o sistema revogou sozinho aparecem no chip "Corrigida automaticamente".
+- **Cada linha explica o que fazer.** O botão "O que fazer" diz, para aquela situação, se vale restaurar o arquivo,
+  publicar nova revisão, cobrar a análise ou só dispensar.
+- **Dispensar com motivo.** Se foi proposital (por exemplo, limpeza de arquivos antigos), dispense a pendência, uma
+  a uma ou várias de uma vez. Ela some do aviso e fica em "Mostrar dispensadas", com quem dispensou e por quê, e dá
+  para desfazer. Se algo mudar naquela pendência (outro arquivo vai para a lixeira, a revisão volta para a análise),
+  ela reaparece sozinha.
+- **O aviso diário ficou um resumo.** Ele conta as pendências abertas por tipo e leva direto para a tela.
+
 ## Compatibilização: realinhar, conflitos e filtros (outubro/2026)
 
 - **Realinhar IFC ficou mais completo.** Além de mover o modelo, agora dá para **girar em planta** (em graus

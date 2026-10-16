@@ -36,6 +36,7 @@ npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsá
 npm run smoke:historico-documento  # histórico por documento: agrupamento atômico de acessos, corte de visibilidade, merge
 npm run smoke:status-documento     # status documental automático (só FORA do ciclo documental): Enviado/Aprovado/Correção pela chave, revisão vigente, evento automático
 npm run smoke:ciclo-documental     # ciclo ISO 19650: I1–I8, publicar arquiva a anterior e revoga a obra (A1), liberação automática (A2), apontamentos (A3), integridade corrige I5 (A7)
+npm run smoke:pendencias-ciclo     # pendências documentais: assinatura lida do banco, dispensa com evento, uma ativa por alvo, corrida de dois cliques, dispensa velha que não vale para ocorrência nova, job só avisa o aberto
 npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: revisão marcada na lista/árvore, contagem, validação desfeita
 npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
@@ -540,6 +541,18 @@ while the revision is `em_andamento` (`ultimaVersao`, `Upload.versaoNaRevisao`);
 `DocumentoDisciplina.revisaoCompartilhadaId/revisaoLiberadaObraId` are now a MIRROR of the active
 `enviado_cliente`/`liberado_obra` control, written only by the service (the public link reads them). Daily job
 `ciclo-documental-integridade` (A7). Deploy runs `scripts/migrar-ciclo-documental.ts` (read-only, then `--gravar`).
+
+**Pendências documentais** (`modules/uploads/ciclo/pendencias*.ts` + `varredura.ts`, tela `/arquivos/pendencias`, spec
+`docs/superpowers/specs/2026-10-15-pendencias-documentais-design.md`): job and screen read the SAME sweep (`violacoesDoCiclo`);
+the screen computes live, never writes. Each dismissable violation (trash I6, analysis stalled, two published — I5 is fixed by
+the job and only shows as history) has a TARGET (revision; the document for two published) and a SIGNATURE of its state
+(`assinaturaDaViolacao`). `DispensaPendenciaCiclo` stores the signature at dismissal: the state changes, the item comes back,
+and the job closes any dismissal that no longer matches (`dispensasObsoletas`), or a new occurrence with the old signature would
+inherit it. One ACTIVE dismissal per target+type (partial unique index — two simultaneous clicks end in P2002 → "já está
+dispensada"). Writes only in `pendencias-service.ts` (re-checks the signature inside the transaction, writes `DocumentoEvento`
+`pendencia_dispensada` / `pendencia_dispensa_desfeita`); `ciclo/service.ts` is untouched. Screen and actions gate on
+`notificacoes:gestao`, the audience of the notice (no new permission). The 06:20 notice is now a summary of OPEN items linking
+to the screen.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),
