@@ -34,6 +34,7 @@ import {
 } from "@/modules/uploads/pastas-da-lista";
 import { ROTULO_SITUACAO, type Situacao } from "@/modules/uploads/revisao-marcada";
 import { TrilhaPastas } from "@/components/projetos/arquivos/pastas-na-lista";
+import { ZonaEnvioArrasto } from "@/components/projetos/arquivos/zona-envio-arrasto";
 
 /**
  * Casca da nova tela de Documentos (Fase 1, F1-PR1 — ver docs/auditoria/03-plano-refatoracao.md).
@@ -217,6 +218,17 @@ export function DocumentosShell({
             ...(raiz === PASTA_DESENVOLVIMENTO && nivel === "raiz" && federado ? [pastaDoModeloFederado(federado.total)] : []),
           ];
 
+  // Arrastar arquivos sobre a tela: na lista, abre o envio; em Recebidos/Base/Geral, vale o envio da própria área.
+  // ARTs, Lixeira e Modelo federado não recebem arquivo.
+  const aceitaArrasto =
+    areaSelecionada === null
+      ? dadosUploader !== null
+      : areaSelecionada === "geral"
+        ? dadosAreas.podeGerirGeral
+        : areaSelecionada === "recebidos" || areaSelecionada === "base"
+          ? dadosAreas.podeGerirRecebidos
+          : false;
+
   return (
     <div className="space-y-4">
 
@@ -296,7 +308,10 @@ export function DocumentosShell({
           {!moldura && <PainelAreasProjeto areas={areas} selecionada={areaSelecionada} />}
         </PainelLateralDocumentos>
 
-        <main className="min-w-0 space-y-3 md:flex md:h-full md:min-h-0 md:flex-col md:space-y-0 md:gap-3">
+        <ZonaEnvioArrasto
+          ativa={aceitaArrasto}
+          className="min-w-0 space-y-3 md:flex md:h-full md:min-h-0 md:flex-col md:space-y-0 md:gap-3"
+        >
           {areaSelecionada ? (
             // Área do projeto escolhida: o conteúdo dela ocupa o lugar da tabela. Filtros e
             // paginação são de documento de disciplina e não se aplicam aqui.
@@ -382,7 +397,7 @@ export function DocumentosShell({
           )}
           </>
           )}
-        </main>
+        </ZonaEnvioArrasto>
       </QuadroAlturaTela>
     </div>
   );

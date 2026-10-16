@@ -15,12 +15,17 @@ import { arquivosDasEntradas, type EntradaArrastada } from "@/lib/arquivos-arras
  * PASTA envia os arquivos de dentro dela (em qualquer profundidade) — ver `arquivos-arrastados.ts`.
  * Como isso exige ler o disco, a chamada passou a acontecer depois do evento, não durante.
  */
+/** Texto ou link arrastado na tela não é envio: sem isto a zona acendia com qualquer arrasto. */
+function arrastaArquivos(e: DragEvent<HTMLElement>) {
+  return Array.from(e.dataTransfer?.types ?? []).includes("Files");
+}
+
 export function useDropzone(onArquivos: (files: File[]) => void, desabilitado = false) {
   const [arrastando, setArrastando] = useState(false);
 
   const onDragOver = useCallback(
     (e: DragEvent<HTMLElement>) => {
-      if (desabilitado) return;
+      if (desabilitado || !arrastaArquivos(e)) return;
       // Sem o preventDefault o navegador abre o arquivo numa aba nova em vez de soltar aqui.
       e.preventDefault();
       setArrastando(true);
@@ -32,7 +37,7 @@ export function useDropzone(onArquivos: (files: File[]) => void, desabilitado = 
 
   const onDrop = useCallback(
     (e: DragEvent<HTMLElement>) => {
-      if (desabilitado) return;
+      if (desabilitado || !arrastaArquivos(e)) return;
       e.preventDefault();
       setArrastando(false);
 

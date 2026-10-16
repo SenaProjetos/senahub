@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn, rotuloRevisao } from "@/lib/utils";
 import { useDropzone } from "@/lib/use-dropzone";
+import { useEnvioArrasto } from "@/components/projetos/arquivos/zona-envio-arrasto";
 import {
   confiavel,
   interpretarNomeArquivo,
@@ -155,6 +156,16 @@ export function EnviarDocumentosDialog({
 }) {
   const [aberto, setAberto] = useState(abrirAoCarregar);
   const [enviando, setEnviando] = useState(false);
+  // Arquivos soltos sobre a lista (ZonaEnvioArrasto): abrem este mesmo diálogo, já com eles.
+  const arrasto = useEnvioArrasto();
+  const soltos = arrasto?.soltos ?? null;
+  const aoMudarAberto = arrasto?.aoMudarAberto;
+  useEffect(() => {
+    if (soltos) setAberto(true);
+  }, [soltos]);
+  useEffect(() => {
+    aoMudarAberto?.(aberto);
+  }, [aberto, aoMudarAberto]);
 
   // Tira o `enviar=1` da URL assim que o diálogo abre: sem isso, recarregar a página (ou voltar
   // pra ela pelo histórico) reabriria o envio sozinho, sem ninguém ter pedido. `replaceState`
@@ -199,7 +210,13 @@ export function EnviarDocumentosDialog({
             documento.
           </DialogDescription>
         </DialogHeader>
-        <UploaderDocumentos dados={dados} onEnviarChange={setEnviando} onConcluir={() => setAberto(false)} />
+        <UploaderDocumentos
+          dados={dados}
+          onEnviarChange={setEnviando}
+          onConcluir={() => setAberto(false)}
+          arquivosIniciais={soltos}
+          onIniciaisConsumidos={arrasto?.consumir}
+        />
       </DialogContent>
     </Dialog>
   );
@@ -209,14 +226,22 @@ function UploaderDocumentos({
   dados,
   onEnviarChange,
   onConcluir,
+  arquivosIniciais,
+  onIniciaisConsumidos,
 }: {
   dados: DadosEnviarDocumentos;
   onEnviarChange: (enviando: boolean) => void;
   onConcluir: () => void;
+  /** Arquivos soltos na lista antes do diálogo abrir — entram no fluxo como se tivessem sido escolhidos aqui. */
+  arquivosIniciais: { arquivos: File[]; chave: number } | null;
+  onIniciaisConsumidos?: () => void;
 }) {
   const router = useRouter();
   const [enviando, setEnviando] = useState(false);
   const [pendentes, setPendentes] = useState<ItemEnvio[] | null>(null);
+  // A chave guarda o lote já tratado: o efeito roda duas vezes no StrictMode e `prepararEnvio`
+  // pode enviar direto — sem isto o mesmo lote subiria duplicado.
+  const loteIniciaTratado = useRef<number | null>(null);
   const [progresso, setProgresso] = useState<LinhaEnvioComArquivo[] | null>(null);
   const inputArquivos = useRef<HTMLInputElement>(null);
   const inputPasta = useRef<HTMLInputElement>(null);
@@ -832,6 +857,15 @@ function UploaderDocumentos({
       onEnviarChange(false);
     }
   }
+
+  useEffect(() => {
+    if (!arquivosIniciais || loteIniciaTratado.current === arquivosIniciais.chave) return;
+    loteIniciaTratado.current = arquivosIniciais.chave;
+    prepararEnvio(arquivosIniciais.arquivos);
+    onIniciaisConsumidos?.();
+    // `prepararEnvio` é recriada a cada render; o lote é tratado uma vez só, pela chave acima.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arquivosIniciais]);
 
   const temConferencia = dados.podeEditarMetadados;
   const titulosAConferir = conferencia.filter((doc) => doc.origemTitulo === "carimbo").length;
