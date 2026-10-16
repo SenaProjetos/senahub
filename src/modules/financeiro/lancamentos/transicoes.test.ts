@@ -16,6 +16,8 @@ import {
   MOTIVO_SO_PAGO_CORRIGE,
   MOTIVO_SO_PAGO_ESTORNA,
   MOTIVO_TRANSFERENCIA,
+  MOTIVO_ACESSORIO_RETENCAO,
+  MOTIVO_RETENCAO_ORIGEM,
   type EstadoDoLancamento,
   type Operacao,
 } from "@/modules/financeiro/lancamentos/transicoes";
@@ -149,5 +151,27 @@ describe("corrigir o pagamento (M8)", () => {
   });
   it("a situação não muda", () => {
     expect(situacaoDepois("corrigir_pagamento", e({ status: "confirmado" }))).toBe("confirmado");
+  });
+});
+
+describe("retenção na nota (C4)", () => {
+  const base = { status: "confirmado", excluidoEm: null, transacao: null, distribuicao: null, pagamentoProjetistaId: null, ehDeArt: false, motivoRejeicao: null };
+  it("estadoDoLancamento: acessório com imposto é a retenção; com retencaoDeId é a conta do imposto", () => {
+    expect(estadoDoLancamento({ ...base, acessorioDeId: "nf", retencaoImposto: "iss" }).origem).toBe("retencao_acessorio");
+    expect(estadoDoLancamento({ ...base, acessorioDeId: "nf" }).origem).toBe("acessorio");
+    expect(estadoDoLancamento({ ...base, status: "previsto", retencaoDeId: "nf", retencaoImposto: "iss" }).origem).toBe("retencao");
+  });
+  it("a retenção da baixa só anda com o principal", () => {
+    for (const op of TODAS) expect(motivoParaNao(op, e({ status: "confirmado", origem: "retencao_acessorio" }))).toBe(MOTIVO_ACESSORIO_RETENCAO);
+  });
+  it("a conta do imposto paga, estorna e concilia; não some nem reabre por conta própria", () => {
+    const imposto = (p: Partial<EstadoDoLancamento> = {}) => e({ origem: "retencao", ...p });
+    expect(motivoParaNao("baixar", imposto())).toBeNull();
+    expect(motivoParaNao("conciliar", imposto())).toBeNull();
+    expect(motivoParaNao("editar", imposto())).toBeNull();
+    expect(motivoParaNao("estornar", imposto({ status: "confirmado" }))).toBeNull();
+    expect(motivoParaNao("cancelar", imposto())).toBe(MOTIVO_RETENCAO_ORIGEM);
+    expect(motivoParaNao("excluir", imposto())).toBe(MOTIVO_RETENCAO_ORIGEM);
+    expect(motivoParaNao("reabrir", imposto({ status: "cancelado" }))).toBe(MOTIVO_RETENCAO_ORIGEM);
   });
 });

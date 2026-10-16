@@ -65,6 +65,7 @@
     "smoke:planejador": "tsx --tsconfig tsconfig.server.json scripts/smoke-planejador.ts",
     "smoke:financeiro-core": "tsx --tsconfig tsconfig.server.json scripts/smoke-financeiro-core.ts",
     "smoke:contabil": "tsx --tsconfig tsconfig.server.json scripts/smoke-contabil.ts",
+    "smoke:retencoes": "tsx --tsconfig tsconfig.server.json scripts/smoke-retencoes.ts",
     "contabil:importar-plano": "tsx --tsconfig tsconfig.server.json scripts/importar-plano-contabil.ts",
     "smoke:etapa-terceiro": "tsx --tsconfig tsconfig.server.json scripts/smoke-etapa-terceiro.ts",
     "smoke:crm-fase1": "tsx --tsconfig tsconfig.server.json scripts/smoke-crm-fase1.ts",

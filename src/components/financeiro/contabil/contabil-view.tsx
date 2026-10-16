@@ -22,6 +22,7 @@ import {
   ACAO_VER_LANCAMENTOS,
   itensDeCategoriaContabil,
   itensDeContaBancariaContabil,
+  itensDeImpostoContabil,
 } from "@/modules/financeiro/contabil/acoes";
 import { copiarContaContabil, definirContaContabil, exportarMesContabil, lancamentosDaCategoriaNoMes, limparContaContabil } from "@/modules/financeiro/contabil/actions";
 import {
@@ -31,10 +32,10 @@ import {
   MOTIVO_ALTERDATA_SEM_CONTA,
   type FormatoContabil,
 } from "@/modules/financeiro/contabil/arquivo";
-import type { CategoriaContabilDto, ContaBancariaContabilDto, ContaDoPlanoDto, TelaContabil } from "@/modules/financeiro/contabil/queries";
+import type { CategoriaContabilDto, ContaBancariaContabilDto, ContaDoPlanoDto, ImpostoContabilDto, TelaContabil } from "@/modules/financeiro/contabil/queries";
 
 type Aba = "depara" | "exportacao";
-type Alvo = { alvo: "categoria" | "conta_bancaria"; id: string; rotulo: string; prefixo: string };
+type Alvo = { alvo: "categoria" | "conta_bancaria" | "imposto_recolher" | "imposto_compensar"; id: string; rotulo: string; prefixo: string };
 type LancamentoDoMes = { id: string; descricao: string; tipo: "receita" | "despesa"; valor: number; data: string };
 
 const NATUREZA = (c: CategoriaContabilDto) => (c.natureza === "fora_do_resultado" ? "Fora do resultado" : c.tipo === "receita" ? "Receita" : "Despesa");
@@ -145,6 +146,13 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
     else if (item.id === ACAO_LIMPAR_CONTA) rodar(limparContaContabil({ alvo: "conta_bancaria", alvoId: b.id }), "Conta limpa.");
   }
 
+  function aoEscolherImposto(i: ImpostoContabilDto, item: AcaoItemAcao) {
+    const rotulo = `${i.rotulo} · ${i.alvo === "imposto_recolher" ? "a recolher" : "a compensar"}`;
+    // A recolher é passivo (grupo 2); a compensar, ativo (grupo 1).
+    if (item.id === ACAO_ESCOLHER_CONTA) setEscolhendo({ alvo: i.alvo, id: i.imposto, rotulo, prefixo: i.alvo === "imposto_recolher" ? "2.1" : "1.1" });
+    else if (item.id === ACAO_LIMPAR_CONTA) rodar(limparContaContabil({ alvo: i.alvo, alvoId: i.imposto }), "Conta limpa.");
+  }
+
   const contaDe = (reduzido: number | null) => {
     if (reduzido == null) return null;
     const nome = dados.nomes[reduzido];
@@ -251,6 +259,7 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
                   {dados.contasBancarias.map((b) => renderBanco(b))}
                 </ul>
               </section>
+              {renderImpostos()}
               {renderCartaoExportacao()}
             </aside>
           </div>
@@ -370,6 +379,50 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
         <span className="flex min-w-0 items-center gap-1">
           {renderConta(b.conta)}
           <BotaoAcoes itens={itens} onSelect={aoEscolher} rotulo={`Ações de ${b.nome}`} className="size-8" />
+        </span>
+      </LinhaComMenu>
+    );
+  }
+
+  /** C4 (mock "Impostos retidos → conta contábil"): o que a empresa retém de fornecedor e o que o cliente retém dela. */
+  function renderImpostos() {
+    const faltamImpostos = dados.impostos.filter((i) => i.conta == null).length;
+    const grupo = (alvo: ImpostoContabilDto["alvo"], titulo: string) => (
+      <>
+        <li className="px-4 pb-0.5 pt-2 text-xs font-bold text-muted-foreground">{titulo}</li>
+        {dados.impostos.filter((i) => i.alvo === alvo).map((i) => renderImposto(i))}
+      </>
+    );
+    return (
+      <section className="rounded-sm border bg-card shadow-[var(--card-shadow)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+          <h2 className="text-sm font-bold">Impostos retidos → conta contábil</h2>
+          {faltamImpostos > 0 && <span className="inline-flex rounded-sm border border-warning px-1.5 text-xs font-semibold text-warning">{faltamImpostos} faltam</span>}
+        </div>
+        <p className="px-4 pt-2 text-xs text-muted-foreground">“A recolher” é o que a empresa retém de fornecedor; “a compensar” é o que o cliente reteve da empresa.</p>
+        <ul className="flex flex-col pb-1 text-sm">
+          {grupo("imposto_recolher", "A recolher (passivo)")}
+          {grupo("imposto_compensar", "A compensar (ativo)")}
+        </ul>
+        {faltamImpostos > 0 && (
+          <p className="border-t px-4 py-2 text-xs text-muted-foreground">
+            Enquanto faltarem, o layout do contador não exporta o mês em que houver retenção desses impostos (o arquivo genérico sai com a conta em branco). Se
+            a conta não existe no plano dele, peça para criar.
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  function renderImposto(i: ImpostoContabilDto) {
+    const itens = itensDeImpostoContabil({ temConta: i.conta != null, rotulo: i.rotulo, aRecolher: i.alvo === "imposto_recolher" });
+    const aoEscolher = (item: AcaoItemAcao) => aoEscolherImposto(i, item);
+    return (
+      <LinhaComMenu key={`${i.alvo}:${i.imposto}`} itens={itens} onSelect={aoEscolher} render={<li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-1.5" />}>
+        <span className="min-w-0 font-semibold">{i.rotulo}</span>
+        <span className="flex min-w-0 items-center gap-1">
+          {renderConta(i.conta)}
+          <BotaoAcoes itens={itens} onSelect={aoEscolher} rotulo={`Ações de ${i.rotulo} ${i.alvo === "imposto_recolher" ? "a recolher" : "a compensar"}`} className="size-8" />
         </span>
       </LinhaComMenu>
     );

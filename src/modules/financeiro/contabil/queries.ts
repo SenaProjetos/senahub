@@ -6,6 +6,7 @@ import { rotuloDoMes } from "@/modules/financeiro/fechamento/trava";
 import { partidasDoMes } from "@/modules/financeiro/contabil/service";
 import type { AlvoPendencia } from "@/modules/financeiro/contabil/partidas";
 import type { LinhaExportada } from "@/modules/financeiro/contabil/arquivo";
+import { IMPOSTOS_RETIDOS, ROTULO_IMPOSTO, type ImpostoRetido } from "@/modules/financeiro/lancamentos/retencoes";
 
 export type ContaDoPlanoDto = { reduzido: number; classificacao: string; nome: string };
 
@@ -32,6 +33,9 @@ export type ContaBancariaContabilDto = { id: string; nome: string; investimento:
 
 export type PendenciaDto = { alvo: AlvoPendencia; rotulo: string; lancamentos: number };
 
+/** C4: um imposto retido no de-para — `imposto` é o alvoId (`iss`, `irrf`…). */
+export type ImpostoContabilDto = { alvo: "imposto_recolher" | "imposto_compensar"; imposto: ImpostoRetido; rotulo: string; conta: number | null };
+
 export type TelaContabil = {
   mes: string;
   rotuloMes: string;
@@ -44,6 +48,7 @@ export type TelaContabil = {
   planoImportado: boolean;
   categorias: CategoriaContabilDto[];
   contasBancarias: ContaBancariaContabilDto[];
+  impostos: ImpostoContabilDto[];
   linhas: LinhaExportada[];
   totalCentavos: number;
   pendencias: PendenciaDto[];
@@ -61,7 +66,7 @@ export async function telaContabil(mesPedido?: string): Promise<TelaContabil> {
   const mes = mesPedido && /^\d{4}-\d{2}$/.test(mesPedido) ? mesPedido : (fechados[0] ?? mesAnterior(diaDeSaoPaulo()));
 
   const contas = await prisma.contaContabil.findMany({ orderBy: [{ classificacao: "asc" }, { reduzido: "asc" }] });
-  const deParas = await prisma.deParaContabil.findMany({ where: { alvo: { in: ["categoria", "conta_bancaria"] } } });
+  const deParas = await prisma.deParaContabil.findMany({ where: { alvo: { in: ["categoria", "conta_bancaria", "imposto_recolher", "imposto_compensar"] } } });
   const categorias = await prisma.categoriaFinanceira.findMany({
     where: { ativo: true },
     select: { id: true, codigo: true, nome: true, tipo: true, natureza: true, paiId: true },
@@ -139,8 +144,27 @@ export async function telaContabil(mesPedido?: string): Promise<TelaContabil> {
         return "Pago sem conta bancária no lançamento";
       case "transferencia":
         return "Transferência sem a perna de entrada";
+      case "imposto_recolher":
+        return `${ROTULO_IMPOSTO[alvoId as ImpostoRetido] ?? alvoId} retido a recolher sem conta contábil`;
+      case "imposto_compensar":
+        return `${ROTULO_IMPOSTO[alvoId as ImpostoRetido] ?? alvoId} retido pelo cliente (a compensar) sem conta contábil`;
     }
   };
+
+  // C4: a recolher, todos os impostos; a compensar, o que o cliente costuma reter de quem é do Simples (ISS e INSS)
+  // e qualquer outro que já tenha conta ou apareça no mês.
+  const doImposto = (alvo: ImpostoContabilDto["alvo"], imposto: string) =>
+    deParas.find((d) => d.alvo === alvo && d.alvoId === imposto)?.contaReduzido ?? null;
+  const usadosACompensar = new Set(resumo.pendencias.filter((p) => p.alvo === "imposto_compensar").map((p) => p.alvoId));
+  const impostos: ImpostoContabilDto[] = [
+    ...IMPOSTOS_RETIDOS.map((i) => ({ alvo: "imposto_recolher" as const, imposto: i, rotulo: `${ROTULO_IMPOSTO[i]} retido`, conta: doImposto("imposto_recolher", i) })),
+    ...IMPOSTOS_RETIDOS.filter((i) => i === "iss" || i === "inss" || usadosACompensar.has(i) || doImposto("imposto_compensar", i) != null).map((i) => ({
+      alvo: "imposto_compensar" as const,
+      imposto: i,
+      rotulo: `${ROTULO_IMPOSTO[i]} retido pelo cliente`,
+      conta: doImposto("imposto_compensar", i),
+    })),
+  ];
   // Pendências do mesmo tipo sem nome próprio (pago sem conta) somam numa linha só.
   const agrupadas = new Map<string, PendenciaDto>();
   for (const p of resumo.pendencias) {
@@ -163,6 +187,7 @@ export async function telaContabil(mesPedido?: string): Promise<TelaContabil> {
     planoImportado: contas.length > 0,
     categorias: categoriasDto,
     contasBancarias: bancos.map((b) => ({ id: b.id, nome: b.nome, investimento: b.investimento != null, conta: doBanco.get(b.id) ?? null })),
+    impostos,
     linhas: resumo.linhas,
     totalCentavos: resumo.totalCentavos,
     pendencias: [...agrupadas.values()],

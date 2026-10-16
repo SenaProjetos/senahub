@@ -1759,7 +1759,7 @@
       "titulo": "Financeiro — Integração contábil",
       "path": "financeiro/integracao-contabil.md",
       "descricao": "Ligar as categorias e as contas bancárias ao plano de contas do contador e exportar o mês fechado num arquivo de lançamentos para o Alterdata.",
-      "resumo": "Escolha uma vez a conta contábil de cada categoria e de cada conta bancária; depois de fechar o mês, exporte o arquivo (layout do contador, Excel ou CSV) com cada conta a pagar ou a receber em dois lançamentos, na competência e no pagamento. A folha CLT fica de fora, porque o contador lança.",
+      "resumo": "Escolha uma vez a conta contábil de cada categoria e de cada conta bancária; depois de fechar o mês, exporte o arquivo (layout do contador, Excel ou CSV) com cada conta a pagar ou a receber em dois lançamentos, na competência e no pagamento. A folha CLT fica de fora, porque o contador lança. Nota com retenção (ISS, IRRF, INSS…): o banco paga ou recebe o líquido e, na conta a pagar, nasce uma conta por imposto retido.",
       "tags": [
         "financeiro",
         "contabilidade",
@@ -1767,7 +1767,9 @@
         "exportação",
         "de-para",
         "plano de contas",
-        "alterdata"
+        "alterdata",
+        "retenção",
+        "impostos retidos"
       ],
       "palavrasChave": [
         "integração contábil",
@@ -1778,7 +1780,13 @@
         "exportar para o contador",
         "partida dobrada",
         "classificação",
-        "mês fechado"
+        "mês fechado",
+        "retenção na nota",
+        "ISS retido",
+        "IRRF retido",
+        "imposto a recolher",
+        "imposto a compensar",
+        "valor líquido"
       ],
       "sinonimos": [
         "exportação contábil",

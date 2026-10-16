@@ -45,7 +45,7 @@ export default async function ContasPage({
   }
 
   const [itens, opcoes] = await Promise.all([dadosContas(), opcoesLancamento()]);
-  const tabInicial = tab === "receita" ? "receita" : "despesa";
+  const tabInicial = tab === "receita" ? "receita" : tab === "impostos" ? "impostos" : "despesa";
   // Faturar é lançar dinheiro: a lista de parcelas a faturar é de quem gere o financeiro.
   const aFaturar = podeGerir ? await parcelasAFaturar() : [];
   return (

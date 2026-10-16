@@ -352,6 +352,34 @@ async function main() {
   }
   console.log(`✔ ${PLANO_CONTAS.length} contas no plano de contas.`);
 
+  // 4b) Categorias do sistema que nascem por migration (C4, retenções na nota). Em banco NOVO as migrations rodam antes
+  // do seed, sem as raízes, e pulam a criação: o seed as garante pela chave, debaixo da raiz, no próximo código livre.
+  // Create-only — banco que já as tem (produção) não muda.
+  const SISTEMA_POR_CHAVE = [
+    { chave: "receita_retencao_feita", nome: "Retenção feita na nota (a recolher)", raiz: "receita", prioridadePadrao: null },
+    { chave: "despesa_retencao_sofrida", nome: "Retenção sofrida na nota (a compensar)", raiz: "despesa", prioridadePadrao: null },
+    { chave: "despesa_imposto_retido_a_recolher", nome: "Impostos retidos a recolher", raiz: "despesa", prioridadePadrao: "p1" as const },
+  ];
+  for (const s of SISTEMA_POR_CHAVE) {
+    if (await prisma.categoriaFinanceira.findFirst({ where: { chave: s.chave }, select: { id: true } })) continue;
+    const raiz = await prisma.categoriaFinanceira.findFirst({ where: { chave: s.raiz }, select: { id: true, codigo: true, tipo: true } });
+    if (!raiz) continue;
+    let n = 1;
+    while (await prisma.categoriaFinanceira.findUnique({ where: { codigo: `${raiz.codigo}.${String(n).padStart(2, "0")}` }, select: { id: true } })) n++;
+    await prisma.categoriaFinanceira.create({
+      data: {
+        codigo: `${raiz.codigo}.${String(n).padStart(2, "0")}`,
+        chave: s.chave,
+        nome: s.nome,
+        tipo: raiz.tipo,
+        natureza: "fora_do_resultado",
+        paiId: raiz.id,
+        ordem: 100 + n,
+        prioridadePadrao: s.prioridadePadrao,
+      },
+    });
+  }
+
   // 5–6) Formas de pagamento e centros de custo (editáveis em Cadastros)
   const formas = await semearSeVazio(() => prisma.formaPagamento.count(), () =>
     prisma.formaPagamento.createMany({ data: FORMAS_PAGAMENTO.map((nome, ordem) => ({ nome, ordem })) }),

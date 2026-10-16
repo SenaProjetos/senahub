@@ -11,6 +11,7 @@ import { camposDoPlanejador, saldoRestante } from "@/modules/financeiro/lancamen
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos/comprovante-service";
+import { MOTIVO_RETENCAO_LOTE } from "@/modules/financeiro/lancamentos/retencoes";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -152,9 +153,11 @@ export const adicionarLinhas = defineAction(
   async (i) => {
     const lancs = await prisma.lancamento.findMany({
       where: { id: { in: i.lancamentoIds }, status: "previsto" },
-      select: { id: true, valor: true },
+      select: { id: true, valor: true, descricao: true, retencoes: { select: { id: true }, take: 1 } },
     });
     if (lancs.length === 0) throw new ActionError("Nenhum lançamento previsto selecionado.");
+    const comRetencao = lancs.filter((l) => l.retencoes.length > 0);
+    if (comRetencao.length > 0) throw new ActionError(`${MOTIVO_RETENCAO_LOTE} (${comRetencao.map((l) => l.descricao).join("; ")})`);
     const agg = await prisma.planejamentoLinha.aggregate({ where: { planoId: i.id }, _max: { ordem: true } });
     let ordem = (agg._max.ordem ?? -1) + 1;
     await prisma.planejamentoLinha.createMany({
@@ -213,12 +216,25 @@ export const executarPlano = defineAction(
       include: {
         linhas: {
           where: { selecionada: true },
-          include: { lancamento: { include: { rateios: { select: { centroId: true, projetoId: true, percentualBp: true } } } } },
+          include: {
+            lancamento: {
+              include: {
+                rateios: { select: { centroId: true, projetoId: true, percentualBp: true } },
+                retencoes: { select: { id: true }, take: 1 },
+              },
+            },
+          },
         },
       },
     });
     if (!plano) throw new ActionError("Lote não encontrado.");
     if (plano.status !== "aprovado") throw new ActionError("Só lotes aprovados podem ser executados.");
+
+    // C4: o lote paga pelo valor planejado, sem gerar as contas dos impostos — nota com retenção se paga pela própria conta.
+    const comRetencao = plano.linhas.filter((ln) => ln.lancamento.status === "previsto" && ln.lancamento.retencoes.length > 0);
+    if (comRetencao.length > 0) {
+      throw new ActionError(`${MOTIVO_RETENCAO_LOTE} (${comRetencao.map((ln) => ln.lancamento.descricao).join("; ")})`);
+    }
 
     const ops: Prisma.PrismaPromise<unknown>[] = [];
     let pagos = 0;

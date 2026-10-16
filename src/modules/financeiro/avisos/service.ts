@@ -95,6 +95,8 @@ export async function enviarCobrancasAoCliente(o: { hoje?: string; enviar: Envia
       cliente: { select: { nome: true, email: true } },
       projeto: { select: { tipo: true } },
       categoria: { select: { chave: true, pai: { select: { chave: true, pai: { select: { chave: true } } } } } },
+      // C4: o cliente que retém imposto paga o líquido — é esse o valor cobrado.
+      retencoes: { select: { valor: true } },
     },
   });
 
@@ -122,7 +124,7 @@ export async function enviarCobrancasAoCliente(o: { hoje?: string; enviar: Envia
       const saiu = await o.enviar(l.cliente.email, tipo === "cobranca_apos" ? "lembrete-pagamento" : "lembrete-vencimento", {
         nomeCliente: l.cliente.nome,
         descricao: l.descricao,
-        valor: reais(l.valor),
+        valor: reais((paraCentavos(l.valor) - l.retencoes.reduce((s, x) => s + paraCentavos(x.valor), 0)) / 100),
         vencimento: dataBr(venc),
         situacao: frasesDoVencimento(tipo, cfg.diasAntes),
       });
@@ -154,7 +156,7 @@ export async function avisarContasAPagar(o: { hoje?: string; notificar: Notifica
   const ls = await prisma.lancamento.findMany({
     // `previsto` já exclui o que ainda aguarda aprovação (não dá para pagar) e o que foi pago.
     where: { tipo: "despesa", status: "previsto", vencimento: { in: alvos.map(dia) }, ...SEM_TRANSFERENCIA },
-    select: { id: true, autorId: true, descricao: true, valor: true, vencimento: true, faturaId: true },
+    select: { id: true, autorId: true, descricao: true, valor: true, vencimento: true, faturaId: true, retencoes: { select: { valor: true } } },
   });
 
   // Compras do mesmo cartão: uma conta por fatura, com o total e a primeira compra como âncora da reserva.
@@ -164,7 +166,8 @@ export async function avisarContasAPagar(o: { hoje?: string; notificar: Notifica
     const venc = iso(l.vencimento!);
     const tipo = pagarDeHoje(hoje, venc);
     if (!tipo) continue;
-    const centavos = paraCentavos(l.valor);
+    // C4: o que sai do banco é o líquido da nota (os impostos retidos viram contas próprias ao pagar).
+    const centavos = paraCentavos(l.valor) - l.retencoes.reduce((s, x) => s + paraCentavos(x.valor), 0);
     if (l.faturaId) {
       const ja = porFatura.get(l.faturaId);
       if (ja) {

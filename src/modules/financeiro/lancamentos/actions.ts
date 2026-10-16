@@ -34,6 +34,24 @@ import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos
 import { lerRateio, salvarRateioNoBanco } from "@/modules/financeiro/lancamentos/rateio-service";
 import { normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import { corrigirPagamentoSchema } from "@/modules/financeiro/transferencias/schemas";
+import {
+  MOTIVO_IMPOSTO_SEGUE_NOTA,
+  MOTIVO_RETENCAO_CARTAO,
+  MOTIVO_RETENCAO_ORIGEM_FORA,
+  MOTIVO_RETENCAO_PAGA,
+  MOTIVO_RETENCAO_SEM_CONTA,
+  MOTIVO_RETENCAO_RECORRENCIA,
+  MOTIVO_RETENCAO_VALOR,
+  mesmasRetencoes,
+  motivoRetencoesInvalidas,
+  normalizarRetencoes,
+} from "@/modules/financeiro/lancamentos/retencoes";
+import {
+  aplicarRetencoesNaBaixaNoTx,
+  desfazerContasDeImpostoNoTx,
+  retencoesDoTitulo,
+  salvarRetencoesNoTx,
+} from "@/modules/financeiro/lancamentos/retencoes-service";
 
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "gerir" } as const;
 
@@ -62,11 +80,14 @@ async function snapshotLancamento(id: string) {
       // Campos do planejador: sem eles a auditoria não vê a troca de prioridade/confiança.
       prioridade: true, confianca: true, transferenciaId: true, caixinhaId: true, socioId: true,
       recorrenciaOrigemId: true, recorrenciaCompetencia: true,
+      // C4: a auditoria da edição mostra o antes e o depois das retenções.
+      retencoes: { select: { imposto: true, valor: true } },
     },
   });
   if (!l) return null;
   return {
     ...l,
+    retencoes: l.retencoes.map((r) => ({ imposto: r.imposto, valor: Number(r.valor) })),
     valor: Number(l.valor),
     valorEfetivo: l.valorEfetivo != null ? Number(l.valorEfetivo) : null,
     vencimento: l.vencimento ? l.vencimento.toISOString().slice(0, 10) : null,
@@ -141,6 +162,34 @@ export const editarLancamento = defineAction(
       throw new ActionError("Conciliado com o extrato: o valor não muda por aqui — desconcilie a transação antes.");
     }
     if (i.caixinhaId !== undefined) await validarCaixinhaDoLancamento(atual, i.caixinhaId);
+    // C4: a conta do imposto vale o retido na nota de origem.
+    if (estado.origem === "retencao" && valorMudou) throw new ActionError(MOTIVO_RETENCAO_VALOR);
+    if (
+      estado.origem === "retencao" &&
+      (i.categoriaId !== atual.categoriaId ||
+        (data(i.data)?.getTime() ?? null) !== atual.data.getTime() ||
+        ((data(i.dataCompetencia || undefined) ?? null)?.getTime() ?? null) !== (atual.dataCompetencia?.getTime() ?? null))
+    ) {
+      throw new ActionError(MOTIVO_IMPOSTO_SEGUE_NOTA);
+    }
+    const retAtuais = await retencoesDoTitulo(prisma, i.id);
+    const retNovas = i.retencoes !== undefined ? normalizarRetencoes(i.retencoes) : retAtuais;
+    const retMudou = !mesmasRetencoes(retAtuais, retNovas);
+    if (retMudou) {
+      // Pago: a retenção já virou acessório e conta de imposto — mexer só estornando.
+      if (estado.status === "confirmado") throw new ActionError(MOTIVO_RETENCAO_PAGA);
+      if (retNovas.length > 0 && estado.origem !== "manual") throw new ActionError(MOTIVO_RETENCAO_ORIGEM_FORA);
+      if (retNovas.length > 0 && atual.recorrenciaGrupo) throw new ActionError(MOTIVO_RETENCAO_RECORRENCIA);
+      // Compra no cartão se paga pela fatura, que não passa pela baixa da nota: a retenção nunca aconteceria.
+      if (retNovas.length > 0) {
+        const c = await prisma.lancamento.findUnique({ where: { id: i.id }, select: { cartaoId: true, faturaId: true } });
+        if (c?.cartaoId || c?.faturaId) throw new ActionError(MOTIVO_RETENCAO_CARTAO);
+      }
+    }
+    if (retNovas.length > 0 && (retMudou || valorMudou)) {
+      const motivo = motivoRetencoesInvalidas(paraCentavos(i.valor), retNovas);
+      if (motivo) throw new ActionError(motivo, { retencoes: motivo });
+    }
     // N5: mês fechado congela valor, categoria, datas, centro e projeto — descrição, vencimento,
     // observação, contato e campos do planejador continuam editáveis.
     const travados = await prisma.lancamento.findUniqueOrThrow({
@@ -174,36 +223,44 @@ export const editarLancamento = defineAction(
           faixas: await getNiveisAprovacao(),
         })
       : null;
-    await prisma.lancamento.update({
-      where: { id: i.id },
-      data: {
-        // Planejador: ausente = não mexe; prioridade só em despesa, confiança só em receita.
-        ...(i.prioridade !== undefined ? { prioridade: atual.tipo === "despesa" ? i.prioridade : null } : {}),
-        ...(i.confianca !== undefined ? { confianca: atual.tipo === "receita" ? i.confianca : null } : {}),
-        ...(i.caixinhaId !== undefined ? { caixinhaId: i.caixinhaId } : {}),
-        descricao: i.descricao,
-        valor: i.valor,
-        data: data(i.data),
-        vencimento: data(i.vencimento || undefined) ?? null,
-        dataCompetencia: data(i.dataCompetencia || undefined) ?? null,
-        categoriaId: i.categoriaId,
-        centroId: i.centroId || null,
-        projetoId: i.projetoId || null,
-        fornecedorId: i.fornecedorId || null,
-        clienteId: i.clienteId || null,
-        observacao: i.observacao || null,
-        // Ausente = não mexe (quem edita por outro caminho não apaga o documento).
-        ...(i.numeroDocumento !== undefined ? { numeroDocumento: i.numeroDocumento || null } : {}),
-        ...(i.chaveNfe !== undefined ? { chaveNfe: i.chaveNfe ? normalizarChaveNfe(i.chaveNfe) : null } : {}),
-        ...(novaSituacao === "aguardando_aprovacao"
-          ? { status: novaSituacao, aprovadoPorId: null, aprovadoEm: null, motivoRejeicao: null }
-          : novaSituacao
-            ? { status: novaSituacao }
+    await prisma.$transaction(async (tx) => {
+      await tx.lancamento.update({
+        where: { id: i.id },
+        data: {
+          // Planejador: ausente = não mexe; prioridade só em despesa, confiança só em receita.
+          ...(i.prioridade !== undefined ? { prioridade: atual.tipo === "despesa" ? i.prioridade : null } : {}),
+          ...(i.confianca !== undefined ? { confianca: atual.tipo === "receita" ? i.confianca : null } : {}),
+          ...(i.caixinhaId !== undefined ? { caixinhaId: i.caixinhaId } : {}),
+          descricao: i.descricao,
+          valor: i.valor,
+          data: data(i.data),
+          vencimento: data(i.vencimento || undefined) ?? null,
+          dataCompetencia: data(i.dataCompetencia || undefined) ?? null,
+          categoriaId: i.categoriaId,
+          centroId: i.centroId || null,
+          projetoId: i.projetoId || null,
+          fornecedorId: i.fornecedorId || null,
+          clienteId: i.clienteId || null,
+          observacao: i.observacao || null,
+          // Ausente = não mexe (quem edita por outro caminho não apaga o documento).
+          ...(i.numeroDocumento !== undefined ? { numeroDocumento: i.numeroDocumento || null } : {}),
+          ...(i.chaveNfe !== undefined ? { chaveNfe: i.chaveNfe ? normalizarChaveNfe(i.chaveNfe) : null } : {}),
+          ...(novaSituacao === "aguardando_aprovacao"
+            ? { status: novaSituacao, aprovadoPorId: null, aprovadoEm: null, motivoRejeicao: null }
+            : novaSituacao
+              ? { status: novaSituacao }
+              : {}),
+          ...(novaSituacao && novaSituacao !== estado.status
+            ? { statusHistorico: { create: { de: estado.status, para: novaSituacao, autorId: ctx.user.id } } }
             : {}),
-        ...(novaSituacao && novaSituacao !== estado.status
-          ? { statusHistorico: { create: { de: estado.status, para: novaSituacao, autorId: ctx.user.id } } }
-          : {}),
-      },
+        },
+      });
+      if (retMudou) {
+        // Paga entre a leitura e aqui: a retenção já não aconteceria. A transação desfaz a edição.
+        const ainda = await tx.lancamento.count({ where: { id: i.id, status: estado.status, excluidoEm: null } });
+        if (ainda !== 1) throw new ActionError(MOTIVO_MUDOU);
+        await salvarRetencoesNoTx(tx, i.id, retNovas);
+      }
     });
     const foiParaAprovacao = novaSituacao === "aguardando_aprovacao";
     if (foiParaAprovacao) await notificarAprovacaoPendente(i.descricao, i.valor, ctx.user.id);
@@ -314,7 +371,7 @@ export const confirmarLancamento = defineAction(
       ctx.user.id,
     );
     rev();
-    return { id: i.id, restante: r.restante, acessorios: r.acessorios, caixa: r.caixa };
+    return { id: i.id, restante: r.restante, acessorios: r.acessorios, caixa: r.caixa, impostosARecolher: r.impostosARecolher };
   },
 );
 
@@ -335,13 +392,24 @@ export const baixarEmLote = defineAction(
     const quando = data(i.dataConfirmacao || undefined) ?? hojeParaBanco();
     const alvos = await prisma.lancamento.findMany({
       where: { id: { in: i.ids }, status: "previsto" },
-      select: { id: true, contaId: true, formaId: true, pagamentoProjetistaId: true },
+      select: {
+        id: true, tipo: true, descricao: true, contaId: true, formaId: true, pagamentoProjetistaId: true,
+        numeroDocumento: true, chaveNfe: true, fornecedorId: true, clienteId: true, centroId: true, projetoId: true,
+      },
     });
     if (alvos.length === 0) throw new ActionError("Nenhum lançamento elegível (previsto) selecionado.");
 
     await exigirPeriodoAberto(prisma, [quando]);
     // M10: comprovante obrigatório, se a config exigir.
     await exigirComprovanteSeObrigatorio(prisma, alvos.map((a) => a.id));
+    // C4: nota com retenção precisa da conta do pagamento — diz quais, antes de mexer em qualquer uma.
+    if (!i.contaId) {
+      const semConta = await prisma.lancamento.findMany({
+        where: { id: { in: alvos.filter((a) => !a.contaId).map((a) => a.id) }, retencoes: { some: {} } },
+        select: { descricao: true },
+      });
+      if (semConta.length > 0) throw new ActionError(`${MOTIVO_RETENCAO_SEM_CONTA} (${semConta.map((s) => s.descricao).join("; ")})`);
+    }
     // Um a um e condicionado ao previsto: o que mudou desde a leitura fica de fora, não é pago por cima.
     const confirmados = await prisma.$transaction(async (tx) => {
       let n = 0;
@@ -353,6 +421,14 @@ export const baixarEmLote = defineAction(
         if (r.count !== 1) continue;
         n++;
         await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: l.id, de: "previsto", para: "confirmado", autorId: ctx.user.id } });
+        // C4: nota com retenção paga o líquido e gera as contas dos impostos, como na baixa de uma por uma.
+        await aplicarRetencoesNaBaixaNoTx(tx, l, {
+          data: quando,
+          contaId: i.contaId || l.contaId,
+          formaId: i.formaId || l.formaId,
+          autorId: ctx.user.id,
+          parcial: false,
+        });
         if (l.pagamentoProjetistaId) await tx.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(l.pagamentoProjetistaId, quando));
       }
       return n;
@@ -489,6 +565,8 @@ export const excluirLancamento = defineAction(
       await tx.lancamentoStatusHistorico.create({ data: { lancamentoId: i.id, de: estado.status, para: "excluido", autorId: ctx.user.id } });
       // M7: juros/multa/desconto da baixa saem junto — sem o principal eles seriam caixa e DRE soltos.
       await excluirAcessoriosNoTx(tx, i.id, ctx.user.id);
+      // C4: e as contas dos impostos retidos em aberto (recolhido recusa: estorne o recolhimento antes).
+      await desfazerContasDeImpostoNoTx(tx, i.id, ctx.user.id);
     });
     rev();
     return { id: i.id };

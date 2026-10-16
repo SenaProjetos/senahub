@@ -13,13 +13,13 @@ import {
   lancamentosDaCategoriaSchema,
   limparContaSchema,
 } from "@/modules/financeiro/contabil/schemas";
-import { definirContaNoBanco, limparContaNoBanco, registrarExportacaoNoBanco } from "@/modules/financeiro/contabil/service";
+import { definirContaNoBanco, limparContaNoBanco, registrarExportacaoNoBanco, type AlvoEditavel } from "@/modules/financeiro/contabil/service";
 
 /** Integração contábil: mesmo gate do fechamento — quem fecha o mês é quem o entrega ao contador. */
 const base = { modulo: "financeiro", recurso: "financeiro", permissao: "fechar", entidade: "DeParaContabil" } as const;
 const rev = () => revalidatePath("/financeiro/contabil");
 
-const antesDoDePara = (i: { alvo: "categoria" | "conta_bancaria"; alvoId: string }) =>
+const antesDoDePara = (i: { alvo: AlvoEditavel; alvoId: string }) =>
   prisma.deParaContabil.findUnique({ where: { alvo_alvoId: { alvo: i.alvo, alvoId: i.alvoId } } });
 
 export const definirContaContabil = defineAction(

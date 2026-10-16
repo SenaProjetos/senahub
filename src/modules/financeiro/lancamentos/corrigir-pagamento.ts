@@ -10,6 +10,8 @@ import { ActionError } from "@/lib/action-error";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 import { exigirOperacao, MOTIVO_MUDOU } from "@/modules/financeiro/lancamentos/situacao-service";
+import { vencimentoDoImposto, type ImpostoRetido } from "@/modules/financeiro/lancamentos/retencoes";
+import { diasDeVencimentoDasRetencoes } from "@/modules/financeiro/lancamentos/retencoes-service";
 
 export const MOTIVO_CONCILIADO_CONTA_E_DATA =
   "Conciliado com o extrato: a conta e a data do pagamento não mudam — desconcilie a transação antes. A forma de pagamento pode.";
@@ -68,6 +70,32 @@ export async function corrigirPagamentoNoBanco(i: CorrecaoDePagamento): Promise<
       where: { acessorioDeId: i.id, excluidoEm: null },
       data: { contaId: i.contaId, formaId: i.formaId, dataConfirmacao: new Date(`${i.dataConfirmacao}T00:00:00.000Z`) },
     });
+    // C4: a retenção nasceu com data e competência no dia do pagamento — anda com ele (o mês dela no contador também).
+    if (mudou.includes("data")) {
+      await tx.lancamento.updateMany({
+        where: { acessorioDeId: i.id, retencaoImposto: { not: null }, excluidoEm: null },
+        data: { data: new Date(`${i.dataConfirmacao}T00:00:00.000Z`), dataCompetencia: new Date(`${i.dataConfirmacao}T00:00:00.000Z`) },
+      });
+    }
+    // C4: a conta do imposto retido vence pelo dia do pagamento da nota — data nova, vencimento novo (só as em aberto).
+    if (mudou.includes("data")) {
+      const impostos = await tx.lancamento.findMany({
+        where: { retencaoDeId: i.id, excluidoEm: null, status: "previsto" },
+        select: { id: true, retencaoImposto: true },
+      });
+      if (impostos.length > 0) {
+        const dias = await diasDeVencimentoDasRetencoes(tx);
+        const dataNova = new Date(`${i.dataConfirmacao}T00:00:00.000Z`);
+        for (const x of impostos) {
+          if (!x.retencaoImposto) continue;
+          const venc = vencimentoDoImposto(i.dataConfirmacao, dias[x.retencaoImposto as ImpostoRetido]);
+          await tx.lancamento.update({
+            where: { id: x.id },
+            data: { data: dataNova, dataCompetencia: dataNova, vencimento: new Date(`${venc}T00:00:00.000Z`) },
+          });
+        }
+      }
+    }
     return { mudou };
   });
 }

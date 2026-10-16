@@ -50,7 +50,7 @@ export async function exigirContaLancavel(db: Db, reduzido: number): Promise<voi
   if (!c.ativa) throw new ActionError(MOTIVO_CONTA_INATIVA);
 }
 
-export type AlvoEditavel = "categoria" | "conta_bancaria";
+export type AlvoEditavel = "categoria" | "conta_bancaria" | "imposto_recolher" | "imposto_compensar";
 
 /** Liga um alvo a uma conta do plano. Na categoria, escolher conta tira o "não exportar". */
 export async function definirContaNoBanco(alvo: AlvoEditavel, alvoId: string, reduzido: number): Promise<void> {
@@ -94,6 +94,8 @@ export async function deParaDoMotor(db: Db = prisma): Promise<DeParaDoMotor> {
   const naoExportar = new Set<string>();
   let padraoClientes: number | null = null;
   let padraoFornecedores: number | null = null;
+  const impostoRecolher: Record<string, number> = {};
+  const impostoCompensar: Record<string, number> = {};
   for (const l of linhas) {
     if (l.alvo === "categoria" && l.naoExportar) naoExportar.add(l.alvoId);
     if (l.alvo === "centro" || l.alvo === "projeto") {
@@ -101,13 +103,20 @@ export async function deParaDoMotor(db: Db = prisma): Promise<DeParaDoMotor> {
       continue;
     }
     if (l.contaReduzido == null) continue;
+    if (l.alvo === "imposto_recolher") {
+      impostoRecolher[l.alvoId] = l.contaReduzido;
+      continue;
+    }
+    if (l.alvo === "imposto_compensar") {
+      impostoCompensar[l.alvoId] = l.contaReduzido;
+      continue;
+    }
     if (l.alvo === "categoria") porAlvo.categoria[l.alvoId] = l.contaReduzido;
     else if (l.alvo === "conta_bancaria") porAlvo.contaBancaria[l.alvoId] = l.contaReduzido;
     else if (l.alvo === "cartao" || l.alvo === "cliente" || l.alvo === "fornecedor") porAlvo[l.alvo][l.alvoId] = l.contaReduzido;
     else if (l.alvo === "categoria_contrapartida") porAlvo.contrapartidaDaCategoria[l.alvoId] = l.contaReduzido;
     else if (l.alvo === "padrao" && l.alvoId === "clientes") padraoClientes = l.contaReduzido;
     else if (l.alvo === "padrao" && l.alvoId === "fornecedores") padraoFornecedores = l.contaReduzido;
-    // imposto_recolher / imposto_compensar: entram com as retenções (fase C4).
   }
   return {
     paiDaCategoria: Object.fromEntries(categorias.map((c) => [c.id, c.paiId])),
@@ -117,6 +126,8 @@ export async function deParaDoMotor(db: Db = prisma): Promise<DeParaDoMotor> {
     padraoClientes,
     padraoFornecedores,
     contasDeInvestimento: new Set(invest),
+    impostoRecolher,
+    impostoCompensar,
   };
 }
 
@@ -158,6 +169,8 @@ export async function lancamentosDoMes(mes: string, db: Db = prisma): Promise<La
       fatura: { select: { competencia: true } },
       transferenciaId: true,
       acessorioDeId: true,
+      retencaoImposto: true,
+      retencaoDeId: true,
       restanteDeId: true,
       numeroDocumento: true,
       chaveNfe: true,
@@ -186,6 +199,8 @@ export async function lancamentosDoMes(mes: string, db: Db = prisma): Promise<La
     faturaRotulo: l.cartao && l.fatura ? `Fatura ${l.cartao.nome} ${l.fatura.competencia}` : null,
     transferenciaId: l.transferenciaId,
     acessorioDeId: l.acessorioDeId,
+    retencaoImposto: l.retencaoImposto,
+    retencaoDeId: l.retencaoDeId,
     restanteDeId: l.restanteDeId,
     numeroDocumento: l.numeroDocumento,
     chaveNfe: l.chaveNfe,

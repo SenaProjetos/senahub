@@ -14,6 +14,21 @@ import { InputFormatado } from "@/components/ui/input-formatado";
 import { useFieldErrors } from "@/lib/use-field-errors";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
+import { CollapsibleSection } from "@/components/ui/collapsible";
+import { brl } from "@/lib/utils";
+import {
+  IMPOSTOS_RETIDOS,
+  MOTIVO_IMPOSTO_SEGUE_NOTA,
+  MOTIVO_RETENCAO_JA_REALIZADO,
+  MOTIVO_RETENCAO_PAGA,
+  MOTIVO_RETENCAO_RECORRENCIA,
+  MOTIVO_RETENCAO_VALOR,
+  ROTULO_IMPOSTO,
+  motivoRetencoesInvalidas,
+  normalizarRetencoes,
+  totalRetido,
+  type ImpostoRetido,
+} from "@/modules/financeiro/lancamentos/retencoes";
 import {
   Select,
   SelectContent,
@@ -46,6 +61,14 @@ const CONFIANCAS = [
   ["incerta", "Incerta"],
 ] as const;
 type PrioridadeForm = (typeof PRIORIDADES)[number][0];
+type RetencoesForm = Record<ImpostoRetido, number | null>;
+const RETENCOES_VAZIAS: RetencoesForm = { iss: null, irrf: null, inss: null, pis: null, cofins: null, csll: null };
+const retencoesDoItem = (l: LancamentoItem): RetencoesForm => {
+  const r = { ...RETENCOES_VAZIAS };
+  for (const x of l.retencoes) r[x.imposto as ImpostoRetido] = x.valor;
+  return r;
+};
+
 type ConfiancaForm = (typeof CONFIANCAS)[number][0];
 
 function inputDate(d: string | Date | null | undefined): string {
@@ -97,6 +120,8 @@ export function LancamentoForm({
   const [caixinhaId, setCaixinhaId] = useState<string>(NONE);
   // M2: a forma de pagamento que uma regra sugeriu (o formulário não tem o campo, mas a criação o aceita).
   const [formaSugerida, setFormaSugerida] = useState("");
+  // C4: retenções na nota, em reais, copiadas da nota.
+  const [retencoes, setRetencoes] = useState<RetencoesForm>(RETENCOES_VAZIAS);
 
   // Sincroniza o formulário quando abre para um novo alvo (edição carrega valores; criação reseta).
   const alvoKey = open ? (editar?.id ?? (duplicarDe ? `dup:${duplicarDe.id}` : "novo")) : "fechado";
@@ -124,6 +149,7 @@ export function LancamentoForm({
       setPrioridade(editar.prioridade ?? PADRAO);
       setConfianca(editar.confianca ?? PADRAO);
       setCaixinhaId(editar.caixinhaId ?? NONE);
+      setRetencoes(retencoesDoItem(editar));
     } else if (duplicarDe) {
       // Mesma categoria/dimensões/valor do original; data vira hoje e nº documento/chave NF ficam em
       // branco (identificam UM documento — duplicar não deveria carregar a NF do original).
@@ -146,6 +172,8 @@ export function LancamentoForm({
       setPrioridade(duplicarDe.prioridade ?? PADRAO);
       setConfianca(duplicarDe.confianca ?? PADRAO);
       setCaixinhaId(duplicarDe.caixinhaId ?? NONE);
+      // A retenção é de UMA nota: o duplicado nasce sem (a nota nova traz a dela).
+      setRetencoes(RETENCOES_VAZIAS);
     } else if (open) {
       reset();
       setTipo(tipoInicial);
@@ -173,7 +201,24 @@ export function LancamentoForm({
     setConfianca(PADRAO);
     setCaixinhaId(NONE);
     setFormaSugerida("");
+    setRetencoes(RETENCOES_VAZIAS);
   }
+
+  // C4: onde a seção aparece e se dá para mexer. A conta do imposto, produção e transferência não levam retenção.
+  const ehImpostoRetido = !!editar?.retencaoDeId;
+  const mostraRetencoes = !ehImpostoRetido && !editar?.pagamentoProjetistaId && !editar?.transferenciaId && !editar?.cartaoId;
+  const retencoesTravadas = editar?.status === "confirmado" ? MOTIVO_RETENCAO_PAGA : null;
+  const listaRetencoes = normalizarRetencoes(IMPOSTOS_RETIDOS.map((imposto) => ({ imposto, valor: retencoes[imposto] ?? 0 })));
+  const retidoCentavos = totalRetido(listaRetencoes);
+  const valorCentavos = Math.round((valor ?? 0) * 100);
+  const erroRetencoes =
+    !mostraRetencoes || retencoesTravadas
+      ? null
+      : retidoCentavos > 0 && !modoEdicao && Number(ocorrencias) > 1
+        ? MOTIVO_RETENCAO_RECORRENCIA
+        : valor != null
+          ? motivoRetencoesInvalidas(valorCentavos, listaRetencoes)
+          : null;
 
   // Só o que ainda vai acontecer tem prioridade/confiança: realizado e cancelado não mexem nelas.
   const mostraPlanejador = !confirmado && (!editar || (editar.status !== "confirmado" && editar.status !== "cancelado"));
@@ -222,6 +267,13 @@ export function LancamentoForm({
       toast.error("Preencha descrição, valor e categoria.");
       return;
     }
+    if (erroRetencoes) {
+      toast.error(erroRetencoes);
+      return;
+    }
+    // Ausente = não mexe: conta paga não manda (o servidor recusaria), e quem não leva retenção também não.
+    const retencoesEnviadas =
+      mostraRetencoes && !retencoesTravadas ? listaRetencoes.map((r) => ({ imposto: r.imposto, valor: r.valorCentavos / 100 })) : undefined;
     start(async () => {
       if (modoEdicao && editar) {
         const r = await editarLancamento({
@@ -239,6 +291,7 @@ export function LancamentoForm({
           observacao,
           numeroDocumento,
           chaveNfe,
+          retencoes: retencoesEnviadas,
           ...planejador,
         });
         if (r.ok) {
@@ -263,7 +316,8 @@ export function LancamentoForm({
         observacao,
         numeroDocumento,
         chaveNfe,
-        confirmado,
+        retencoes: retencoesEnviadas,
+        confirmado: confirmado && retidoCentavos === 0,
         contaId: "",
         formaId: formaSugerida,
         ocorrencias: Number(ocorrencias) || 1,
@@ -319,10 +373,25 @@ export function LancamentoForm({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Valor (R$)</Label>
-              <InputMoeda value={valor} onChange={setValor} />
+              <Label htmlFor="lf-valor">{retidoCentavos > 0 ? "Valor da nota (R$)" : "Valor (R$)"}</Label>
+              <InputMoeda
+                id="lf-valor"
+                value={valor}
+                onChange={setValor}
+                disabled={ehImpostoRetido}
+                title={ehImpostoRetido ? MOTIVO_RETENCAO_VALOR : undefined}
+                aria-describedby={ehImpostoRetido ? "lf-valor-motivo" : undefined}
+              />
+              {ehImpostoRetido && (
+                <p id="lf-valor-motivo" className="text-xs text-muted-foreground">
+                  {MOTIVO_RETENCAO_VALOR}
+                </p>
+              )}
             </div>
           </div>
+          {ehImpostoRetido && (
+            <p className="rounded-sm border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">{MOTIVO_IMPOSTO_SEGUE_NOTA}</p>
+          )}
 
           <div className="space-y-1.5">
             <Label>Descrição</Label>
@@ -331,8 +400,8 @@ export function LancamentoForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Data</Label>
-              <Input type="date" value={dataMov} onChange={(e) => setDataMov(e.target.value)} />
+              <Label htmlFor="lf-data">Data</Label>
+              <Input id="lf-data" type="date" value={dataMov} disabled={ehImpostoRetido} title={ehImpostoRetido ? MOTIVO_IMPOSTO_SEGUE_NOTA : undefined} onChange={(e) => setDataMov(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Vencimento</Label>
@@ -341,8 +410,15 @@ export function LancamentoForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label>Data de competência (opcional)</Label>
-            <Input type="date" value={dataCompetencia} onChange={(e) => setDataCompetencia(e.target.value)} />
+            <Label htmlFor="lf-competencia">Data de competência (opcional)</Label>
+            <Input
+              id="lf-competencia"
+              type="date"
+              value={dataCompetencia}
+              disabled={ehImpostoRetido}
+              title={ehImpostoRetido ? MOTIVO_IMPOSTO_SEGUE_NOTA : undefined}
+              onChange={(e) => setDataCompetencia(e.target.value)}
+            />
             {/* Issue #4 do plano de Guias de uso: este campo só é lido pelo comparativo de
                 Relatórios (seletor Caixa/Competência) — todo o resto do Financeiro (painel, fluxo
                 de caixa, DFC, balanço, série mensal, rentabilidade) usa a data de confirmação. */}
@@ -354,7 +430,7 @@ export function LancamentoForm({
 
           <div className="space-y-1.5">
             <Label>Categoria</Label>
-            <Select value={categoriaId} onValueChange={(v) => setCategoriaId(v ?? "")}>
+            <Select value={categoriaId} disabled={ehImpostoRetido} onValueChange={(v) => setCategoriaId(v ?? "")}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
@@ -511,6 +587,13 @@ export function LancamentoForm({
             </div>
           )}
 
+          {mostraRetencoes && renderRetencoes()}
+          {erroRetencoes && (
+            <p role="alert" className="text-[13px] font-medium text-destructive">
+              {erroRetencoes}
+            </p>
+          )}
+
           <div className="space-y-1.5">
             <Label>Observação</Label>
             <Input value={observacao} onChange={(e) => setObservacao(e.target.value)} />
@@ -537,10 +620,23 @@ export function LancamentoForm({
           </div>
 
           {!modoEdicao && (
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={confirmado} onChange={(e) => setConfirmado(e.target.checked)} />
-              Já realizado (confirmado, entra no caixa)
-            </label>
+            <div className="space-y-1">
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={confirmado && retidoCentavos === 0}
+                  disabled={retidoCentavos > 0}
+                  aria-describedby={retidoCentavos > 0 ? "lf-realizado-motivo" : undefined}
+                  onChange={(e) => setConfirmado(e.target.checked)}
+                />
+                Já realizado (confirmado, entra no caixa)
+              </label>
+              {retidoCentavos > 0 && (
+                <p id="lf-realizado-motivo" className="text-xs text-muted-foreground">
+                  {MOTIVO_RETENCAO_JA_REALIZADO}
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -548,11 +644,56 @@ export function LancamentoForm({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button onClick={salvar} disabled={pending}>
+          <Button onClick={salvar} disabled={pending || !!erroRetencoes}>
             {pending ? "Salvando…" : "Salvar"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+
+  /** Mock C4 "Conta a pagar com retenção": recolhida por padrão, abre sozinha quando a conta já tem retenção. */
+  function renderRetencoes() {
+    const despesa = tipo === "despesa";
+    return (
+      <CollapsibleSection
+        titulo="Retenções na nota"
+        defaultOpen={retidoCentavos > 0}
+        resumo={retidoCentavos > 0 ? <span className="font-mono text-xs">{brl(retidoCentavos / 100)} retidos</span> : undefined}
+      >
+        <div className="space-y-3 p-3">
+          <p className="text-xs text-muted-foreground">
+            Copie os valores que a nota traz, em reais.{" "}
+            {despesa
+              ? "Quem paga a nota retém o imposto e recolhe ao governo: o fornecedor recebe o líquido."
+              : "O cliente retém o imposto e recolhe: a empresa recebe o líquido, e o contador compensa o retido no DAS."}
+          </p>
+          {retencoesTravadas && <p className="text-xs font-medium text-muted-foreground">{retencoesTravadas}</p>}
+          <div className="grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]">
+            {IMPOSTOS_RETIDOS.map((imposto) => (
+              <div key={imposto} className="space-y-1.5">
+                <Label htmlFor={`lf-ret-${imposto}`}>{ROTULO_IMPOSTO[imposto]}</Label>
+                <InputMoeda
+                  id={`lf-ret-${imposto}`}
+                  value={retencoes[imposto]}
+                  disabled={!!retencoesTravadas}
+                  onChange={(v) => setRetencoes((r) => ({ ...r, [imposto]: v }))}
+                />
+              </div>
+            ))}
+          </div>
+          {retidoCentavos > 0 && valor != null && (
+            <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 rounded-sm border bg-muted/30 px-3 py-2 text-[13px]" aria-live="polite">
+              <dt>Valor da nota</dt>
+              <dd className="text-right font-mono tabular-nums">{brl(valor)}</dd>
+              <dt className="text-muted-foreground">− retido</dt>
+              <dd className="text-right font-mono tabular-nums text-muted-foreground">{brl(retidoCentavos / 100)}</dd>
+              <dt className="border-t pt-0.5 font-semibold">{despesa ? "Pago ao fornecedor" : "Recebido do cliente"}</dt>
+              <dd className="border-t pt-0.5 text-right font-mono font-semibold tabular-nums">{brl((valorCentavos - retidoCentavos) / 100)}</dd>
+            </dl>
+          )}
+        </div>
+      </CollapsibleSection>
+    );
+  }
 }

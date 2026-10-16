@@ -4,11 +4,13 @@ import {
   ACAO_ESCOLHER_CONTA,
   ACAO_LIMPAR_CONTA,
   ACAO_VER_EXTRATO,
+  ACAO_VER_IMPOSTOS,
   ACAO_VER_LANCAMENTOS,
   MOTIVO_NADA_PARA_COPIAR,
   MOTIVO_SEM_CONTA_PROPRIA,
   itensDeCategoriaContabil,
   itensDeContaBancariaContabil,
+  itensDeImpostoContabil,
 } from "@/modules/financeiro/contabil/acoes";
 
 const resumo = (itens: ReturnType<typeof itensDeCategoriaContabil>) =>
@@ -33,5 +35,17 @@ describe("itensDeContaBancariaContabil", () => {
   it("leva ao extrato da conta no mês", () => {
     const itens = itensDeContaBancariaContabil({ temConta: false, contaId: "c1", mes: "2026-09", rotuloMes: "setembro" });
     expect(resumo(itens)).toEqual([[ACAO_ESCOLHER_CONTA, null], [ACAO_VER_EXTRATO, "/financeiro/extrato?conta=c1&mes=2026-09"], ["separador"], [ACAO_LIMPAR_CONTA, MOTIVO_SEM_CONTA_PROPRIA]]);
+  });
+});
+
+describe("itensDeImpostoContabil (C4)", () => {
+  it("a recolher: escolher, ver as contas do imposto e limpar (desabilitado sem conta)", () => {
+    const itens = itensDeImpostoContabil({ temConta: false, rotulo: "ISS retido", aRecolher: true });
+    expect(itens.map((i) => i.id)).toEqual([ACAO_ESCOLHER_CONTA, ACAO_VER_IMPOSTOS, "sep", ACAO_LIMPAR_CONTA]);
+    expect(itens.find((i) => i.id === ACAO_VER_IMPOSTOS)).toMatchObject({ rotulo: "Ver as contas de impostos retidos", href: "/financeiro/contas?tab=impostos" });
+    expect(itens.find((i) => i.id === ACAO_LIMPAR_CONTA)).toMatchObject({ desabilitado: MOTIVO_SEM_CONTA_PROPRIA });
+  });
+  it("a compensar não tem conta a pagar para listar", () => {
+    expect(itensDeImpostoContabil({ temConta: true, rotulo: "ISS retido pelo cliente", aRecolher: false }).map((i) => i.id)).toEqual([ACAO_ESCOLHER_CONTA, "sep", ACAO_LIMPAR_CONTA]);
   });
 });

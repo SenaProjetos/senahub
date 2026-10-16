@@ -18,6 +18,9 @@ const CLIENTES_DIVERSOS = 1659;
 const FORNECEDORES_DIVERSOS = 2142;
 const CLIENTE_ALFA = 4235;
 const CARTAO_A_PAGAR = 9001; // ainda não existe no plano: o contador vai criar
+const IR_A_RECOLHER = 2163;
+const ISS_A_RECOLHER = 9002; // não existe no plano do contador
+const ISS_A_COMPENSAR = 9003; // idem
 
 const dp = (parcial: Partial<DeParaDoMotor> = {}): DeParaDoMotor => ({
   paiDaCategoria: { receitas: null, servicos: "receitas", despesas: null, admin: "despesas", terceiros: "despesas", folha: "despesas", impostos: "despesas", juros: "despesas", rendimento: "receitas", transf: null },
@@ -33,6 +36,8 @@ const dp = (parcial: Partial<DeParaDoMotor> = {}): DeParaDoMotor => ({
   centro: { adm: "01" },
   projeto: { p1: "01.007" },
   contasDeInvestimento: new Set(["aplic"]),
+  impostoRecolher: { irrf: IR_A_RECOLHER },
+  impostoCompensar: {},
   ...parcial,
 });
 
@@ -56,6 +61,8 @@ const lanc = (p: Partial<LancamentoContabil>): LancamentoContabil => ({
   faturaRotulo: null,
   transferenciaId: null,
   acessorioDeId: null,
+  retencaoImposto: null,
+  retencaoDeId: null,
   restanteDeId: null,
   numeroDocumento: null,
   chaveNfe: null,
@@ -246,4 +253,79 @@ describe("invariante: o banco no arquivo bate com o Extrato por conta", () => {
     expect(movimentoDaConta(r.linhas, ITAU) + (r.fora.realizadoForaPorConta.itau ?? 0)).toBe(extratoItau);
     expect(movimentoDaConta(r.linhas, SANTANDER)).toBe(1000_00);
   });
+});
+
+describe("gerarPartidas — retenção na nota (C4)", () => {
+  const nota = (p: Partial<LancamentoContabil> = {}) =>
+    lanc({ id: "a-nf", descricao: "Projeto de fundações", categoriaId: "terceiros", valorCentavos: 10000_00, pagoCentavos: 10000_00, numeroDocumento: "NF 1207", ...pagoEm("2026-09-20"), ...p });
+  const retido = (imposto: string, valor: number, p: Partial<LancamentoContabil> = {}) =>
+    lanc({ tipo: "receita", categoriaId: "ret", descricao: `${imposto.toUpperCase()} retido — Projeto de fundações`, id: `r-${imposto}`, acessorioDeId: "a-nf", retencaoImposto: imposto, valorCentavos: valor, pagoCentavos: valor, numeroDocumento: "NF 1207", ...pagoEm("2026-09-20"), ...p });
+
+  it("conta a pagar: reconhece a nota cheia, baixa o líquido e cada imposto contra o fornecedor (igual ao mock)", () => {
+    const r = gerarPartidas(MES, [nota(), retido("iss", 500_00), retido("irrf", 150_00)], dp({ impostoRecolher: { iss: ISS_A_RECOLHER, irrf: IR_A_RECOLHER } }));
+    expect(r.linhas.map((x) => [x.evento, x.debito, x.credito, x.valorCentavos])).toEqual([
+      ["reconhecimento", TERCEIROS, FORNECEDORES_DIVERSOS, 10000_00],
+      ["baixa", FORNECEDORES_DIVERSOS, ITAU, 9350_00],
+      // Mesmo dia e evento: ordem pelo id do lançamento.
+      ["baixa", FORNECEDORES_DIVERSOS, IR_A_RECOLHER, 150_00],
+      ["baixa", FORNECEDORES_DIVERSOS, ISS_A_RECOLHER, 500_00],
+    ]);
+    expect(r.pendencias).toEqual([]);
+    // O banco no arquivo é o que saiu do banco: o líquido.
+    expect(movimentoDaConta(r.linhas, ITAU)).toBe(-9350_00);
+  });
+
+  it("imposto sem conta no de-para: linha em branco e pendência pelo imposto", () => {
+    const r = gerarPartidas(MES, [nota(), retido("iss", 500_00)], dp());
+    expect(r.linhas.find((x) => x.lancamentoId !== "a-nf")).toMatchObject({ debito: FORNECEDORES_DIVERSOS, credito: null });
+    expect(r.pendencias).toEqual([{ alvo: "imposto_recolher", alvoId: "iss", lancamentos: 1 }]);
+  });
+
+  it("conta a receber: D banco pelo líquido e D ISS a compensar / C cliente", () => {
+    const r = gerarPartidas(
+      MES,
+      [
+        nota({ tipo: "receita", categoriaId: "servicos", clienteId: "alfa", valorCentavos: 45000_00, pagoCentavos: 45000_00 }),
+        retido("iss", 900_00, { tipo: "despesa" }),
+      ],
+      dp({ impostoCompensar: { iss: ISS_A_COMPENSAR } }),
+    );
+    expect(r.linhas.map((x) => [x.evento, x.debito, x.credito, x.valorCentavos])).toEqual([
+      ["reconhecimento", CLIENTE_ALFA, SERVICOS, 45000_00],
+      ["baixa", ITAU, CLIENTE_ALFA, 44100_00],
+      ["baixa", ISS_A_COMPENSAR, CLIENTE_ALFA, 900_00],
+    ]);
+  });
+
+  it("conta do imposto: não se reconhece de novo; o recolhimento é D imposto a recolher / C banco", () => {
+    const imposto = lanc({ descricao: "IRRF retido — Engecalc", categoriaId: "imp_retido", retencaoDeId: "a-nf", retencaoImposto: "irrf", valorCentavos: 150_00, pagoCentavos: 150_00 });
+    expect(gerarPartidas(MES, [imposto], dp()).linhas).toEqual([]);
+    const pago = gerarPartidas(MES, [{ ...imposto, ...pagoEm("2026-09-15") }], dp());
+    expect(pago.linhas.map((x) => [x.evento, x.debito, x.credito, x.historico])).toEqual([["baixa", IR_A_RECOLHER, ITAU, "Recolhimento: IRRF retido — Engecalc"]]);
+  });
+
+  it("título fora do arquivo (não exportar): a retenção sai junto e entra na conferência do banco", () => {
+    const r = gerarPartidas(MES, [nota({ categoriaId: "folha" }), retido("irrf", 150_00)], dp());
+    expect(r.linhas).toEqual([]);
+    expect(r.fora.realizadoForaPorConta.itau).toBe(-10000_00 + 150_00);
+  });
+});
+
+it("retenção do cliente em recebível fora do arquivo: a conferência do banco fica com o líquido", () => {
+  const nota = lanc({ id: "rec", tipo: "receita", categoriaId: "folha", valorCentavos: 45000_00, pagoCentavos: 45000_00, ...pagoEm("2026-09-12") });
+  const ret = lanc({ tipo: "despesa", categoriaId: "ret", acessorioDeId: "rec", retencaoImposto: "iss", valorCentavos: 900_00, pagoCentavos: 900_00, ...pagoEm("2026-09-12") });
+  const r = gerarPartidas(MES, [nota, ret], dp());
+  expect(r.linhas).toEqual([]);
+  expect(r.fora.realizadoForaPorConta.itau).toBe(44100_00);
+});
+
+it("invariante do banco com retenção nos dois lados: arquivo = extrato", () => {
+  const ls = [
+    lanc({ id: "p", categoriaId: "terceiros", valorCentavos: 10000_00, pagoCentavos: 10000_00, ...pagoEm("2026-09-20") }),
+    lanc({ tipo: "receita", categoriaId: "ret", acessorioDeId: "p", retencaoImposto: "irrf", valorCentavos: 150_00, pagoCentavos: 150_00, ...pagoEm("2026-09-20") }),
+    lanc({ id: "r", tipo: "receita", categoriaId: "servicos", valorCentavos: 45000_00, pagoCentavos: 45000_00, ...pagoEm("2026-09-12") }),
+    lanc({ tipo: "despesa", categoriaId: "ret", acessorioDeId: "r", retencaoImposto: "iss", valorCentavos: 900_00, pagoCentavos: 900_00, ...pagoEm("2026-09-12") }),
+  ];
+  const r = gerarPartidas(MES, ls, dp());
+  expect(movimentoDaConta(r.linhas, ITAU)).toBe(-10000_00 + 150_00 + 45000_00 - 900_00);
 });

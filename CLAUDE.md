@@ -54,6 +54,7 @@ npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, 
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
+npm run smoke:retencoes             # retenções na nota (C4): pagar líquido + contas dos impostos, parcial/desconto recusados, estorno, conciliação, cobrança, contabilidade
 npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do projeto, projetista pago no Financeiro, recebido pelo pago) e N1 (estorno, reabrir, caminhos impossíveis, desfazer importação)
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:contabil              # integração contábil (M5): plano do contador, partidas (reconhecimento+baixa, parcial, cartão, transferência, folha fora), invariante do extrato, exportação só de mês fechado
@@ -556,6 +557,18 @@ classificação repeats in his plan (`2.1.3.01.0003` = PIS/COFINS/ICMS/IPI/IE) a
 together in the DAS, one account for the Alterdata (owner, 2026-10-16); the alterdata layout refuses a month with a line without account; the complemento is capped at 200 chars (description shortened,
 document kept, `complementoAlterdata`); centro/projeto only on result-account lines, never on the baixa (no de-para code → SenaHub
 centro name / projeto code). `arquivo-xlsx.ts` (exceljs, `node:module`) is imported only by the download route, never by the client view.
+**Retention on the invoice** (C4, `lancamentos/retencoes.ts` pure + `retencoes-service.ts`, spec §14): `RetencaoLancamento` lives on
+the título (reais per tax, typed from the NF). EVERY path that pays a título calls `aplicarRetencoesNaBaixaNoTx` (baixa, lote,
+conciliação `ligar`, created-already-paid): one accessory per tax (`acessorioDeId` + `retencaoImposto`, `fora_do_resultado`) so the
+bank moves the NET, and — on a payable only — one tax payable per tax (`retencaoDeId` + `retencaoImposto`, due on the configured day
+of the month after payment, `ConfigSistema financeiro.retencoes`). Partial payment and lote de pagamentos refuse a título with
+retention; estorno/excluir/desconciliar undo it via `desfazerContasDeImpostoNoTx` (refused once a tax was paid). State machine:
+origem `retencao_acessorio` (moves only with the principal) and `retencao` (pays/estorna; never cancel/excluir/reabrir; value,
+category and dates belong to the NF). Readers of what the bank moves use valor − retido (Contas list, planner — plus the estimated
+`ret:<id>:<imposto>` event —, conciliation candidates, collection e-mail, pay bell); DRE/aging keep the NF value. Accounting: baixa
+by the net, each retained tax against the contato (D fornecedor / C imposto a recolher; D imposto a compensar / C cliente), the tax
+payable only on payment (D imposto a recolher / C banco); de-para `imposto_recolher|imposto_compensar` by tax. Partial unique
+indexes (one live tax per NF) back it in the DB. Smoke: `npm run smoke:retencoes`.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

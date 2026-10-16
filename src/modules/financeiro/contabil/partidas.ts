@@ -12,6 +12,10 @@
  *  - E3 transferência entre contas próprias: UMA linha por par, D destino / C origem;
  *  - E4 movimento: juros/multa/desconto da baixa (acessórios M7) e rendimento/IR na conta de um
  *    investimento — linha única contra o banco.
+ *  - Retenção na nota (C4, mock aprovado 2026-10-16): a baixa do título sai pelo LÍQUIDO contra o banco e cada
+ *    imposto retido vira uma linha contra a contrapartida — conta a pagar: D fornecedor / C imposto a recolher;
+ *    conta a receber: D imposto a compensar / C cliente. A conta do imposto gerada pela baixa não se reconhece de
+ *    novo: só a baixa dela, D imposto a recolher / C banco.
  */
 
 import { ratearValor, type ItemRateio } from "@/modules/financeiro/lancamentos/rateio";
@@ -42,6 +46,10 @@ export type LancamentoContabil = {
   faturaRotulo: string | null;
   transferenciaId: string | null;
   acessorioDeId: string | null;
+  /** C4: com `acessorioDeId`, é a retenção daquela baixa; com `retencaoDeId`, é a conta do imposto retido. */
+  retencaoImposto: string | null;
+  /** C4: conta de imposto retido a recolher gerada pela baixa deste título. */
+  retencaoDeId: string | null;
   restanteDeId: string | null;
   numeroDocumento: string | null;
   chaveNfe: string | null;
@@ -67,6 +75,9 @@ export type DeParaDoMotor = {
   projeto: Readonly<Record<string, string>>;
   /** Contas bancárias que SÃO um investimento (M4): receita/despesa avulsa nelas é movimento (E4). */
   contasDeInvestimento: ReadonlySet<string>;
+  /** C4: por imposto (`iss`, `irrf`…) — passivo do que a empresa reteve e ativo do que o cliente reteve. */
+  impostoRecolher: Readonly<Record<string, number>>;
+  impostoCompensar: Readonly<Record<string, number>>;
 };
 
 export type EventoContabil = "reconhecimento" | "baixa" | "transferencia" | "movimento";
@@ -87,11 +98,23 @@ export type LinhaContabil = {
   evento: EventoContabil;
 };
 
-export type AlvoPendencia = "categoria" | "contrapartida" | "conta_bancaria" | "cartao" | "padrao" | "sem_conta" | "transferencia";
+export type AlvoPendencia =
+  | "categoria"
+  | "contrapartida"
+  | "conta_bancaria"
+  | "cartao"
+  | "padrao"
+  | "sem_conta"
+  | "transferencia"
+  | "imposto_recolher"
+  | "imposto_compensar";
 
 export type Pendencia = {
   alvo: AlvoPendencia;
-  /** Id da categoria/conta/cartão; "clientes"/"fornecedores" no padrão; id do lançamento em sem_conta/transferência. */
+  /**
+   * Id da categoria/conta/cartão; "clientes"/"fornecedores" no padrão; id do lançamento em sem_conta/transferência;
+   * o imposto (`iss`, `irrf`…) nos impostos retidos.
+   */
   alvoId: string;
   /** Quantos lançamentos do mês ficaram com essa conta em branco. */
   lancamentos: number;
@@ -214,9 +237,22 @@ export function gerarPartidas(mes: string, lancamentos: readonly LancamentoConta
 
   const semCentro = (base: Omit<LinhaContabil, "centro" | "subcentro">) => linhas.push({ ...base, centro: null, subcentro: null });
 
+  const contaDoImposto = (alvo: "imposto_recolher" | "imposto_compensar", imposto: string, lancamentoId: string): number | null => {
+    const r = (alvo === "imposto_recolher" ? dp.impostoRecolher : dp.impostoCompensar)[imposto];
+    if (r === undefined) pendente(alvo, imposto, lancamentoId);
+    return r ?? null;
+  };
+
   const porTransferencia = new Map<string, LancamentoContabil[]>();
+  const porId = new Map<string, LancamentoContabil>();
+  // C4: quanto de cada título pago no mês foi retido (sai da linha da baixa: o banco movimentou o líquido).
+  const retidoDoTitulo = new Map<string, number>();
   for (const l of lancamentos) {
+    porId.set(l.id, l);
     if (l.transferenciaId) porTransferencia.set(l.transferenciaId, [...(porTransferencia.get(l.transferenciaId) ?? []), l]);
+    if (l.acessorioDeId && l.retencaoImposto && l.status === "confirmado") {
+      retidoDoTitulo.set(l.acessorioDeId, (retidoDoTitulo.get(l.acessorioDeId) ?? 0) + l.pagoCentavos);
+    }
   }
 
   // Baixa das compras de cartão: uma linha por fatura + dia + conta.
@@ -242,6 +278,52 @@ export function gerarPartidas(mes: string, lancamentos: readonly LancamentoConta
         chaveNfe: l.chaveNfe,
         lancamentoId: l.id,
         evento: "transferencia",
+      });
+      continue;
+    }
+
+    // C4 — retenção na nota: linha contra a contrapartida do título (nunca contra o banco).
+    if (l.acessorioDeId && l.retencaoImposto) {
+      if (!realizadoNoMes) continue;
+      const titulo = porId.get(l.acessorioDeId);
+      if (titulo && naoExporta(titulo.categoriaId, dp)) {
+        // O título ficou fora (o contador lança): o retido sai junto, e conta para a conferência do banco.
+        if (l.contaId) {
+          const efeito = l.tipo === "receita" ? l.pagoCentavos : -l.pagoCentavos;
+          fora.realizadoForaPorConta[l.contaId] = (fora.realizadoForaPorConta[l.contaId] ?? 0) + efeito;
+        }
+        continue;
+      }
+      const cp = contrapartida(titulo ?? l);
+      const fazemos = l.tipo === "receita"; // acessório receita = nós retivemos (conta a pagar)
+      const imposto = contaDoImposto(fazemos ? "imposto_recolher" : "imposto_compensar", l.retencaoImposto, l.id);
+      semCentro({
+        data: l.pagamento!,
+        debito: fazemos ? cp : imposto,
+        credito: fazemos ? imposto : cp,
+        valorCentavos: l.pagoCentavos,
+        historico: historico(l),
+        documento: l.numeroDocumento,
+        chaveNfe: l.chaveNfe,
+        lancamentoId: l.id,
+        evento: "baixa",
+      });
+      continue;
+    }
+
+    // C4 — conta do imposto retido: a obrigação nasceu na retenção; aqui só o recolhimento.
+    if (l.retencaoDeId && l.retencaoImposto) {
+      if (!realizadoNoMes) continue;
+      semCentro({
+        data: l.pagamento!,
+        debito: contaDoImposto("imposto_recolher", l.retencaoImposto, l.id),
+        credito: contaDoBanco(l),
+        valorCentavos: l.pagoCentavos,
+        historico: historico(l, "Recolhimento: "),
+        documento: l.numeroDocumento,
+        chaveNfe: l.chaveNfe,
+        lancamentoId: l.id,
+        evento: "baixa",
       });
       continue;
     }
@@ -312,7 +394,7 @@ export function gerarPartidas(mes: string, lancamentos: readonly LancamentoConta
         data: l.pagamento!,
         debito: l.tipo === "despesa" ? cp : banco,
         credito: l.tipo === "despesa" ? banco : cp,
-        valorCentavos: l.pagoCentavos,
+        valorCentavos: l.pagoCentavos - (retidoDoTitulo.get(l.id) ?? 0),
         historico: historico(l, l.tipo === "despesa" ? "Pagamento: " : "Recebimento: "),
         documento: l.numeroDocumento,
         chaveNfe: l.chaveNfe,

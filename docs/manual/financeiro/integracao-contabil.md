@@ -91,4 +91,23 @@ bloqueada até você escolher; o que depende de conta que o contador ainda vai c
   aplicações) e a habilitação de centro de custo.
 - Que o Alterdata aceite as três colunas extras à direita (`centro de custo`, `projeto` e `chave de acesso`); se recusar, o primeiro teste de
   importação mostra, e tiramos as colunas.
-- **Retenções na nota** (ISS, INSS, IRRF…): entram numa próxima etapa.
+- As contas de **ISS a recolher**, **ISS a compensar** e **INSS a compensar** (retenções na nota): enquanto não existirem no plano
+  dele, o layout do contador não exporta o mês em que houver retenção desses impostos.
+
+## Retenções na nota
+
+Quando a nota traz imposto retido (ISS, IRRF, INSS, PIS, COFINS, CSLL), lance a conta pelo **valor da nota** e preencha a
+seção **Retenções na nota** do formulário com os valores que a nota mostra, em reais.
+
+- **Conta a pagar** (a empresa retém do fornecedor): ao pagar, sai do banco só o líquido e nasce **uma conta a pagar por
+  imposto**, que vence no dia configurado do mês seguinte ao pagamento (ISS dia 10, os demais dia 15 — muda em
+  Financeiro → Configurações → Vencimento dos impostos retidos). Elas aparecem em **Contas → Impostos retidos**; ISS de
+  várias notas pode ser pago junto, selecionando as contas (**Pagar juntas**).
+- **Conta a receber** (o cliente retém da empresa): ao receber, entra no banco só o líquido; o retido fica a compensar com
+  o contador. Não nasce conta nenhuma. A conciliação procura o líquido no extrato, e o e-mail de cobrança pede o líquido.
+- A DRE mostra o valor cheio da nota; o caixa e o planejador, o líquido.
+- Nota com retenção só se paga **inteira** (sem pagamento parcial) e não entra em **lote de pagamentos**. Para mudar a
+  retenção de uma conta já paga, estorne o pagamento antes. Estornar desfaz as contas dos impostos; se algum imposto já foi
+  recolhido, estorne o recolhimento primeiro.
+- No arquivo do contador: a baixa sai pelo líquido e cada imposto vira uma linha contra o fornecedor (ou o cliente). Ligue
+  cada imposto à conta do plano dele no bloco **Impostos retidos → conta contábil** da aba De-para.

@@ -1,6 +1,6 @@
 # Integração contábil (M5) e retenções na NF
 
-**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3 e C5 feitas (C5 com as colunas extras, 2026-10-15); C1 só no que o mock aprovou (ver §12 e §13); C4 aguarda o dono e o contador
+**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3, C4 e C5 feitas (C4 em 2026-10-16, §14); C1 só no que o mock aprovou (ver §12 e §13); faltam no plano do contador as contas de ISS a recolher e ISS/INSS a compensar
 
 Fecha as duas pendências que o plano do Financeiro deixou para o contador: a fase **M5 (integração contábil)** e as
 **retenções na NF** (decisão 5 de 2026-10-02). Base: as respostas do contador (GAMA CONTABIL, 2026-10-05 e 2026-10-07),
@@ -228,7 +228,7 @@ Razão, balancete ou DRE contábil no SenaHub · importação de volta do Alterd
 | **C1** | Sonnet | Mock revisado (§6 acréscimos) → `DeParaContabil` + aba De-para + migração (sugestões do §11, folha `naoExportar`) | OK do mock |
 | **C2** | **Opus** | Motor de partidas puro (§5) com testes + smoke `smoke:contabil` (invariante do extrato, parcial, cartão, transferência, rateio, folha fora) | C0 |
 | **C3** | Sonnet | Aba Exportação (Excel/CSV genérico, prévia, só mês fechado) + `ExportacaoContabil` + hash/diff | C1, C2 |
-| **C4** | **Opus** | Mock → retenções (§7) + E4/E5 no motor + smoke | OK do mock, contas do contador |
+| **C4** | **Opus** | Mock → retenções (§7) + motor + smoke (**feito 2026-10-16, §14**) | OK do mock (dado), contas do contador (3 faltam) |
 | **C5** | Sonnet | Layout Alterdata (**feito 2026-10-15, §13**) | arquivo de exemplo do contador (chegou) |
 
 Verificação por fase: tsc (`NODE_OPTIONS=--max-old-space-size=8192`), lint sem `--quiet`, suíte, smoke da fase,
@@ -336,3 +336,41 @@ genérico); (5) o complemento tem no máximo **200 caracteres** e a chave da NF-
 **Classificação repetida:** `2.1.3.01.0003` é PIS, COFINS, ICMS, IPI e IE a recolher no plano do contador. **Aceito como está**
 (dono, 2026-10-16): no Simples esses tributos vêm juntos no DAS, então são uma conta só para o Alterdata. Nenhuma trava; as retenções
 (C4) de PIS/COFINS a recolher usam essa classificação.
+
+## 14. Retenções na nota (C4, 2026-10-16)
+
+Mock aprovado pelo dono em 2026-10-16 (artifact "Retenções na nota", pranchas Main, Baixa, ContasImposto, Receber e Ajustes).
+Vencimentos do contador: ISS dia 10, os demais dia 15 do mês seguinte ao pagamento. O que mudou em relação ao §7:
+
+- **Onde mora:** `RetencaoLancamento` no título (valor em reais por imposto, digitado da nota). Regras puras em
+  `lancamentos/retencoes.ts` (testadas); I/O em `retencoes-service.ts`. Configuração dos dias: `ConfigSistema`
+  `financeiro.retencoes` (card "Vencimento dos impostos retidos" em Configurações; PIS, COFINS e CSLL juntos).
+- **Baixa:** `aplicarRetencoesNaBaixaNoTx` roda em TODO caminho que paga: baixa única (`baixarNoTx`), baixa em lote
+  (`baixarEmLote`), conciliação (`ligar`, manual e OFX) e título lançado já pago (`criarLancamentoNoTx`, com conta). Grava um
+  acessório por imposto (`acessorioDeId` + `retencaoImposto`, categoria `receita_retencao_feita` na conta a pagar e
+  `despesa_retencao_sofrida` na conta a receber, ambas fora do resultado) e, na conta a pagar, uma conta por imposto
+  (`retencaoDeId` + `retencaoImposto`, categoria `despesa_imposto_retido_a_recolher`, P1). Pagamento parcial com retenção é
+  recusado; desconto que deixaria o retido maior que o pago também. O lote de pagamentos do planejamento não aceita nota com
+  retenção (`MOTIVO_RETENCAO_LOTE`): ela nem entra na lista nem pode ser adicionada.
+- **Desfazer:** estorno, exclusão e desconciliação levam os acessórios e as contas de imposto em aberto
+  (`desfazerContasDeImpostoNoTx`, condicionado à situação lida); imposto já recolhido recusa ("estorne o recolhimento
+  primeiro"). Corrigir a data do pagamento move a retenção e recalcula o vencimento das contas em aberto.
+- **Máquina de situações:** origem `retencao_acessorio` (o acessório só anda com o principal) e `retencao` (a conta do imposto
+  paga, estorna e concilia; não se cancela, exclui nem reabre; valor, categoria e datas são da nota — só vencimento,
+  descrição e observação mudam).
+- **Líquido:** a lista de Contas, o planejador (com o imposto como saída estimada `ret:<id>:<imposto>`, P1, a partir do dia
+  em que a nota deve ser paga), a conciliação e os avisos (cobrança ao cliente e sino de contas a pagar) usam valor − retido.
+  A DRE e o aging seguem o valor da nota.
+- **Contabilidade:** reconhecimento pela nota cheia; a baixa sai pelo líquido contra o banco; cada imposto retido é uma linha
+  contra a contrapartida (conta a pagar: D fornecedor / C imposto a recolher; conta a receber: D imposto a compensar /
+  C cliente); a conta do imposto não se reconhece de novo — só o recolhimento, D imposto a recolher / C banco. De-para por
+  imposto (`imposto_recolher` / `imposto_compensar`, bloco "Impostos retidos → conta contábil" na aba De-para); a migração
+  já liga IRRF, INSS, PIS, COFINS e CSLL a recolher às contas do plano dele. **Faltam no plano dele: ISS a recolher, ISS a
+  compensar e INSS a compensar** — enquanto faltarem, o layout do contador não exporta mês com retenção desses impostos.
+- **Defesa no banco:** índices únicos parciais (um imposto por nota, vivo) na conta a recolher e no acessório.
+- **Fora (decisão do mock):** cálculo por alíquota, DAS e compensação no DAS (contador); retenção em compra no cartão, em
+  título recorrente, de produção (projetista) e de ART; vencimento em fim de semana não anda sozinho (a tela avisa).
+- **Limite conhecido — caixinha:** nota paga por caixinha baixa o reservado pelo valor cheio e o caixa pelo líquido; até o
+  imposto ser pago, o livre fica maior pelo retido (a conta do imposto, P1, aparece no planejador). Ao pagar o imposto, fecha.
+- **Verificação:** `npm run smoke:retencoes` (criar, parcial e desconto recusados, pagar, data corrigida, contabilidade,
+  estorno recusado com imposto pago, cobrança pelo líquido, conciliação do recebível, desconciliar, nascida paga).

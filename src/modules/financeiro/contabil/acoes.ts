@@ -34,6 +34,21 @@ export function itensDeCategoriaContabil(c: CategoriaParaAcoes, rotuloMes: strin
   ]);
 }
 
+export const ACAO_VER_IMPOSTOS = "ver-impostos-retidos";
+
+/** C4: imposto retido (a recolher ou a compensar) — escolher/limpar a conta e ver as contas desse imposto. */
+export function itensDeImpostoContabil(c: { temConta: boolean; rotulo: string; aRecolher: boolean }): AcaoItem[] {
+  const itens: (AcaoItem | null)[] = [
+    { tipo: "acao", id: ACAO_ESCOLHER_CONTA, rotulo: "Escolher conta contábil…", icone: ListTree },
+    c.aRecolher
+      ? { tipo: "link", id: ACAO_VER_IMPOSTOS, rotulo: "Ver as contas de impostos retidos", icone: Search, href: "/financeiro/contas?tab=impostos" }
+      : null,
+    { tipo: "separador", id: "sep" },
+    { tipo: "acao", id: ACAO_LIMPAR_CONTA, rotulo: "Limpar conta", icone: Eraser, desabilitado: c.temConta ? undefined : MOTIVO_SEM_CONTA_PROPRIA },
+  ];
+  return limparSeparadores(itens.filter((i): i is AcaoItem => i !== null));
+}
+
 /** Conta bancária: escolher/limpar a conta e abrir o extrato do mês. */
 export function itensDeContaBancariaContabil(c: { temConta: boolean; contaId: string; mes: string; rotuloMes: string }): AcaoItem[] {
   return limparSeparadores([

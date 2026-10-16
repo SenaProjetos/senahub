@@ -29,7 +29,19 @@ import { formatarMoeda } from "@/lib/moeda";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { CollapsibleSection } from "@/components/ui/collapsible";
 import { planejarBaixa } from "@/modules/financeiro/lancamentos/baixa";
-import { brl } from "@/lib/utils";
+import { brl, formatarData } from "@/lib/utils";
+import {
+  DIAS_PADRAO,
+  MOTIVO_RETENCAO_DESCONTO,
+  MOTIVO_RETENCAO_SEM_CONTA,
+  ROTULO_IMPOSTO,
+  motivoRetencaoParcial,
+  planejarRetencoesNaBaixa,
+  type DiasDeVencimento,
+  type ImpostoRetido,
+} from "@/modules/financeiro/lancamentos/retencoes";
+
+const DIA_DA_SEMANA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
 const NONE = "__none";
 
@@ -38,11 +50,14 @@ export function ConfirmarDialog({
   onClose,
   contas,
   formas,
+  diasRetencao = DIAS_PADRAO,
 }: {
   lancamento: LancamentoItem | null;
   onClose: () => void;
   contas: { id: string; nome: string }[];
   formas: { id: string; nome: string }[];
+  /** C4: dia de vencimento de cada imposto retido (Configurações do Financeiro). */
+  diasRetencao?: DiasDeVencimento;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -76,6 +91,12 @@ export function ConfirmarDialog({
 
   const total = lancamento ? Number(lancamento.valor) : 0;
   const cent = (v: number | null) => Math.round((v ?? 0) * 100);
+  // C4: retenção na nota — o banco movimenta o líquido e, na conta a pagar, nasce uma conta por imposto.
+  const retencoes = (lancamento?.retencoes ?? []).map((r) => ({ imposto: r.imposto as ImpostoRetido, valorCentavos: cent(r.valor) }));
+  const comRetencao = retencoes.length > 0;
+  const planoRetencao =
+    lancamento && comRetencao ? planejarRetencoesNaBaixa({ tipo: lancamento.tipo, retencoes, diaPagamento: dataConf || hoje, dias: diasRetencao }) : null;
+  const retido = planoRetencao?.retidoCentavos ?? 0;
   // O mesmo puro do servidor: o que sai da conta, o resto em aberto e cada acessório, antes de confirmar.
   const plano = lancamento
     ? planejarBaixa({ tipo: lancamento.tipo, valor: cent(total), principal: valorEfetivo == null ? null : cent(valorEfetivo), juros: cent(juros), multa: cent(multa), desconto: cent(desconto) })
@@ -86,8 +107,13 @@ export function ConfirmarDialog({
       ? plano.erro
       : (juros || multa || desconto) && !temConta
         ? "Juros, multa e desconto precisam da conta do pagamento: escolha a conta."
-        : null;
+        : comRetencao && !temConta
+          ? MOTIVO_RETENCAO_SEM_CONTA
+          : comRetencao && plano && !("erro" in plano) && plano.caixa - retido < 0
+            ? MOTIVO_RETENCAO_DESCONTO
+            : null;
   const restante = plano && !("erro" in plano) && plano.restante ? plano.restante / 100 : 0;
+  const caixa = plano && !("erro" in plano) ? (plano.caixa - retido) / 100 : 0;
   const temAcessorio = !!(juros || multa || desconto);
   const verbo = lancamento?.tipo === "receita" ? "Entra na" : "Sai da";
 
@@ -135,6 +161,10 @@ export function ConfirmarDialog({
       }
       if (r.data.restante != null) {
         toast.success(`Confirmado. Saldo de ${brl(r.data.restante)} ficou em aberto.`);
+      } else if (r.data.impostosARecolher > 0) {
+        toast.success(
+          `Pago. ${r.data.impostosARecolher === 1 ? "Nasceu 1 conta de imposto retido" : `Nasceram ${r.data.impostosARecolher} contas de imposto retido`} — veja em Contas → Impostos retidos.`,
+        );
       } else {
         toast.success("Lançamento confirmado.");
       }
@@ -148,7 +178,7 @@ export function ConfirmarDialog({
     <Dialog open={!!lancamento} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Confirmar lançamento</DialogTitle>
+          <DialogTitle>{comRetencao ? (lancamento?.tipo === "receita" ? "Receber conta" : "Pagar conta") : "Confirmar lançamento"}</DialogTitle>
           <DialogDescription>
             {lancamento?.descricao} — entra no caixa e na DRE ao confirmar.
           </DialogDescription>
@@ -194,14 +224,25 @@ export function ConfirmarDialog({
               <Input type="date" value={dataConf} onChange={(e) => setDataConf(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Valor do título quitado</Label>
+              <Label htmlFor="bx-principal">Valor do título quitado</Label>
               <InputMoeda
+                id="bx-principal"
                 placeholder={lancamento ? formatarMoeda(total) : undefined}
                 value={valorEfetivo}
                 onChange={setValorEfetivo}
+                // Retenção é sobre a nota toda: pagamento parcial não existe aqui (o servidor recusa igual).
+                disabled={comRetencao}
+                title={comRetencao && lancamento ? motivoRetencaoParcial(lancamento.tipo) : undefined}
+                aria-describedby={comRetencao ? "bx-parcial-motivo" : undefined}
               />
             </div>
           </div>
+          {comRetencao && lancamento && (
+            <p id="bx-parcial-motivo" className="text-xs text-muted-foreground">
+              {motivoRetencaoParcial(lancamento.tipo)}
+            </p>
+          )}
+          {planoRetencao && lancamento && renderRetencao()}
           {restante > 0 && (
             <p className="text-xs text-warning">
               Pagamento parcial: {brl(restante)} ficará em aberto como uma nova {lancamento?.tipo === "receita" ? "conta a receber" : "conta a pagar"}.
@@ -209,7 +250,7 @@ export function ConfirmarDialog({
           )}
           <CollapsibleSection
             titulo="Juros, multa e desconto"
-            resumo={temAcessorio && plano && !("erro" in plano) ? `${verbo.toLowerCase()} conta ${brl(plano.caixa / 100)}` : undefined}
+            resumo={temAcessorio && plano && !("erro" in plano) ? `${verbo.toLowerCase()} conta ${brl(caixa)}` : undefined}
           >
             <div className="grid gap-3 p-3 sm:grid-cols-[repeat(3,minmax(0,1fr))]">
               <div className="space-y-1.5">
@@ -231,7 +272,8 @@ export function ConfirmarDialog({
           </CollapsibleSection>
           {temAcessorio && plano && !("erro" in plano) && (
             <p className="rounded-sm border bg-muted/30 px-3 py-2 text-[13px]" aria-live="polite">
-              <b>{verbo} conta: {brl(plano.caixa / 100)}</b> — título {brl((total - restante))}
+              <b>{verbo} conta: {brl(caixa)}</b> — título {brl((total - restante))}
+              {retido ? ` − retido ${brl(retido / 100)}` : ""}
               {juros || multa ? ` + juros e multa ${brl((juros ?? 0) + (multa ?? 0))}` : ""}
               {desconto ? ` − desconto ${brl(desconto)}` : ""}.
             </p>
@@ -260,10 +302,80 @@ export function ConfirmarDialog({
             Cancelar
           </Button>
           <Button onClick={confirmar} disabled={pending || !!erro}>
-            {pending ? "Confirmando…" : "Confirmar"}
+            {pending ? "Confirmando…" : comRetencao ? `${lancamento?.tipo === "receita" ? "Receber" : "Pagar"} ${brl(caixa)}` : "Confirmar"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
+
+  /** Mock C4 "Pagar conta com retenção" / "Receber nota com retenção do cliente". */
+  function renderRetencao() {
+    if (!planoRetencao || !lancamento) return null;
+    const despesa = lancamento.tipo === "despesa";
+    return (
+      <div className="space-y-2 rounded-sm border bg-muted/30 px-3 py-2 text-[13px]" aria-live="polite">
+        <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5">
+          <dt>Valor da nota</dt>
+          <dd className="text-right font-mono tabular-nums">{brl(total)}</dd>
+          {retencoes.map((r) => (
+            <div key={r.imposto} className="contents text-muted-foreground">
+              <dt>
+                − {ROTULO_IMPOSTO[r.imposto]} retido{despesa ? "" : " pelo cliente"}
+              </dt>
+              <dd className="text-right font-mono tabular-nums">{brl(r.valorCentavos / 100)}</dd>
+            </div>
+          ))}
+          {(juros || multa) && (
+            <>
+              <dt className="text-muted-foreground">+ juros e multa</dt>
+              <dd className="text-right font-mono tabular-nums text-muted-foreground">{brl((juros ?? 0) + (multa ?? 0))}</dd>
+            </>
+          )}
+          {desconto ? (
+            <>
+              <dt className="text-muted-foreground">− desconto</dt>
+              <dd className="text-right font-mono tabular-nums text-muted-foreground">{brl(desconto)}</dd>
+            </>
+          ) : null}
+          <dt className="border-t pt-0.5 font-semibold">{despesa ? "Sai do banco" : "Entra no banco"}</dt>
+          <dd className="border-t pt-0.5 text-right font-mono font-semibold tabular-nums">{brl(caixa)}</dd>
+        </dl>
+        {despesa ? (
+          <div className="space-y-1">
+            <p>
+              Ao pagar, {planoRetencao.aRecolher.length === 1 ? "nasce 1 conta a pagar" : `nascem ${planoRetencao.aRecolher.length} contas a pagar`} (impostos que a empresa
+              recolhe no lugar do fornecedor):
+            </p>
+            <ul className="divide-y rounded-sm border bg-card">
+              {planoRetencao.aRecolher.map((x) => {
+                const dia = new Date(`${x.vencimento}T12:00:00.000Z`).getUTCDay();
+                const fimDeSemana = dia === 0 || dia === 6;
+                return (
+                  <li key={x.imposto} className="flex flex-wrap items-baseline justify-between gap-x-3 px-2 py-1">
+                    <span>
+                      {x.rotulo}
+                      {lancamento.fornecedor?.nome ? ` — ${lancamento.fornecedor.nome}` : ""}
+                      {lancamento.numeroDocumento ? ` ${lancamento.numeroDocumento}` : ""}
+                    </span>
+                    <span className="font-mono text-xs tabular-nums">
+                      vence {formatarData(x.vencimento)} · {brl(x.valorCentavos / 100)}
+                    </span>
+                    {fimDeSemana && (
+                      <span className="w-full text-xs text-warning">Cai num {DIA_DA_SEMANA[dia]}: a data não anda sozinha — confira o vencimento da guia.</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-xs text-muted-foreground">Vencimento: dia do imposto no mês seguinte ao do pagamento (Configurações do Financeiro).</p>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            O retido vira imposto a compensar: quem recolhe é o cliente, e o contador desconta do DAS. Não nasce conta a pagar nem a receber.
+          </p>
+        )}
+      </div>
+    );
+  }
 }

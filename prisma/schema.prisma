@@ -1870,6 +1870,13 @@ model Lancamento {
   numeroDocumento String?
   /// Chave de acesso da NF-e/NFS-e: 44 dígitos, conferidos pelo DV (`chaveNfeValida`).
   chaveNfe        String?
+  /// Retenções na nota (C4): o que a nota retém de imposto. O título segue com o valor cheio; o líquido é valor − retido.
+  retencoes       RetencaoLancamento[]
+  /// Conta de imposto retido a recolher (C4): aponta para a conta paga que a gerou e diz qual imposto. Escalar SEM
+  /// relação Prisma, pelo mesmo motivo do `acessorioDeId` (heap do `tsc`). O acessório da retenção (o lançamento que
+  /// faz o banco sair só o líquido) usa `acessorioDeId` + `retencaoImposto`.
+  retencaoDeId    String?
+  retencaoImposto ImpostoRetido?
   /// Compra paga no cartão de crédito (M3): a despesa é do dia da compra e o caixa só sai quando a
   /// fatura é paga. `SetNull`: apagar o cartão nunca apaga a despesa que já aconteceu.
   cartaoId        String?
@@ -1921,6 +1928,7 @@ model Lancamento {
   @@index([centroId])
   @@index([faturaId])
   @@index([acessorioDeId])
+  @@index([retencaoDeId])
   @@index([chaveNfe])
   @@index([cartaoId])
   @@unique([recorrenciaOrigemId, recorrenciaCompetencia])
@@ -9491,4 +9499,27 @@ model ExportacaoContabil {
 
   @@index([competencia])
   @@map("exportacao_contabil")
+}
+
+/// Imposto retido na nota (C4). Quem paga a nota retém e recolhe; o fornecedor recebe o líquido.
+enum ImpostoRetido {
+  iss
+  irrf
+  inss
+  pis
+  cofins
+  csll
+}
+
+/// Retenção de UM imposto numa nota (C4): valor em reais, digitado da nota (nunca alíquota). Só vira dinheiro na baixa
+/// (`aplicarRetencoesNaBaixaNoTx`): acessório fora da DRE na conta do pagamento e, na conta a pagar, a conta do imposto.
+model RetencaoLancamento {
+  id           String        @id @default(cuid())
+  lancamentoId String
+  lancamento   Lancamento    @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+  imposto      ImpostoRetido
+  valor        Decimal       @db.Decimal(14, 2)
+
+  @@unique([lancamentoId, imposto])
+  @@map("lancamento_retencao")
 }
