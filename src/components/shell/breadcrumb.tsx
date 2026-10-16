@@ -39,6 +39,8 @@ const ROTULO_POR_ROTA: Record<string, string> = {
   // Fora do menu (mora no sino), então HREF_TO_TITLE não a conhece.
   "/notificacoes": "Notificações",
   "/rh/gestao": "Gestão de pessoas",
+  // Segmento sem acento (URL): a trilha escreveria "Pendencias".
+  "/arquivos/pendencias": "Pendências documentais",
 };
 
 function capitalize(segment: string): string {

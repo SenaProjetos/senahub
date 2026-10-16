@@ -12,6 +12,8 @@ describe("hrefAtivo", () => {
     expect(hrefAtivo("/patrimonio/ti/maquina-1", itens)).toBe("/patrimonio/ti");
     expect(hrefAtivo("/projetos/meu-trabalho", itens)).toBe("/projetos/meu-trabalho");
     expect(hrefAtivo("/projetos/p1/arquivos", itens)).toBe("/projetos");
+    expect(hrefAtivo("/arquivos/pendencias", itens)).toBe("/arquivos/pendencias");
+    expect(hrefAtivo("/arquivos", itens)).toBe("/arquivos");
   });
 
   it("casa por segmento, não por prefixo de texto", () => {
@@ -26,5 +28,12 @@ describe("hrefAtivo", () => {
 
   it("sem item correspondente, nada acende", () => {
     expect(hrefAtivo("/versoes", itens)).toBeNull();
+  });
+});
+
+describe("item Pendências documentais", () => {
+  it("fica ao lado de Aprovações, só para quem recebe os avisos de gestão", () => {
+    const item = itens.find((i) => i.href === "/arquivos/pendencias");
+    expect(item).toMatchObject({ title: "Pendências", permissao: "notificacoes:gestao", tipo: "interno" });
   });
 });

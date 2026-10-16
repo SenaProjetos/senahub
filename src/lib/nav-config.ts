@@ -40,6 +40,7 @@ import {
   Megaphone,
   type LucideIcon,
   ListTree,
+  FileWarning,
 } from "lucide-react";
 import type { Setor } from "@/generated/prisma/enums";
 
@@ -195,6 +196,13 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/aprovacoes",
         icon: ClipboardCheck,
         permissao: "uploads:validar",
+      },
+      {
+        title: "Pendências",
+        href: "/arquivos/pendencias",
+        icon: FileWarning,
+        permissao: "notificacoes:gestao",
+        tipo: "interno",
       },
       {
         title: "Tarefas",

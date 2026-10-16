@@ -326,7 +326,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "notificacoes",
     label: "Notificações de gestão",
     acoes: [
-      { acao: "gestao", label: "Receber avisos de gestão global (aprovações, digest semanal, suporte)", leitura: true },
+      { acao: "gestao", label: "Receber avisos de gestão global (aprovações, digest semanal, suporte)", abre: "Arquivos · Pendências documentais", leitura: true },
       { acao: "rh", label: "Receber avisos de RH (NF, abono, conta bancária, pedido de cadastro)", leitura: true },
       { acao: "operacional", label: "Receber avisos de operação (entregas, pagamentos, certidões, projeto ganho)", leitura: true },
     ],
