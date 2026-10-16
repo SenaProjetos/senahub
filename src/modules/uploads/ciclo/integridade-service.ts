@@ -3,18 +3,21 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
 import { MOTIVO_CORRECAO_INTEGRIDADE } from "./integridade";
+import { dispensasObsoletas, resumoDoAviso } from "./pendencias";
+import { encerrarDispensasObsoletasNoBanco } from "./pendencias-service";
 import { carregarRevisao, removerControleNoTx } from "./service";
-import { violacoesDoCiclo } from "./varredura";
+import { pendenciasAbertasDoCiclo } from "./varredura";
 
-export type ResultadoIntegridade = { violacoes: number; corrigidas: number; relatadas: number };
+export type ResultadoIntegridade = { violacoes: number; corrigidas: number; relatadas: number; encerradas: number };
 
 /**
- * A7 — varredura diária (pg-boss). Lê só o que importa (revisões vivas, controles de pasta ativos,
- * em análise), corrige a violação de I5 pelo serviço do ciclo (com o evento "Correção automática de
- * integridade") e relata o resto aos administradores numa notificação só.
+ * A7 — varredura diária (pg-boss). Corrige a violação de I5 pelo serviço do ciclo (com o evento
+ * "Correção automática de integridade"), encerra as dispensas que já não casam com nenhuma pendência
+ * (para uma ocorrência nova não herdar a dispensa velha) e avisa os administradores com um RESUMO das
+ * pendências ABERTAS, com link para /arquivos/pendencias. As dispensadas não entram no aviso.
  */
 export async function verificarIntegridadeCiclo(agora: Date = new Date()): Promise<ResultadoIntegridade> {
-  const violacoes = await violacoesDoCiclo(prisma, agora);
+  const { violacoes, dispensas, abertas } = await pendenciasAbertasDoCiclo(prisma, agora);
 
   let corrigidas = 0;
   for (const v of violacoes) {
@@ -32,19 +35,16 @@ export async function verificarIntegridadeCiclo(agora: Date = new Date()): Promi
     }
   }
 
-  const relatar = violacoes.filter((v) => v.tipo !== "controle_fora_de_publicada");
-  if (relatar.length > 0 || corrigidas > 0) {
+  const encerradas = await encerrarDispensasObsoletasNoBanco(dispensasObsoletas(violacoes, dispensas).map((d) => d.id));
+
+  const corpo = resumoDoAviso({ abertas, corrigidas });
+  if (corpo) {
     const admins = await prisma.user.findMany({ where: whereAudiencia("global"), select: { id: true } });
-    const linhasTexto = [
-      ...(corrigidas > 0 ? [`${corrigidas} liberação(ões) indevida(s) revogada(s) automaticamente.`] : []),
-      ...relatar.slice(0, 10).map((v) => v.texto),
-      ...(relatar.length > 10 ? [`… e mais ${relatar.length - 10}.`] : []),
-    ];
     await notificarMuitos(
       admins.map((a) => a.id),
-      { titulo: "Ciclo dos documentos: verificação diária", corpo: linhasTexto.join(" "), href: "/arquivos" },
+      { titulo: "Ciclo dos documentos: verificação diária", corpo, href: "/arquivos/pendencias" },
       { categoria: "ciclo_documental" },
     );
   }
-  return { violacoes: violacoes.length, corrigidas, relatadas: relatar.length };
+  return { violacoes: violacoes.length, corrigidas, relatadas: abertas.length, encerradas };
 }

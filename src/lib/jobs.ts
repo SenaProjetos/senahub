@@ -455,8 +455,8 @@ export async function startJobs(): Promise<PgBoss> {
       cron: "20 6 * * *",
       handler: async () => {
         const r = await verificarIntegridadeCiclo();
-        if (r.corrigidas + r.relatadas > 0) {
-          console.log(`[ciclo-documental] ${r.violacoes} violação(ões): ${r.corrigidas} corrigida(s), ${r.relatadas} relatada(s).`);
+        if (r.corrigidas + r.relatadas + r.encerradas > 0) {
+          console.log(`[ciclo-documental] ${r.violacoes} violação(ões): ${r.corrigidas} corrigida(s), ${r.relatadas} aberta(s), ${r.encerradas} dispensa(s) encerrada(s).`);
         }
       },
     },
