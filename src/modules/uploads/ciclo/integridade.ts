@@ -18,15 +18,34 @@ export type RevisaoVarrida = {
   estadoEm: Date;
   /** Controles de pasta ativos (liberado_obra / enviado_cliente), com id para revogar. */
   controlesDePasta: { id: string; tipo: string }[];
-  /** A revisão tem arquivo na lixeira (I6 — o arquivo de uma publicada/arquivada não devia ter ido). */
-  arquivoNaLixeira: boolean;
+  /** Quantos arquivos da revisão estão na lixeira (I6 — o arquivo de uma publicada/arquivada não devia ter ido). */
+  qtdNaLixeira: number;
 };
 
 export type Violacao =
-  | { tipo: "duas_publicadas"; documentoId: string; projetoId: string; texto: string }
+  | { tipo: "duas_publicadas"; documentoId: string; projetoId: string; revisaoIds: string[]; texto: string }
   | { tipo: "controle_fora_de_publicada"; revisaoId: string; controleId: string; projetoId: string; texto: string }
-  | { tipo: "publicada_com_lixeira"; revisaoId: string; projetoId: string; texto: string }
-  | { tipo: "analise_parada"; revisaoId: string; projetoId: string; dias: number; texto: string };
+  | {
+      tipo: "publicada_com_lixeira";
+      revisaoId: string;
+      documentoId: string;
+      projetoId: string;
+      numero: number;
+      estado: EstadoRevisao;
+      qtdNaLixeira: number;
+      texto: string;
+    }
+  | {
+      tipo: "analise_parada";
+      revisaoId: string;
+      documentoId: string;
+      projetoId: string;
+      numero: number;
+      dias: number;
+      limiteDias: number;
+      estadoEm: Date;
+      texto: string;
+    };
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 const rev = (n: number) => `R${String(Math.max(0, n - 1)).padStart(2, "0")}`;
@@ -48,6 +67,7 @@ export function encontrarViolacoes(
         tipo: "duas_publicadas",
         documentoId,
         projetoId: lista[0].projetoId,
+        revisaoIds: lista.map((r) => r.id),
         texto: `${lista[0].documentoNome}: ${lista.length} revisões publicadas (${lista.map((r) => rev(r.numero)).join(", ")}).`,
       });
     }
@@ -67,23 +87,32 @@ export function encontrarViolacoes(
       }
     }
     // I6 — só relata.
-    if ((r.estado === "publicado" || r.estado === "arquivado") && r.arquivoNaLixeira) {
+    if ((r.estado === "publicado" || r.estado === "arquivado") && r.qtdNaLixeira > 0) {
       out.push({
         tipo: "publicada_com_lixeira",
         revisaoId: r.id,
+        documentoId: r.documentoId,
         projetoId: r.projetoId,
+        numero: r.numero,
+        estado: r.estado,
+        qtdNaLixeira: r.qtdNaLixeira,
         texto: `${r.documentoNome} ${rev(r.numero)} (${r.estado === "publicado" ? "publicada" : "arquivada"}) tem arquivo na lixeira.`,
       });
     }
     // Análise parada há mais de X dias (por projeto).
     if (r.estado === "compartilhado") {
       const dias = Math.floor((opts.agora.getTime() - r.estadoEm.getTime()) / DIA_MS);
-      if (dias > opts.diasAlertaPorProjeto(r.projetoId)) {
+      const limiteDias = opts.diasAlertaPorProjeto(r.projetoId);
+      if (dias > limiteDias) {
         out.push({
           tipo: "analise_parada",
           revisaoId: r.id,
+          documentoId: r.documentoId,
           projetoId: r.projetoId,
+          numero: r.numero,
           dias,
+          limiteDias,
+          estadoEm: r.estadoEm,
           texto: `${r.documentoNome} ${rev(r.numero)} está em análise há ${dias} dias.`,
         });
       }

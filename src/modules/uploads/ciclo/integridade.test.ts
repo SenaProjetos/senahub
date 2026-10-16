@@ -12,7 +12,7 @@ const r = (p: Partial<RevisaoVarrida>): RevisaoVarrida => ({
   estado: "em_andamento",
   estadoEm: agora,
   controlesDePasta: [],
-  arquivoNaLixeira: false,
+  qtdNaLixeira: 0,
   ...p,
 });
 const opts = { agora, diasAlertaPorProjeto: () => 7 };
@@ -30,17 +30,21 @@ describe("encontrarViolacoes (A7)", () => {
   it("I4: duas publicadas no mesmo documento", () => {
     const v = encontrarViolacoes([r({ id: "a", estado: "publicado" }), r({ id: "b", numero: 2, estado: "publicado" })], opts);
     expect(v.map((x) => x.tipo)).toEqual(["duas_publicadas"]);
+    expect(v[0]).toMatchObject({ documentoId: "d1", revisaoIds: ["a", "b"] });
   });
 
-  it("I6: publicada ou arquivada com arquivo na lixeira", () => {
-    expect(encontrarViolacoes([r({ estado: "publicado", arquivoNaLixeira: true })], opts).map((x) => x.tipo)).toEqual(["publicada_com_lixeira"]);
-    expect(encontrarViolacoes([r({ estado: "em_andamento", arquivoNaLixeira: true })], opts)).toEqual([]);
+  it("I6: publicada ou arquivada com arquivo na lixeira, com a contagem", () => {
+    const v = encontrarViolacoes([r({ estado: "publicado", qtdNaLixeira: 2 })], opts);
+    expect(v).toEqual([
+      expect.objectContaining({ tipo: "publicada_com_lixeira", revisaoId: "r1", documentoId: "d1", numero: 1, estado: "publicado", qtdNaLixeira: 2 }),
+    ]);
+    expect(encontrarViolacoes([r({ estado: "em_andamento", qtdNaLixeira: 1 })], opts)).toEqual([]);
   });
 
-  it("análise parada além do prazo do projeto", () => {
+  it("análise parada além do prazo do projeto, com data de entrada e limite", () => {
     const antiga = new Date(agora.getTime() - 10 * 24 * 60 * 60 * 1000);
     expect(encontrarViolacoes([r({ estado: "compartilhado", estadoEm: antiga })], opts)).toEqual([
-      expect.objectContaining({ tipo: "analise_parada", dias: 10 }),
+      expect.objectContaining({ tipo: "analise_parada", dias: 10, limiteDias: 7, estadoEm: antiga, documentoId: "d1", numero: 1 }),
     ]);
     expect(encontrarViolacoes([r({ estado: "compartilhado", estadoEm: antiga })], { agora, diasAlertaPorProjeto: () => 15 })).toEqual([]);
   });

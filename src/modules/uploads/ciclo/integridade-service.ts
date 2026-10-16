@@ -31,7 +31,7 @@ export async function verificarIntegridadeCiclo(agora: Date = new Date()): Promi
       estadoEm: true,
       documento: { select: { nomeArquivo: true, titulo: true, disciplina: { select: { projetoId: true } } } },
       controles: { where: { removidoEm: null, tipo: { in: ["liberado_obra", "enviado_cliente"] } }, select: { id: true, tipo: true } },
-      uploads: { where: { excluidoEm: { not: null } }, select: { id: true }, take: 1 },
+      _count: { select: { uploads: { where: { excluidoEm: { not: null } } } } },
     },
   });
   const revisoes: RevisaoVarrida[] = linhas.map((l) => ({
@@ -43,7 +43,7 @@ export async function verificarIntegridadeCiclo(agora: Date = new Date()): Promi
     estado: l.estado as EstadoRevisao,
     estadoEm: l.estadoEm,
     controlesDePasta: l.controles,
-    arquivoNaLixeira: l.uploads.length > 0,
+    qtdNaLixeira: l._count.uploads,
   }));
 
   const configs = await prisma.configDocumentosProjeto.findMany({ select: { projetoId: true, diasAlertaCompartilhado: true } });
