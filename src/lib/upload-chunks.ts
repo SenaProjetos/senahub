@@ -56,9 +56,9 @@ export async function guardarChunk(params: {
  */
 export async function montarChunksEm(
   destinoRelativo: string,
-  params: { userId: string; sessaoId: string; total: number },
+  params: { userId: string; sessaoId: string; total: number; limiteBytes?: number },
 ): Promise<ArquivoSalvo> {
-  const { userId, sessaoId, total } = params;
+  const { userId, sessaoId, total, limiteBytes } = params;
   if (!Number.isInteger(total) || total < 1 || total > MAX_CHUNKS) throw new Error("Total de pedaços inválido.");
   const dir = dirSessao(userId, sessaoId);
 
@@ -71,8 +71,10 @@ export async function montarChunksEm(
   try {
     for (let i = 0; i < total; i++) {
       const buf = await fs.readFile(path.join(dir, nomeChunk(i))); // lança se o pedaço faltar
-      hash.update(buf);
       tamanho += buf.length;
+      // O tamanho declarado vem do cliente: o teto vale sobre os bytes REAIS, e para antes de escrever o excesso.
+      if (limiteBytes != null && tamanho > limiteBytes) throw new Error("Arquivo acima do limite permitido.");
+      hash.update(buf);
       // Aguarda o callback de cada escrita antes de seguir — sem writes pendentes,
       // um erro adiante (pedaço faltando) pode destruir o stream sem corrida.
       await new Promise<void>((res, rej) => out.write(buf, (err) => (err ? rej(err) : res())));
@@ -81,6 +83,7 @@ export async function montarChunksEm(
   } catch (err) {
     out.destroy();
     await fs.rm(destinoFull, { force: true }).catch(() => {});
+    await limparChunks(userId, sessaoId);
     throw err;
   }
 

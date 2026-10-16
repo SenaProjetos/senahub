@@ -1,7 +1,9 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { createReadStream, createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 const BASE = process.env.STORAGE_BASE_PATH;
 
@@ -86,6 +88,32 @@ export async function removerArquivo(relativo: string): Promise<void> {
   } catch {
     /* já removido */
   }
+}
+
+/**
+ * Copia um arquivo por STREAM (sem carregar na RAM — anexos chegam a 500 MB), calculando SHA-256 e tamanho no
+ * caminho. Falhou no meio → apaga o destino parcial e relança.
+ */
+export async function copiarArquivo(relativoDe: string, relativoPara: string): Promise<ArquivoSalvo> {
+  const de = resolverCaminho(relativoDe);
+  const para = resolverCaminho(relativoPara);
+  await fs.mkdir(path.dirname(para), { recursive: true });
+  const hash = createHash("sha256");
+  let tamanho = 0;
+  const contador = new Transform({
+    transform(chunk: Buffer, _enc, cb) {
+      hash.update(chunk);
+      tamanho += chunk.length;
+      cb(null, chunk);
+    },
+  });
+  try {
+    await pipeline(createReadStream(de), contador, createWriteStream(para));
+  } catch (erro) {
+    await fs.rm(para, { force: true }).catch(() => {});
+    throw erro;
+  }
+  return { caminho: relativoPara, hashSha256: hash.digest("hex"), tamanho };
 }
 
 /** Move um arquivo entre dois caminhos relativos (cria diretórios do destino). */

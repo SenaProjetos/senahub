@@ -17,6 +17,28 @@ afterAll(async () => {
   await fs.rm(TMP, { recursive: true, force: true });
 });
 
+describe("upload-chunks — limite de bytes na montagem", () => {
+  it("passa do limite: para de escrever, apaga o destino e limpa a sessão", async () => {
+    const userId = "userLim";
+    const sessaoId = "sessLimite1";
+    await guardarChunk({ userId, sessaoId, indice: 0, total: 2, chunk: Buffer.alloc(600, 1) });
+    await guardarChunk({ userId, sessaoId, indice: 1, total: 2, chunk: Buffer.alloc(600, 2) });
+    await expect(montarChunksEm("destino/limite.bin", { userId, sessaoId, total: 2, limiteBytes: 1000 })).rejects.toThrow(
+      /limite/i,
+    );
+    await expect(fs.access(path.join(TMP, "destino/limite.bin"))).rejects.toThrow();
+    await expect(fs.access(path.join(TMP, ".chunks", userId, sessaoId))).rejects.toThrow();
+  });
+
+  it("dentro do limite monta normal", async () => {
+    const userId = "userLim";
+    const sessaoId = "sessLimite2";
+    await guardarChunk({ userId, sessaoId, indice: 0, total: 1, chunk: Buffer.alloc(500, 3) });
+    const r = await montarChunksEm("destino/ok.bin", { userId, sessaoId, total: 1, limiteBytes: 1000 });
+    expect(r.tamanho).toBe(500);
+  });
+});
+
 describe("upload-chunks", () => {
   it("remonta os pedaços em ordem, byte a byte, com hash e tamanho corretos", async () => {
     const userId = "user123";

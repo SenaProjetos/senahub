@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
-import { lerArquivo, removerArquivo, salvarArquivo } from "@/lib/storage";
+import { copiarArquivo, removerArquivo } from "@/lib/storage";
 import type { SessionUser } from "@/lib/session";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { registrarAtividade } from "@/modules/comercial/service";
@@ -45,16 +45,9 @@ export async function vincularProjetoNaFicha(user: SessionUser, input: EntradaVi
   let criadas: { versaoId: string; nomeArquivo: string }[] = [];
   try {
     for (const { item, exibir } of escolhidos) {
-      const buffer = await lerArquivo(item.caminho);
       const rel = `documentos/${previa.projeto.clienteId}/${randomBytes(12).toString("hex")}${extensaoDe(item.nomeArquivo)}`;
-      let salvo;
-      try {
-        salvo = await salvarArquivo(rel, buffer);
-      } catch (erroEscrita) {
-        // Escrita que quebrou no meio (disco cheio) deixa arquivo parcial que ainda não está em `copiados`.
-        await removerArquivo(rel).catch(() => undefined);
-        throw erroEscrita;
-      }
+      // Stream: anexo chega a 500 MB. Escrita que quebra no meio já apaga o parcial dentro de `copiarArquivo`.
+      const salvo = await copiarArquivo(item.caminho, rel);
       copiados.push({ ...salvo, item, exibir });
     }
 
