@@ -456,7 +456,7 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const r = await verificarIntegridadeCiclo();
         if (r.corrigidas + r.relatadas > 0) {
-          console.log(`[ciclo-documental] ${r.verificadas} revisão(ões) verificada(s): ${r.corrigidas} corrigida(s), ${r.relatadas} relatada(s).`);
+          console.log(`[ciclo-documental] ${r.violacoes} violação(ões): ${r.corrigidas} corrigida(s), ${r.relatadas} relatada(s).`);
         }
       },
     },

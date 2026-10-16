@@ -2,11 +2,11 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
-import { encontrarViolacoes, MOTIVO_CORRECAO_INTEGRIDADE, type RevisaoVarrida } from "./integridade";
+import { MOTIVO_CORRECAO_INTEGRIDADE } from "./integridade";
 import { carregarRevisao, removerControleNoTx } from "./service";
-import type { EstadoRevisao } from "./estados";
+import { violacoesDoCiclo } from "./varredura";
 
-export type ResultadoIntegridade = { verificadas: number; corrigidas: number; relatadas: number };
+export type ResultadoIntegridade = { violacoes: number; corrigidas: number; relatadas: number };
 
 /**
  * A7 — varredura diária (pg-boss). Lê só o que importa (revisões vivas, controles de pasta ativos,
@@ -14,41 +14,7 @@ export type ResultadoIntegridade = { verificadas: number; corrigidas: number; re
  * integridade") e relata o resto aos administradores numa notificação só.
  */
 export async function verificarIntegridadeCiclo(agora: Date = new Date()): Promise<ResultadoIntegridade> {
-  const linhas = await prisma.documentoRevisao.findMany({
-    where: {
-      documento: { substituidoPorId: null },
-      OR: [
-        { estado: { in: ["publicado", "compartilhado"] } },
-        { controles: { some: { removidoEm: null, tipo: { in: ["liberado_obra", "enviado_cliente"] } } } },
-        { estado: "arquivado", uploads: { some: { excluidoEm: { not: null } } } },
-      ],
-    },
-    select: {
-      id: true,
-      documentoId: true,
-      numero: true,
-      estado: true,
-      estadoEm: true,
-      documento: { select: { nomeArquivo: true, titulo: true, disciplina: { select: { projetoId: true } } } },
-      controles: { where: { removidoEm: null, tipo: { in: ["liberado_obra", "enviado_cliente"] } }, select: { id: true, tipo: true } },
-      _count: { select: { uploads: { where: { excluidoEm: { not: null } } } } },
-    },
-  });
-  const revisoes: RevisaoVarrida[] = linhas.map((l) => ({
-    id: l.id,
-    documentoId: l.documentoId,
-    projetoId: l.documento.disciplina.projetoId,
-    documentoNome: l.documento.titulo ?? l.documento.nomeArquivo,
-    numero: l.numero,
-    estado: l.estado as EstadoRevisao,
-    estadoEm: l.estadoEm,
-    controlesDePasta: l.controles,
-    qtdNaLixeira: l._count.uploads,
-  }));
-
-  const configs = await prisma.configDocumentosProjeto.findMany({ select: { projetoId: true, diasAlertaCompartilhado: true } });
-  const dias = new Map(configs.map((c) => [c.projetoId, c.diasAlertaCompartilhado]));
-  const violacoes = encontrarViolacoes(revisoes, { agora, diasAlertaPorProjeto: (p) => dias.get(p) ?? 7 });
+  const violacoes = await violacoesDoCiclo(prisma, agora);
 
   let corrigidas = 0;
   for (const v of violacoes) {
@@ -80,5 +46,5 @@ export async function verificarIntegridadeCiclo(agora: Date = new Date()): Promi
       { categoria: "ciclo_documental" },
     );
   }
-  return { verificadas: revisoes.length, corrigidas, relatadas: relatar.length };
+  return { violacoes: violacoes.length, corrigidas, relatadas: relatar.length };
 }
