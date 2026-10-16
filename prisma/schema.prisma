@@ -9382,6 +9382,28 @@ model ConfigDocumentosProjeto {
   @@map("config_documentos_projeto")
 }
 
+/// Dispensa de uma pendência do ciclo documental (tela /arquivos/pendencias). Valia só para o ESTADO em que
+/// foi dada: `chave` é a assinatura (modules/uploads/ciclo/pendencias.ts); mudou o estado, a pendência
+/// reaparece e a dispensa velha é encerrada pelo job diário (desfeitaPorId nulo = sistema).
+/// `alvoId` é a revisão (lixeira, análise parada) ou o documento (duas publicadas); escalar, sem FK, como
+/// DocumentoEvento — o histórico sobrevive ao documento. Uma dispensa ATIVA por alvo+tipo: índice parcial
+/// `dispensa_pendencia_ciclo_uma_ativa` (na migração — não representável aqui).
+model DispensaPendenciaCiclo {
+  id            String    @id @default(cuid())
+  alvoId        String
+  /// `publicada_com_lixeira` | `analise_parada` | `duas_publicadas`
+  tipo          String
+  chave         String
+  motivo        String
+  criadaPorId   String
+  criadaEm      DateTime  @default(now())
+  desfeitaEm    DateTime?
+  desfeitaPorId String?
+
+  @@index([alvoId, tipo])
+  @@map("dispensa_pendencia_ciclo")
+}
+
 model LeituraDocumento {
   id          String              @id @default(cuid())
   documentoId String
