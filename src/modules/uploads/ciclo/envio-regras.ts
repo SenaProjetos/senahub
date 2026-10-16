@@ -3,7 +3,8 @@
  * de nomenclatura (`interpretarNomeArquivo`) e os arquivos da revisão, e devolve TODOS os problemas de
  * uma vez, cada um dizendo o que corrigir — corrigir um por vez, reenviando, é o que a lista evita.
  *
- * Lista fixa para todos os projetos (decisão do dono). Os metadados vêm do nome, do carimbo e da
+ * Lista fixa para todos os projetos (decisão do dono), exceto o projeto em "Nomenclatura livre": nele o
+ * nome segue o padrão de outro dono e as verificações do nome ficam de fora (`nomenclaturaLivre`). Os metadados vêm do nome, do carimbo e da
  * detecção; o único campo digitado é a descrição da revisão, obrigatória da R01 em diante.
  *
  * A conferência com o CARIMBO (código e revisão) não está aqui: só entra depois de o dono ver exemplos
@@ -30,13 +31,19 @@ export type EntradaEnvio = {
   modelo: string | null;
   /** Código do projeto como está cadastrado (`260027`). Ausente = não confere o formato. */
   codigoProjeto?: string;
+  /**
+   * Projeto em "Nomenclatura livre" (`NomenclaturaConfig.exigir = false`): o nome segue o padrão de
+   * outro dono (licitação segue o do órgão), então nada do que se lê do NOME bloqueia o envio.
+   */
+  nomenclaturaLivre?: boolean;
 };
 
 const primeirosDigitos = (texto: string) => texto.match(/\d+/)?.[0] ?? "";
 
 export const PRECISA_DESCRICAO_A_PARTIR_DE = 2;
 
-export function problemasDoEnvio(e: EntradaEnvio): string[] {
+/** O que se confere no NOME do arquivo — desligado quando o projeto está em nomenclatura livre. */
+function problemasDoNome(e: EntradaEnvio): string[] {
   const problemas: string[] = [];
   const { nome } = e;
 
@@ -76,6 +83,13 @@ export function problemasDoEnvio(e: EntradaEnvio): string[] {
   if (nome.revisao && nome.revisao.valor !== e.numero - 1) {
     problemas.push(`O nome indica R${String(nome.revisao.valor).padStart(2, "0")}, mas o sistema espera ${rotuloRevisao(e.numero)}.`);
   }
+  return problemas;
+}
+
+export function problemasDoEnvio(e: EntradaEnvio): string[] {
+  const problemas: string[] = [];
+
+  if (!e.nomenclaturaLivre) problemas.push(...problemasDoNome(e));
 
   // Documento de modelo (IFC) não tem PDF: o IFC é o arquivo principal dele.
   const exts = e.arquivos.map((a) => a.ext);

@@ -128,6 +128,22 @@ async function main() {
     );
     check("A4: nome fora da nomenclatura é recusado com o que corrigir", a4 !== null && /nome/i.test(a4));
 
+    // Nomenclatura livre (licitação segue o padrão do órgão): o mesmo nome passa, e a revisão do carimbo
+    // (R01 com o sistema esperando R00) também não bloqueia.
+    await prisma.nomenclaturaConfig.create({ data: { projetoId: projeto.id, exigir: false, exigirFase: false } });
+    const livre = await recusa(() =>
+      prisma.$transaction(async (tx) => {
+        const { carregarRevisao } = await import("../src/modules/uploads/ciclo/service");
+        await verificarEnvioParaAnalise(await carregarRevisao(tx, r1.id), tx, {
+          carimbo: { leitura: { temTexto: true, codigos: [], revisao: 1 }, nomeArquivo: `${tag}-doc.pdf` },
+          confirmarSemCarimbo: false,
+          userId: usuario.id,
+        });
+      }),
+    );
+    check("nomenclatura livre: nome e revisão do carimbo não bloqueiam o envio", livre === null);
+    await prisma.nomenclaturaConfig.delete({ where: { projetoId: projeto.id } });
+
     // Carimbo, lido no SERVIDOR (pdfjs legacy) de um PDF real do acervo de dev: o carimbo diz
     // 260024-EST-BS-4004-DT / REVISÃO 00, e o arquivo está como 260004-EST-EX-4004-DTC.
     const pdfReal = "2026/Loteamentos_Sul_Empreendimentos/260004_Galpao_Industrial_Jundiai/EST/A/EST-260004-EST-EX-4004-DTC.pdf";

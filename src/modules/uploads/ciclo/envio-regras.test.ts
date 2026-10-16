@@ -67,6 +67,15 @@ describe("problemasDoEnvio (A4)", () => {
     expect(problemasDoEnvio(entrada({ numero: 2, descricao: "x", nome: { ...entrada().nome, revisao: campo(1) } }))).toEqual([]);
   });
 
+  it("nomenclatura livre (licitação): nada do nome bloqueia, o resto continua", () => {
+    const projeto = { ano: 2026, sequencial: 31, subprojeto: null, texto: "2631", bateComAtual: true };
+    const nome = { ...entrada().nome, casouPadrao: false, projeto, revisao: campo(1), avisos: [{ tipo: "sigla_desconhecida" as const, texto: "x" }] };
+    expect(problemasDoEnvio(entrada({ codigoProjeto: "260031", nomenclaturaLivre: true, nome }))).toEqual([]);
+    expect(problemasDoEnvio(entrada({ nomenclaturaLivre: true, nome, arquivos: [{ nome: "a.dwg", ext: "dwg", hash: "h" }] }))).toEqual([
+      "A revisão precisa ter o PDF.",
+    ]);
+  });
+
   it("revisão sem PDF", () => {
     expect(problemasDoEnvio(entrada({ arquivos: [{ nome: "a.dwg", ext: "dwg", hash: "h" }] }))).toContain("A revisão precisa ter o PDF.");
   });

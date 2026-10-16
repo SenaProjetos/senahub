@@ -87,16 +87,20 @@ export type ConferenciaCarimbo = { problemas: string[]; leituraFalhou: boolean }
 
 /**
  * Confere a leitura com o que o sistema espera. `nomeArquivo` = o PDF da revisão; `numero` = número
- * interno da revisão (1 = R00).
+ * interno da revisão (1 = R00). `conferirRevisao: false` (projeto em nomenclatura livre): o carimbo segue
+ * a numeração de outro dono (o órgão, na licitação) e só o código é conferido com o nome do arquivo.
  */
-export function conferirCarimbo(leitura: LeituraCarimbo, esperado: { nomeArquivo: string; numero: number }): ConferenciaCarimbo {
+export function conferirCarimbo(
+  leitura: LeituraCarimbo,
+  esperado: { nomeArquivo: string; numero: number; conferirRevisao?: boolean },
+): ConferenciaCarimbo {
   const leituraFalhou = !leitura.temTexto || (leitura.codigos.length === 0 && leitura.revisao === null);
   const problemas: string[] = [];
   const base = codigoBase(esperado.nomeArquivo);
   if (leitura.codigos.length > 0 && !leitura.codigos.includes(base)) {
     problemas.push(`O carimbo indica o código ${leitura.codigos[0]}, mas o arquivo se chama ${base}.`);
   }
-  if (leitura.revisao !== null && leitura.revisao !== esperado.numero - 1) {
+  if (esperado.conferirRevisao !== false && leitura.revisao !== null && leitura.revisao !== esperado.numero - 1) {
     problemas.push(`O carimbo indica R${String(leitura.revisao).padStart(2, "0")}, mas o sistema espera ${rotuloRevisao(esperado.numero)}.`);
   }
   return { problemas, leituraFalhou };

@@ -52,7 +52,9 @@ function configDe(p: PedidoCiclo): Config {
         const obrigatoria = (p.ciclo.numero ?? 1) >= PRECISA_DESCRICAO_A_PARTIR_DE;
         return {
           titulo: `Enviar ${rev} para análise`,
-          descricao: "O sistema confere o nome, os catálogos, o PDF e se algum arquivo é igual ao da revisão anterior antes de enviar.",
+          // Vale para os dois modos sem precisar saber qual é: em "Nomenclatura livre" o nome não é conferido.
+          descricao:
+            "Antes de enviar, o sistema confere o PDF, o carimbo e se algum arquivo é igual ao da revisão anterior. O nome e os catálogos só são conferidos quando o projeto exige o padrão de nomenclatura.",
           campo: { rotulo: obrigatoria ? "O que mudou nesta revisão" : "O que mudou nesta revisão (opcional na R00)", obrigatorio: obrigatoria, placeholder: "Ex.: ajuste das cotas do pavimento tipo" },
           botao: "Enviar para análise",
         };

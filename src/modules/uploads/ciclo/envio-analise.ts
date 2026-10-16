@@ -30,6 +30,9 @@ function extensao(nome: string): string {
  * problemas. Sem leitura possível, só depois de todo o resto estar certo, pede confirmação
  * (`MOTIVO_CARIMBO_ILEGIVEL`); confirmado, grava o evento "Envio sem conferência de carimbo" na transação.
  * `carimbo` nulo = revisão sem PDF (modelo IFC): não há carimbo a conferir.
+ *
+ * Projeto em "Nomenclatura livre" (licitação segue o padrão do órgão): o nome e a revisão do carimbo não
+ * bloqueiam; PDF, arquivo idêntico, descrição e o código do carimbo × nome do arquivo continuam valendo.
  */
 export async function verificarEnvioParaAnalise(
   r: RevisaoCarregada,
@@ -80,8 +83,11 @@ export async function verificarEnvioParaAnalise(
     camposDoPadrao: compilarPadrao(nomenclatura.padrao)?.campos ?? [],
     modelo: nomenclatura.padrao,
     codigoProjeto: projeto.codigo,
+    nomenclaturaLivre: !nomenclatura.exigir,
   });
-  const carimbo = opts.carimbo ? conferirCarimbo(opts.carimbo.leitura, { nomeArquivo: opts.carimbo.nomeArquivo, numero: r.numero }) : null;
+  const carimbo = opts.carimbo
+    ? conferirCarimbo(opts.carimbo.leitura, { nomeArquivo: opts.carimbo.nomeArquivo, numero: r.numero, conferirRevisao: nomenclatura.exigir })
+    : null;
   problemas.push(...(carimbo?.problemas ?? []));
   if (problemas.length > 0) throw new ActionError(mensagemDosProblemas(problemas));
 

@@ -84,6 +84,12 @@ describe("conferirCarimbo", () => {
     expect(r.problemas).toEqual(["O carimbo indica R00, mas o sistema espera R01."]);
   });
 
+  it("nomenclatura livre: a revisão do carimbo não é conferida, o código continua", () => {
+    const livre = { numero: 2, conferirRevisao: false };
+    expect(conferirCarimbo(lerCarimbo(SENA_NOVO), { nomeArquivo: "260029-HDR-BS-6001-DE.pdf", ...livre }).problemas).toEqual([]);
+    expect(conferirCarimbo(lerCarimbo(SENA_NOVO), { nomeArquivo: "260029-HDR-BS-6002-DE.pdf", ...livre }).problemas).toHaveLength(1);
+  });
+
   it("SENA antigo: só a revisão é conferida, e isso não é falha de leitura", () => {
     expect(conferirCarimbo(lerCarimbo(SENA_ANTIGO), { nomeArquivo: "260020-EST-EX-4017-DE-R00.pdf", numero: 1 })).toEqual({
       problemas: [],
