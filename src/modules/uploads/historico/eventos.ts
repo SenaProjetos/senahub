@@ -9,6 +9,7 @@
 
 import { rotuloRevisao } from "@/lib/utils";
 import { ROTULO_CONTROLE, ROTULO_ESCOPO, ROTULO_ESTADO, type EscopoBloqueio, type EstadoRevisao, type TipoControle } from "@/modules/uploads/ciclo/estados";
+import { ROTULO_PENDENCIA } from "@/modules/uploads/ciclo/pendencias";
 
 export type CategoriaEvento = "alteracao" | "acesso";
 export type OrigemEvento = "interno" | "link_publico";
@@ -38,6 +39,8 @@ export const TIPOS_EVENTO = {
   estado: { categoria: "alteracao", rotulo: "Mudou o estado da revisão" },
   controle_aplicado: { categoria: "alteracao", rotulo: "Aplicou um controle" },
   controle_removido: { categoria: "alteracao", rotulo: "Removeu um controle" },
+  pendencia_dispensada: { categoria: "alteracao", rotulo: "Dispensou uma pendência" },
+  pendencia_dispensa_desfeita: { categoria: "alteracao", rotulo: "Desfez a dispensa de uma pendência" },
   arquivo_substituido: { categoria: "alteracao", rotulo: "Enviou nova versão" },
   envio_sem_carimbo: { categoria: "alteracao", rotulo: "Enviou para análise sem conferência de carimbo" },
   download: { categoria: "acesso", rotulo: "Baixou" },
@@ -191,6 +194,12 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
         typeof d.revisao === "number" && typeof d.versao === "number" ? `${rotuloRevisao(d.revisao)} · v${d.versao}` : null,
         texto("extensao") ? `${texto("extensao")!.toUpperCase()} substituído` : null,
       ].filter(Boolean);
+      return partes.length ? partes.join(" · ") : null;
+    }
+    case "pendencia_dispensada":
+    case "pendencia_dispensa_desfeita": {
+      const pendencia = typeof d.pendencia === "string" ? ROTULO_PENDENCIA[d.pendencia as keyof typeof ROTULO_PENDENCIA] ?? d.pendencia : null;
+      const partes = [pendencia, texto("motivo")].filter(Boolean);
       return partes.length ? partes.join(" · ") : null;
     }
     case "envio_sem_carimbo":

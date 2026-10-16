@@ -92,3 +92,20 @@ describe("complementoEvento", () => {
     expect(complementoEvento("download", { qualquer: "coisa" })).toBeNull();
   });
 });
+
+describe("pendências do ciclo documental", () => {
+  it("os dois tipos são catalogados e contam como alteração", () => {
+    expect(ehTipoEvento("pendencia_dispensada")).toBe(true);
+    expect(ehTipoEvento("pendencia_dispensa_desfeita")).toBe(true);
+    expect(categoriaDoTipo("pendencia_dispensada")).toBe("alteracao");
+    expect(categoriaDoTipo("pendencia_dispensa_desfeita")).toBe("alteracao");
+  });
+
+  it("o complemento junta o tipo da pendência e o motivo", () => {
+    expect(complementoEvento("pendencia_dispensada", { pendencia: "publicada_com_lixeira", motivo: "Planilha substituída" })).toBe(
+      "Lixeira · Planilha substituída",
+    );
+    expect(complementoEvento("pendencia_dispensa_desfeita", { pendencia: "analise_parada" })).toBe("Análise parada");
+    expect(complementoEvento("pendencia_dispensada", {})).toBeNull();
+  });
+});
