@@ -36,11 +36,11 @@ export function guiaDaPendencia(p: { tipo: Tipo; estado: string | null }): { res
   }
   if (p.tipo === "duas_publicadas") {
     return {
-      resumo: "Não deveria acontecer: o banco devia impedir.",
+      resumo: "Não deveria acontecer: um documento só pode ter uma revisão publicada.",
       passos: [
         "Abra o documento e confira qual revisão é a vigente.",
         "Arquive a outra.",
-        "Avise o desenvolvedor, porque o índice do banco falhou. Não dispense.",
+        "Avise o desenvolvedor: a regra de uma publicada por documento falhou. Não dispense.",
       ],
     };
   }

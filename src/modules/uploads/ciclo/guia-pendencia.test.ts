@@ -27,3 +27,14 @@ describe("guiaDaPendencia", () => {
     expect(GUIA_DOS_TIPOS.map((g) => g.tipo)).toEqual(["publicada_com_lixeira", "analise_parada", "duas_publicadas", "corrigida"]);
   });
 });
+
+describe("texto para quem usa", () => {
+  it("nenhum passo fala de banco ou índice", () => {
+    const tipos = ["publicada_com_lixeira", "analise_parada", "duas_publicadas", "corrigida"] as const;
+    for (const tipo of tipos) {
+      const g = guiaDaPendencia({ tipo, estado: "publicado" });
+      expect([g.resumo, ...g.passos].join(" ")).not.toMatch(/banco|índice/i);
+    }
+    for (const g of GUIA_DOS_TIPOS) expect(g.texto).not.toMatch(/banco|índice/i);
+  });
+});

@@ -25,6 +25,7 @@ const lixeira = (p: Partial<Lix> = {}): Lix => ({
   numero: 1,
   estado: "arquivado",
   qtdNaLixeira: 1,
+  idsNaLixeira: ["u1"],
   texto: "x",
   ...p,
 });
@@ -67,9 +68,13 @@ describe("alvo e assinatura", () => {
   });
 
   it("lixeira: muda com a quantidade de arquivos e com o estado", () => {
-    expect(assinaturaDaViolacao(lixeira())).toBe("lix:1:arquivado");
-    expect(assinaturaDaViolacao(lixeira({ qtdNaLixeira: 2 }))).toBe("lix:2:arquivado");
-    expect(assinaturaDaViolacao(lixeira({ estado: "publicado" }))).toBe("lix:1:publicado");
+    expect(assinaturaDaViolacao(lixeira())).toBe("lix:arquivado:u1");
+    expect(assinaturaDaViolacao(lixeira({ qtdNaLixeira: 2, idsNaLixeira: ["u2", "u1"] }))).toBe("lix:arquivado:u1,u2");
+    expect(assinaturaDaViolacao(lixeira({ estado: "publicado" }))).toBe("lix:publicado:u1");
+  });
+
+  it("lixeira: outro arquivo no lugar do dispensado (mesma contagem) muda a assinatura", () => {
+    expect(assinaturaDaViolacao(lixeira({ idsNaLixeira: ["u2"] }))).not.toBe(assinaturaDaViolacao(lixeira()));
   });
 
   it("análise parada: muda quando a revisão entra em análise de novo", () => {
@@ -101,7 +106,7 @@ describe("detalheDaViolacao", () => {
   });
   it("análise parada traz dias e limite; duas publicadas traz a contagem", () => {
     expect(detalheDaViolacao(parada())).toEqual({ detalhe: "Em análise há 14 dias", complemento: "limite do projeto: 7 dias" });
-    expect(detalheDaViolacao(dupla())).toEqual({ detalhe: "2 revisões publicadas", complemento: "o índice do banco devia impedir" });
+    expect(detalheDaViolacao(dupla())).toEqual({ detalhe: "2 revisões publicadas", complemento: "não deveria acontecer; avise o desenvolvedor" });
   });
 });
 
@@ -118,13 +123,13 @@ describe("aplicarDispensas", () => {
     const r = aplicarDispensas([v, parada()], [dispensa(v)]);
     expect(r.abertas.map((i) => i.alvoId)).toEqual(["r2"]);
     expect(r.dispensadas).toHaveLength(1);
-    expect(r.dispensadas[0]).toMatchObject({ alvoId: "r1", chave: "lix:1:arquivado" });
+    expect(r.dispensadas[0]).toMatchObject({ alvoId: "r1", chave: "lix:arquivado:u1" });
     expect(r.dispensadas[0].dispensa?.motivo).toBe("Limpeza");
   });
 
   it("estado mudou depois da dispensa: a pendência reaparece como aberta", () => {
     const antes = lixeira();
-    const agora = lixeira({ qtdNaLixeira: 2 });
+    const agora = lixeira({ qtdNaLixeira: 2, idsNaLixeira: ["u1", "u2"] });
     const r = aplicarDispensas([agora], [dispensa(antes)]);
     expect(r.abertas).toHaveLength(1);
     expect(r.abertas[0].dispensa).toBeNull();
@@ -142,7 +147,7 @@ describe("dispensasObsoletas", () => {
   it("encerra a dispensa cuja pendência sumiu ou mudou de assinatura", () => {
     const v = lixeira();
     const sumiu = dispensa(parada(), { id: "sumiu" });
-    const mudou = dispensa(lixeira({ qtdNaLixeira: 5 }), { id: "mudou" });
+    const mudou = dispensa(lixeira({ idsNaLixeira: ["u9"] }), { id: "mudou" });
     const viva = dispensa(v, { id: "viva" });
     const r = dispensasObsoletas([v], [sumiu, mudou, viva]);
     expect(r.map((d) => d.id).sort()).toEqual(["mudou", "sumiu"]);
@@ -166,5 +171,15 @@ describe("resumoDoAviso", () => {
   });
   it("só correção", () => {
     expect(resumoDoAviso({ abertas: [], corrigidas: 1 })).toBe("1 liberação indevida revogada automaticamente.");
+  });
+});
+
+describe("texto da tela (revisão final)", () => {
+  it("um dia no singular", () => {
+    expect(detalheDaViolacao(parada({ dias: 1, limiteDias: 1 }))).toEqual({ detalhe: "Em análise há 1 dia", complemento: "limite do projeto: 1 dia" });
+  });
+  it("nenhum texto fala de banco ou índice", () => {
+    const textos = [lixeira(), parada(), dupla()].map((v) => Object.values(detalheDaViolacao(v)).join(" "));
+    for (const t of textos) expect(t).not.toMatch(/banco|índice/i);
   });
 });

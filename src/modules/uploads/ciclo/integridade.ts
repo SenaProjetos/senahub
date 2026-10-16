@@ -18,8 +18,8 @@ export type RevisaoVarrida = {
   estadoEm: Date;
   /** Controles de pasta ativos (liberado_obra / enviado_cliente), com id para revogar. */
   controlesDePasta: { id: string; tipo: string }[];
-  /** Quantos arquivos da revisão estão na lixeira (I6 — o arquivo de uma publicada/arquivada não devia ter ido). */
-  qtdNaLixeira: number;
+  /** Ids dos arquivos da revisão na lixeira (I6 — o arquivo de uma publicada/arquivada não devia ter ido). */
+  idsNaLixeira: string[];
 };
 
 export type Violacao =
@@ -33,6 +33,8 @@ export type Violacao =
       numero: number;
       estado: EstadoRevisao;
       qtdNaLixeira: number;
+      /** Quais arquivos: a assinatura da dispensa usa os ids, não só a contagem (outro arquivo no lugar reabre). */
+      idsNaLixeira: string[];
       texto: string;
     }
   | {
@@ -87,7 +89,7 @@ export function encontrarViolacoes(
       }
     }
     // I6 — só relata.
-    if ((r.estado === "publicado" || r.estado === "arquivado") && r.qtdNaLixeira > 0) {
+    if ((r.estado === "publicado" || r.estado === "arquivado") && r.idsNaLixeira.length > 0) {
       out.push({
         tipo: "publicada_com_lixeira",
         revisaoId: r.id,
@@ -95,7 +97,8 @@ export function encontrarViolacoes(
         projetoId: r.projetoId,
         numero: r.numero,
         estado: r.estado,
-        qtdNaLixeira: r.qtdNaLixeira,
+        qtdNaLixeira: r.idsNaLixeira.length,
+        idsNaLixeira: r.idsNaLixeira,
         texto: `${r.documentoNome} ${rev(r.numero)} (${r.estado === "publicado" ? "publicada" : "arquivada"}) tem arquivo na lixeira.`,
       });
     }

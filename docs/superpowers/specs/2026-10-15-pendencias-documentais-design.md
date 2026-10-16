@@ -60,12 +60,13 @@ encerra a linha antiga (`desfeitaEm`) e cria outra.
 
 ## 5. Assinatura (pura, `ciclo/pendencias.ts`)
 
-- Lixeira: `lix:<qtd de arquivos na lixeira>:<estado>`
+- Lixeira: `lix:<estado>:<ids dos arquivos na lixeira, ordenados>` (revisão final, 2026-10-16: pela contagem, trocar o
+  arquivo dispensado por outro mantinha a assinatura e escondia o problema novo para sempre)
 - Análise parada: `par:<estadoEm ISO>`
 - Duas publicadas: `dup:<ids das revisões, ordenados>`
 
 Uma dispensa vale se existir linha ativa com o mesmo `alvoId`, `tipo` e `chave`. `RevisaoVarrida` ganha
-`qtdNaLixeira` (hoje só há o booleano `arquivoNaLixeira`, e a consulta usa `take: 1`).
+`idsNaLixeira` (hoje só há o booleano `arquivoNaLixeira`, e a consulta usa `take: 1`).
 
 Dispensa ativa que não casa com nenhuma violação atual (a pendência sumiu ou a assinatura mudou) é **encerrada pelo
 job diário** (`desfeitaPorId` nulo = sistema). Sem isso, uma ocorrência nova com a mesma assinatura de antes (1 arquivo

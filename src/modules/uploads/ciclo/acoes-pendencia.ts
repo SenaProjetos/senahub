@@ -27,3 +27,16 @@ export function itensDePendenciaCiclo(p: {
 export function itensDaSelecaoDePendencias(): AcaoItem[] {
   return [{ tipo: "acao", id: "dispensar", rotulo: "Dispensar…" }];
 }
+
+/**
+ * Para onde os links da linha levam. Pelo diretório `/arquivos?projetoId=`, que sempre abre a tela de documentos
+ * do projeto (com `?area=` e `?disciplinaId=`) — a rota `/projetos/[id]/arquivos` só a abre com a tela nova ligada
+ * (`NEXT_PUBLIC_DOCUMENTOS_V2`), e com ela desligada ignoraria a área "lixeira".
+ */
+export function linksDaPendencia(p: { projetoId: string; disciplinaId: string }): { hrefDocumento: string; hrefLixeira: string } {
+  const projeto = `/arquivos?projetoId=${encodeURIComponent(p.projetoId)}`;
+  return {
+    hrefDocumento: `${projeto}&disciplinaId=${encodeURIComponent(p.disciplinaId)}`,
+    hrefLixeira: `${projeto}&area=lixeira`,
+  };
+}

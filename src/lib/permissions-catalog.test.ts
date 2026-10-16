@@ -14,6 +14,8 @@ describe("ehLeitura", () => {
     expect(ehLeitura("arquivos", "enviar")).toBe(false);
     expect(ehLeitura("uploads", "validar")).toBe(false);
     expect(ehLeitura("permissoes", "gerir")).toBe(false);
+    // Também autoriza dispensar pendências documentais (/arquivos/pendencias): é escrita.
+    expect(ehLeitura("notificacoes", "gestao")).toBe(false);
   });
 
   it("é fail-closed: recurso ou ação desconhecida não é leitura", () => {

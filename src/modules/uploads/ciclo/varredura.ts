@@ -35,7 +35,9 @@ export async function carregarRevisoesVarridas(db: Db, extra?: Prisma.DocumentoR
       estadoEm: true,
       documento: { select: { nomeArquivo: true, titulo: true, disciplina: { select: { projetoId: true } } } },
       controles: { where: { removidoEm: null, tipo: { in: ["liberado_obra", "enviado_cliente"] } }, select: { id: true, tipo: true } },
-      _count: { select: { uploads: { where: { excluidoEm: { not: null } } } } },
+      // Leitura aninhada: o filtro de "versão atual" não se aplica aqui, então a versão substituída que foi
+      // para a lixeira também conta (como sempre contou).
+      uploads: { where: { excluidoEm: { not: null } }, select: { id: true } },
     },
   });
   return linhas.map((l) => ({
@@ -47,7 +49,7 @@ export async function carregarRevisoesVarridas(db: Db, extra?: Prisma.DocumentoR
     estado: l.estado as EstadoRevisao,
     estadoEm: l.estadoEm,
     controlesDePasta: l.controles,
-    qtdNaLixeira: l._count.uploads,
+    idsNaLixeira: l.uploads.map((u) => u.id),
   }));
 }
 
@@ -77,7 +79,9 @@ export async function pendenciasAbertasDoCiclo(
   agora: Date,
   extra?: Prisma.DocumentoRevisaoWhereInput,
 ): Promise<{ violacoes: Violacao[]; dispensas: DispensaAtiva[]; abertas: ItemPendencia[]; dispensadas: ItemPendencia[] }> {
-  const violacoes = await violacoesDoCiclo(db, agora, extra);
+  // Dispensas ANTES das violações: uma dispensa criada no meio da leitura fica fora da lista, e o job
+  // (`dispensasObsoletas`) nunca a encerra por engano por ainda não ver a violação que ela dispensa.
   const dispensas = await dispensasAtivas(db);
+  const violacoes = await violacoesDoCiclo(db, agora, extra);
   return { violacoes, dispensas, ...aplicarDispensas(violacoes, dispensas) };
 }

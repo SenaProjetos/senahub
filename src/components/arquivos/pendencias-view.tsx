@@ -22,7 +22,7 @@ import { MotivoDialog } from "@/components/rh/motivo-dialog";
 import { formatarDataHora } from "@/lib/utils";
 import { useSetParams } from "@/lib/use-set-param";
 import { desfazerDispensaPendencia, dispensarPendencia } from "@/modules/uploads/ciclo/pendencias-actions";
-import { itensDaSelecaoDePendencias, itensDePendenciaCiclo } from "@/modules/uploads/ciclo/acoes-pendencia";
+import { itensDaSelecaoDePendencias, itensDePendenciaCiclo, linksDaPendencia } from "@/modules/uploads/ciclo/acoes-pendencia";
 import { GUIA_DOS_TIPOS, guiaDaPendencia } from "@/modules/uploads/ciclo/guia-pendencia";
 import { contarPendencias, filtrarPendencias } from "@/modules/uploads/ciclo/pendencias-filtro";
 import { ROTULO_PENDENCIA, type TipoPendencia } from "@/modules/uploads/ciclo/pendencias";
@@ -44,10 +44,6 @@ const CHIPS: { id: string; rotulo: string }[] = [
 ];
 
 const selecionavel = (l: PendenciaDoCiclo) => l.tipo !== "corrigida" && !l.dispensa;
-const hrefsDe = (l: PendenciaDoCiclo) => ({
-  hrefDocumento: `/projetos/${l.projetoId}/arquivos?disciplinaId=${l.disciplinaId}`,
-  hrefLixeira: `/projetos/${l.projetoId}/arquivos?area=lixeira`,
-});
 
 /**
  * Pendências do ciclo documental (administradores). Uma lista, filtros na URL, "o que fazer" por linha e
@@ -181,9 +177,11 @@ export function PendenciasView({ abertas, dispensadas, corrigidas }: PendenciasD
           description={semAbertas ? "Tudo em dia com o ciclo dos documentos." : "Mude o tipo, o projeto ou a busca."}
         />
       ) : (
-        <div className="overflow-x-auto rounded-sm border">
+        // A lista rola por dentro e o cabeçalho da tabela fica fixo (spec §8); no celular a página rola inteira.
+        // O contêiner interno do `Table` vira `overflow-visible` para o `sticky` grudar NESTA caixa, não nele.
+        <div className="overflow-auto rounded-sm border md:max-h-[max(20rem,calc(100svh-16rem))] [&_[data-slot=table-container]]:overflow-visible">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow>
                 <TableHead className="w-8">
                   <Checkbox
@@ -280,7 +278,7 @@ function LinhaPendencia({
   onAbrirMenu: () => void;
   onSelect: (item: AcaoItemAcao) => void;
 }) {
-  const itens = itensDePendenciaCiclo({ tipo: l.tipo, dispensada: l.dispensa !== null, ...hrefsDe(l) });
+  const itens = itensDePendenciaCiclo({ tipo: l.tipo, dispensada: l.dispensa !== null, ...linksDaPendencia(l) });
   const guia = guiaDaPendencia({ tipo: l.tipo, estado: l.estado });
   return (
     <>

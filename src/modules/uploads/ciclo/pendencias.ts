@@ -54,13 +54,15 @@ export function alvoDaViolacao(v: ViolacaoDispensavel): string {
 export function assinaturaDaViolacao(v: ViolacaoDispensavel): string {
   switch (v.tipo) {
     case "publicada_com_lixeira":
-      return `lix:${v.qtdNaLixeira}:${v.estado}`;
+      return `lix:${v.estado}:${[...v.idsNaLixeira].sort().join(",")}`;
     case "analise_parada":
       return `par:${v.estadoEm.toISOString()}`;
     case "duas_publicadas":
       return `dup:${[...v.revisaoIds].sort().join(",")}`;
   }
 }
+
+const dias = (n: number) => (n === 1 ? "1 dia" : `${n} dias`);
 
 export function detalheDaViolacao(v: ViolacaoDispensavel): { detalhe: string; complemento: string | null } {
   switch (v.tipo) {
@@ -70,9 +72,9 @@ export function detalheDaViolacao(v: ViolacaoDispensavel): { detalhe: string; co
         complemento: v.estado === "publicado" ? "revisão vigente" : null,
       };
     case "analise_parada":
-      return { detalhe: `Em análise há ${v.dias} dias`, complemento: `limite do projeto: ${v.limiteDias} dias` };
+      return { detalhe: `Em análise há ${dias(v.dias)}`, complemento: `limite do projeto: ${dias(v.limiteDias)}` };
     case "duas_publicadas":
-      return { detalhe: `${v.revisaoIds.length} revisões publicadas`, complemento: "o índice do banco devia impedir" };
+      return { detalhe: `${v.revisaoIds.length} revisões publicadas`, complemento: "não deveria acontecer; avise o desenvolvedor" };
   }
 }
 

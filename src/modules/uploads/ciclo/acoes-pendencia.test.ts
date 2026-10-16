@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOTIVO_NAO_DISPENSAVEL } from "./pendencias";
-import { itensDaSelecaoDePendencias, itensDePendenciaCiclo } from "./acoes-pendencia";
+import { itensDaSelecaoDePendencias, itensDePendenciaCiclo, linksDaPendencia } from "./acoes-pendencia";
 
 const base = { dispensada: false, hrefDocumento: "/projetos/p1/arquivos?disciplinaId=d1", hrefLixeira: "/projetos/p1/arquivos?area=lixeira" };
 const ids = (xs: ReturnType<typeof itensDePendenciaCiclo>) => xs.map((x) => x.id);
@@ -37,5 +37,14 @@ describe("itensDePendenciaCiclo", () => {
 describe("itensDaSelecaoDePendencias", () => {
   it("a barra de lote só dispensa", () => {
     expect(itensDaSelecaoDePendencias().map((i) => i.id)).toEqual(["dispensar"]);
+  });
+});
+
+describe("linksDaPendencia", () => {
+  it("vai pelo diretório /arquivos, que abre a tela do projeto com ou sem a tela nova ligada", () => {
+    expect(linksDaPendencia({ projetoId: "p1", disciplinaId: "d1" })).toEqual({
+      hrefDocumento: "/arquivos?projetoId=p1&disciplinaId=d1",
+      hrefLixeira: "/arquivos?projetoId=p1&area=lixeira",
+    });
   });
 });

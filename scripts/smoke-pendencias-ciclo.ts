@@ -91,14 +91,15 @@ async function main() {
   try {
     const dezDiasAtras = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
     const a = await documentoComRevisao("lixeira", "arquivado", new Date());
-    await arquivo(a.documento.id, a.revisao.id, true);
+    const up1 = await arquivo(a.documento.id, a.revisao.id, true);
+    const chave1 = `lix:arquivado:${up1.id}`;
     const b = await documentoComRevisao("parada", "compartilhado", dezDiasAtras);
 
     // ── a varredura vê as duas ──
     const ab0 = await abertasAgora();
     const lix = ab0.find((i) => i.violacao.tipo === "publicada_com_lixeira" && i.alvoId === a.revisao.id);
     const par = ab0.find((i) => i.violacao.tipo === "analise_parada" && i.alvoId === b.revisao.id);
-    check("varredura: arquivada com arquivo na lixeira aparece (assinatura lix:1:arquivado)", lix?.chave === "lix:1:arquivado");
+    check("varredura: arquivada com arquivo na lixeira aparece (assinatura pelos ids na lixeira)", lix?.chave === chave1);
     check("varredura: revisão parada em análise há 10 dias aparece", par !== undefined);
 
     // ── dispensar ──
@@ -128,7 +129,10 @@ async function main() {
     // ── estado mudou: reaparece; dispensa velha NÃO vale para a ocorrência nova ──
     const up2 = await arquivo(a.documento.id, a.revisao.id, true);
     const reapareceu = (await abertasAgora()).find((i) => i.alvoId === a.revisao.id);
-    check("estado mudou (2 arquivos na lixeira): a pendência reaparece como aberta", reapareceu?.chave === "lix:2:arquivado");
+    check(
+      "estado mudou (2 arquivos na lixeira): a pendência reaparece como aberta",
+      reapareceu?.chave === `lix:arquivado:${[up1.id, up2.id].sort().join(",")}`,
+    );
     const { violacoes, dispensas } = await pendenciasAbertasDoCiclo(prisma, new Date(), escopo);
     // `dispensas` traz TODAS as ativas do banco (o `escopo` só estreita as violações): filtra para as deste
     // smoke, senão o encerramento abaixo fecharia dispensas reais de outros projetos do banco de dev.
@@ -140,7 +144,7 @@ async function main() {
     );
     await prisma.upload.update({ where: { id: up2.id }, data: { excluidoEm: null, excluidoPorId: null } });
     const volta = (await abertasAgora()).find((i) => i.alvoId === a.revisao.id);
-    check("voltou a 1 arquivo: a assinatura é a de antes, e a dispensa velha NÃO a esconde", volta?.chave === "lix:1:arquivado");
+    check("voltou a 1 arquivo: a assinatura é a de antes, e a dispensa velha NÃO a esconde", volta?.chave === chave1);
 
     // ── dispensar de novo, desfazer ──
     await dispensarNoBanco({ alvoId: a.revisao.id, tipo: "publicada_com_lixeira", chave: volta!.chave, motivo: "Segunda dispensa", userId: usuario.id });
@@ -188,7 +192,7 @@ async function main() {
     check("o job roda inteiro e devolve contagens", typeof job.relatadas === "number" && typeof job.encerradas === "number");
 
     // ── o que sobrou do aviso: abertas e dispensadas se separam ──
-    await dispensarNoBanco({ alvoId: a.revisao.id, tipo: "publicada_com_lixeira", chave: "lix:1:arquivado", motivo: "Dispensada para o aviso", userId: usuario.id });
+    await dispensarNoBanco({ alvoId: a.revisao.id, tipo: "publicada_com_lixeira", chave: chave1, motivo: "Dispensada para o aviso", userId: usuario.id });
     const final = await pendenciasAbertasDoCiclo(prisma, new Date(), escopo);
     check(
       "a dispensada não entra nas abertas (que é o que o aviso lista)",

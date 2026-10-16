@@ -12,7 +12,7 @@ const r = (p: Partial<RevisaoVarrida>): RevisaoVarrida => ({
   estado: "em_andamento",
   estadoEm: agora,
   controlesDePasta: [],
-  qtdNaLixeira: 0,
+  idsNaLixeira: [],
   ...p,
 });
 const opts = { agora, diasAlertaPorProjeto: () => 7 };
@@ -34,11 +34,11 @@ describe("encontrarViolacoes (A7)", () => {
   });
 
   it("I6: publicada ou arquivada com arquivo na lixeira, com a contagem", () => {
-    const v = encontrarViolacoes([r({ estado: "publicado", qtdNaLixeira: 2 })], opts);
+    const v = encontrarViolacoes([r({ estado: "publicado", idsNaLixeira: ["u2", "u1"] })], opts);
     expect(v).toEqual([
-      expect.objectContaining({ tipo: "publicada_com_lixeira", revisaoId: "r1", documentoId: "d1", numero: 1, estado: "publicado", qtdNaLixeira: 2 }),
+      expect.objectContaining({ tipo: "publicada_com_lixeira", revisaoId: "r1", documentoId: "d1", numero: 1, estado: "publicado", qtdNaLixeira: 2, idsNaLixeira: ["u2", "u1"] }),
     ]);
-    expect(encontrarViolacoes([r({ estado: "em_andamento", qtdNaLixeira: 1 })], opts)).toEqual([]);
+    expect(encontrarViolacoes([r({ estado: "em_andamento", idsNaLixeira: ["u1"] })], opts)).toEqual([]);
   });
 
   it("análise parada além do prazo do projeto, com data de entrada e limite", () => {

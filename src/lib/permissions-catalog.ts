@@ -326,7 +326,8 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     recurso: "notificacoes",
     label: "Notificações de gestão",
     acoes: [
-      { acao: "gestao", label: "Receber avisos de gestão global (aprovações, digest semanal, suporte)", abre: "Arquivos · Pendências documentais", leitura: true },
+      // Sem `leitura` desde 2026-10-16: além de receber os avisos, autoriza DISPENSAR pendências documentais (escrita).
+      { acao: "gestao", label: "Receber avisos de gestão global e dispensar pendências documentais", abre: "Arquivos · Pendências documentais" },
       { acao: "rh", label: "Receber avisos de RH (NF, abono, conta bancária, pedido de cadastro)", leitura: true },
       { acao: "operacional", label: "Receber avisos de operação (entregas, pagamentos, certidões, projeto ganho)", leitura: true },
     ],
