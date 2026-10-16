@@ -1868,7 +1868,7 @@ model Lancamento {
   acessorioDeId   String?
   /// Número do documento (boleto, NF, recibo) — texto livre (M7).
   numeroDocumento String?
-  /// Chave de acesso da NF-e/NFS-e: 44 dígitos, conferidos pelo DV (`chaveNfeValida`).
+  /// Chave de acesso da nota: NFS-e nacional (50) ou NF-e (44), conferida em `lib/campos/chave-nfe.ts`.
   chaveNfe        String?
   /// Retenções na nota (C4): o que a nota retém de imposto. O título segue com o valor cheio; o líquido é valor − retido.
   retencoes       RetencaoLancamento[]

@@ -172,7 +172,7 @@ conta, PIX key and NF-e key use `InputFormatado tipo="…"` (`components/ui/inpu
 `campo.<tipo>()` (`lib/campos/zod.ts`) in the schema — never a raw `<Input>` or a bare `z.string()`. The catalog
 (`lib/campos/`) is the single source of mask, normalization, validation and message, so the screen never accepts what
 the action refuses. The DB stores the **standard format** (`000.000.000-00`, `(00) 00000-0000`); exceptions: PIX (BACEN
-format, validated in the handler via `campoPix` in `normalizarConta` because it depends on `pixTipo`), the NF-e key (44 digits) and
+format, validated in the handler via `campoPix` in `normalizarConta` because it depends on `pixTipo`), the NF key (digits/uppercase, 44 or 50) and
 `Cliente.documento` (digits only — CRM ADR-03 uniqueness; the screen masks it). Duplicate lookups match
 `variantesDoValor` while legacy rows remain; importers and producers pass a valid value through
 `CAMPOS.<tipo>.normalizar` (an invalid one is a preview warning, saved as it came). Create schemas are strict; **every
@@ -470,8 +470,9 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   an accessory `origem = "acessorio"` (every op refused with `MOTIVO_ACESSORIO`); estornar/excluir the principal soft-deletes
   them (`excluirAcessoriosNoTx`) and corrigir pagamento moves them. `acessorioDeId` has NO Prisma relation on purpose: a
   second self-relation on `Lancamento` cost ~0.7 GB of `tsc` heap (`tsc -p tsconfig.server.json` is already above 4 GB —
-  run it with `NODE_OPTIONS=--max-old-space-size=8192`). `Lancamento.numeroDocumento` / `chaveNfe` (44 digits, mod-11 DV
-  in `chaveNfeValida`). Retentions on the NF (ISS, IRRF, INSS…) wait for the accountant (owner decision 5).
+  run it with `NODE_OPTIONS=--max-old-space-size=8192`). `Lancamento.numeroDocumento` / `chaveNfe` (access key: NFS-e nacional 50 chars or NF-e 44 with
+  mod-11 DV, alphanumeric CNPJ allowed — `lib/campos/chave-nfe.ts` `modeloDaChave`; a receivable only takes an NFS-e key, owner
+  2026-10-16: the company issues service invoices — `motivoChaveDoTipo`). Retentions on the NF (ISS, IRRF, INSS…) wait for the accountant (owner decision 5).
 - **DRE base, Indicadores and relatório por dimensão** (M6 + review 2026-10-03, `financeiro/relatorios/`): `whereDRE(de, ate,
   base)` is the ONE rule for what enters a DRE period — DRE comparativo, `relatorioDRE` (Excel export, takes `base`) and
   Indicadores. **Caixa** = realized by `dataConfirmacao`; **Competência = pago E em aberto** (`confirmado|previsto|

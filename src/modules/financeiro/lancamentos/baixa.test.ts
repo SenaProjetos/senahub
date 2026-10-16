@@ -10,6 +10,8 @@ import {
   MOTIVO_NEGATIVO,
   MOTIVO_PRINCIPAL_MAIOR,
   normalizarChaveNfe,
+  motivoChaveDoTipo,
+  MOTIVO_CHAVE_RECEITA_NFSE,
   planejarBaixa,
 } from "@/modules/financeiro/lancamentos/baixa";
 
@@ -73,5 +75,20 @@ describe("chave da NF", () => {
     const espacada = valida.replace(/(\d{4})/g, "$1 ").trim();
     expect(normalizarChaveNfe(espacada)).toBe(valida);
     expect(chaveNfeValida(espacada)).toBe(true);
+  });
+});
+
+describe("chave × tipo do lançamento", () => {
+  const NFE = "35200714200166000187550010000000046550010007";
+  const NFSE = "2611606" + "1" + "2" + "11444777000161" + "0000000000123" + "2610" + "123456789" + "7";
+  it("conta a receber só leva NFS-e (a empresa emite nota de serviço)", () => {
+    expect(motivoChaveDoTipo("receita", NFSE)).toBeNull();
+    expect(motivoChaveDoTipo("receita", NFE)).toBe(MOTIVO_CHAVE_RECEITA_NFSE);
+  });
+  it("custo aceita NFS-e ou NF-e; sem chave não há o que conferir", () => {
+    expect(motivoChaveDoTipo("despesa", NFSE)).toBeNull();
+    expect(motivoChaveDoTipo("despesa", NFE)).toBeNull();
+    expect(motivoChaveDoTipo("receita", "")).toBeNull();
+    expect(motivoChaveDoTipo("receita", null)).toBeNull();
   });
 });

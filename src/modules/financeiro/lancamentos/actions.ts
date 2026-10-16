@@ -32,7 +32,7 @@ import { corrigirPagamentoNoBanco } from "@/modules/financeiro/lancamentos/corri
 import { baixarNoBanco } from "@/modules/financeiro/lancamentos/baixa-service";
 import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos/comprovante-service";
 import { lerRateio, salvarRateioNoBanco } from "@/modules/financeiro/lancamentos/rateio-service";
-import { normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
+import { motivoChaveDoTipo, normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import { corrigirPagamentoSchema } from "@/modules/financeiro/transferencias/schemas";
 import {
   MOTIVO_IMPOSTO_SEGUE_NOTA,
@@ -194,8 +194,13 @@ export const editarLancamento = defineAction(
     // observação, contato e campos do planejador continuam editáveis.
     const travados = await prisma.lancamento.findUniqueOrThrow({
       where: { id: i.id },
-      select: { categoriaId: true, centroId: true, projetoId: true, contaId: true },
+      select: { categoriaId: true, centroId: true, projetoId: true, contaId: true, chaveNfe: true },
     });
+    // Conta a receber só leva chave de NFS-e. Chave já gravada e não mexida passa (legado).
+    if (i.chaveNfe !== undefined && normalizarChaveNfe(i.chaveNfe) !== (travados.chaveNfe ?? "")) {
+      const chaveRuim = motivoChaveDoTipo(atual.tipo, i.chaveNfe);
+      if (chaveRuim) throw new ActionError(chaveRuim, { chaveNfe: chaveRuim });
+    }
     const novaData = data(i.data);
     const novaComp = data(i.dataCompetencia || undefined) ?? null;
     if (

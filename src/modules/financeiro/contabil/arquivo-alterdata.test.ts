@@ -83,7 +83,7 @@ describe("layout do contador (modelo-de-importacao-alterdata-lancamentos.xls)", 
     expect([2, 3, 4].map((n) => ws.getRow(n).getCell(4).value)).toEqual([45000.05, 7.05, 1]);
   });
 
-  it("documento no complemento; a chave da NF-e vai na coluna própria, em texto (44 dígitos não viram notação científica)", async () => {
+  it("documento no complemento; a chave da NF-e vai na coluna própria, em texto (a chave longa não vira notação científica)", async () => {
     const [l] = linhasDoAlterdata([linha({ documento: "NF 3381", chaveNfe: CHAVE })]);
     expect(l).toHaveLength(8);
     expect(l[4]).toBe("Recebimento: Parcela 1/3 - Doc. NF 3381");

@@ -16,6 +16,7 @@ import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { CollapsibleSection } from "@/components/ui/collapsible";
 import { brl } from "@/lib/utils";
+import { motivoChaveDoTipo, normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import {
   IMPOSTOS_RETIDOS,
   MOTIVO_IMPOSTO_SEGUE_NOTA,
@@ -269,6 +270,13 @@ export function LancamentoForm({
     }
     if (erroRetencoes) {
       toast.error(erroRetencoes);
+      return;
+    }
+    // Mesma regra do servidor: conta a receber leva a chave da NFS-e (a chave já gravada e não mexida passa).
+    const chaveMexida = !editar || normalizarChaveNfe(chaveNfe) !== (editar.chaveNfe ?? "");
+    const chaveRuim = chaveMexida ? motivoChaveDoTipo(tipo, chaveNfe) : null;
+    if (chaveRuim) {
+      fe.definir("chaveNfe", chaveRuim);
       return;
     }
     // Ausente = não mexe: conta paga não manda (o servidor recusaria), e quem não leva retenção também não.
@@ -605,7 +613,7 @@ export function LancamentoForm({
               <Input id="lc-numdoc" value={numeroDocumento} maxLength={60} placeholder="Boleto, NF, recibo" onChange={(e) => setNumeroDocumento(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="lc-chave">Chave da NF (opcional)</Label>
+              <Label htmlFor="lc-chave">Chave de acesso da nota (opcional)</Label>
               <InputFormatado
                 id="lc-chave"
                 tipo="chaveNfe"

@@ -12,7 +12,7 @@ import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
 import { motivoCategoriaIncompativel } from "@/modules/financeiro/categorias-regras";
 import type { CriarLancamentoInput } from "@/modules/financeiro/lancamentos/schemas";
-import { normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
+import { motivoChaveDoTipo, normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
 import { MOTIVO_RETENCAO_RECORRENCIA, motivoRetencoesInvalidas, normalizarRetencoes } from "@/modules/financeiro/lancamentos/retencoes";
 import { aplicarRetencoesNaBaixaNoTx, salvarRetencoesNoTx } from "@/modules/financeiro/lancamentos/retencoes-service";
@@ -69,6 +69,8 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
   if (!cat) throw new ActionError("Categoria não encontrada.");
   const incompativel = motivoCategoriaIncompativel(i.tipo, cat.tipo);
   if (incompativel) throw new ActionError(incompativel);
+  const chaveRuim = motivoChaveDoTipo(i.tipo, i.chaveNfe);
+  if (chaveRuim) throw new ActionError(chaveRuim, { chaveNfe: chaveRuim });
 
   // Alçada por faixa: despesa em faixa que exige aprovação trava em aguardando_aprovacao. Vale o
   // TOTAL das ocorrências (N3): 60 × R$ 900 não passa como "R$ 900".

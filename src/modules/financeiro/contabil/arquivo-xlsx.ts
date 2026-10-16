@@ -24,7 +24,7 @@ export function planilhaGenerica(linhas: readonly LinhaExportada[]): Workbook {
  * A data é data de verdade (dd/mm/aaaa) e o valor é número com duas casas — o mesmo que o modelo dele traz. Débito e crédito
  * são a CLASSIFICAÇÃO do plano dele (texto, "1.1.1.02.0004", resposta do contador em 2026-10-15); depois das 5
  * colunas dele vêm `centro de custo`, `projeto` e `chave de acesso` (decisão do dono, 2026-10-15). Conta e chave em formato Texto
- * para o Excel não virar número (44 dígitos viram notação científica). Sem negrito e sem totais.
+ * para o Excel não virar número (a chave de 44 ou 50 dígitos viraria notação científica). Sem negrito e sem totais.
  */
 export function planilhaAlterdata(linhas: readonly LinhaExportada[]): Workbook {
   const wb = new ExcelJS.Workbook();

@@ -104,7 +104,7 @@ export function LancamentoDetalheDialog({
               {l.chaveNfe && (
                 <div className="grid gap-0.5">
                   <dt className="text-muted-foreground">Chave da NF</dt>
-                  <dd className="break-all font-mono">{l.chaveNfe.replace(/(\d{4})/g, "$1 ").trim()}</dd>
+                  <dd className="break-all font-mono">{l.chaveNfe.replace(/([0-9A-Z]{4})/g, "$1 ").trim()}</dd>
                 </div>
               )}
               {l.acessorioDeId && <div className="text-muted-foreground">Juros, multa ou desconto de uma baixa: anda junto com o lançamento principal.</div>}

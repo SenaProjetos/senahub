@@ -38,7 +38,7 @@ export const criarLancamentoSchema = z.object({
   confianca: confiancaSchema.nullable().optional(),
   /// Só despesa em aberto: a caixinha que paga a saída (F4).
   caixinhaId: z.string().min(1).nullable().optional(),
-  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da NF (44 dígitos, conferidos pelo DV).
+  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da nota (NFS-e 50 ou NF-e 44, `lib/campos/chave-nfe.ts`; receita só NFS-e).
   numeroDocumento: z.string().trim().max(60).optional().or(z.literal("")),
   chaveNfe: campo.chaveNfe(),
   retencoes: retencoesSchema.optional(),
@@ -62,7 +62,7 @@ export const editarLancamentoSchema = z.object({
   confianca: confiancaSchema.nullable().optional(),
   /// Ausente = não mexe; nulo = tira da caixinha.
   caixinhaId: z.string().min(1).nullable().optional(),
-  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da NF (44 dígitos, conferidos pelo DV).
+  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da nota (NFS-e 50 ou NF-e 44, `lib/campos/chave-nfe.ts`; receita só NFS-e).
   numeroDocumento: z.string().trim().max(60).optional().or(z.literal("")),
   chaveNfe: campo.chaveNfe(),
   retencoes: retencoesSchema.optional(),

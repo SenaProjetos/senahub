@@ -11,7 +11,7 @@
  *    (`docs/financeiro/contabil/modelo-de-importacao-alterdata-lancamentos.xls`, 2026-10-13) tem 5 colunas — `debito`, `credito`, `data`,
  *    `valor`, `complemento historico`. Conta nunca em branco (o Alterdata recusaria a linha). O complemento tem no máximo 200
  *    caracteres (resposta do contador) e leva histórico + documento. Por decisão do dono (2026-10-15) vão em colunas extras à
- *    direita das 5: `centro de custo`, `projeto` e `chave de acesso` (a chave da NF-e, 44 dígitos, em texto).
+ *    direita das 5: `centro de custo`, `projeto` e `chave de acesso` (a chave da NFS-e ou da NF-e, em texto).
  */
 import type { LinhaContabil } from "@/modules/financeiro/contabil/partidas";
 
