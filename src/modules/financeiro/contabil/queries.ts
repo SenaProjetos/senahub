@@ -4,7 +4,8 @@ import { diaDeSaoPaulo } from "@/lib/data";
 import { mesesFechados } from "@/modules/financeiro/fechamento/trava-service";
 import { rotuloDoMes } from "@/modules/financeiro/fechamento/trava";
 import { partidasDoMes } from "@/modules/financeiro/contabil/service";
-import type { AlvoPendencia, LinhaContabil } from "@/modules/financeiro/contabil/partidas";
+import type { AlvoPendencia } from "@/modules/financeiro/contabil/partidas";
+import type { LinhaExportada } from "@/modules/financeiro/contabil/arquivo";
 
 export type ContaDoPlanoDto = { reduzido: number; classificacao: string; nome: string };
 
@@ -43,7 +44,10 @@ export type TelaContabil = {
   planoImportado: boolean;
   categorias: CategoriaContabilDto[];
   contasBancarias: ContaBancariaContabilDto[];
-  linhas: LinhaContabil[];
+  linhas: LinhaExportada[];
+  /** Classificações do plano do contador que mais de uma conta usa e que aparecem neste mês (o layout dele recusa). */
+  repetidasUsadas: { classificacao: string; contas: string[] }[];
+  linhasComContaRepetida: number;
   totalCentavos: number;
   pendencias: PendenciaDto[];
   fora: { naoExportar: number; aguardandoAprovacao: number };
@@ -163,6 +167,8 @@ export async function telaContabil(mesPedido?: string): Promise<TelaContabil> {
     categorias: categoriasDto,
     contasBancarias: bancos.map((b) => ({ id: b.id, nome: b.nome, investimento: b.investimento != null, conta: doBanco.get(b.id) ?? null })),
     linhas: resumo.linhas,
+    repetidasUsadas: resumo.repetidasUsadas,
+    linhasComContaRepetida: resumo.linhasComContaRepetida,
     totalCentavos: resumo.totalCentavos,
     pendencias: [...agrupadas.values()],
     fora: { naoExportar: resumo.fora.naoExportar, aguardandoAprovacao: resumo.fora.aguardandoAprovacao },

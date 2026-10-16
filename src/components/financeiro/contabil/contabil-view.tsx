@@ -24,7 +24,14 @@ import {
   itensDeContaBancariaContabil,
 } from "@/modules/financeiro/contabil/acoes";
 import { copiarContaContabil, definirContaContabil, exportarMesContabil, lancamentosDaCategoriaNoMes, limparContaContabil } from "@/modules/financeiro/contabil/actions";
-import { linhasSemConta, MOTIVO_ALTERDATA_SEM_CONTA, type FormatoContabil } from "@/modules/financeiro/contabil/arquivo";
+import {
+  complementosCortados,
+  LIMITE_COMPLEMENTO_ALTERDATA,
+  linhasSemConta,
+  MOTIVO_ALTERDATA_CONTA_REPETIDA,
+  MOTIVO_ALTERDATA_SEM_CONTA,
+  type FormatoContabil,
+} from "@/modules/financeiro/contabil/arquivo";
 import type { CategoriaContabilDto, ContaBancariaContabilDto, ContaDoPlanoDto, TelaContabil } from "@/modules/financeiro/contabil/queries";
 
 type Aba = "depara" | "exportacao";
@@ -62,6 +69,7 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
   const pendCategorias = dados.pendencias.filter((p) => p.alvo === "categoria");
   // O layout do contador não aceita conta em branco (nem a do cartão, que o contador ainda vai criar): o servidor barra igual.
   const linhasSemContaNoArquivo = linhasSemConta(dados.linhas);
+  const cortados = complementosCortados(dados.linhas);
   const motivoExportar = !dados.mesFechado
     ? "Só meses fechados exportam, para o arquivo bater com o relatório que o contador já recebeu."
     : !dados.planoImportado
@@ -70,6 +78,8 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
         ? "Preencha o de-para antes de exportar."
         : formato === "alterdata" && linhasSemContaNoArquivo > 0
           ? MOTIVO_ALTERDATA_SEM_CONTA(linhasSemContaNoArquivo)
+          : formato === "alterdata" && dados.linhasComContaRepetida > 0
+            ? MOTIVO_ALTERDATA_CONTA_REPETIDA(dados.linhasComContaRepetida, dados.repetidasUsadas.map((x) => x.classificacao))
           : !dados.linhas.length
             ? "Nada para exportar neste mês."
             : null;
@@ -410,13 +420,19 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
             </div>
             <span id="ct-formato-ajuda" className="text-xs text-muted-foreground">
               {formato === "alterdata"
-                ? "Modelo de importação do contador: débito, crédito, data, valor e complemento do histórico, mais duas colunas à direita: centro de custo e projeto (só nas linhas de receita e despesa). O número do documento e a chave da NF-e vão dentro do complemento."
+                ? `Modelo de importação do contador: débito e crédito pela classificação do plano dele, data, valor e complemento do histórico (até ${LIMITE_COMPLEMENTO_ALTERDATA} caracteres, com o número do documento). À direita: centro de custo e projeto (só nas linhas de receita e despesa) e a chave de acesso da NF-e.`
                 : "Arquivo genérico: data, conta de débito, conta de crédito, valor, histórico, documento, chave da NF-e, centro de custo e projeto."}
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
             Cada conta a pagar ou a receber sai duas vezes: na competência e no pagamento. Só meses fechados exportam, para o arquivo bater com o relatório que o contador já recebeu.
           </p>
+          {formato === "alterdata" && cortados > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {cortados} {cortados === 1 ? "complemento passa" : "complementos passam"} de {LIMITE_COMPLEMENTO_ALTERDATA} caracteres: a descrição sai encurtada (…) e o número do
+              documento fica inteiro.
+            </p>
+          )}
           {dados.fora.naoExportar > 0 && (
             <p className="text-xs text-muted-foreground">
               {dados.fora.naoExportar} {dados.fora.naoExportar === 1 ? "lançamento ficou" : "lançamentos ficaram"} fora: categoria marcada “não exportar” (a folha, que o contador lança).
@@ -484,11 +500,11 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
                 {linhas.map((l, i) => (
                   <tr key={`${l.lancamentoId}-${l.evento}-${i}`} className="border-t">
                     <td className="px-2 py-1.5 font-mono">{dataCurta(l.data)}</td>
-                    <td className="px-2 py-1.5 font-mono" title={l.debito != null ? dados.nomes[l.debito] : "Falta o de-para"}>
-                      {l.debito ?? <span className="text-destructive">—</span>}
+                    <td className="whitespace-nowrap px-2 py-1.5 font-mono" title={l.debito != null ? dados.nomes[l.debito] : "Falta o de-para"}>
+                      {l.debitoClassificacao ?? <span className="text-destructive">—</span>}
                     </td>
-                    <td className="px-2 py-1.5 font-mono" title={l.credito != null ? dados.nomes[l.credito] : "Falta o de-para"}>
-                      {l.credito ?? <span className="text-destructive">—</span>}
+                    <td className="whitespace-nowrap px-2 py-1.5 font-mono" title={l.credito != null ? dados.nomes[l.credito] : "Falta o de-para"}>
+                      {l.creditoClassificacao ?? <span className="text-destructive">—</span>}
                     </td>
                     <td className="px-2 py-1.5 text-right font-mono tabular-nums">{valorBr(l.valorCentavos)}</td>
                     <td className="max-w-[28rem] truncate px-2 py-1.5 text-muted-foreground">{l.historico}</td>

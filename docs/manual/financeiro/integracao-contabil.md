@@ -3,7 +3,7 @@ titulo: Integração contábil
 descricao: Ligar as categorias e as contas bancárias ao plano de contas do contador e exportar o mês fechado num arquivo de lançamentos para o Alterdata.
 resumo: Escolha uma vez a conta contábil de cada categoria e de cada conta bancária; depois de fechar o mês, exporte o arquivo (Excel ou CSV) com cada conta a pagar ou a receber em dois lançamentos, na competência e no pagamento. A folha CLT fica de fora, porque o contador lança.
 tags: [financeiro, contabilidade, contador, exportação, de-para, plano de contas, alterdata]
-palavras-chave: [integração contábil, de-para, conta contábil, plano de contas do contador, exportar para o contador, layout do contador, partida dobrada, código reduzido, mês fechado]
+palavras-chave: [integração contábil, de-para, conta contábil, plano de contas do contador, exportar para o contador, layout do contador, partida dobrada, classificação, mês fechado]
 sinonimos: [exportação contábil, arquivo do contador, lançamentos contábeis, Alterdata]
 ---
 
@@ -41,8 +41,12 @@ Regras que valem:
 - Impostos, pró-labore e distribuição de lucros têm a contrapartida própria (Simples a recolher, Pró-labore a pagar,
   Dividendos a pagar), não "fornecedor".
 
-O contador identifica a conta pelo **código reduzido** (o número entre parênteses no plano dele); é ele que vai no
-arquivo. A classificação ("3.1.2.03.0009") aparece na tela só para leitura.
+No arquivo, a conta sai pela **classificação** do plano do contador ("3.1.2.03.0009"), como ele pediu. Por dentro, o
+SenaHub guarda o código reduzido (o número entre parênteses no plano), que nunca se repete.
+
+**Atenção:** no plano atual do contador, PIS, COFINS, ICMS, IPI e IE a recolher têm a mesma classificação
+(`2.1.3.01.0003`). Se uma categoria apontar para uma delas, o layout do contador não exporta o mês — o Alterdata não
+saberia qual conta é. Escolha outra conta ou peça ao contador para corrigir o plano.
 
 ## Exportar o mês
 
@@ -72,21 +76,21 @@ bloqueada até você escolher; o que depende de conta que o contador ainda vai c
 ## Formatos do arquivo
 
 - **Layout do contador** (o padrão): o modelo de importação que o contador mandou. Cinco colunas — `debito`, `credito`, `data`,
-  `valor`, `complemento historico` — na aba `Planilha1`, mais **duas colunas à direita**, `centro de custo` e `projeto`. O número
-  do documento e a chave da NF-e vão dentro do complemento do histórico. Centro de custo e projeto aparecem só nas linhas de
-  receita e despesa (o reconhecimento); a linha do pagamento, que é entre banco e cliente ou fornecedor, fica sem. Sem um código
-  definido pelo contador, saem o nome do centro de custo e o código do projeto no SenaHub. Esse formato **não aceita conta em
-  branco**: se alguma linha ficar sem conta (por exemplo, o cartão de crédito enquanto o contador não criar a conta), o botão
-  Exportar fica desabilitado e diz quantas linhas faltam.
+  `valor`, `complemento historico` — na aba `Planilha1`, mais **três colunas à direita**: `centro de custo`, `projeto` e `chave de
+  acesso`. Débito e crédito saem pela classificação do plano. O complemento tem **até 200 caracteres** e leva a descrição e o
+  número do documento; se passar, a descrição é encurtada (…) e o número do documento fica inteiro — a tela avisa quantas
+  linhas foram encurtadas. A chave de acesso da NF-e vai na coluna própria. Centro de custo e projeto aparecem só nas linhas
+  de receita e despesa (o reconhecimento); a linha do pagamento, que é entre banco e cliente ou fornecedor, fica sem. Sem um
+  código definido pelo contador, saem o nome do centro de custo e o código do projeto no SenaHub. Esse formato **não aceita
+  conta em branco** nem conta de classificação repetida: o botão Exportar fica desabilitado e diz o motivo.
 - **Excel** e **CSV** (genérico): as mesmas partidas, com colunas separadas para documento, chave da NF-e, centro de custo e
   subcentro. Conta sem de-para sai em branco.
 
 ## O que ainda depende do contador
 
-- Confirmar que o débito e o crédito são o **código reduzido** (o número que aparece entre parênteses no plano de contas dele).
-- O tamanho máximo do **complemento do histórico**: com a chave da NF-e (44 dígitos) a linha fica comprida.
+- Corrigir a classificação repetida de PIS, COFINS, ICMS, IPI e IE a recolher (`2.1.3.01.0003`) no plano dele.
 - Contas que faltam no plano dele (ISS/INSS a compensar, ISS a recolher, adiantamento de sócio, cartão a pagar,
   aplicações) e a habilitação de centro de custo.
-- Que o Alterdata aceite as duas colunas extras à direita (`centro de custo` e `projeto`); se recusar, o primeiro teste de
+- Que o Alterdata aceite as três colunas extras à direita (`centro de custo`, `projeto` e `chave de acesso`); se recusar, o primeiro teste de
   importação mostra, e tiramos as colunas.
 - **Retenções na nota** (ISS, INSS, IRRF…): entram numa próxima etapa.

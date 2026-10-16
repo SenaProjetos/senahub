@@ -35,6 +35,7 @@ import { extratoDaConta } from "../src/modules/financeiro/extrato/queries";
 const MES = "2019-03";
 const MARCA = "[smoke contábil]";
 const BANCO = 3395; // BANCO CAIXA ECONOMICA no plano do contador
+const CHAVE = "35190312345678000195550010000033811000033812";
 
 let falhas = 0;
 const ok = (cond: unknown, msg: string) => {
@@ -112,7 +113,7 @@ async function main() {
     const centro = await prisma.centroCusto.create({ data: { nome: `${MARCA} centro` } });
     ids.centro = centro.id;
     const projeto = await prisma.projeto.findFirst({ select: { id: true, codigo: true } });
-    const rec = await criar({ ...base, tipo: "receita", descricao: `${MARCA} parcela`, valor: 450, categoriaId: receita, ...pago(12), numeroDocumento: "NF 3381", centroId: centro.id, ...(projeto ? { projetoId: projeto.id } : {}) });
+    const rec = await criar({ ...base, tipo: "receita", descricao: `${MARCA} parcela`, valor: 450, categoriaId: receita, ...pago(12), numeroDocumento: "NF 3381", chaveNfe: CHAVE, centroId: centro.id, ...(projeto ? { projetoId: projeto.id } : {}) });
     const aluguel = await criar({ ...base, tipo: "despesa", descricao: `${MARCA} aluguel`, valor: 65, categoriaId: admin, ...pago(10) });
     const aberto = await criar({ ...base, tipo: "despesa", descricao: `${MARCA} em aberto`, valor: 20, categoriaId: admin, status: "previsto" });
     const original = await criar({ ...base, tipo: "despesa", descricao: `${MARCA} parcial`, valor: 100, valorEfetivo: 60, categoriaId: admin, ...pago(15) });
@@ -172,8 +173,8 @@ async function main() {
     ok(g5.formato === "alterdata" && g5.pendencias === 0, "exportação do layout do contador registrada, sem pendência");
     const modelo = linhasDoAlterdata(g5.linhas as unknown as Parameters<typeof linhasDoAlterdata>[0]);
     ok(
-      modelo.length === completo.linhas.length && modelo.every((l) => l.length === 7 && Number.isInteger(l[0]) && Number.isInteger(l[1]) && l[2] instanceof Date && typeof l[3] === "number" && l[4].length > 0),
-      "cada linha vira débito, crédito, data, valor e complemento",
+      modelo.length === completo.linhas.length && modelo.every((l) => l.length === 8 && /^\d+(\.\d+)*$/.test(l[0]) && /^\d+(\.\d+)*$/.test(l[1]) && l[2] instanceof Date && typeof l[3] === "number" && l[4].length > 0 && l[4].length <= 200),
+      "cada linha vira classificação de débito e de crédito, data, valor e complemento (até 200)",
     );
     // Centro e projeto só vão nas linhas de receita/despesa (o reconhecimento); a baixa é banco × cliente/fornecedor e não tem.
     const reconhecimentoDaReceita = modelo.filter((l) => l[4].startsWith(`${MARCA} parcela`));
@@ -183,11 +184,29 @@ async function main() {
     );
     if (projeto) ok(reconhecimentoDaReceita[0]?.[6] === projeto.codigo, `projeto vai na coluna extra (código ${projeto.codigo})`);
     ok(
+      reconhecimentoDaReceita[0]?.[0] === "1.1.2.01.0001" && reconhecimentoDaReceita[0]?.[1] === "4.1.1.02.0001",
+      "débito e crédito saem pela classificação do plano (Clientes Diversos / Serviços Prestados)",
+    );
+    ok(reconhecimentoDaReceita[0]?.[7] === CHAVE && !reconhecimentoDaReceita[0][4].includes(CHAVE), "a chave da NF-e vai na coluna própria, fora do complemento");
+    ok(
       modelo.filter((l) => l !== reconhecimentoDaReceita[0]).every((l) => l[5] === null && l[6] === null),
       "a baixa e as linhas sem centro nem projeto deixam as colunas extras em branco",
     );
     const somaModelo = Math.round(modelo.reduce((t, l) => t + l[3], 0) * 100);
     ok(somaModelo === completo.totalCentavos, `a soma dos valores do arquivo (${somaModelo}) fecha com o total das partidas (${completo.totalCentavos})`);
+
+    // Classificação repetida no plano do contador (PIS/COFINS/ICMS/IPI/IE = 2.1.3.01.0003): o layout dele não saberia qual é.
+    await definirContaNoBanco("categoria", semConta.id, 2177);
+    const comRepetida = await partidasDoMes(MES);
+    ok(comRepetida.linhasComContaRepetida === 1 && comRepetida.repetidasUsadas.some((x) => x.classificacao === "2.1.3.01.0003"), "conta de classificação repetida é detectada no mês");
+    try {
+      await registrarExportacaoNoBanco(MES, "alterdata", autor.id);
+      ok(false, "layout do contador recusa conta de classificação repetida (não recusou)");
+    } catch (err) {
+      ok(err instanceof Error && err.message.includes("2.1.3.01.0003"), "layout do contador recusa conta de classificação repetida, dizendo qual");
+    }
+    const generico = await registrarExportacaoNoBanco(MES, "xlsx", autor.id);
+    ok(!!generico.id, "o arquivo genérico continua exportando (a repetição só barra o layout do contador)");
   } finally {
     const outras = await prisma.contaBancaria.findMany({ where: { nome: { startsWith: MARCA } }, select: { id: true } });
     await limpar(ids);

@@ -298,13 +298,14 @@ célula a célula). É uma planilha **Excel 97-2003 (.xls)**, aba `Planilha1`, *
 
 | Coluna | Conteúdo no modelo | Como sai do SenaHub |
 |---|---|---|
-| `debito` | número inteiro (conta) | código reduzido da conta de débito |
-| `credito` | número inteiro | código reduzido da conta de crédito |
+| `debito` | conta | **classificação** da conta de débito no plano do contador (texto, `1.1.1.02.0004`) |
+| `credito` | conta | **classificação** da conta de crédito |
 | `data` | data de verdade, `dd/mm/aaaa` | competência (reconhecimento) ou dia do pagamento (baixa) |
 | `valor` | número, `0.00`, sempre positivo | `valorCentavos / 100` |
-| `complemento historico` | texto | histórico + `Doc. <nº>` + `Chave <44 dígitos>` |
+| `complemento historico` | texto, **até 200 caracteres** | histórico + `Doc. <nº>`; passou de 200, a descrição é encurtada (…) e o documento fica |
 | `centro de custo` (**extra, à direita**) | não existe no modelo | código do centro no de-para; sem ele, o nome do centro no SenaHub |
 | `projeto` (**extra, à direita**) | não existe no modelo | código do projeto no de-para; sem ele, o código do projeto no SenaHub |
+| `chave de acesso` (**extra, à direita**) | não existe no modelo | chave da NF-e, 44 dígitos, em texto |
 
 O que o modelo decide, e o que isso muda:
 - **Sem coluna para centro de custo, projeto, documento nem chave da NF-e.** Documento e chave viajam dentro do complemento. Centro e
@@ -328,7 +329,12 @@ centavos) e o bloco C5 do `smoke:contabil`.
 **Respostas do dono em 2026-10-15:** (1) o Alterdata importa `.xlsx` — está certo gerar `.xlsx`; (3) sim, quer reconhecimento + baixa (duas
 linhas por título), como o layout já faz; (4) centro de custo e projeto entram como coluna adicional à direita (feito).
 
-**Ainda em aberto (perguntas ao contador):**
-2. `debito`/`credito` são o **código reduzido**? (os números do exemplo dele não existem no plano da Sena — exemplo de outro cliente)
-5. Tamanho máximo do **complemento do histórico** (com a chave da NF-e de 44 dígitos a linha passa de 100 caracteres) e se aceita
-   `-`, `:` e acento (o exemplo tem acento).
+**Respostas do dono em 2026-10-16:** (2) a conta vai pela **classificação**, não pelo código reduzido — o reduzido continua sendo a chave
+interna (de-para, motor, pendências), e `partidasDoMes` resolve a classificação de cada conta (`LinhaExportada`, vale também para o
+genérico); (5) o complemento tem no máximo **200 caracteres** e a chave da NF-e vai em **coluna separada** (`chave de acesso`).
+
+**Consequência da classificação:** ela se repete no plano atual do contador — `2.1.3.01.0003` é PIS, COFINS, ICMS, IPI e IE a recolher.
+O layout do contador recusa o mês quando uma linha usa conta de classificação repetida (`linhasComContaRepetida` /
+`MOTIVO_ALTERDATA_CONTA_REPETIDA`, no servidor e na tela); o genérico exporta. Hoje nenhuma sugestão do de-para usa essas contas, mas as
+retenções (C4) vão precisar de PIS/COFINS a recolher: **pedir ao contador para corrigir o plano** (provável erro de digitação: deveriam
+ser `.0003`, `.0006`, `.0007`…).

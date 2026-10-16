@@ -549,12 +549,13 @@ one line; M7 accessories and investment yield/IR are one line against the bank. 
 (`registrarExportacaoNoBanco` stores `ExportacaoContabil` lines + hash, audited); the download route only reads that record.
 Invariant (smoke): the bank account's lines + what was left out = the Extrato por conta's net for the month.
 The accountant's own import model (`docs/financeiro/contabil/modelo-de-importacao-alterdata-lancamentos.xls`, format `alterdata`) has
-5 columns (`debito, credito, data, valor, complemento historico`, tab `Planilha1`) and the owner added TWO EXTRA COLUMNS to the right
-(`centro de custo`, `projeto`, 2026-10-15; the Alterdata `.xlsx` import was confirmed): documento and chave da NF-e go inside the
-complemento; centro/projeto appear only on the result-account lines (recognition/movement), never on the baixa, and without a de-para
-code the SenaHub centro name / projeto code is used; a line without account REFUSES the whole month (server:
-`registrarExportacaoNoBanco`; screen mirrors it) — the generic xlsx/csv still leave the account blank and warn. `arquivo-xlsx.ts`
-(exceljs, `node:module`) is imported only by the download route, never by the client view.
+5 columns (`debito, credito, data, valor, complemento historico`, tab `Planilha1`) plus THREE EXTRA COLUMNS to the right added by the
+owner (`centro de custo`, `projeto`, `chave de acesso`). Accounts in EVERY file are the plan's CLASSIFICAÇÃO (owner/accountant,
+2026-10-16), resolved by `partidasDoMes` into `LinhaExportada` — the código reduzido stays the internal key (de-para, motor). The
+classificação REPEATS in his plan (`2.1.3.01.0003` = PIS/COFINS/ICMS/IPI/IE), so the alterdata layout refuses a month with such an
+account (`linhasComContaRepetida`) and with a line without account; the complemento is capped at 200 chars (description shortened,
+document kept, `complementoAlterdata`); centro/projeto only on result-account lines, never on the baixa (no de-para code → SenaHub
+centro name / projeto code). `arquivo-xlsx.ts` (exceljs, `node:module`) is imported only by the download route, never by the client view.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

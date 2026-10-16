@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { csvDoArquivo, linhasSemConta, MOTIVO_ALTERDATA_SEM_CONTA } from "@/modules/financeiro/contabil/arquivo";
+import { csvDoArquivo, linhasSemConta, MOTIVO_ALTERDATA_SEM_CONTA, type LinhaExportada } from "@/modules/financeiro/contabil/arquivo";
 import { planilhaAlterdata, planilhaGenerica } from "@/modules/financeiro/contabil/arquivo-xlsx";
-import type { LinhaContabil } from "@/modules/financeiro/contabil/partidas";
 
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -16,7 +15,7 @@ export async function GET(req: Request) {
   const id = new URL(req.url).searchParams.get("id");
   const e = id ? await prisma.exportacaoContabil.findUnique({ where: { id } }) : null;
   if (!e) return NextResponse.json({ error: "Exportação não encontrada." }, { status: 404 });
-  const linhas = e.linhas as unknown as LinhaContabil[];
+  const linhas = e.linhas as unknown as LinhaExportada[];
   const nome = `Contabil_${e.competencia}`;
   const baixar = (corpo: BodyInit, tipo: string, arquivo: string) =>
     new NextResponse(corpo, { headers: { "Content-Type": tipo, "Content-Disposition": `attachment; filename="${arquivo}"` } });
