@@ -51,6 +51,11 @@ export async function aplicarVinculo(
   });
 
   if (anterior) {
+    // Rede de segurança (a action já recusa com mensagem): um novo que começa no início do
+    // anterior ou antes deixaria o anterior com um dia só, mandando na apuração do mês.
+    if (dados.dataInicio <= anterior.dataInicio) {
+      throw new Error("aplicarVinculo: o novo vínculo precisa começar depois do início do vínculo ativo.");
+    }
     const fim = new Date(dados.dataInicio);
     fim.setUTCDate(fim.getUTCDate() - 1);
     await db.vinculo.update({

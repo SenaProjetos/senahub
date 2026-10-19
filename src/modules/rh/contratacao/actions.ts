@@ -41,7 +41,8 @@ async function estadoContratacao(userId: string) {
  * nunca apagado. Decisões do dono em docs/superpowers/specs/2026-09-22-alterar-contratacao.md:
  *
  * - Desde a Onda F não há papel legado a acompanhar: a troca só abre o vínculo novo.
- * - Data de início pode ser retroativa (a tela avisa sobre banco de horas fechado, não bloqueia).
+ * - Data de início pode ser retroativa (a tela avisa sobre banco de horas fechado, não bloqueia),
+ *   mas sempre DEPOIS do início do vínculo atual (`validarTrocaContratacao`).
  * - Mesma contratação (ex.: só troca de setor) também abre vínculo novo — comportamento uniforme.
  */
 export const trocarContratacao = defineAction(
@@ -63,6 +64,8 @@ export const trocarContratacao = defineAction(
       cargaSemanal: i.cargaSemanal ?? null,
       pjId: i.pjId || null,
       cpfPreenchido: !!u.cpf,
+      dataInicio: dia(i.dataInicio),
+      inicioAtual: u.vinculoAtivo?.dataInicio ?? null,
     });
     if (erro) throw new ActionError(erro);
 
