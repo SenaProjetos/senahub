@@ -25,12 +25,15 @@ function prazoFechamento(ref: Date) {
 }
 
 type Fechamento = { userId: string; nome: string; saldoMinutos: number; acumuladoMinutos: number; fechadoEm: string };
+/** Fechamento de um mês anterior ao alvo — só o saldo do mês entra na tabela. */
+type MesFechado = { ano: number; mes: number; fechamentos: Fechamento[] };
 type Corrente = { userId: string; nome: string; trabalhadoMinutos: number; esperadoMinutos: number; saldoMinutos: number };
 
 export function BancoHorasAdmin({
   ano,
   mes,
   fechamentos,
+  anteriores,
   corrente,
   anoCorrente,
   mesCorrente,
@@ -39,6 +42,8 @@ export function BancoHorasAdmin({
   ano: number;
   mes: number;
   fechamentos: Fechamento[];
+  /** Meses fechados antes de `mes`, do mais antigo ao mais recente (colunas extras de saldo). */
+  anteriores: MesFechado[];
   /** Saldo ao vivo do mês CORRENTE (até hoje) — não depende de fechamento. */
   corrente: Corrente[];
   anoCorrente: number;
@@ -103,14 +108,28 @@ export function BancoHorasAdmin({
 
   // Saldo corrente por colaborador — chave para juntar com o fechado na tabela.
   const correntePorUser = new Map(corrente.map((c) => [c.userId, c]));
-  // Colaborador sem fechamento (admitido depois, ou mês nunca fechado) ainda
-  // precisa aparecer se tem saldo corrente.
-  const linhas = [
-    ...fechamentos.map((f) => ({ ...f, corrente: correntePorUser.get(f.userId) ?? null })),
-    ...corrente
-      .filter((c) => !fechamentos.some((f) => f.userId === c.userId))
-      .map((c) => ({ userId: c.userId, nome: c.nome, saldoMinutos: null, acumuladoMinutos: null, corrente: c })),
-  ].sort((a, b) => a.nome.localeCompare(b.nome));
+  // Saldo de cada mês anterior por colaborador (mesma ordem de `anteriores`).
+  const anterioresPorUser = anteriores.map((m) => new Map(m.fechamentos.map((f) => [f.userId, f.saldoMinutos])));
+  // Colaborador sem fechamento no mês alvo (admitido depois, desligado antes, ou mês nunca fechado)
+  // ainda precisa aparecer se tem saldo corrente ou de um mês anterior.
+  const nomes = new Map<string, string>();
+  for (const c of corrente) nomes.set(c.userId, c.nome);
+  for (const m of anteriores) for (const f of m.fechamentos) nomes.set(f.userId, f.nome);
+  for (const f of fechamentos) nomes.set(f.userId, f.nome);
+  const fechadoPorUser = new Map(fechamentos.map((f) => [f.userId, f]));
+  const linhas = [...nomes]
+    .map(([userId, nome]) => {
+      const f = fechadoPorUser.get(userId);
+      return {
+        userId,
+        nome,
+        anteriores: anterioresPorUser.map((porUser) => porUser.get(userId) ?? null),
+        saldoMinutos: f?.saldoMinutos ?? null,
+        acumuladoMinutos: f?.acumuladoMinutos ?? null,
+        corrente: correntePorUser.get(userId) ?? null,
+      };
+    })
+    .sort((a, b) => a.nome.localeCompare(b.nome));
 
   return (
     <Card>
@@ -119,7 +138,7 @@ export function BancoHorasAdmin({
           <div>
             <CardTitle className="text-base">Banco de horas</CardTitle>
             <CardDescription>
-              Fechamento de {MESES[mes - 1]}/{ano} · saldo corrente de {MESES[mesCorrente - 1]}/{anoCorrente} ·
+              Saldos fechados de {MESES[(anteriores[0]?.mes ?? mes) - 1]} a {MESES[mes - 1]}/{ano} · saldo corrente de {MESES[mesCorrente - 1]}/{anoCorrente} ·
               vínculos CLT e estágio
             </CardDescription>
           </div>
@@ -159,22 +178,35 @@ export function BancoHorasAdmin({
               <thead className="border-b text-left font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 <tr>
                   <th className="py-2">Colaborador</th>
-                  <th className="py-2 text-right">Saldo {MESES[mes - 1]} (fechado)</th>
-                  <th className="py-2 text-right">Saldo {MESES[mesCorrente - 1]} (até hoje)</th>
-                  <th className="py-2 text-right">Acumulado</th>
+                  {anteriores.map((m) => (
+                    <th key={`${m.ano}-${m.mes}`} className="whitespace-nowrap py-2 pl-3 text-right">
+                      Saldo {MESES[m.mes - 1]} (fechado)
+                    </th>
+                  ))}
+                  <th className="whitespace-nowrap py-2 pl-3 text-right">Saldo {MESES[mes - 1]} (fechado)</th>
+                  <th className="whitespace-nowrap py-2 pl-3 text-right">Saldo {MESES[mesCorrente - 1]} (até hoje)</th>
+                  <th className="whitespace-nowrap py-2 pl-3 text-right">Acumulado</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {linhas.map((l) => (
                   <tr key={l.userId}>
                     <td className="py-2">{l.nome}</td>
-                    <td className={`py-2 text-right font-mono ${l.saldoMinutos === null ? "text-muted-foreground" : l.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>
+                    {l.anteriores.map((saldo, i) => (
+                      <td
+                        key={i}
+                        className={`py-2 pl-3 text-right font-mono ${saldo === null ? "text-muted-foreground" : saldo < 0 ? "text-destructive" : "text-success"}`}
+                      >
+                        {saldo === null ? "—" : fmtSaldo(saldo)}
+                      </td>
+                    ))}
+                    <td className={`whitespace-nowrap py-2 pl-3 text-right font-mono ${l.saldoMinutos === null ? "text-muted-foreground" : l.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>
                       {l.saldoMinutos === null ? "não fechado" : fmtSaldo(l.saldoMinutos)}
                     </td>
-                    <td className={`py-2 text-right font-mono ${!l.corrente ? "text-muted-foreground" : l.corrente.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>
+                    <td className={`py-2 pl-3 text-right font-mono ${!l.corrente ? "text-muted-foreground" : l.corrente.saldoMinutos < 0 ? "text-destructive" : "text-success"}`}>
                       {l.corrente ? fmtSaldo(l.corrente.saldoMinutos) : "—"}
                     </td>
-                    <td className={`py-2 text-right font-mono font-semibold ${l.acumuladoMinutos === null ? "text-muted-foreground" : l.acumuladoMinutos < 0 ? "text-destructive" : "text-success"}`}>
+                    <td className={`py-2 pl-3 text-right font-mono font-semibold ${l.acumuladoMinutos === null ? "text-muted-foreground" : l.acumuladoMinutos < 0 ? "text-destructive" : "text-success"}`}>
                       {l.acumuladoMinutos === null ? "—" : fmtSaldo(l.acumuladoMinutos)}
                     </td>
                   </tr>
