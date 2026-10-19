@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.25.1](https://github.com/SenaProjetos/senahub/compare/v1.25.0...v1.25.1) (2026-10-19)
+
+
+### 🐛 Correções
+
+* **arquivos:** badge de extensão mostra só o rótulo e baixa o arquivo ([f58a713](https://github.com/SenaProjetos/senahub/commit/f58a7138c97e351e9e9ae10ae734fd1b4e79603a))
+
 ## [1.25.0](https://github.com/SenaProjetos/senahub/compare/v1.24.1...v1.25.0) (2026-10-19)
 
 
