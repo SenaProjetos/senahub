@@ -51,6 +51,7 @@ export default async function ProjetoLayout({
     podeArts,
     podeDiario,
     podeResultados,
+    podeEap,
     canalChat,
     modelosDoc,
     conteudoPorAba,
@@ -73,6 +74,8 @@ export default async function ProjetoLayout({
     can(user, "projetos", "diario"),
     // Resultados (previsto × apontado): quem vê o cronograma com datas — a mesma regra da página.
     podeVerDatasDoPlanejamento(user),
+    // EAP (só consulta): o mesmo público da tela do Planejamento; editar continua lá.
+    can(user, "planejamento", "ver"),
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
     abasComConteudo(id),
@@ -220,6 +223,7 @@ export default async function ProjetoLayout({
             abasVisiveis={[
               "",
               "/disciplinas",
+              ...(podeEap ? ["/eap"] : []),
               "/inputs",
               ...(podeVerFinanceiro ? ["/financeiro"] : []),
               ...(podeResultados ? ["/resultados"] : []),

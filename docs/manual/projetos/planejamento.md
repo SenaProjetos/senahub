@@ -38,6 +38,10 @@ combinado original guardado para comparar.
   período (início–fim) e o **progresso**. Projeto sem EAP mostra **Iniciar planejamento**.
 - Clique num projeto para abrir o cronograma dele (`/planejamento/{projeto}`).
 - O botão **Cronograma geral** abre a visão de todos os projetos lado a lado (veja abaixo).
+- Dentro do projeto, a aba **EAP** (`/projetos/{projeto}/eap`) mostra a mesma EAP **só para consulta**:
+  tabela, Gantt, filtros, Saúde e exportação, sem edição, sem menu de linha e sem aprovação. O botão
+  **Editar no Planejamento** (ou **Abrir no Planejamento**, para quem não monta a EAP) leva à tela completa.
+  A aba segue a mesma regra de acesso (`planejamento:ver`) e de datas descrita abaixo.
 
 > **Ver × editar.** Quem tem só `planejamento:ver` **vê a estrutura** do planejamento — as tarefas, as
 > pessoas, a duração e o avanço —, **sem nenhuma data**: não aparecem o Gantt, os prazos, a linha de base,

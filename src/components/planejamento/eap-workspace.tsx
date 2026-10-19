@@ -18,6 +18,7 @@ import {
   FileText,
   UsersRound,
   CalendarCheck,
+  ExternalLink,
 } from "lucide-react";
 import {
   aplicarAoProjeto,
@@ -98,6 +99,7 @@ export function EapWorkspace({
   opcoesDisciplinas = [],
   impedimentoApagar = null,
   largurasColunas,
+  noProjeto,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
@@ -139,6 +141,11 @@ export function EapWorkspace({
   impedimentoApagar?: string | null;
   /** Larguras de coluna do Gantt que o usuário ajustou (preferência dele). */
   largurasColunas?: Larguras;
+  /**
+   * Aba EAP do projeto (só consulta): o cabeçalho do projeto já tem código e nome, então sai o título e o
+   * "← Planejamento" e entra o link para o Planejamento, onde a EAP se edita. `editar` = quem pode montar a EAP.
+   */
+  noProjeto?: { editar: boolean };
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -432,15 +439,19 @@ export function EapWorkspace({
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <Link
-            href="/planejamento"
-            className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-3" /> Planejamento
-          </Link>
-          <h2 className="text-2xl font-extrabold tracking-tight">
-            <span className="font-mono text-primary">{projeto.codigo}</span> · {projeto.nome}
-          </h2>
+          {!noProjeto && (
+            <>
+              <Link
+                href="/planejamento"
+                className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="size-3" /> Planejamento
+              </Link>
+              <h2 className="text-2xl font-extrabold tracking-tight">
+                <span className="font-mono text-primary">{projeto.codigo}</span> · {projeto.nome}
+              </h2>
+            </>
+          )}
           <p className="text-sm text-muted-foreground">
             EAP e cronograma. {temLinhaBase ? "Linha de base definida." : "Sem linha de base."}
             {custoTotal && (
@@ -460,6 +471,11 @@ export function EapWorkspace({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {noProjeto && (
+            <Button size="sm" variant="outline" render={<Link href={`/planejamento/${projeto.id}`} />}>
+              <ExternalLink className="size-3.5" /> {noProjeto.editar ? "Editar no Planejamento" : "Abrir no Planejamento"}
+            </Button>
+          )}
           {verDatas && tarefas.length > 0 && (
             <>
               <a href={`/api/planejamento/${projeto.id}/eap-export`} download>

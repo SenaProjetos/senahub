@@ -20,6 +20,13 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Projetos: aba EAP (outubro/2026)
+
+- **A EAP do projeto agora aparece numa aba própria, ao lado de Disciplinas.** É só consulta: a tabela, o
+  Gantt, os filtros (atrasadas, críticas…), a Saúde do cronograma e a exportação em Excel/PDF.
+- **Para mudar alguma coisa**, use o botão **Editar no Planejamento**, que abre a tela completa do cronograma.
+- A aba aparece para quem já via o Planejamento; quem não vê datas do cronograma vê só a estrutura.
+
 ## Comercial × Projetos: linkar o projeto à ficha do funil (outubro/2026)
 
 - **Projeto criado à mão agora pode ser ligado à ficha Contratado do mesmo cliente.** Na ficha, aba
