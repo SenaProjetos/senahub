@@ -80,11 +80,10 @@ export default async function VisualizarPage({
   // O cabeçalho usa a revisão lógica quando ela existe. A versão do Upload continua a
   // alimentar pendências, pois linhas legadas podem ter PDF/DWG com contadores distintos.
   const documentoCanonicoId = upload.documentoId ? await resolverDocumentoCanonico(upload.documentoId) : null;
-  const [podeValidar, atuaEmDisciplinaAlheia, podeCoordenacao, revisoesMesmaExtensao, documentoCanonico, revisaoAtual] = await Promise.all([
+  const [podeValidar, atuaEmDisciplinaAlheia, revisoesMesmaExtensao, documentoCanonico, revisaoAtual] = await Promise.all([
     can(user, "uploads", "validar"),
     // Espelha `papeisSobre` (pendencias/actions): lá o "global" da máquina é este par, não o escopo.
     podeAtuarEmDisciplinaAlheia(user),
-    can(user, "coordenacao", "ver"),
     documentoCanonicoId
       ? revisoesDoDocumento(documentoCanonicoId, { mesmaExtensaoDe: upload.nomeArquivo })
       : Promise.resolve([]),
@@ -193,7 +192,6 @@ export default async function VisualizarPage({
           : null
       }
       revisionFiles={revisionFiles}
-      canViewCoordination={podeCoordenacao}
       versaoAtual={!maisNova}
       validado={upload.validado}
       finalizada={upload.disciplina.status === "aprovado"}

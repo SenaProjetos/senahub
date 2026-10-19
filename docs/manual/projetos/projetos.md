@@ -433,7 +433,8 @@ qualquer projeto:
 - **Papel** — tamanho da folha (A0 a A4), lido sozinho da 1ª página de todo PDF enviado
   (nenhuma ação sua é necessária; documento sem PDF, ou com PDF fora desses tamanhos, fica
   sem papel);
-- **Extensões** — um badge por arquivo (PDF, DWG...), clicável para abrir ou baixar.
+- **Extensões** — um badge por arquivo (PDF, DWG...): clicar nele **baixa** o arquivo. Para
+  visualizar, clique no título do documento.
 
 Um documento cujo nome não bate com nada reconhecível fica com "—" nessas colunas: o sistema
 nunca inventa um valor, só mostra o que conseguiu ler com segurança.

@@ -311,12 +311,9 @@ function CartaoDocumento({
           {linha.arquivos.map((arquivo) => (
             <BadgeExtensao
               key={arquivo.id}
-              projetoId={projetoId}
-              uploadId={arquivo.id}
               nome={arquivo.nome}
               ext={arquivo.ext}
               downloadUrl={arquivo.downloadUrl}
-              podeCoordenacao={podeCoordenacao}
             />
           ))}
         </div>
@@ -783,12 +780,9 @@ export function TabelaDocumentos({
                     {l.arquivos.map((arquivo) => (
                       <BadgeExtensao
                         key={arquivo.id}
-                        projetoId={projetoId}
-                        uploadId={arquivo.id}
                         nome={arquivo.nome}
                         ext={arquivo.ext}
                         downloadUrl={arquivo.downloadUrl}
-                        podeCoordenacao={podeCoordenacao}
                       />
                     ))}
                   </div>

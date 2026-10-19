@@ -32,8 +32,8 @@ import { MOTIVO_VALIDACAO_CONGELADA } from "./ciclo/transicoes";
  * Os gates daqui só ESCONDEM itens; o gate real continua no `defineAction` de cada action.
  * Esconder demais é aceitável, mostrar demais não.
  *
- * **Reposição do menu nativo (regra 1):** a linha tem links reais por arquivo (baixar e
- * visualizar, no `BadgeExtensao`). Com o botão direito tomado pela linha inteira, o menu repõe
+ * **Reposição do menu nativo (regra 1):** a linha tem links reais por arquivo (o download, no
+ * `BadgeExtensao`). Com o botão direito tomado pela linha inteira, o menu repõe
  * "abrir em nova aba" e "copiar endereço" **para cada arquivo da revisão** — PDF e DWG da mesma
  * prancha são dois arquivos, e repor só o primeiro tiraria o do segundo.
  */

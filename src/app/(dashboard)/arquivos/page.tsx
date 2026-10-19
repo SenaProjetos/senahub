@@ -36,10 +36,9 @@ export default async function ArquivosDiretorioPage({ searchParams }: { searchPa
   const sp: Params = (await searchParams) ?? {};
   const texto = (v: string | undefined) => (typeof v === "string" && v.trim() !== "" ? v : null);
 
-  const [veTodas, podeVerGeral, podeCoordenacao] = await Promise.all([
+  const [veTodas, podeVerGeral] = await Promise.all([
     podeVerTodasDisciplinas(user),
     can(user, "arquivos_gerais", "ver"),
-    can(user, "coordenacao", "ver"),
   ]);
   const arvore = await arvoreGlobalArquivos(user, veTodas, {
     geral: podeVerGeral,
@@ -148,7 +147,6 @@ export default async function ArquivosDiretorioPage({ searchParams }: { searchPa
               <TabelaGlobalArquivos
                 linhas={resultado.linhas}
                 projetos={projetosPorId}
-                podeCoordenacao={podeCoordenacao}
                 temFiltro
                 paginacao={{
                   page: resultado.pagina,

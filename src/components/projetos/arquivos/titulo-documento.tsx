@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DialogoDwg } from "@/components/dwg/visualizar-dwg-button";
 import { useVoltaAtual } from "@/components/projetos/arquivos/use-volta-atual";
-import { buscarStatusConversaoDwg } from "@/modules/dwg/actions";
+import { buscarStatusConversaoDwg, converterDwg } from "@/modules/dwg/actions";
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import { comVolta } from "@/modules/uploads/volta-visualizador";
 import { visualizadorDoDocumento } from "@/modules/uploads/visualizador-documento";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Título do documento na lista: o clique abre o arquivo no visualizador (`visualizadorDoDocumento`) —
- * PDF no visualizador com pinos (nova aba, como o olho do badge), DWG no visualizador 2D, IFC na
+ * PDF no visualizador com pinos (nova aba), DWG no visualizador 2D, IFC na
  * Compatibilização. Os detalhes do documento saíram daqui para o ícone de informações e o menu.
  *
  * Título manual > "Conteúdo" da Lista Mestre > nome do arquivo. Só título ganha peso: quando cai
@@ -88,11 +88,19 @@ export function TituloDocumento({
       return;
     }
     if (s.status === "erro") {
-      // O detalhe técnico e o "tentar de novo" ficam no ícone de erro do badge DWG.
-      toast.error("A conversão deste desenho falhou. Tente de novo pelo ícone ao lado do DWG.");
+      // O badge de extensão só baixa: o "tentar de novo" da conversão mora aqui.
+      toast.error("A conversão deste desenho falhou.", {
+        action: { label: "Converter de novo", onClick: () => void reconverterDwg(uploadId) },
+      });
       return;
     }
     setDwgAberto(true);
+  }
+
+  async function reconverterDwg(uploadId: string) {
+    const r = await converterDwg({ desenhoId: uploadId });
+    if (r.ok) toast.success("Conversão reiniciada. Tente abrir de novo em instantes.");
+    else toast.error(r.error);
   }
 
   return (
