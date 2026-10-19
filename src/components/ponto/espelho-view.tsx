@@ -26,6 +26,7 @@ import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { DiarioEntradaDialog } from "@/components/projetos/diario-entrada-dialog";
 import { EditarDiaDialog } from "@/components/ponto/editar-dia-dialog";
 import { fmtHoras } from "@/modules/ponto/format";
+import type { MotivoSemJornada } from "@/modules/ponto/motivo-sem-jornada";
 import { formatarDataHora } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +67,24 @@ const STATUS_META: Record<StatusDiaEspelho, { tone: "success" | "warning" | "dan
   ajustado: { tone: "info", label: "Ajustado" },
   contestado: { tone: "danger", label: "Contestado" },
   fora_vinculo: { tone: "neutral", label: "Fora do vínculo" },
+};
+
+const EXTRA_INTEIRO = "Sem horas devidas neste dia: todo o trabalhado conta como extra.";
+
+const SEM_JORNADA_META: Record<MotivoSemJornada, { label: string; title: (d: DiaEspelhoDetalhe) => string }> = {
+  antes_vinculo: {
+    label: "Antes do vínculo",
+    title: () =>
+      `O vínculo começa depois deste dia. ${EXTRA_INTEIRO} Se a data está errada, corrija a Admissão em Editar cadastro, na ficha da pessoa.`,
+  },
+  depois_vinculo: {
+    label: "Depois do vínculo",
+    title: () => `O vínculo terminou antes deste dia. ${EXTRA_INTEIRO}`,
+  },
+  feriado: { label: "Feriado", title: (d) => `Trabalho em feriado${d.feriado ? ` (${d.feriado})` : ""}. ${EXTRA_INTEIRO}` },
+  ferias: { label: "Férias", title: () => `Dia de férias aprovadas. ${EXTRA_INTEIRO}` },
+  abonado: { label: "Dia abonado", title: () => `Dia inteiro abonado pelo RH. ${EXTRA_INTEIRO}` },
+  folga: { label: "Folga", title: () => `Dia fora da escala. ${EXTRA_INTEIRO}` },
 };
 
 function dataLabel(iso: string): string {
@@ -185,6 +204,11 @@ function LinhaDia({
         <td className="px-2 py-1.5 text-center">
           <span className="inline-flex items-center gap-1">
             <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
+            {dia.semJornada && (
+              <Badge variant="outline" title={SEM_JORNADA_META[dia.semJornada].title(dia)}>
+                {SEM_JORNADA_META[dia.semJornada].label}
+              </Badge>
+            )}
             {dia.abonoParcial && (
               <Badge variant="outline" title="Ausência avisada e aprovada: o atraso é medido depois dela. Se foi abonada, essas horas não são cobradas; se foi pelo banco de horas, saem do saldo.">
                 Ausência {dia.abonoParcial.horaInicio}–{dia.abonoParcial.horaFim}

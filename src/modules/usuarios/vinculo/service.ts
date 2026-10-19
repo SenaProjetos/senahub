@@ -14,6 +14,7 @@
 import type { Contratacao, Prisma, Setor, TipoUsuario } from "@/generated/prisma/client";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { agenteDoNovoVinculo } from "@/modules/usuarios/vinculo/agente-integracao";
+import { inicioDoVinculoPelaAdmissao } from "@/modules/usuarios/vinculo/admissao";
 
 /** Cliente Prisma ou transação — permite compor com outras escritas. */
 type Db = Prisma.TransactionClient;
@@ -112,6 +113,23 @@ export async function agendarDesligamento(
   });
   await db.user.update({ where: { id: userId }, data: { acessoAte: dados.acessoAte } });
   return aplicarDesligamentosVencidos(db, agora, userId);
+}
+
+/**
+ * Leva a data de admissão corrigida na ficha para o início do vínculo, quando a pessoa só teve
+ * um (regra em `admissao.ts`). Devolve a decisão: `recusar` não grava nada — a action vira o
+ * motivo em erro para o usuário.
+ */
+export async function alinharInicioPelaAdmissao(db: Db, userId: string, admissao: Date | null) {
+  const vinculos = await db.vinculo.findMany({
+    where: { userId },
+    select: { id: true, dataInicio: true, dataFim: true },
+  });
+  const decisao = inicioDoVinculoPelaAdmissao(vinculos, admissao);
+  if (decisao.acao === "alterar") {
+    await db.vinculo.update({ where: { id: decisao.vinculoId }, data: { dataInicio: decisao.dataInicio } });
+  }
+  return decisao;
 }
 
 /**

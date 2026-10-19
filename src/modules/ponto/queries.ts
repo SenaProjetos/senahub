@@ -11,6 +11,7 @@ import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { escalaContratacaoGrade, escalaUsuarioGrade, type DiaGrade } from "@/modules/rh/escalas/queries";
 import { acumuladoAte } from "@/modules/rh/banco/queries";
 import { esperadoPorDiaMes, somarEsperadoAte } from "@/modules/ponto/esperado";
+import { motivoSemJornada, type MotivoSemJornada } from "@/modules/ponto/motivo-sem-jornada";
 import { contextoApuracao } from "@/modules/ponto/apuracao";
 import { abatimentoParcial, expandirAbonos, type AbonoParcial, type AbonosDoMes } from "@/modules/ponto/abono";
 import {
@@ -705,6 +706,8 @@ export type DiaEspelhoDetalhe = {
   atrasoMin: number;
   /** Ausência parcial aprovada no dia (consulta/compromisso com horário) — justifica o atraso; só abate o esperado se abonada. */
   abonoParcial: AbonoParcial | null;
+  /** Dia trabalhado sem horas devidas (todo o trabalhado vira extra): por quê. */
+  semJornada: MotivoSemJornada | null;
   status: StatusDiaEspelho;
   batidas: BatidaDetalhe[];
   /** TODOS os ajustes do dia (mais recente primeiro) — histórico completo de edições. */
@@ -929,6 +932,18 @@ export async function espelhoDetalhado(
       atrasado: atraso.atrasado,
       atrasoMin: atraso.atrasoMin,
       abonoParcial,
+      semJornada: motivoSemJornada({
+        dia: iso,
+        temBatidas,
+        controlaJornada: esp.controlaJornada,
+        devidasMin,
+        piso: ctxApuracao.piso,
+        teto: ctxApuracao.teto,
+        feriado: !!feriado,
+        ferias,
+        abonoInteiro: abonos.inteiros.has(iso),
+        gradeAtiva: grade.ativo,
+      }),
       status,
       batidas: bat.map((b) => {
         const sessao = sessaoPorInicio.get(b.horario.getTime());
