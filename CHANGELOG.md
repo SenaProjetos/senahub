@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.25.2](https://github.com/SenaProjetos/senahub/compare/v1.25.1...v1.25.2) (2026-10-19)
+
+
+### ✨ Funcionalidades
+
+* **projetos:** aba EAP no projeto, só para consulta ([3d2c588](https://github.com/SenaProjetos/senahub/commit/3d2c58817761a7311b40b57bbe938862badc4f43))
+
 ## [1.25.1](https://github.com/SenaProjetos/senahub/compare/v1.25.0...v1.25.1) (2026-10-19)
 
 
