@@ -2,6 +2,40 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.25.0](https://github.com/SenaProjetos/senahub/compare/v1.24.1...v1.25.0) (2026-10-19)
+
+
+### ✨ Funcionalidades
+
+* **arquivos:** arrastar arquivos sobre a aba abre o envio ([eb720f5](https://github.com/SenaProjetos/senahub/commit/eb720f540e1b5458273590128d08d051e402e2cb))
+* **arquivos:** liberar para obra e enviar ao cliente em lote, e ações do ciclo no painel de detalhes ([b7a72a7](https://github.com/SenaProjetos/senahub/commit/b7a72a78c19f872362ba1a52ae11311a880cf7cc))
+* **arquivos:** tela de pendências documentais para administradores ([e13a977](https://github.com/SenaProjetos/senahub/commit/e13a977a86b2bd81f8078b771312de60f2adde3a))
+* **ciclo:** ações de dispensar e desfazer dispensa de pendência ([8505851](https://github.com/SenaProjetos/senahub/commit/8505851f0ba213cb94c70ad168462f0d49807ebd))
+* **ciclo:** aviso diário vira resumo das pendências abertas e encerra dispensas obsoletas ([7f60ae0](https://github.com/SenaProjetos/senahub/commit/7f60ae08cf7430bcc6a6217e6fa1922c84596e25))
+* **ciclo:** descritor de ações, guia e filtro da tela de pendências ([9fa0c57](https://github.com/SenaProjetos/senahub/commit/9fa0c57eb037d82877fbd367679b24bedea3dd38))
+* **ciclo:** leitura da tela de pendências documentais ([507fee5](https://github.com/SenaProjetos/senahub/commit/507fee5d2c9e9981096c5235d4317d39a553bd87))
+* **ciclo:** núcleo puro das pendências documentais (assinatura, dispensa e resumo) ([c799cc3](https://github.com/SenaProjetos/senahub/commit/c799cc3d198543519dad81160f2816cd1c589467))
+* **ciclo:** tabela de dispensa de pendência documental ([d775d08](https://github.com/SenaProjetos/senahub/commit/d775d08f7718c49efc15d4bb162765e104185f35))
+* **ciclo:** varredura compartilhada e serviço de dispensa de pendência ([49358a7](https://github.com/SenaProjetos/senahub/commit/49358a786540ea03316499555a4f7c84d8eb8d98))
+* **comercial:** actions do link projeto × ficha ([4de2262](https://github.com/SenaProjetos/senahub/commit/4de22623a95ef718b1a2dacbd4b4eaa2012f199e))
+* **comercial:** anexo do lead até 500 MB com envio em pedaços ([1b263c3](https://github.com/SenaProjetos/senahub/commit/1b263c34debad877790b53226052893baa613de5))
+* **comercial:** eventos de timeline para link e desfazer link de projeto ([df2dc2a](https://github.com/SenaProjetos/senahub/commit/df2dc2aaa83ea9571cbda7f304172882bca73779))
+* **comercial:** leituras e prévia do link projeto × ficha ([050bd78](https://github.com/SenaProjetos/senahub/commit/050bd7825ee9f85a954f7c39092653976bc3660d))
+* **comercial:** linkar projeto na ficha contratada com prévia e importação de anexos ([2083963](https://github.com/SenaProjetos/senahub/commit/208396345f8f396959cf037943be1ec8cfffd5e2))
+* **comercial:** regras puras do link projeto × ficha ([a583fe4](https://github.com/SenaProjetos/senahub/commit/a583fe46db1f7ae69f7894296820a34867b615fe))
+* **comercial:** serviço do link projeto × ficha com cópia de anexos e smoke ([9f3632a](https://github.com/SenaProjetos/senahub/commit/9f3632a0f0cd7a67145457b93bea2e38c98d1063))
+* **historico:** eventos de dispensa de pendência documental ([bfd768b](https://github.com/SenaProjetos/senahub/commit/bfd768b346cfca78f3fbe4c1b46e05bc99a8c11e))
+* **projetos:** linkar o projeto a uma ficha do funil pelo menu e mostrar a origem comercial ([1f36e69](https://github.com/SenaProjetos/senahub/commit/1f36e696a2e42fa7921af10df7a1ac488c45df63))
+
+
+### 🐛 Correções
+
+* **arquivos:** nomenclatura livre não bloqueia o envio para análise ([9659050](https://github.com/SenaProjetos/senahub/commit/9659050345d4b90504e650c784c63d3908d604ca))
+* **arquivos:** título longo encolhe e o selo Novo não cobre a coluna ao lado ([6444df5](https://github.com/SenaProjetos/senahub/commit/6444df5fb0ae5f18f3d1402b690259679aec8938))
+* **ciclo:** revisão final das pendências documentais ([3bf52e5](https://github.com/SenaProjetos/senahub/commit/3bf52e592586fd623ed6c89919c55de5ad580403))
+* **comercial:** endurece o link projeto × ficha após a revisão ([a0c2256](https://github.com/SenaProjetos/senahub/commit/a0c2256f1f79369c6253fe2de211be49b376af0c))
+* **dashboard:** nome do aniversariante legível no painel do herocard ([9e1ab4e](https://github.com/SenaProjetos/senahub/commit/9e1ab4e24ce27c7852cb355e9f49333d6f669df6))
+
 ## [1.24.1](https://github.com/SenaProjetos/senahub/compare/v1.24.0...v1.24.1) (2026-10-15)
 
 
