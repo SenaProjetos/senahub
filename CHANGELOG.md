@@ -2,6 +2,20 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.26.0](https://github.com/SenaProjetos/senahub/compare/v1.25.2...v1.26.0) (2026-10-20)
+
+
+### ✨ Funcionalidades
+
+* **rh:** banco de horas mostra o saldo fechado dos 3 meses anteriores ([af8e1ca](https://github.com/SenaProjetos/senahub/commit/af8e1ca24ff674c1b3ca5117339f078d74f2c6aa))
+
+
+### 🐛 Correções
+
+* **arquivos:** reenvio sobre arquivo da lixeira não divide mais o arquivo do disco ([11e9a09](https://github.com/SenaProjetos/senahub/commit/11e9a095dea0369edde22fa9a696f9c22571a23a))
+* **ponto:** admissão corrige o início do vínculo e espelho mostra o motivo das horas extras ([6035b9a](https://github.com/SenaProjetos/senahub/commit/6035b9a8be62e0215a3c678cafcba838dc6a2b79))
+* **rh:** recusa nova contratação que começa antes do vínculo atual ([12a5e48](https://github.com/SenaProjetos/senahub/commit/12a5e48faf59251d3fdf24f21dc0616be9598e3b))
+
 ## [1.25.2](https://github.com/SenaProjetos/senahub/compare/v1.25.1...v1.25.2) (2026-10-19)
 
 
