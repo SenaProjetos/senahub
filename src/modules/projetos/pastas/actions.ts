@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { moverArquivo, existeArquivo } from "@/lib/storage";
+import { moverArquivo, copiarArquivo, existeArquivo } from "@/lib/storage";
 import { slugSegmento } from "@/modules/projetos/estrutura-tipo";
 import {
   criarPastaPersonalizadaSchema,
@@ -186,7 +186,13 @@ export const moverArquivoDePasta = defineAction(
     if (await existeArquivo(caminhoNovo)) {
       throw new ActionError("Já existe um arquivo com esse nome na pasta de destino.");
     }
-    await moverArquivo(upload.caminho, caminhoNovo);
+    // Outra linha de Upload pode dividir o caminho (envio antigo sobre arquivo da lixeira): mover levaria o
+    // arquivo dela junto. Nesse caso copia e deixa o original no lugar.
+    const outrosDonos = await prisma.upload.count({
+      where: { caminho: upload.caminho, id: { not: upload.id }, excluidoEm: { not: undefined }, substituidoPorId: { not: undefined } },
+    });
+    if (outrosDonos > 0) await copiarArquivo(upload.caminho, caminhoNovo);
+    else await moverArquivo(upload.caminho, caminhoNovo);
     await prisma.upload.update({
       where: { id: upload.id },
       data: { pastaId: pastaDestino.id, pacote: null, caminho: caminhoNovo },

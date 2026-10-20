@@ -8,10 +8,11 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { podeEnviarArquivo } from "@/modules/arquivos/acesso";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { salvarArquivo, removerArquivo, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
+import { salvarArquivo, nomeArquivoLimpo, type ArquivoSalvo } from "@/lib/storage";
 import { montarChunksEm, limparChunks } from "@/lib/upload-chunks";
 import { destinoArquivo, extensao, limiteDoPacote, limiteLabelDoPacote, type PacoteAlvo } from "@/modules/uploads/service";
 import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
+import { removerArquivoDeUploadSemDono, reservarCaminhoLivre } from "@/modules/uploads/arquivo-fisico";
 import { chaveDocumento, localDaChave } from "@/modules/uploads/documento";
 import { confiavel, interpretarNomeArquivo } from "@/modules/uploads/nomenclatura/interpretar";
 import {
@@ -338,11 +339,13 @@ export async function POST(req: Request) {
     // "nova versão de" o nome muda a cada envio (o backup do AltoQi carimba `[cópia ...]`),
     // então a contagem segue o DOCUMENTO: senão cada cópia entraria como versão 1 e o
     // histórico do documento teria várias "versão 1" fora de ordem.
-    // `substituidoPorId: { not: undefined }`: o contador precisa ver as versões substituídas também —
-    // o número entra no nome físico do arquivo, e repetir um número sobrescreveria um arquivo no disco.
+    // `substituidoPorId`/`excluidoEm: { not: undefined }`: o contador precisa ver as versões substituídas
+    // e as da lixeira também — o número entra no nome físico do arquivo, e repetir um número sobrescreveria
+    // um arquivo no disco (e a purga da lixeira, 30 dias depois, apagaria o arquivo da linha viva).
     const anterior = await prisma.upload.findFirst({
       where: {
         substituidoPorId: { not: undefined },
+        excluidoEm: { not: undefined },
         ...(documentoEscolhido
           ? { documentoId: documentoEscolhido.id }
           : pastaAlvo
@@ -354,10 +357,13 @@ export async function POST(req: Request) {
     const versao = anterior ? anterior.versao + 1 : 1;
 
     // Prefixa o arquivo com a sigla da disciplina (ex.: ELE-planta.dwg) quando houver código.
-    const nomeVersionado = nomeFisico({ nomeArquivo: nome, siglaDisciplina: codDisc, versao });
-    const relativo = pastaAlvo
-      ? `${baseDir}/${pastaAlvo.caminho}/${nomeVersionado}`
-      : `${baseDir}/${destino}/${nomeVersionado}`;
+    // O número do nome físico parte da versão, mas só vale se o caminho estiver livre (nenhuma linha usa e
+    // o disco não tem): colisão de slug, "nova versão de" com nome repetido e envio simultâneo pulam para
+    // o próximo número. `versao` (lógica) não muda.
+    const { caminho: relativo } = await reservarCaminhoLivre((n) => {
+      const nomeVersionado = nomeFisico({ nomeArquivo: nome, siglaDisciplina: codDisc, versao: n });
+      return pastaAlvo ? `${baseDir}/${pastaAlvo.caminho}/${nomeVersionado}` : `${baseDir}/${destino}/${nomeVersionado}`;
+    }, versao);
 
     const salvo = await gravar(relativo);
 
@@ -424,7 +430,7 @@ export async function POST(req: Request) {
             data: { ultimaVersao: planoCiclo.versao },
           });
           if (count !== 1) {
-            await removerArquivo(salvo.caminho);
+            await removerArquivoDeUploadSemDono(salvo.caminho);
             return { nome, ok: false, motivo: "A revisão mudou durante o envio. Envie o arquivo de novo." };
           }
         }
@@ -620,7 +626,7 @@ export async function POST(req: Request) {
             // O "tamanho" declarado vem do cliente — o limite de verdade é checado
             // aqui, contra o tamanho REAL remontado, antes de criar o registro.
             if (salvo.tamanho > limiteDoPacote(alvo)) {
-              await removerArquivo(salvo.caminho);
+              await removerArquivoDeUploadSemDono(salvo.caminho);
               throw new LimiteExcedidoError(`Arquivo excede ${limiteLabelDoPacote(alvo)}.`);
             }
             return salvo;

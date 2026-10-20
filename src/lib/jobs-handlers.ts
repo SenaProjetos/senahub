@@ -55,6 +55,7 @@ import { processarGeracao } from "@/modules/coordenacao/federado/service";
 import { executarConversaoDwg } from "@/modules/dwg/conversao";
 import { removerArquivo } from "@/lib/storage";
 import { limitePurga } from "@/modules/uploads/lixeira";
+import { removerArquivoDeUploadSemDono } from "@/modules/uploads/arquivo-fisico";
 import { executarImportacaoCusto } from "@/modules/custos/composicoes/service";
 import { dispatcharAviso } from "@/modules/notificacoes/avisos/service";
 import { Prisma } from "@/generated/prisma/client";
@@ -1666,7 +1667,8 @@ export async function purgarLixeiraArquivos(): Promise<number> {
   for (const u of vencidos) {
     try {
       await prisma.upload.delete({ where: { id: u.id } });
-      await removerArquivo(u.caminho);
+      // Outra linha pode dividir o caminho (envio antigo sobre arquivo da lixeira): o arquivo fica.
+      await removerArquivoDeUploadSemDono(u.caminho);
       if (u.conversao?.caminhoFrag) await removerArquivo(u.conversao.caminhoFrag);
       if (u.conversaoDesenho?.caminhoDxf) await removerArquivo(u.conversaoDesenho.caminhoDxf);
       removidos++;

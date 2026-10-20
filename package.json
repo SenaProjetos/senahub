@@ -36,6 +36,7 @@
     "smoke:contagem-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-contagem-documento.ts",
     "smoke:documentos-escopo": "tsx --tsconfig tsconfig.server.json scripts/smoke-documentos-escopo.ts",
     "smoke:historico-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-historico-documento.ts",
+    "smoke:lixeira-caminho": "tsx --tsconfig tsconfig.server.json scripts/smoke-lixeira-caminho.ts",
     "smoke:recursos-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-recursos-eap.ts",
     "smoke:impacto-ausencia": "tsx --tsconfig tsconfig.server.json scripts/smoke-impacto-ausencia.ts",
     "smoke:rateio-custo-hora": "tsx --tsconfig tsconfig.server.json scripts/smoke-rateio-custo-hora.ts",

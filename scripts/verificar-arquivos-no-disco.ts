@@ -19,17 +19,57 @@
  *
  *   npx tsx --tsconfig tsconfig.server.json scripts/verificar-arquivos-no-disco.ts
  *   npx tsx --tsconfig tsconfig.server.json scripts/verificar-arquivos-no-disco.ts --lixeira
+ *   npx tsx --tsconfig tsconfig.server.json scripts/verificar-arquivos-no-disco.ts --restaurar
  *
  * `--lixeira` inclui os uploads excluídos (restauráveis por 30 dias — restaurar um sem arquivo
  * devolve uma linha que não abre).
+ *
+ * `--restaurar` copia do espelho de volta para o storage SÓ o arquivo cujo SHA-256 no espelho é
+ * igual ao `Upload.hashSha256` gravado no envio, e nunca sobrescreve arquivo que já existe. Fora
+ * isso, nada é alterado — nem no banco.
+ *
+ * Causa conhecida (corrigida em 2026-10-20): o contador de versão da rota de upload não via a
+ * lixeira. Reenviar um arquivo que estava na lixeira gravava no MESMO caminho físico, e a purga
+ * da lixeira (30 dias depois, ou "Excluir definitivamente") apagava o arquivo da linha viva. O
+ * script aponta esse caso como "PROVÁVEL CAMINHO DIVIDIDO" (heurística: outro upload do mesmo documento
+ * foi para a lixeira e já não existe). O hash da linha viva é o do ÚLTIMO envio — o que ficou no disco.
  */
 import "dotenv/config";
-import { stat, readdir } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { copyFile, mkdir, rename, rm, stat, readdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { prisma } from "../src/lib/prisma";
 import { resolverCaminho } from "../src/lib/storage";
 
 const incluirLixeira = process.argv.includes("--lixeira");
+const restaurar = process.argv.includes("--restaurar");
+
+/**
+ * Copia do espelho para `<destino>.parcial`, confere o hash da CÓPIA e só então renomeia — uma cópia
+ * interrompida nunca fica no caminho final (contaria como "existe" e não seria mais consertada).
+ * Devolve false se o arquivo apareceu no destino no meio do caminho (não sobrescreve).
+ */
+async function restaurarDoEspelho(origem: string, caminhoRel: string, hashEsperado: string): Promise<boolean> {
+  const destino = resolverCaminho(caminhoRel);
+  const parcial = `${destino}.parcial`;
+  await mkdir(path.dirname(destino), { recursive: true });
+  try {
+    await copyFile(origem, parcial);
+    if ((await sha256(parcial)) !== hashEsperado) throw new Error("hash da cópia não confere (o espelho mudou?)");
+    if (await existe(destino)) return false;
+    await rename(parcial, destino);
+    return true;
+  } finally {
+    await rm(parcial, { force: true });
+  }
+}
+
+async function sha256(caminhoAbsoluto: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const parte of createReadStream(caminhoAbsoluto)) hash.update(parte as Buffer);
+  return hash.digest("hex");
+}
 
 async function existe(caminhoAbsoluto: string): Promise<boolean> {
   try {
@@ -74,6 +114,7 @@ async function main() {
       id: true,
       nomeArquivo: true,
       caminho: true,
+      hashSha256: true,
       pacote: true,
       pastaId: true,
       versao: true,
@@ -91,7 +132,7 @@ async function main() {
     },
   });
 
-  console.log(`=== Integridade do storage (só leitura) ===`);
+  console.log(`=== Integridade do storage (${restaurar ? "RESTAURA do espelho o que confere pelo hash" : "só leitura"}) ===`);
   console.log(`storage: ${base}`);
   console.log(`espelho do backup: ${espelho ?? "(não configurado)"}`);
   console.log(`uploads verificados: ${uploads.length}${incluirLixeira ? " (inclui lixeira)" : " (só vivos)"}\n`);
@@ -123,7 +164,7 @@ async function main() {
       .map((u) => [u.id, u.name]),
   );
 
-  const causas = { movido: 0, noEspelho: 0, perdido: 0 };
+  const causas = { movido: 0, noEspelho: 0, perdido: 0, restaurados: 0, falhas: 0, caminhoDividido: 0 };
   const porProjeto = new Map<string, typeof ausentes>();
   for (const u of ausentes) {
     const chave = `${u.disciplina.projeto.codigo} · ${u.disciplina.projeto.nome} / ${u.disciplina.disciplinaTextoLegado}`;
@@ -137,15 +178,34 @@ async function main() {
     for (const u of lista) {
       const nomeFisico = path.basename(u.caminho);
       const emOutroLugar = indice.get(nomeFisico.toLowerCase()) ?? [];
-      const noEspelho = espelho ? await existe(path.join(espelho, u.caminho)) : false;
+      // Só olha o espelho se o caminho do banco cai DENTRO dele (o caminho vem do banco, não confiar).
+      const origem = espelho ? path.resolve(espelho, u.caminho) : null;
+      const dentroDoEspelho = !!origem && !!espelho && !path.relative(path.resolve(espelho), origem).startsWith("..");
+      const noEspelho = dentroDoEspelho && origem ? await existe(origem) : false;
 
       let causa: string;
       if (emOutroLugar.length > 0) {
         causa = `MOVIDO — existe em: ${emOutroLugar.map((c) => path.relative(base, c)).join(" | ")}`;
         causas.movido++;
-      } else if (noEspelho) {
-        causa = "PERDIDO NO DISCO, EXISTE NO ESPELHO — restaurável";
+      } else if (noEspelho && origem) {
+        const confere = (await sha256(origem)) === u.hashSha256;
+        causa = confere
+          ? "PERDIDO NO DISCO, EXISTE NO ESPELHO com o mesmo hash — restaurável"
+          : "PERDIDO NO DISCO, EXISTE NO ESPELHO mas com OUTRO conteúdo (hash diferente) — não restaura sozinho";
         causas.noEspelho++;
+        if (restaurar && confere) {
+          try {
+            if (await restaurarDoEspelho(origem, u.caminho, u.hashSha256)) {
+              causa += " → RESTAURADO";
+              causas.restaurados++;
+            } else {
+              causa += " → NÃO restaurado (o arquivo apareceu no disco)";
+            }
+          } catch (e) {
+            causa += ` → FALHOU ao restaurar: ${e instanceof Error ? e.message : String(e)}`;
+            causas.falhas++;
+          }
+        }
       } else {
         causa = "PERDIDO — nem no disco nem no espelho";
         causas.perdido++;
@@ -155,6 +215,26 @@ async function main() {
       console.log(`      upload ${u.id} · enviado ${u.createdAt.toISOString().slice(0, 16).replace("T", " ")} por ${autores.get(u.autorId) ?? "?"}${u.excluidoEm ? " · NA LIXEIRA" : ""}`);
       console.log(`      caminho: ${u.caminho}`);
       console.log(`      ${causa}`);
+
+      // Caminho dividido: outro upload do mesmo documento foi para a lixeira e já não existe (purgado).
+      if (u.documentoId) {
+        const foramParaLixeira = await prisma.documentoEvento.findMany({
+          where: { documentoId: u.documentoId, tipo: { in: ["lixeira", "exclusao_definitiva"] }, uploadId: { not: null } },
+          select: { uploadId: true },
+        });
+        const ids = [...new Set(foramParaLixeira.map((e) => e.uploadId!).filter((id) => id !== u.id))];
+        if (ids.length > 0) {
+          const aindaExistem = await prisma.upload.findMany({
+            where: { id: { in: ids }, excluidoEm: { not: undefined }, substituidoPorId: { not: undefined } },
+            select: { id: true },
+          });
+          const purgados = ids.filter((id) => !aindaExistem.some((x) => x.id === id));
+          if (purgados.length > 0) {
+            console.log(`      PROVÁVEL CAMINHO DIVIDIDO: upload(s) do mesmo documento já purgado(s) da lixeira: ${purgados.join(", ")}`);
+            causas.caminhoDividido++;
+          }
+        }
+      }
 
       if (u.documentoId) {
         const eventos = await prisma.documentoEvento.findMany({
@@ -175,7 +255,9 @@ async function main() {
   console.log(`  movidos (existem em outra pasta): ${causas.movido}`);
   console.log(`  só no espelho (restauráveis):     ${causas.noEspelho}`);
   console.log(`  perdidos de vez:                  ${causas.perdido}`);
-  console.log(`\nNada foi alterado.`);
+  console.log(`  com upload irmão já purgado:      ${causas.caminhoDividido}`);
+  if (restaurar) console.log(`\nRestaurados do espelho: ${causas.restaurados} · falhas: ${causas.falhas}. O banco não foi alterado.`);
+  else console.log(`\nNada foi alterado. Use --restaurar para copiar do espelho o que confere pelo hash.`);
 }
 
 main()

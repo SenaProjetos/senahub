@@ -14,6 +14,7 @@ import { Packer } from "docx";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, slug } from "@/lib/storage";
 import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
+import { reservarCaminhoLivre } from "@/modules/uploads/arquivo-fisico";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { serializar } from "./savefile";
 import { getFerramenta } from "./registry";
@@ -55,14 +56,19 @@ async function salvarUpload(opts: {
 }) {
   const { disciplinaId, pacote, nomeArquivo, buffer, mimeType, autorId, baseDir, siglaDisciplina } = opts;
 
+  // Vê lixeira e versões substituídas: o número entra no nome físico, repetir sobrescreve o arquivo.
   const anterior = await prisma.upload.findFirst({
-    where: { disciplinaId, pacote, nomeArquivo },
+    where: { disciplinaId, pacote, nomeArquivo, excluidoEm: { not: undefined }, substituidoPorId: { not: undefined } },
     orderBy: { versao: "desc" },
     select: { versao: true },
   });
   const versao = anterior ? anterior.versao + 1 : 1;
 
-  const relativo = `${baseDir}/${pacote}/${nomeFisico({ nomeArquivo, siglaDisciplina, versao })}`;
+  // Caminho reservado: nunca grava por cima do arquivo de outra linha (ver uploads/arquivo-fisico.ts).
+  const { caminho: relativo } = await reservarCaminhoLivre(
+    (n) => `${baseDir}/${pacote}/${nomeFisico({ nomeArquivo, siglaDisciplina, versao: n })}`,
+    versao,
+  );
 
   const salvo = await salvarArquivo(relativo, buffer);
 

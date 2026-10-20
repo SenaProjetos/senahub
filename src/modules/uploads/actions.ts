@@ -6,6 +6,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { removerArquivo } from "@/lib/storage";
+import { removerArquivoDeUploadSemDono } from "@/modules/uploads/arquivo-fisico";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
@@ -1044,7 +1045,8 @@ export const excluirUploadDefinitivo = defineAction(
         detalhe: { arquivo: upload.nomeArquivo, versao: upload.versao },
       });
     }
-    await removerArquivo(upload.caminho);
+    // Outra linha pode dividir o caminho (envio antigo sobre arquivo da lixeira): o arquivo fica.
+    await removerArquivoDeUploadSemDono(upload.caminho);
     if (upload.conversao?.caminhoFrag) await removerArquivo(upload.conversao.caminhoFrag);
 
     revalidarArquivos(upload.disciplina.projetoId);

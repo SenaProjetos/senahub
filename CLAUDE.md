@@ -34,6 +34,7 @@ npm run smoke:inputs-link     # link público de inputs: janela da notificação
 npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-duplicata, cancelamento
 npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsáveis, cancelamento, total do lote
 npm run smoke:historico-documento  # histórico por documento: agrupamento atômico de acessos, corte de visibilidade, merge
+npm run smoke:lixeira-caminho     # "Arquivo indisponível no disco": contador de versão vê a lixeira; apagar arquivo de Upload só sem outra linha no mesmo caminho
 npm run smoke:status-documento     # status documental automático (só FORA do ciclo documental): Enviado/Aprovado/Correção pela chave, revisão vigente, evento automático
 npm run smoke:ciclo-documental     # ciclo ISO 19650: I1–I8, publicar arquiva a anterior e revoga a obra (A1), liberação automática (A2), apontamentos (A3), integridade corrige I5 (A7)
 npm run smoke:pendencias-ciclo     # pendências documentais: assinatura lida do banco, dispensa com evento, uma ativa por alvo, corrida de dois cliques, dispensa velha que não vale para ocorrência nova, job só avisa o aberto
