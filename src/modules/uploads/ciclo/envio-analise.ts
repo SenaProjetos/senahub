@@ -29,7 +29,7 @@ function extensao(nome: string): string {
  * Carimbo (`carimbo.ts`, regra aprovada em 2026-10-09): código ou revisão divergente entra na lista de
  * problemas. Sem leitura possível, só depois de todo o resto estar certo, pede confirmação
  * (`MOTIVO_CARIMBO_ILEGIVEL`); confirmado, grava o evento "Envio sem conferência de carimbo" na transação.
- * `carimbo` nulo = revisão sem PDF (modelo IFC): não há carimbo a conferir.
+ * `carimbo` nulo = revisão sem PDF (modelo IFC, planilha, memorial em Word): não há carimbo a conferir.
  *
  * Projeto em "Nomenclatura livre" (licitação segue o padrão do órgão): o nome e a revisão do carimbo não
  * bloqueiam; PDF, arquivo idêntico, descrição e o código do carimbo × nome do arquivo continuam valendo.
@@ -46,6 +46,8 @@ export async function verificarEnvioParaAnalise(
   const atuais = await tx.upload.findMany({
     where: { revisaoId: r.id, excluidoEm: null, substituidoPorId: null },
     select: { nomeArquivo: true, hashSha256: true },
+    // Sem PDF (planilha, memorial em Word), o nome conferido é o do arquivo mais recente — sempre o mesmo.
+    orderBy: { createdAt: "desc" },
   });
   const anteriorRev = await tx.documentoRevisao.findFirst({
     where: { documentoId: r.documentoId, numero: { lt: r.numero } },

@@ -20,6 +20,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Arquivos: planilhas, memoriais e confirmação no envio em lote (outubro/2026)
+
+- **Planilha de quantitativos, memorial em Word e outros arquivos sem desenho** podem ser enviados para
+  análise sem PDF. O PDF continua obrigatório quando a revisão tem DWG, DXF ou RVT.
+- **Documento sem tipo e sem DWG** (comum quando o projeto segue a nomenclatura do cliente) publica com uma
+  confirmação: "este documento não precisa de DWG". Fica registrado no histórico. Documento cujo tipo exige
+  DWG continua precisando dele.
+- **Envio e publicação em lote**: quando uma revisão para no carimbo ilegível ou no DWG, o relatório de
+  falhas mostra a mesma confirmação da ação de uma revisão só, e o botão envia (ou publica) só essas.
+
 ## Projetos: aba EAP (outubro/2026)
 
 - **A EAP do projeto agora aparece numa aba própria, ao lado de Disciplinas.** É só consulta: a tabela, o

@@ -43,6 +43,7 @@ export const TIPOS_EVENTO = {
   pendencia_dispensa_desfeita: { categoria: "alteracao", rotulo: "Desfez a dispensa de uma pendência" },
   arquivo_substituido: { categoria: "alteracao", rotulo: "Enviou nova versão" },
   envio_sem_carimbo: { categoria: "alteracao", rotulo: "Enviou para análise sem conferência de carimbo" },
+  publicacao_sem_dwg: { categoria: "alteracao", rotulo: "Publicou sem DWG" },
   download: { categoria: "acesso", rotulo: "Baixou" },
   visualizacao: { categoria: "acesso", rotulo: "Visualizou" },
 } as const satisfies Record<string, { categoria: CategoriaEvento; rotulo: string }>;
@@ -203,6 +204,7 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
       return partes.length ? partes.join(" · ") : null;
     }
     case "envio_sem_carimbo":
+    case "publicacao_sem_dwg":
       return texto("motivo");
     case "envio": {
       // Só o que ESTE envio classificou (o motor de nomenclatura não sobrescreve o que já

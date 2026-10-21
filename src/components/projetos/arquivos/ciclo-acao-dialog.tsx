@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ import {
 import type { CicloDaLinha, EscolhaCiclo } from "@/modules/uploads/ciclo/acoes";
 import { ESCOPOS_BLOQUEIO, ROTULO_CONTROLE, ROTULO_ESCOPO, type EscopoBloqueio } from "@/modules/uploads/ciclo/estados";
 import { PRECISA_DESCRICAO_A_PARTIR_DE } from "@/modules/uploads/ciclo/envio-regras";
-import { MOTIVO_CARIMBO_ILEGIVEL } from "@/modules/uploads/ciclo/carimbo";
+import { CONFIRMACOES_DO_CICLO, confirmacaoDaRecusa, type ConfirmacaoDoCiclo } from "@/modules/uploads/ciclo/confirmacoes";
 
 /** O que a linha manda abrir: a escolha do menu e o ciclo da revisão. */
 export type PedidoCiclo = { escolha: EscolhaCiclo; ciclo: CicloDaLinha; nome: string };
@@ -117,9 +117,14 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
   const [texto, setTexto] = useState("");
   const [escopos, setEscopos] = useState<EscopoBloqueio[]>(["download"]);
   const [erro, setErro] = useState<string | null>(null);
-  // Carimbo ilegível no envio para análise: o servidor pede confirmação explícita (D9).
-  const [pedeCarimbo, setPedeCarimbo] = useState(false);
-  const [confirmouCarimbo, setConfirmouCarimbo] = useState(false);
+  // O servidor pediu uma confirmação explícita (carimbo ilegível, publicar sem DWG).
+  const [pede, setPede] = useState<ConfirmacaoDoCiclo | null>(null);
+  const [confirmou, setConfirmou] = useState(false);
+  // O botão principal fica desabilitado até a confirmação: o foco do teclado vem para a caixa.
+  const caixaRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (pede) caixaRef.current?.focus();
+  }, [pede]);
   // Pedido novo zera o formulário (ajuste durante o render, sem efeito).
   const [pedidoVisto, setPedidoVisto] = useState(pedido);
   if (pedidoVisto !== pedido) {
@@ -127,14 +132,14 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
     setTexto("");
     setEscopos(["download"]);
     setErro(null);
-    setPedeCarimbo(false);
-    setConfirmouCarimbo(false);
+    setPede(null);
+    setConfirmou(false);
   }
 
   const cfg = pedido ? configDe(pedido) : null;
   const faltaTexto = !!cfg?.campo?.obrigatorio && texto.trim() === "";
   const faltaEscopo = !!cfg?.escopos && escopos.length === 0;
-  const faltaConfirmarCarimbo = pedeCarimbo && !confirmouCarimbo;
+  const faltaConfirmar = pede !== null && !confirmou;
 
   function executar() {
     if (!pedido || !cfg) return;
@@ -145,9 +150,9 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
       const r =
         e.tipo === "transicao"
           ? e.acao === "enviar_analise"
-            ? await enviarParaAnalise({ revisaoId, descricao: valor || undefined, confirmarSemCarimbo: confirmouCarimbo })
+            ? await enviarParaAnalise({ revisaoId, descricao: valor || undefined, confirmarSemCarimbo: pede === "carimbo" && confirmou })
             : e.acao === "publicar"
-              ? await publicarRevisao({ revisaoId, justificativa: valor || undefined })
+              ? await publicarRevisao({ revisaoId, justificativa: valor || undefined, confirmarSemDwg: pede === "dwg" && confirmou })
               : e.acao === "devolver"
                 ? await devolverRevisao({ revisaoId, motivo: valor })
                 : await arquivarRevisao({ revisaoId, motivo: valor })
@@ -160,8 +165,9 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
               ? await removerControlePasta({ controleId: e.controleId, motivo: valor })
               : await removerBloqueioOuRestricao({ controleId: e.controleId, motivo: valor });
       if (!r.ok) {
-        if (r.error === MOTIVO_CARIMBO_ILEGIVEL) {
-          setPedeCarimbo(true);
+        const confirmacao = confirmacaoDaRecusa(r.error);
+        if (confirmacao) {
+          setPede(confirmacao);
           setErro(null);
           return;
         }
@@ -216,12 +222,12 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
                   ))}
                 </fieldset>
               )}
-              {pedeCarimbo && (
-                <div role="alert" className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
-                  <p>{MOTIVO_CARIMBO_ILEGIVEL}</p>
+              {pede && (
+                <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+                  <p role="alert">{CONFIRMACOES_DO_CICLO[pede].motivo}</p>
                   <label className="flex items-start gap-2">
-                    <Checkbox checked={confirmouCarimbo} disabled={pendente} onCheckedChange={(v) => setConfirmouCarimbo(v === true)} />
-                    <span>Conferi o código e a revisão no carimbo. Enviar sem a conferência automática (fica registrado no histórico).</span>
+                    <Checkbox ref={caixaRef} checked={confirmou} disabled={pendente} onCheckedChange={(v) => setConfirmou(v === true)} />
+                    <span>{CONFIRMACOES_DO_CICLO[pede].caixa(1)}</span>
                   </label>
                 </div>
               )}
@@ -233,7 +239,7 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
             </DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={onFechar} disabled={pendente}>Cancelar</Button>
-              <Button variant={cfg.destrutivo ? "destructive" : "default"} onClick={executar} disabled={pendente || faltaTexto || faltaEscopo || faltaConfirmarCarimbo}>
+              <Button variant={cfg.destrutivo ? "destructive" : "default"} onClick={executar} disabled={pendente || faltaTexto || faltaEscopo || faltaConfirmar}>
                 {pendente ? "Aguarde…" : cfg.botao}
               </Button>
             </DialogFooter>

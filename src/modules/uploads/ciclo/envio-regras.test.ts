@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mensagemDosProblemas, problemasDoEnvio, type EntradaEnvio } from "./envio-regras";
+import { MOTIVO_DESENHO_SEM_PDF, mensagemDosProblemas, problemasDoEnvio, type EntradaEnvio } from "./envio-regras";
 
 const campo = <T>(valor: T) => ({ valor, confianca: 0.95, fonte: "padrao_projeto" as const, texto: String(valor) });
 
@@ -72,12 +72,23 @@ describe("problemasDoEnvio (A4)", () => {
     const nome = { ...entrada().nome, casouPadrao: false, projeto, revisao: campo(1), avisos: [{ tipo: "sigla_desconhecida" as const, texto: "x" }] };
     expect(problemasDoEnvio(entrada({ codigoProjeto: "260031", nomenclaturaLivre: true, nome }))).toEqual([]);
     expect(problemasDoEnvio(entrada({ nomenclaturaLivre: true, nome, arquivos: [{ nome: "a.dwg", ext: "dwg", hash: "h" }] }))).toEqual([
-      "A revisão precisa ter o PDF.",
+      MOTIVO_DESENHO_SEM_PDF,
     ]);
   });
 
-  it("revisão sem PDF", () => {
-    expect(problemasDoEnvio(entrada({ arquivos: [{ nome: "a.dwg", ext: "dwg", hash: "h" }] }))).toContain("A revisão precisa ter o PDF.");
+  it("desenho sem PDF: DWG, DXF ou RVT exigem o PDF", () => {
+    for (const ext of ["dwg", "DXF", "rvt"]) {
+      expect(problemasDoEnvio(entrada({ arquivos: [{ nome: `a.${ext}`, ext, hash: "h" }] }))).toContain(MOTIVO_DESENHO_SEM_PDF);
+    }
+  });
+
+  it("sem desenho não exige PDF: planilha de quantitativos, memorial em Word", () => {
+    expect(problemasDoEnvio(entrada({ arquivos: [{ nome: "q.xls", ext: "xls", hash: "h" }] }))).toEqual([]);
+    expect(problemasDoEnvio(entrada({ arquivos: [{ nome: "q.xlsx", ext: "xlsx", hash: "h" }, { nome: "m.docx", ext: "docx", hash: "h2" }] }))).toEqual([]);
+  });
+
+  it("revisão sem nenhum arquivo", () => {
+    expect(problemasDoEnvio(entrada({ arquivos: [] }))).toEqual(["A revisão não tem arquivo para enviar."]);
   });
 
   it("modelo IFC não precisa de PDF (o IFC é o arquivo principal)", () => {

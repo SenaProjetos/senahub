@@ -46,7 +46,7 @@ export const enviarParaAnalise = defineAction(
     await exigirEscopoDaRevisao(user, input.revisaoId);
     // O carimbo é lido ANTES da transação: ler um PDF leva tempo e não pode segurar a conexão.
     const pdf = await prisma.upload.findFirst({
-      where: { revisaoId: input.revisaoId, nomeArquivo: { endsWith: ".pdf", mode: "insensitive" } },
+      where: { revisaoId: input.revisaoId, excluidoEm: null, nomeArquivo: { endsWith: ".pdf", mode: "insensitive" } },
       orderBy: { createdAt: "desc" },
       select: { nomeArquivo: true, caminho: true },
     });
@@ -88,12 +88,22 @@ export const publicarRevisao = defineAction(
     recurso: "arquivos",
     permissao: "publicar",
     entidade: "DocumentoRevisao",
-    schema: z.object({ revisaoId: id, justificativa: z.string().trim().max(1000).optional() }),
+    schema: z.object({
+      revisaoId: id,
+      justificativa: z.string().trim().max(1000).optional(),
+      /** Documento sem tipo e sem DWG: a pessoa confirmou que ele não tem desenho (vira evento no histórico). */
+      confirmarSemDwg: z.boolean().optional(),
+    }),
     entidadeId: (_d, input) => input.revisaoId,
   },
   async (input, { user }) => {
     await exigirEscopoDaRevisao(user, input.revisaoId);
-    const r = await publicarNoBanco({ revisaoId: input.revisaoId, quem: { userId: user.id }, justificativa: input.justificativa });
+    const r = await publicarNoBanco({
+      revisaoId: input.revisaoId,
+      quem: { userId: user.id },
+      justificativa: input.justificativa,
+      confirmarSemDwg: input.confirmarSemDwg === true,
+    });
     await notificarPublicacao(r, user.id);
     return { revisaoId: r.revisaoId, liberacaoObra: r.liberacaoObra, restricaoPendencias: r.restricaoPendencias };
   },

@@ -347,6 +347,8 @@ export async function publicarNoBanco(p: {
   revisaoId: string;
   quem: { userId: string };
   justificativa?: string | null;
+  /** Documento sem tipo e sem DWG: a pessoa confirmou que ele não tem desenho (vira evento). */
+  confirmarSemDwg?: boolean;
 }): Promise<ResultadoPublicacao> {
   return emTransacao(async (tx) => {
     const r = await carregarRevisao(tx, p.revisaoId);
@@ -363,8 +365,10 @@ export async function publicarNoBanco(p: {
       arquivos: arquivosDaRevisao(r),
       pendencias,
       permitirComPendencias: config.permitirPublicarComPendencias,
-      // Sem tipo, vale o padrão: exige (decisão do dono — DWG obrigatório por padrão).
-      exigirDwg: r.documento.tipo?.exigeDwg ?? true,
+      // Com tipo, vale o "Exige DWG" do catálogo. Sem tipo (nomenclatura do cliente, por exemplo), não dá
+      // para saber se é desenho: sem DWG, publica com a confirmação da pessoa (decisão do dono, 2026-10-21).
+      exigirDwg: r.documento.tipo ? r.documento.tipo.exigeDwg : "confirmar",
+      confirmarSemDwg: p.confirmarSemDwg,
       siglaTipo: r.documento.tipo?.sigla ?? null,
       justificativa: p.justificativa,
     });
@@ -396,6 +400,15 @@ export async function publicarNoBanco(p: {
       detalhe: decisao.restricao && p.justificativa?.trim() ? { justificativa: p.justificativa.trim() } : undefined,
     });
     r.estado = para;
+    if (decisao.semDwgConfirmado) {
+      await gravarEventoNoTx(tx, {
+        documentoId: r.documentoId,
+        revisaoId: r.id,
+        tipo: "publicacao_sem_dwg",
+        userId: p.quem.userId,
+        detalhe: { motivo: "Documento sem tipo publicado sem DWG, com a confirmação de quem publicou", revisao: r.numero },
+      });
+    }
 
     // N4 — quem já mandava ao cliente continua mandando: a revisão nova entra no lugar.
     if (anteriorEnviadaAoCliente) {

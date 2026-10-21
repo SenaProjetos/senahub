@@ -40,6 +40,15 @@ export type EntradaEnvio = {
 
 const primeirosDigitos = (texto: string) => texto.match(/\d+/)?.[0] ?? "";
 
+/** Extensões de desenho: com uma delas na revisão, o PDF passa a ser obrigatório. */
+const EXTENSOES_DE_DESENHO = ["dwg", "dxf", "rvt"];
+
+export function temDesenho(extensoes: readonly string[]): boolean {
+  return extensoes.some((e) => EXTENSOES_DE_DESENHO.includes(e.toLowerCase()));
+}
+
+export const MOTIVO_DESENHO_SEM_PDF = "A revisão tem desenho e precisa ter o PDF dele.";
+
 export const PRECISA_DESCRICAO_A_PARTIR_DE = 2;
 
 /** O que se confere no NOME do arquivo — desligado quando o projeto está em nomenclatura livre. */
@@ -91,9 +100,12 @@ export function problemasDoEnvio(e: EntradaEnvio): string[] {
 
   if (!e.nomenclaturaLivre) problemas.push(...problemasDoNome(e));
 
-  // Documento de modelo (IFC) não tem PDF: o IFC é o arquivo principal dele.
+  // O PDF é a cópia de leitura do DESENHO: só é exigido quando a revisão tem um (decisão do dono,
+  // 2026-10-21). Planilha de quantitativos, memorial em Word e afins seguem sem PDF. Documento de
+  // modelo (IFC) também não tem: o IFC é o arquivo principal dele.
   const exts = e.arquivos.map((a) => a.ext);
-  if (!ehDocumentoDeModelo(exts) && !exts.includes("pdf")) problemas.push("A revisão precisa ter o PDF.");
+  if (e.arquivos.length === 0) problemas.push("A revisão não tem arquivo para enviar.");
+  else if (!ehDocumentoDeModelo(exts) && temDesenho(exts) && !exts.includes("pdf")) problemas.push(MOTIVO_DESENHO_SEM_PDF);
 
   for (const a of e.arquivos) {
     const igual = e.anteriores.find((p) => p.ext === a.ext && p.hash === a.hash);

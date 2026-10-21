@@ -17,7 +17,13 @@ export type DecisaoPublicacao =
       ok: true;
       /** A3: publicar com pendências aplica restrição automática — `null` = sem pendência. */
       restricao: { motivo: string; abertos: number } | null;
+      /** Documento sem tipo publicado sem DWG com a confirmação da pessoa: vira evento no histórico. */
+      semDwgConfirmado?: true;
     };
+
+/** Mesma frase no servidor (ActionError) e na tela, que reconhece o caso e oferece a confirmação. */
+export const MOTIVO_SEM_DWG_SEM_TIPO =
+  "Esta revisão não tem DWG e o documento não tem um tipo que diga se ele é exigido. Se for um memorial, uma planilha ou outro documento sem desenho, confirme a publicação sem o DWG.";
 
 function plural(n: number, um: string, varios: string): string {
   return `${n} ${n === 1 ? um : varios}`;
@@ -34,22 +40,35 @@ export function decidirPublicacao(p: {
   arquivos: readonly ArquivoDaRevisao[];
   pendencias: readonly PendenciaParaGate[];
   permitirComPendencias: boolean;
-  /** O tipo do documento exige o DWG para publicar (padrão ligado). Modelo IFC é isento. */
-  exigirDwg?: boolean;
+  /**
+   * O tipo do documento exige o DWG para publicar (`exigeDwg` do catálogo). Modelo IFC é isento.
+   * `"confirmar"` = documento SEM tipo (nomenclatura do cliente, por exemplo): sem DWG, publica só com a
+   * confirmação da pessoa (`confirmarSemDwg`) — decisão do dono, 2026-10-21.
+   */
+  exigirDwg?: boolean | "confirmar";
+  confirmarSemDwg?: boolean;
   /** Sigla do tipo, só para a mensagem. */
   siglaTipo?: string | null;
   justificativa?: string | null;
 }): DecisaoPublicacao {
   if (p.arquivos.length === 0) return { ok: false, motivo: "A revisão não tem arquivo para publicar." };
   const exts = p.arquivos.map((a) => a.ext);
-  if (p.exigirDwg && !ehDocumentoDeModelo(exts) && !exts.includes("dwg")) {
+  const faltaDwg = !!p.exigirDwg && !ehDocumentoDeModelo(exts) && !exts.includes("dwg");
+  if (faltaDwg && p.exigirDwg === true) {
     return {
       ok: false,
       motivo: p.siglaTipo
         ? `Documentos do tipo ${p.siglaTipo} só publicam com o DWG: envie o DWG desta revisão.`
-        : "Esta revisão só publica com o DWG: envie o DWG (ou defina um tipo de documento que não exija).",
+        : "Esta revisão só publica com o DWG: envie o DWG desta revisão.",
     };
   }
+  // Sem tipo, a confirmação só é pedida depois de todo o resto estar certo (como a do carimbo):
+  // confirmar e cair noutro erro em seguida faria a pessoa confirmar duas vezes.
+  const concluir = (restricao: { motivo: string; abertos: number } | null): DecisaoPublicacao => {
+    if (!faltaDwg) return { ok: true, restricao };
+    if (!p.confirmarSemDwg) return { ok: false, motivo: MOTIVO_SEM_DWG_SEM_TIPO };
+    return { ok: true, restricao, semDwgConfirmado: true };
+  };
   const semValidacao = p.arquivos.filter((a) => !a.validado);
   if (semValidacao.length > 0) {
     return {
@@ -65,7 +84,7 @@ export function decidirPublicacao(p: {
       motivo: `Há ${plural(impeditivos.length, "apontamento impeditivo", "apontamentos impeditivos")} em aberto. Resolva antes de publicar.`,
     };
   }
-  if (abertos.length === 0) return { ok: true, restricao: null };
+  if (abertos.length === 0) return concluir(null);
   if (!p.permitirComPendencias) {
     return {
       ok: false,
@@ -75,10 +94,7 @@ export function decidirPublicacao(p: {
   if (!p.justificativa?.trim()) {
     return { ok: false, motivo: `Há ${plural(abertos.length, "apontamento", "apontamentos")} em aberto: informe a justificativa para publicar assim.` };
   }
-  return {
-    ok: true,
-    restricao: { motivo: `Publicado com ${plural(abertos.length, "apontamento pendente", "apontamentos pendentes")}`, abertos: abertos.length },
-  };
+  return concluir({ motivo: `Publicado com ${plural(abertos.length, "apontamento pendente", "apontamentos pendentes")}`, abertos: abertos.length });
 }
 
 /** A3, volta: a restrição automática dos apontamentos sai quando não sobra nenhum em aberto. */

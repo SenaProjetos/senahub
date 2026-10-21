@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { validarArquivosLote, excluirUploadsLote } from "@/modules/uploads/actions";
 import { aplicarControlePasta, enviarParaAnalise, publicarRevisao } from "@/modules/uploads/ciclo/actions";
+import { CONFIRMACOES_DO_CICLO, confirmacaoDaRecusa, type ConfirmacaoDoCiclo } from "@/modules/uploads/ciclo/confirmacoes";
+import { Checkbox } from "@/components/ui/checkbox";
 import { LinkSelecaoArquivosDialog } from "@/components/projetos/link-selecao-arquivos-button";
 import {
   EscopoExclusaoDialog,
@@ -46,6 +48,37 @@ import {
 } from "@/modules/uploads/acoes-selecao-documentos";
 
 type LoteCiclo = "enviar" | "publicar" | "liberar_obra" | "enviar_cliente";
+
+/**
+ * No relatório do lote: as revisões que o servidor recusou pedindo uma confirmação (carimbo ilegível no
+ * envio, documento sem tipo publicado sem DWG) seguem daqui, só elas, com a confirmação marcada.
+ */
+function ConfirmacaoNoLote({ tipo, total, onConfirmar }: { tipo: ConfirmacaoDoCiclo; total: number; onConfirmar: () => void }) {
+  const [marcou, setMarcou] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const textos = CONFIRMACOES_DO_CICLO[tipo];
+  return (
+    <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+      <p role="alert">{textos.aviso(total)}</p>
+      <label className="flex items-start gap-2">
+        <Checkbox checked={marcou} disabled={enviando} onCheckedChange={(v) => setMarcou(v === true)} />
+        <span>{textos.caixa(total)}</span>
+      </label>
+      <div className="flex justify-end">
+        <Button
+          size="sm"
+          disabled={!marcou || enviando}
+          onClick={() => {
+            setEnviando(true);
+            onConfirmar();
+          }}
+        >
+          {textos.botaoLote(total)}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 type ListaDisponivel = { id: string; nome: string };
 
@@ -267,8 +300,38 @@ export function useAcoesSelecaoDocumentos({
     const texto = textoLote.trim() || undefined;
     if (loteExigeTexto && !texto) return;
     const nomes = new Map(revisoes.map((r) => [r.revisaoId, r.nome]));
+    const verbo: [string, string] =
+      tipo === "enviar"
+        ? ["enviada para análise", "enviadas para análise"]
+        : tipo === "publicar"
+          ? ["publicada", "publicadas"]
+          : tipo === "liberar_obra"
+            ? ["liberada para obra", "liberadas para obra"]
+            : ["enviada ao cliente", "enviadas ao cliente"];
+    // Carimbo ilegível no envio e documento sem tipo publicado sem DWG não são erro a corrigir: pedem a
+    // mesma confirmação da ação de uma revisão só e refazem só essas — cada uma grava o evento no histórico.
+    const confirmacao: ConfirmacaoDoCiclo | null = tipo === "enviar" ? "carimbo" : tipo === "publicar" ? "dwg" : null;
+    const refazerConfirmando = (ids: string[]) =>
+      lote.executar({
+        ids,
+        acao: (revisaoId) =>
+          tipo === "enviar"
+            ? enviarParaAnalise({ revisaoId, descricao: texto, confirmarSemCarimbo: true })
+            : publicarRevisao({ revisaoId, justificativa: texto, confirmarSemDwg: true }),
+        substantivo: ["revisão", "revisões"],
+        verbo,
+        rotulo: (id) => nomes.get(id) ?? id,
+      });
     const r = await lote.executar({
       ids: revisoes.map((r) => r.revisaoId),
+      complemento: confirmacao
+        ? (rel) => {
+            const ids = rel.falhas.filter((f) => confirmacaoDaRecusa(f.motivo) === confirmacao).map((f) => f.id);
+            return ids.length > 0 ? (
+              <ConfirmacaoNoLote tipo={confirmacao} total={ids.length} onConfirmar={() => void refazerConfirmando(ids)} />
+            ) : null;
+          }
+        : undefined,
       acao: (revisaoId) => {
         switch (tipo) {
           case "enviar":
@@ -282,14 +345,7 @@ export function useAcoesSelecaoDocumentos({
         }
       },
       substantivo: ["revisão", "revisões"],
-      verbo:
-        tipo === "enviar"
-          ? ["enviada para análise", "enviadas para análise"]
-          : tipo === "publicar"
-            ? ["publicada", "publicadas"]
-            : tipo === "liberar_obra"
-              ? ["liberada para obra", "liberadas para obra"]
-              : ["enviada ao cliente", "enviadas ao cliente"],
+      verbo,
       rotulo: (id) => nomes.get(id) ?? id,
     });
     if (!r) return;

@@ -528,17 +528,21 @@ coordenação devolver ou publicar.
 **Os passos (botão direito ou ⋯ da linha):**
 
 - **Enviar para análise** — o sistema confere sozinho e só deixa passar com tudo certo: nome no padrão do
-  projeto, disciplina/etapa/tipo existentes no catálogo, código do projeto, PDF presente, nenhum arquivo
+  projeto, disciplina/etapa/tipo existentes no catálogo, código do projeto, PDF presente quando a revisão tem
+  desenho (DWG, DXF ou RVT — planilha de quantitativos ou memorial em Word seguem sem PDF), nenhum arquivo
   igual ao da revisão anterior, a **descrição do que mudou** (obrigatória da R01 em diante) e o
   **carimbo do PDF**: o código e a revisão escritos no carimbo têm de bater com o nome do arquivo e com a
-  revisão esperada. Se o carimbo não puder ser lido (PDF sem texto), o sistema avisa e pede que você
-  confirme o envio; fica registrado no histórico. O modelo IFC é um documento próprio e dispensa o PDF. Se
+  revisão esperada. Se o carimbo não puder ser lido (PDF sem texto, memorial sem carimbo), o sistema avisa e
+  pede que você confirme o envio; fica registrado no histórico. No envio de várias de uma vez, as que
+  pararam no carimbo aparecem no relatório com a mesma confirmação, para enviar só elas. O modelo IFC é um documento próprio e dispensa o PDF. Se
   algo falhar, a mensagem lista o que corrigir.
 - **Pagamento do projetista** — sai quando a gestão **aprova a disciplina** (ou a fase), e isso só é
   possível com todos os documentos **publicados**.
 - **Devolver para ajustes** — com motivo; o projetista é avisado.
-- **Publicar** — só com todos os arquivos **validados**, com o **DWG** junto do PDF (quando o tipo de
-  documento exige — configurado em Configurações → Nomenclatura → Tipos; o padrão é exigir) e sem
+- **Publicar** — só com todos os arquivos **validados**, com o **DWG** junto do PDF quando o tipo de
+  documento exige (Configurações → Nomenclatura → Tipos). Documento **sem tipo** (comum na nomenclatura
+  do cliente) e sem DWG pede uma confirmação — "este documento não precisa de DWG" (memorial, planilha) —
+  que fica registrada no histórico; na publicação em lote, a confirmação aparece no relatório. E sem
   apontamento **impeditivo** em aberto. A validação do arquivo também só é barrada
   por apontamento impeditivo. Outros
   apontamentos em aberto também impedem, a menos que o projeto permita publicar assim: aí você escreve uma

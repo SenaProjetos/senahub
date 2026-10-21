@@ -5,6 +5,7 @@ import {
   decidirPublicacao,
   documentosSemPublicacao,
   motivoEntregaSemPublicacao,
+  MOTIVO_SEM_DWG_SEM_TIPO,
   restricaoDePendenciasPodeSair,
 } from "./regras";
 
@@ -29,6 +30,33 @@ describe("decidirPublicacao", () => {
     const ifc = { ...arq(), id: "u3", nome: "modelo.ifc", ext: "ifc" };
     expect(decidirPublicacao({ arquivos: [ifc], pendencias: [], permitirComPendencias: false, exigirDwg: true })).toEqual({ ok: true, restricao: null });
     expect(decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: false })).toEqual({ ok: true, restricao: null });
+  });
+
+  it("documento sem tipo e sem DWG: pede confirmação, e só depois do resto estar certo", () => {
+    const base = { pendencias: [], permitirComPendencias: false, exigirDwg: "confirmar" as const };
+    expect(decidirPublicacao({ ...base, arquivos: [arq()] })).toEqual({ ok: false, motivo: MOTIVO_SEM_DWG_SEM_TIPO });
+    expect(decidirPublicacao({ ...base, arquivos: [arq()], confirmarSemDwg: true })).toEqual({ ok: true, restricao: null, semDwgConfirmado: true });
+    // Arquivo sem validação vem primeiro: a confirmação não é pedida antes da hora.
+    expect(decidirPublicacao({ ...base, arquivos: [arq(false)] })).toMatchObject({ ok: false, motivo: expect.stringMatching(/^Valide/) });
+    // Com pendência permitida, a confirmação vem depois da justificativa e a restrição segue.
+    const comPend = { ...base, arquivos: [arq()], pendencias: [pend()], permitirComPendencias: true };
+    expect(decidirPublicacao({ ...comPend })).toMatchObject({ ok: false, motivo: expect.stringMatching(/justificativa/) });
+    expect(decidirPublicacao({ ...comPend, justificativa: "x" })).toEqual({ ok: false, motivo: MOTIVO_SEM_DWG_SEM_TIPO });
+    expect(decidirPublicacao({ ...comPend, justificativa: "x", confirmarSemDwg: true })).toMatchObject({ ok: true, semDwgConfirmado: true, restricao: { abertos: 1 } });
+  });
+
+  it("documento sem tipo COM DWG, ou modelo IFC: publica sem perguntar", () => {
+    const dwg = { ...arq(), id: "u2", nome: "A-01.dwg", ext: "dwg" };
+    const ifc = { ...arq(), id: "u3", nome: "modelo.ifc", ext: "ifc" };
+    for (const arquivos of [[arq(), dwg], [ifc]]) {
+      expect(decidirPublicacao({ arquivos, pendencias: [], permitirComPendencias: false, exigirDwg: "confirmar" })).toEqual({ ok: true, restricao: null });
+    }
+  });
+
+  it("tipo que exige DWG não aceita a confirmação", () => {
+    expect(
+      decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: true, siglaTipo: "PLB", confirmarSemDwg: true }),
+    ).toMatchObject({ ok: false, motivo: expect.stringMatching(/tipo PLB/) });
   });
 
   it("A3 sem pendências: publica sem restrição", () => {

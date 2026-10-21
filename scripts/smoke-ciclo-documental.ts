@@ -26,6 +26,7 @@ import { lerCarimboDoArquivo } from "../src/modules/uploads/ciclo/carimbo-servid
 import { conferirCarimbo } from "../src/modules/uploads/ciclo/carimbo";
 import { verificarIntegridadeCiclo } from "../src/modules/uploads/ciclo/integridade-service";
 import { MOTIVO_CORRECAO_INTEGRIDADE } from "../src/modules/uploads/ciclo/integridade";
+import { MOTIVO_SEM_DWG_SEM_TIPO } from "../src/modules/uploads/ciclo/regras";
 
 async function main() {
   const tag = `SMKCICLO_${Date.now()}`;
@@ -174,6 +175,22 @@ async function main() {
     check("DWG obrigatório (tipo que exige): sem o DWG a publicação é recusada", /DWG/.test((await recusa(() => publicarNoBanco({ revisaoId: r1.id, quem }))) ?? ""));
     await prisma.upload.update({ where: { id: dwgUpload.id }, data: { excluidoEm: null } });
     await prisma.documentoDisciplina.update({ where: { id: d1.id }, data: { tipoId: tipoSemDwg.id } });
+
+    // ── Documento SEM tipo e sem DWG (memorial, planilha; decisão do dono 2026-10-21): pede confirmação ──
+    const dSemTipo = await documento("sem-tipo");
+    await prisma.documentoDisciplina.update({ where: { id: dSemTipo.id }, data: { tipoId: null } });
+    const rSemTipo = await revisao(dSemTipo.id, 1, { validado: true });
+    await enviarParaAnaliseNoBanco({ revisaoId: rSemTipo.id, quem });
+    check(
+      "sem tipo e sem DWG: publicar sem confirmar é recusado com a frase da tela",
+      (await recusa(() => publicarNoBanco({ revisaoId: rSemTipo.id, quem }))) === MOTIVO_SEM_DWG_SEM_TIPO,
+    );
+    await publicarNoBanco({ revisaoId: rSemTipo.id, quem, confirmarSemDwg: true });
+    check("sem tipo e sem DWG: com a confirmação, publica", (await estado(rSemTipo.id)) === "publicado");
+    check(
+      "sem tipo e sem DWG: a confirmação vira evento no histórico, na mesma transação",
+      (await prisma.documentoEvento.count({ where: { revisaoId: rSemTipo.id, tipo: "publicacao_sem_dwg" } })) === 1,
+    );
 
     // ── D2-a: só publica com tudo validado ──
     check("D2-a: arquivo sem validação impede publicar", /Valide/.test((await recusa(() => publicarNoBanco({ revisaoId: r1.id, quem }))) ?? ""));
