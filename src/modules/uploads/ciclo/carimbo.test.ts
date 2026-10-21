@@ -64,6 +64,29 @@ describe("lerCarimbo", () => {
     expect(lerCarimbo(itens).revisao).toBe(3);
   });
 
+  it("código cujo projeto mistura dígito e letra (1SG) é lido inteiro, não a partir do bloco do meio", () => {
+    // Carimbo real do Shopping Guararapes (2026-10-21): o regex antigo pegava só "001-TER-PLAEXE-R00".
+    const itens = [
+      it_("ARQUIVO:", 530, 500),
+      it_("1SG-HID-PE-001-TER-PLAEXE-R00", 656, 500),
+      it_("CREA: 182.042.034-5 - PE", 610, 790),
+      it_("REVISÃO:", 1310, 650),
+      it_("R00", 1405, 686),
+    ];
+    expect(lerCarimbo(itens)).toEqual({ temTexto: true, codigos: ["1SG-HID-PE-001-TER-PLAEXE"], revisao: 0 });
+    expect(conferirCarimbo(lerCarimbo(itens), { nomeArquivo: "1SG-HID-PE-001-TER-PLAEXE-R00.pdf", numero: 1 }).problemas).toEqual([]);
+  });
+
+  it("nunca começa um código no meio de outro (depois de hífen)", () => {
+    expect(lerCarimbo([it_("ABC-HID-PE-001-TER-PLAEXE", 10, 10)]).codigos).toEqual([]);
+  });
+
+  it("código com prefixo de projeto (PRJ-) é lido com o prefixo, como no nome do arquivo", () => {
+    const leitura = lerCarimbo([it_("PRJ-260029-HDR-BS-6001-DE.DWG", 10, 10)]);
+    expect(leitura.codigos).toEqual(["PRJ-260029-HDR-BS-6001-DE"]);
+    expect(conferirCarimbo(leitura, { nomeArquivo: "PRJ-260029-HDR-BS-6001-DE.pdf", numero: 1 }).problemas).toEqual([]);
+  });
+
   it("PDF sem texto (só imagem)", () => {
     expect(lerCarimbo([])).toEqual(LEITURA_VAZIA);
   });

@@ -6,6 +6,8 @@
  *  - SENA antigo: `CÓDIGO:` traz o NOME DO DWG ("SENA PROJETOS_ESTRUTURAL - ESCOLA … .DWG") · `REVISÃO: 00`
  *  - Cliente (Localiza): `ARQUIVO: 26027-EST-EX-4006-DTC-R00` · `REVISÃO: R00`
  *
+ *  - Cliente (Shopping Guararapes): `ARQUIVO: 1SG-HID-PE-001-TER-PLAEXE-R00` · `REVISÃO: R00`
+ *
  * Código: qualquer trecho da prancha com cara de código de documento (projeto + 2 ou mais blocos). Sem
  * nenhum, o código não é conferido (SENA antigo). Com algum, um deles tem de ser o do nome do arquivo —
  * extensão e `-Rnn` final não contam.
@@ -30,8 +32,13 @@ export const LEITURA_VAZIA: LeituraCarimbo = { temTexto: false, codigos: [], rev
 export const MOTIVO_CARIMBO_ILEGIVEL =
   "Não foi possível ler o código e a revisão no carimbo do PDF. Confira o carimbo e confirme o envio sem a conferência.";
 
-/** Código de documento: projeto (3–6 dígitos) + 2 ou mais blocos, com extensão opcional. */
-const CODIGO = /(?<![\w.])(\d{3,6}(?:-[A-Za-zÀ-ÿ0-9]{1,12}){2,})(?:\.(?:dwg|pdf|dxf|rvt|ifc|nwd))?(?![\w-])/gi;
+/**
+ * Código de documento: prefixo opcional (`PRJ-`), projeto (3–6 caracteres começando por dígito: `260029`,
+ * `1SG`) + 2 ou mais blocos, com extensão opcional. Nunca começa depois de hífen — senão
+ * `1SG-HID-PE-001-TER-PLAEXE` virava `001-TER-PLAEXE` (o primeiro bloco só de dígitos no meio do código).
+ */
+const CODIGO =
+  /(?<![\w.-])((?:[A-Za-z]{1,4}-)?\d[A-Za-z0-9]{2,5}(?:-[A-Za-zÀ-ÿ0-9]{1,12}){2,})(?:\.(?:dwg|pdf|dxf|rvt|ifc|nwd))?(?![\w-])/gi;
 const REV_FINAL = /-R(\d{1,3})$/;
 const ROTULO_REVISAO = /^\s*REVIS[ÃA]O\s*:\s*(.*)$/i;
 const VALOR_REVISAO = /^(?:R|REV\.?\s*)?0*(\d{1,3})$/i;
