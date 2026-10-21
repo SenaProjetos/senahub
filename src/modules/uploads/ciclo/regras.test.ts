@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  decidirEnvioAoCliente,
   decidirLiberacaoAutomatica,
   decidirPublicacao,
   documentosSemPublicacao,
@@ -117,5 +118,14 @@ describe("documentosSemPublicacao (6-B: pagamento na publicação)", () => {
       "Publique todos os documentos da fase antes de aprovar: 2 sem revisão publicada (A, B).",
     );
     expect(motivoEntregaSemPublicacao(["1", "2", "3", "4", "5", "6", "7"], "disciplina")).toMatch(/e mais 2\)\.$/);
+  });
+});
+
+describe("decidirEnvioAoCliente (envio automático ao publicar)", () => {
+  it("a opção ligada do projeto vale sempre; desligada, herda só se a anterior estava enviada", () => {
+    expect(decidirEnvioAoCliente({ automatico: true, anteriorEnviada: false })).toBe("automatico");
+    expect(decidirEnvioAoCliente({ automatico: true, anteriorEnviada: true })).toBe("automatico");
+    expect(decidirEnvioAoCliente({ automatico: false, anteriorEnviada: true })).toBe("herdado");
+    expect(decidirEnvioAoCliente({ automatico: false, anteriorEnviada: false })).toBeNull();
   });
 });

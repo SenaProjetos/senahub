@@ -116,6 +116,16 @@ export function decidirLiberacaoAutomatica(p: { liberarAutomaticamente: boolean;
 }
 
 /**
+ * Ao publicar uma revisão, ela vai ao cliente por: (a) a opção do projeto de enviar sempre que publicar
+ * ("automatico"); (b) herança — a revisão anterior estava enviada ao cliente, então a nova também vai
+ * ("herdado"); ou (c) nenhum dos dois (`null`), e o envio fica manual.
+ */
+export function decidirEnvioAoCliente(p: { automatico: boolean; anteriorEnviada: boolean }): "automatico" | "herdado" | null {
+  if (p.automatico) return "automatico";
+  return p.anteriorEnviada ? "herdado" : null;
+}
+
+/**
  * 6-B (decisão do dono, 2026-10-09): o pagamento do projetista sai na PUBLICAÇÃO, pelo mesmo botão de
  * sempre ("Aprovar disciplina" / "Aprovar fase") — a liberação de dinheiro continua sendo um ato humano.
  * O que muda é a exigência: cada documento do ciclo precisa ter uma revisão publicada. Documento todo

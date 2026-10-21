@@ -3,7 +3,7 @@
  * o `...` da linha e o menu de contexto. O que o perfil não permite é OMITIDO; o que o estado não
  * permite fica DESABILITADO com a mesma frase do `ActionError` do servidor (`transicoes.ts`).
  */
-import { ArrowRightLeft, Archive, Ban, BadgeCheck, HardHat, Lock, Send, ShieldAlert, Undo2, Unlock, UserRoundCheck, UserRoundX } from "lucide-react";
+import { ArrowRightLeft, Archive, Ban, BadgeCheck, HardHat, Lock, MessageSquareWarning, Send, ShieldAlert, Undo2, Unlock, UserRoundCheck, UserRoundX } from "lucide-react";
 import type { AcaoItem } from "@/components/ui/acoes";
 import { ROTULO_CONTROLE, type EstadoRevisao, type TipoControle } from "./estados";
 import { motivoParaNaoAplicar, motivoParaNaoRemover, motivoParaNaoTransicionar, type AcaoCiclo } from "./transicoes";
@@ -89,6 +89,9 @@ export function itensDoCiclo(c: CicloDaLinha, travado?: string): AcaoItem[] {
         desabilitado: podeAplicar(tipo),
       });
     }
+    if (!c.controles.some((x) => x.tipo === "em_revisao")) {
+      itens.push({ tipo: "acao", id: `${PREFIXO_APLICAR}em_revisao`, rotulo: "Marcar em revisão…", icone: MessageSquareWarning, desabilitado: podeAplicar("em_revisao") });
+    }
   }
   if (c.podeBloquear && c.estado !== "arquivado") {
     itens.push({ tipo: "acao", id: `${PREFIXO_APLICAR}bloqueio`, rotulo: "Bloquear…", icone: Lock, desabilitado: podeAplicar("bloqueio") });
@@ -96,13 +99,13 @@ export function itensDoCiclo(c: CicloDaLinha, travado?: string): AcaoItem[] {
   }
   // Remover: um item por controle ativo que a pessoa pode tirar.
   for (const ctl of c.controles) {
-    const permitido = ctl.tipo === "liberado_obra" || ctl.tipo === "enviado_cliente" ? c.podeAlterarPasta : c.podeBloquear;
+    const permitido = ctl.tipo === "liberado_obra" || ctl.tipo === "enviado_cliente" || ctl.tipo === "em_revisao" ? c.podeAlterarPasta : c.podeBloquear;
     if (!permitido) continue;
     itens.push({
       tipo: "acao",
       id: `${PREFIXO_REMOVER}${ctl.id}`,
       rotulo: ROTULO_REMOVER[ctl.tipo],
-      icone: ctl.tipo === "bloqueio" ? Unlock : ctl.tipo === "enviado_cliente" ? UserRoundX : ctl.tipo === "restricao" ? Ban : ArrowRightLeft,
+      icone: ctl.tipo === "bloqueio" ? Unlock : ctl.tipo === "enviado_cliente" ? UserRoundX : ctl.tipo === "restricao" ? Ban : ctl.tipo === "em_revisao" ? Undo2 : ArrowRightLeft,
       desabilitado: travado ?? motivoParaNaoRemover({ tipo: ctl.tipo, origem: ctl.origem }, { ator: "pessoa", motivo: "x" }) ?? undefined,
     });
   }

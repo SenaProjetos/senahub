@@ -66,6 +66,9 @@ export const COR_CONTROLE: Record<TipoControle, string> = {
 /** Controles que levam a revisão a uma pasta do cliente — só existem em revisão publicada (I5, D1-c). */
 export const CONTROLES_DE_PASTA: readonly TipoControle[] = ["liberado_obra", "enviado_cliente"];
 
+/** Controles que só existem em revisão publicada: os de pasta + a marca "Em revisão" (que não aponta pasta nenhuma). */
+export const CONTROLES_SO_PUBLICADA: readonly TipoControle[] = [...CONTROLES_DE_PASTA, "em_revisao"];
+
 export const ESCOPOS_BLOQUEIO = ["download", "atualizacao", "exclusao"] as const;
 export type EscopoBloqueio = (typeof ESCOPOS_BLOQUEIO)[number];
 
