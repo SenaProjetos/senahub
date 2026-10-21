@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.26.1](https://github.com/SenaProjetos/senahub/compare/v1.26.0...v1.26.1) (2026-10-21)
+
+
+### 🐛 Correções
+
+* **arquivos:** carimbo com código que começa por dígito e letra (1SG-…) não acusa mais nome diferente ([fe5bf77](https://github.com/SenaProjetos/senahub/commit/fe5bf777e3712e0837f78e6c2aa3753d06539db1))
+
 ## [1.26.0](https://github.com/SenaProjetos/senahub/compare/v1.25.2...v1.26.0) (2026-10-20)
 
 
