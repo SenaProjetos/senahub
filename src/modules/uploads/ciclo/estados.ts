@@ -44,7 +44,7 @@ export function estadoCongelado(estado: EstadoRevisao): boolean {
   return estado === "publicado" || estado === "arquivado";
 }
 
-export const TIPOS_CONTROLE = ["liberado_obra", "enviado_cliente", "bloqueio", "restricao"] as const;
+export const TIPOS_CONTROLE = ["liberado_obra", "enviado_cliente", "bloqueio", "restricao", "em_revisao"] as const;
 export type TipoControle = (typeof TIPOS_CONTROLE)[number];
 
 export const ROTULO_CONTROLE: Record<TipoControle, string> = {
@@ -52,6 +52,7 @@ export const ROTULO_CONTROLE: Record<TipoControle, string> = {
   enviado_cliente: "Enviado ao cliente",
   bloqueio: "Bloqueado",
   restricao: "Com restrição",
+  em_revisao: "Em revisão",
 };
 
 export const COR_CONTROLE: Record<TipoControle, string> = {
@@ -59,6 +60,7 @@ export const COR_CONTROLE: Record<TipoControle, string> = {
   enviado_cliente: "info",
   bloqueio: "perigo",
   restricao: "revisao",
+  em_revisao: "aguardando",
 };
 
 /** Controles que levam a revisão a uma pasta do cliente — só existem em revisão publicada (I5, D1-c). */

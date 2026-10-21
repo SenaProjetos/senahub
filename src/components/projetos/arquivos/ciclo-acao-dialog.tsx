@@ -159,7 +159,10 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
           : e.tipo === "aplicar"
             ? e.controle === "liberado_obra" || e.controle === "enviado_cliente"
               ? await aplicarControlePasta({ revisaoId, tipo: e.controle, motivo: valor })
-              : await aplicarBloqueioOuRestricao({ revisaoId, tipo: e.controle, motivo: valor, escopos: e.controle === "bloqueio" ? escopos : undefined })
+              : e.controle === "em_revisao"
+                ? // A ação de "Em revisão" chega na tarefa seguinte; até lá nenhum menu a oferece.
+                  ({ ok: false, error: "Esta ação ainda não está disponível." } as const)
+                : await aplicarBloqueioOuRestricao({ revisaoId, tipo: e.controle, motivo: valor, escopos: e.controle === "bloqueio" ? escopos : undefined })
             : pedido.ciclo.controles.find((c) => c.id === e.controleId)?.tipo === "liberado_obra" ||
                 pedido.ciclo.controles.find((c) => c.id === e.controleId)?.tipo === "enviado_cliente"
               ? await removerControlePasta({ controleId: e.controleId, motivo: valor })

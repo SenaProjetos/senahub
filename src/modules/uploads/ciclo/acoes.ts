@@ -58,6 +58,7 @@ const ROTULO_REMOVER: Record<TipoControle, string> = {
   enviado_cliente: "Tirar do cliente",
   bloqueio: "Remover bloqueio",
   restricao: "Remover restrição",
+  em_revisao: "Cancelar revisão…",
 };
 
 export function itensDoCiclo(c: CicloDaLinha, travado?: string): AcaoItem[] {

@@ -7161,6 +7161,8 @@ enum TipoControleRevisao {
   enviado_cliente
   bloqueio
   restricao
+  /// Revisão publicada que o cliente está analisando (2026-10-21). Um ativo por revisão.
+  em_revisao
 }
 
 enum EscopoBloqueio {
@@ -7468,6 +7470,11 @@ model DocumentoRevisao {
   /// Descrição da revisão ("Ajuste das cotas do pavimento tipo"). Único metadado digitado do ciclo;
   /// obrigatória para enviar para análise da R01 em diante (`numero >= 2`).
   descricao   String?
+  /// De onde veio a descrição: `carimbo` (lida do carimbo do PDF), `digitada` (escrita à mão) ou
+  /// `contestada` (digitada diferente do que o carimbo dizia). Nulo = sem descrição ou anterior a 2026-10-21.
+  descricaoOrigem String?
+  /// O que o carimbo dizia quando a descrição foi contestada (`descricaoOrigem = contestada`).
+  descricaoCarimbo String?
   /// Última versão (envio interno) desta revisão. Versão = ajuste interno enquanto a revisão está em
   /// andamento; revisão = a etapa que vai ao cliente. Incrementado no envio, de forma atômica.
   ultimaVersao Int                @default(1)
@@ -9361,7 +9368,7 @@ model ControleRevisao {
 
   @@index([revisaoId, removidoEm])
   @@index([tipo, removidoEm])
-  // + índice parcial `controle_revisao_um_ativo` (um liberado_obra/enviado_cliente ativo por revisão).
+  // + índice parcial `controle_revisao_um_ativo` (um liberado_obra/enviado_cliente/em_revisao ativo por revisão).
   @@map("controle_revisao")
 }
 
@@ -9376,6 +9383,8 @@ model ConfigDocumentosProjeto {
   permitirPublicarComPendencias Boolean  @default(false)
   /// Dias em análise (compartilhado) até a revisão entrar no alerta de parada (A7).
   diasAlertaCompartilhado       Int      @default(7)
+  /// Publicar já envia ao cliente (2026-10-21).
+  enviarAoClienteAutomaticamente Boolean @default(true)
   updatedAt                     DateTime @updatedAt
   createdAt                     DateTime @default(now())
 
