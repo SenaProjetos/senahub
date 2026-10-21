@@ -7,6 +7,7 @@ import { gravarEventoNoTx } from "@/modules/uploads/historico/service";
 import { participaDoCiclo } from "./escopo";
 import { CONTROLES_DE_PASTA, type EscopoBloqueio, type EstadoRevisao, type TipoControle } from "./estados";
 import {
+  decidirEnvioAoCliente,
   decidirLiberacaoAutomatica,
   decidirPublicacao,
   documentosSemPublicacao,
@@ -107,12 +108,15 @@ const PONTEIRO_DO_CONTROLE: Partial<Record<TipoControle, "revisaoCompartilhadaId
   liberado_obra: "revisaoLiberadaObraId",
 };
 
-/** Muda o estado de UMA revisão. Arquivar tira os controles de pasta junto (I5). */
+/**
+ * Muda o estado de UMA revisão. Arquivar tira os controles de pasta junto (I5) e a marca "Em revisão".
+ * `substituidaPor` = número da revisão que entrou no lugar (motivo da marca removida).
+ */
 export async function transicionarNoTx(
   tx: Tx,
   r: RevisaoCarregada,
   acao: AcaoCiclo,
-  opts: { quem: QuemAge; motivo?: string | null; detalhe?: Record<string, Prisma.InputJsonValue> },
+  opts: { quem: QuemAge; motivo?: string | null; detalhe?: Record<string, Prisma.InputJsonValue>; substituidaPor?: number },
 ): Promise<EstadoRevisao> {
   const motivoRecusa = motivoParaNaoTransicionar(acao, estadoParaTransicao(r), {
     ator: opts.quem ? "pessoa" : "sistema",
@@ -146,6 +150,10 @@ export async function transicionarNoTx(
   if (para === "arquivado") {
     for (const c of r.controles.filter((c) => CONTROLES_DE_PASTA.includes(c.tipo as TipoControle))) {
       await removerControleNoTx(tx, r, c, { quem: null, motivo: "Revisão arquivada" });
+    }
+    const motivoMarca = opts.substituidaPor !== undefined ? `Revisão ${rotuloRevisao(opts.substituidaPor)} publicada` : "Revisão arquivada";
+    for (const c of r.controles.filter((c) => c.tipo === "em_revisao")) {
+      await removerControleNoTx(tx, r, c, { quem: null, motivo: motivoMarca });
     }
   }
   return para;
@@ -244,6 +252,7 @@ async function configDoProjeto(db: Tx | typeof prisma, projetoId: string) {
     liberarObraAutomaticamente: c?.liberarObraAutomaticamente ?? false,
     permitirPublicarComPendencias: c?.permitirPublicarComPendencias ?? false,
     diasAlertaCompartilhado: c?.diasAlertaCompartilhado ?? 7,
+    enviarAoClienteAutomaticamente: c?.enviarAoClienteAutomaticamente ?? true,
   };
 }
 
@@ -326,8 +335,8 @@ export async function arquivarNoBanco(p: { revisaoId: string; quem: { userId: st
 export type ResultadoPublicacao = ResultadoTransicao & {
   /** A1: revisões que saíram do caminho, com o que perderam. */
   substituidas: { revisaoId: string; numero: number; perdeuLiberacaoObra: boolean }[];
-  /** N4: o envio ao cliente passou da anterior para esta. */
-  enviadoAoClienteHerdado: boolean;
+  /** Como a revisão foi ao cliente: "automatico" (opção do projeto), "herdado" (a anterior estava enviada) ou `null` (nada). */
+  envioAoCliente: "automatico" | "herdado" | null;
   /** A3: restrição automática aplicada (publicado com pendências). */
   restricaoPendencias: boolean;
   /** A2: o que aconteceu com a liberação automática. */
@@ -338,7 +347,9 @@ export type ResultadoPublicacao = ResultadoTransicao & {
  * Em análise → publicado (aprovação humana, D2-a/D3-c), com as automações na MESMA transação:
  *  - A1: a publicada anterior e qualquer outra revisão aberta do documento vão para arquivado
  *    ("Substituída pela revisão N") e perdem liberado para obra / enviado ao cliente.
- *  - N4: se a anterior estava enviada ao cliente, a nova fica enviada também.
+ *  - Envio ao cliente: com a opção do projeto (padrão ligada) a publicada vai ao cliente; desligada, vale a
+ *    herança antiga (N4): se a anterior estava enviada, a nova fica enviada também.
+ *  - A marca "Em revisão" da anterior sai junto com o arquivamento dela.
  *  - A3: com pendências permitidas, aplica a restrição automática.
  *  - A2: com a opção do projeto ligada e sem restrição, libera para obra.
  * Bloqueio numa revisão anterior impede o arquivamento dela — e com isso a publicação inteira (I7).
@@ -392,7 +403,11 @@ export async function publicarNoBanco(p: {
       const o = await carregarRevisao(tx, id);
       const perdeuLiberacaoObra = o.controles.some((c) => c.tipo === "liberado_obra");
       if (o.controles.some((c) => c.tipo === "enviado_cliente")) anteriorEnviadaAoCliente = true;
-      await transicionarNoTx(tx, o, "substituir", { quem: null, motivo: `Substituída pela revisão ${rotuloRevisao(r.numero)}` });
+      await transicionarNoTx(tx, o, "substituir", {
+        quem: null,
+        motivo: `Substituída pela revisão ${rotuloRevisao(r.numero)}`,
+        substituidaPor: r.numero,
+      });
       substituidas.push({ revisaoId: o.id, numero: o.numero, perdeuLiberacaoObra });
     }
     const para = await transicionarNoTx(tx, r, "publicar", {
@@ -410,12 +425,19 @@ export async function publicarNoBanco(p: {
       });
     }
 
-    // N4 — quem já mandava ao cliente continua mandando: a revisão nova entra no lugar.
-    if (anteriorEnviadaAoCliente) {
+    // Envio ao cliente: automático por opção do projeto, ou herdado de quem já mandava (N4).
+    const envioAoCliente = decidirEnvioAoCliente({
+      automatico: config.enviarAoClienteAutomaticamente,
+      anteriorEnviada: anteriorEnviadaAoCliente,
+    });
+    if (envioAoCliente) {
       await aplicarControleNoTx(tx, r, "enviado_cliente", {
         quem: null,
         origem: "publicacao",
-        motivo: "A revisão anterior estava enviada ao cliente; a publicada entra no lugar",
+        motivo:
+          envioAoCliente === "automatico"
+            ? "Envio automático ao cliente na publicação"
+            : "A revisão anterior estava enviada ao cliente; a publicada entra no lugar",
       });
     }
 
@@ -441,7 +463,7 @@ export async function publicarNoBanco(p: {
     return {
       ...resultado(r, para),
       substituidas,
-      enviadoAoClienteHerdado: anteriorEnviadaAoCliente,
+      envioAoCliente,
       restricaoPendencias: decisao.restricao !== null,
       liberacaoObra: liberacao === "liberar" ? "liberada" : liberacao,
     };

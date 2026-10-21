@@ -105,7 +105,7 @@ export const publicarRevisao = defineAction(
       confirmarSemDwg: input.confirmarSemDwg === true,
     });
     await notificarPublicacao(r, user.id);
-    return { revisaoId: r.revisaoId, liberacaoObra: r.liberacaoObra, restricaoPendencias: r.restricaoPendencias };
+    return { revisaoId: r.revisaoId, liberacaoObra: r.liberacaoObra, restricaoPendencias: r.restricaoPendencias, envioAoCliente: r.envioAoCliente };
   },
 );
 
@@ -146,6 +146,25 @@ export const aplicarControlePasta = defineAction(
   },
 );
 
+/** Marca a revisão publicada como "Em revisão" (o cliente pediu ajuste); sai sozinha quando a próxima é publicada. */
+export const marcarEmRevisao = defineAction(
+  {
+    modulo: "uploads",
+    acao: "ciclo-marcar-em-revisao",
+    recurso: "arquivos",
+    permissao: "alterar_status",
+    entidade: "DocumentoRevisao",
+    schema: z.object({ revisaoId: id, motivo }),
+    entidadeId: (_d, input) => input.revisaoId,
+  },
+  async (input, { user }) => {
+    await exigirEscopoDaRevisao(user, input.revisaoId);
+    const r = await aplicarControleNoBanco({ revisaoId: input.revisaoId, tipo: "em_revisao", quem: { userId: user.id }, motivo: input.motivo });
+    await notificarControle(r, "aplicado", user.id, input.motivo);
+    return { revisaoId: r.revisaoId };
+  },
+);
+
 /** Bloqueio e restrição manuais — decisão de responsabilidade técnica, permissão própria. */
 export const aplicarBloqueioOuRestricao = defineAction(
   {
@@ -179,6 +198,7 @@ export const aplicarBloqueioOuRestricao = defineAction(
 const PERMISSAO_DO_TIPO: Record<string, "alterar_status" | "bloquear"> = {
   liberado_obra: "alterar_status",
   enviado_cliente: "alterar_status",
+  em_revisao: "alterar_status",
   bloqueio: "bloquear",
   restricao: "bloquear",
 };
@@ -233,6 +253,7 @@ export const salvarConfigDocumentos = defineAction(
       projetoId: id,
       liberarObraAutomaticamente: z.boolean(),
       permitirPublicarComPendencias: z.boolean(),
+      enviarAoClienteAutomaticamente: z.boolean(),
       diasAlertaCompartilhado: z.number().int().min(1, "Mínimo de 1 dia.").max(90, "Máximo de 90 dias."),
     }),
     entidadeId: (_d, input) => input.projetoId,

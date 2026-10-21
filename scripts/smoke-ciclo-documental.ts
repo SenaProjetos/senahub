@@ -65,8 +65,13 @@ async function main() {
     });
   });
   const disciplinaId = projeto.disciplinas[0].id;
-  const config = (c: { liberar?: boolean; pendencias?: boolean }) => {
-    const dados = { liberarObraAutomaticamente: c.liberar ?? false, permitirPublicarComPendencias: c.pendencias ?? false };
+  // Os checks antigos (N4 por herança) rodam com o envio automático DESLIGADO; o padrão novo tem bloco próprio.
+  const config = (c: { liberar?: boolean; pendencias?: boolean; enviar?: boolean }) => {
+    const dados = {
+      liberarObraAutomaticamente: c.liberar ?? false,
+      permitirPublicarComPendencias: c.pendencias ?? false,
+      enviarAoClienteAutomaticamente: c.enviar ?? false,
+    };
     return prisma.configDocumentosProjeto.upsert({ where: { projetoId: projeto.id }, create: { projetoId: projeto.id, ...dados }, update: dados });
   };
   // O DWG obrigatório é do TIPO do documento. Os documentos do smoke publicam só com PDF, então nascem num
@@ -227,7 +232,7 @@ async function main() {
     const r1Liberado = await prisma.controleRevisao.findFirst({ where: { revisaoId: r1.id, tipo: "liberado_obra" }, select: { removidoEm: true } });
     check("A1: a publicada anterior foi arquivada", (await estado(r1.id)) === "arquivado");
     check("A1: e perdeu a liberação para obra na mesma operação", r1Liberado?.removidoEm != null && pub2.substituidas[0]?.perdeuLiberacaoObra === true);
-    check("N4: o envio ao cliente passou para a nova", pub2.enviadoAoClienteHerdado && (await ativos(r2.id)).includes("enviado_cliente"));
+    check("N4: o envio ao cliente passou para a nova", pub2.envioAoCliente === "herdado" && (await ativos(r2.id)).includes("enviado_cliente"));
     check("A2 ligada e sem restrição: a nova foi liberada para obra", pub2.liberacaoObra === "liberada" && (await ativos(r2.id)).includes("liberado_obra"));
     const ponteiros2 = await prisma.documentoDisciplina.findUnique({ where: { id: d1.id }, select: { revisaoCompartilhadaId: true, revisaoLiberadaObraId: true } });
     check("ponteiros das pastas do cliente seguem a nova revisão", ponteiros2?.revisaoCompartilhadaId === r2.id && ponteiros2?.revisaoLiberadaObraId === r2.id);
@@ -289,6 +294,64 @@ async function main() {
     check(
       "A7: a correção virou evento no histórico",
       (await prisma.documentoEvento.count({ where: { revisaoId: r5.id, tipo: "controle_removido", userId: null } })) === 1,
+    );
+
+    // ── Envio automático ao cliente e controle "Em revisão" ──
+    const ponteirosDe = (documentoId: string) =>
+      prisma.documentoDisciplina.findUnique({ where: { id: documentoId }, select: { revisaoCompartilhadaId: true, revisaoLiberadaObraId: true } });
+    const publicada = async (documentoId: string, numero: number) => {
+      const rv = await revisao(documentoId, numero, { validado: true });
+      await enviarParaAnaliseNoBanco({ revisaoId: rv.id, quem });
+      const pub = await publicarNoBanco({ revisaoId: rv.id, quem });
+      return { rv, pub };
+    };
+
+    await prisma.configDocumentosProjeto.deleteMany({ where: { projetoId: projeto.id } });
+    const dE = await documento("envio");
+    const { rv: rE0, pub: pubE0 } = await publicada(dE.id, 1);
+    const enviadoE0 = await prisma.controleRevisao.findFirst({ where: { revisaoId: rE0.id, tipo: "enviado_cliente", removidoEm: null }, select: { origem: true } });
+    check("publicar R00 com o padrão envia ao cliente", pubE0.envioAoCliente === "automatico" && enviadoE0?.origem === "publicacao" && (await ponteirosDe(dE.id))?.revisaoCompartilhadaId === rE0.id);
+
+    // Config criada só com os campos antigos (como as de antes da mudança) nasce com o envio automático ligado.
+    const configAntiga = await prisma.configDocumentosProjeto.create({
+      data: { projetoId: projeto.id, liberarObraAutomaticamente: false, permitirPublicarComPendencias: false, diasAlertaCompartilhado: 7 },
+    });
+    check("config antiga nasce com envio automático", configAntiga.enviarAoClienteAutomaticamente === true);
+
+    await aplicarControleNoBanco({ revisaoId: rE0.id, tipo: "liberado_obra", quem, motivo: "Liberado pelo RT" });
+    const corrida = await Promise.allSettled([
+      aplicarControleNoBanco({ revisaoId: rE0.id, tipo: "em_revisao", quem, motivo: "Cliente pediu ajuste" }),
+      aplicarControleNoBanco({ revisaoId: rE0.id, tipo: "em_revisao", quem, motivo: "Cliente pediu ajuste (2)" }),
+    ]);
+    const emRevisaoAtivas = await prisma.controleRevisao.count({ where: { revisaoId: rE0.id, tipo: "em_revisao", removidoEm: null } });
+    check(
+      "marcar em revisão: só uma ativa",
+      emRevisaoAtivas === 1 && corrida.filter((x) => x.status === "fulfilled").length === 1 && corrida.filter((x) => x.status === "rejected").length === 1,
+    );
+    const pE = await ponteirosDe(dE.id);
+    check("marca não tira a R00 do cliente nem da obra", pE?.revisaoCompartilhadaId === rE0.id && pE?.revisaoLiberadaObraId === rE0.id);
+
+    const marcaE0 = await prisma.controleRevisao.findFirstOrThrow({ where: { revisaoId: rE0.id, tipo: "em_revisao", removidoEm: null }, select: { id: true } });
+    check("cancelar revisão exige motivo", (await recusa(() => removerControleNoBanco({ controleId: marcaE0.id, quem, motivo: " " }))) === "Informe o motivo.");
+
+    const { rv: rE1 } = await publicada(dE.id, 2);
+    const marcaRemovida = await prisma.controleRevisao.findUnique({ where: { id: marcaE0.id }, select: { removidoEm: true, motivoRemocao: true } });
+    check(
+      "publicar R01 tira a marca da R00",
+      (await estado(rE0.id)) === "arquivado" && marcaRemovida?.removidoEm != null && marcaRemovida.motivoRemocao === "Revisão R01 publicada" && (await ativos(rE1.id)).includes("enviado_cliente"),
+    );
+
+    // Envio automático desligado = a herança de antes (a nova só vai ao cliente se a anterior estava lá).
+    await config({ enviar: false });
+    const dF = await documento("heranca");
+    const { rv: rF0, pub: pubF0 } = await publicada(dF.id, 1);
+    check("envio automático desligado: R00 publicada não vai ao cliente", pubF0.envioAoCliente === null && !(await ativos(rF0.id)).includes("enviado_cliente"));
+    await aplicarControleNoBanco({ revisaoId: rF0.id, tipo: "enviado_cliente", quem, motivo: "Para aprovação do cliente" });
+    await aplicarControleNoBanco({ revisaoId: rF0.id, tipo: "em_revisao", quem, motivo: "Cliente pediu ajuste" });
+    const { rv: rF1, pub: pubF1 } = await publicada(dF.id, 2);
+    check(
+      "envio automático desligado = herança antiga",
+      pubF1.envioAoCliente === "herdado" && (await ativos(rF1.id)).includes("enviado_cliente") && !(await ativos(rF0.id)).includes("em_revisao"),
     );
   } finally {
     await prisma.projeto.delete({ where: { id: projeto.id } });
