@@ -95,7 +95,7 @@ o link público é o caminho do cliente e da obra. Decisão minha — criar essa
 
 - Ao marcar, notifica os responsáveis da disciplina do documento (`DisciplinaResponsavel` vigentes), categoria
   `ciclo_documental`: "R00 de {documento} em revisão: {motivo}", com link para o documento. Sem o autor da ação.
-  Em lote, uma notificação por pessoa com a lista (não uma por documento). Decisão minha.
+  Uma notificação por documento, também no lote (o lote repete a ação por item, ADR-0002). Decisão minha, no plano.
 - Um filtro "Em revisão" na aba Arquivos, para o projetista achar o que tem de revisar. Decisão minha (no lugar da
   "lista de pendências da disciplina" citada na conversa: não existe essa lista por disciplina hoje).
 
@@ -163,8 +163,8 @@ nos bloqueios por linha vazia ou genérica — ele pode marcar "O carimbo foi li
 - o envio grava no detalhe do evento `descricao_contestada: { lido, digitado }` (lido = texto ou `null`);
 - quem analisa vê na revisão em análise o aviso "Descrição digitada pelo projetista; o carimbo dizia: {lido}", para
   conferir o PDF antes de publicar.
-No lote, cada documento bloqueado oferece a mesma contestação no diálogo; sem ela, o documento fica de fora do lote
-com o motivo, como hoje.
+No lote, o documento bloqueado fica de fora com o motivo, como hoje, e a contestação é feita no envio individual
+dele (a descrição digitada é por documento, não cabe num lote). Decisão minha, no plano.
 
 ### Resultado esperado nas amostras (teste de aceite)
 
