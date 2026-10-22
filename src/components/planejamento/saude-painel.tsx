@@ -340,7 +340,7 @@ export function SaudePainel({
         >
           <div className="space-y-1.5">
             {[...agrupados.entries()].map(([regra, lista]) => (
-              <div key={regra} className="flex items-start gap-2 text-sm">
+              <div key={regra} className="flex flex-wrap items-start gap-2 text-sm">
                 <Badge
                   variant="outline"
                   className={
@@ -356,7 +356,7 @@ export function SaudePainel({
                 <span>{REGRA_LABEL[regra] ?? regra}</span>
                 {regra === "disciplina_diferente_do_agrupamento" && podeGerir && (
                   // O motivo vai no <span>: o botão desabilitado não recebe o mouse (pointer-events-none) e o `title` dele nunca apareceria.
-                  <span className="ml-auto" title={planoTravado({ aprovado, emRevisao }) ? MOTIVO_PLANO_TRAVADO : undefined}>
+                  <span className="w-full sm:ml-auto sm:w-auto" title={planoTravado({ aprovado, emRevisao }) ? MOTIVO_PLANO_TRAVADO : undefined}>
                     <Button
                       size="sm"
                       variant="outline"
