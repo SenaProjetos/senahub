@@ -80,6 +80,34 @@ describe("lerQuadroDeRevisao — casos de borda", () => {
     ];
     expect(lerQuadroDeRevisao(itens)).toBeNull();
   });
+  // Rótulo DESCRIÇÃO alinhado à esquerda (não centralizado): a coluna vai até perto de AUTOR.
+  const cabecalhoEsquerda = (): ItemTextoPdf[] => [
+    { str: "REV", x: 100, y: 100, w: 12, h: 6, pagina: 1 },
+    { str: "DESCRIÇÃO", x: 122, y: 100, w: 35, h: 6, pagina: 1 },
+    { str: "AUTOR", x: 400, y: 100, w: 20, h: 6, pagina: 1 },
+    { str: "DATA", x: 460, y: 100, w: 16, h: 6, pagina: 1 },
+    { str: "00", x: 101, y: 114, w: 7, h: 6, pagina: 1 },
+    { str: "EMISSÃO INICIAL", x: 122, y: 114, w: 60, h: 6, pagina: 1 },
+    { str: "FULANO", x: 395, y: 114, w: 30, h: 6, pagina: 1 },
+    { str: "01", x: 101, y: 128, w: 7, h: 6, pagina: 1 },
+    { str: "FULANO", x: 395, y: 128, w: 30, h: 6, pagina: 1 },
+    { str: "12/03/2026", x: 455, y: 128, w: 40, h: 6, pagina: 1 },
+  ];
+  const DESCRICAO_LONGA = "ALTERAÇÃO DO LAYOUT DA COZINHA E BANHEIROS";
+
+  it("rótulo alinhado à esquerda, célula num item só: texto inteiro", () => {
+    const itens = [...cabecalhoEsquerda(), { str: DESCRICAO_LONGA, x: 122, y: 128, w: 168, h: 6, pagina: 1 }];
+    expect(textoDaRevisao(lerQuadroDeRevisao(itens)!, 1)).toBe(DESCRICAO_LONGA);
+  });
+  it("rótulo alinhado à esquerda, palavra por palavra: texto inteiro, sem o autor", () => {
+    const palavras: ItemTextoPdf[] = [];
+    let x = 122;
+    for (const p of DESCRICAO_LONGA.split(" ")) {
+      palavras.push({ str: p, x, y: 128, w: p.length * 4, h: 6, pagina: 1 });
+      x += p.length * 4 + 3;
+    }
+    expect(textoDaRevisao(lerQuadroDeRevisao([...cabecalhoEsquerda(), ...palavras])!, 1)).toBe(DESCRICAO_LONGA);
+  });
   it("linhas ordenadas por número", () => {
     const quadro = lerQuadroDeRevisao(itensDe("2525-EST-EX-DTC-433"));
     expect(quadro!.linhas.map((l) => l.numero)).toEqual([0, 1, 2, 3, 4, 5, 6]);
