@@ -46,6 +46,46 @@ describe("cronograma saudável não gera achado", () => {
   });
 });
 
+describe("disciplina diferente do agrupamento (Fase A, A2)", () => {
+  // F (sem disciplina) › H (hid) › M (hid) · V (ele) · G (sem) › X (sem) · Y (ele) ;  F › R (ele)
+  const arvore = () => [
+    boa({ id: "F", nome: "Básico", ehResumo: true, tipoEap: "fas", parentId: null, disciplinaId: null }),
+    boa({ id: "H", nome: "Hidro", ehResumo: true, tipoEap: "disc", parentId: "F", disciplinaId: "hid" }),
+    boa({ id: "M", nome: "Modelagem", parentId: "H", disciplinaId: "hid" }),
+    boa({ id: "V", nome: "Visita", parentId: "H", disciplinaId: "ele" }),
+    boa({ id: "G", nome: "Gestão", ehResumo: true, tipoEap: "res", parentId: "H", disciplinaId: null }),
+    boa({ id: "X", nome: "Reunião", parentId: "G", disciplinaId: null }),
+    boa({ id: "Y", nome: "Quadros", parentId: "G", disciplinaId: "ele" }),
+    boa({ id: "R", nome: "Solta", parentId: "F", disciplinaId: "ele" }),
+  ];
+
+  it("acusa a linha de outra disciplina dentro do agrupamento, como alerta", () => {
+    const achados = rodar(arvore()).filter((a) => a.regra === "disciplina_diferente_do_agrupamento");
+    expect(achados.map((a) => a.tarefaId)).toEqual(["V", "Y"]);
+    expect(achados.every((a) => a.severidade === "alerta")).toBe(true);
+    expect(achados[0].mensagem).toBe('"Visita" tem disciplina diferente da do agrupamento em que está.');
+  });
+
+  it("linha sem disciplina ou sem agrupamento com disciplina não é achado", () => {
+    const ids = rodar(arvore())
+      .filter((a) => a.regra === "disciplina_diferente_do_agrupamento")
+      .map((a) => a.tarefaId);
+    expect(ids).not.toContain("X");
+    expect(ids).not.toContain("R");
+    expect(ids).not.toContain("M");
+  });
+
+  it("chamador antigo, sem parentId/disciplinaId, não dispara a regra", () => {
+    expect(regras([boa(), boa({ id: "t2" })])).not.toContain("disciplina_diferente_do_agrupamento");
+  });
+
+  it("não mexe na nota de Saúde", () => {
+    const so = rodar(arvore()).filter((a) => a.regra === "disciplina_diferente_do_agrupamento");
+    expect(so.length).toBe(2);
+    expect(calcularSaude(so, 8)!.nota).toBe(calcularSaude([], 8)!.nota);
+  });
+});
+
 describe("regras estruturais", () => {
   it("acusa falta de responsável", () => {
     expect(regras([boa({ temResponsavel: false })])).toContain("sem_responsavel");

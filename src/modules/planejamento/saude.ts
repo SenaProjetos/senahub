@@ -51,6 +51,9 @@ const PESO: Record<RegraQualidade, number> = {
   // tiver tido tempo de estimar as horas.
   atribuicao_sem_horas: 0,
   atribuicao_em_resumo: 0,
+  // Fase A (2026-10-22): peso ZERO — é correção de cadastro, e contar no dia do deploy derrubaria a nota de projetos que
+  // já tinham linha inserida pelo caminho antigo.
+  disciplina_diferente_do_agrupamento: 0,
 };
 
 /**

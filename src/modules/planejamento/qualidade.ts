@@ -15,6 +15,7 @@
  * o coordenador.
  */
 import type { Dia } from "@/lib/calendario-trabalho";
+import { divergenciasDeDisciplina } from "./disciplina-linha";
 
 export type Severidade = "erro" | "alerta" | "info";
 
@@ -38,7 +39,9 @@ export type RegraQualidade =
   // F5 — acrescentadas no FIM, como toda regra nova: a chave é referenciada pela Saúde e pelos
   // filtros da tela.
   | "atribuicao_sem_horas"
-  | "atribuicao_em_resumo";
+  | "atribuicao_em_resumo"
+  // Fase A da reunião do primeiro uso (2026-10-22): linha de uma disciplina dentro do agrupamento de outra.
+  | "disciplina_diferente_do_agrupamento";
 
 export type Achado = {
   regra: RegraQualidade;
@@ -67,6 +70,9 @@ export type LinhaQualidade = {
   fimReferencia?: Dia;
   inicioReal: Dia | null;
   fimReal: Dia | null;
+  /** Agrupamento-pai e disciplina da linha — só a regra `disciplina_diferente_do_agrupamento` lê. Ausentes = não cobra. */
+  parentId?: string | null;
+  disciplinaId?: string | null;
   /** Tem PESSOA atribuída (perfil não conta: é vaga, não responsável — Doc 02 §30). */
   temResponsavel: boolean;
   /**
@@ -153,6 +159,23 @@ export function verificarCronograma(entrada: EntradaQualidade): Achado[] {
       null,
       `${comRestricao} de ${linhas.length} linhas têm data fixada. ` +
         "Restrição demais tira do cronograma a capacidade de recalcular impacto sozinho.",
+    );
+  }
+
+  // Linha de outra disciplina dentro do agrupamento de uma: mover/recuar não troca a disciplina (mexe em responsável,
+  // card e pagamento), então é aqui que a divergência aparece. Linha sem disciplina nunca entra.
+  const nomes = new Map(linhas.map((l) => [l.id, l.nome]));
+  const divergentes = divergenciasDeDisciplina(
+    linhas
+      .filter((l) => l.disciplinaId !== undefined)
+      .map((l) => ({ id: l.id, parentId: l.parentId ?? null, disciplinaId: l.disciplinaId ?? null, etapaId: null })),
+  );
+  for (const dv of divergentes) {
+    add(
+      "disciplina_diferente_do_agrupamento",
+      "alerta",
+      dv.tarefaId,
+      `"${nomes.get(dv.tarefaId)}" tem disciplina diferente da do agrupamento em que está.`,
     );
   }
 

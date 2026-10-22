@@ -59,6 +59,8 @@ export async function avaliarQualidade(projetoId: string): Promise<{
         inicioReal: true,
         fimReal: true,
         restricaoTipo: true,
+        parentId: true,
+        disciplinaId: true,
         atribuicoes: { select: { userId: true, papel: true, horasPrevistas: true } },
         _count: { select: { predecessoras: true, sucessoras: true } },
       },
@@ -78,6 +80,8 @@ export async function avaliarQualidade(projetoId: string): Promise<{
     return {
       id: t.id,
       nome: t.nome,
+      parentId: t.parentId,
+      disciplinaId: t.disciplinaId,
       tipoEap: t.tipoEap,
       duracaoDias: Number(t.duracaoDias),
       status: t.status,

@@ -39,6 +39,7 @@ const REGRA_LABEL: Record<string, string> = {
   sem_data_status: "sem Data de Status",
   atribuicao_sem_horas: "sem horas previstas",
   atribuicao_em_resumo: "agrupamento com gente atribuída",
+  disciplina_diferente_do_agrupamento: "disciplina diferente do agrupamento",
 };
 
 const FAIXA_COR: Record<string, string> = {
