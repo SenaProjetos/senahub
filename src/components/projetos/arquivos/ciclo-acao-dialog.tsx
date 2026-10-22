@@ -22,12 +22,13 @@ import {
   arquivarRevisao,
   devolverRevisao,
   enviarParaAnalise,
+  marcarEmRevisao,
   publicarRevisao,
   removerBloqueioOuRestricao,
   removerControlePasta,
 } from "@/modules/uploads/ciclo/actions";
 import type { CicloDaLinha, EscolhaCiclo } from "@/modules/uploads/ciclo/acoes";
-import { ESCOPOS_BLOQUEIO, ROTULO_CONTROLE, ROTULO_ESCOPO, type EscopoBloqueio } from "@/modules/uploads/ciclo/estados";
+import { ESCOPOS_BLOQUEIO, ROTULO_CONTROLE, ROTULO_ESCOPO, type EscopoBloqueio, type TipoControle } from "@/modules/uploads/ciclo/estados";
 import { PRECISA_DESCRICAO_A_PARTIR_DE } from "@/modules/uploads/ciclo/envio-regras";
 import { CONFIRMACOES_DO_CICLO, confirmacaoDaRecusa, type ConfirmacaoDoCiclo } from "@/modules/uploads/ciclo/confirmacoes";
 
@@ -83,6 +84,15 @@ function configDe(p: PedidoCiclo): Config {
         };
     }
   }
+  if (e.tipo === "aplicar" && e.controle === "em_revisao") {
+    return {
+      titulo: `Marcar ${rev} em revisão`,
+      descricao:
+        "O cliente pediu ajuste. A revisão continua com o cliente e na obra até a próxima ser publicada, e os responsáveis da disciplina são avisados.",
+      campo: { rotulo: "O que o cliente pediu", obrigatorio: true, placeholder: "Ex.: mudar a posição dos pilares do térreo" },
+      botao: "Marcar em revisão",
+    };
+  }
   if (e.tipo === "aplicar") {
     const rotulo = ROTULO_CONTROLE[e.controle];
     return {
@@ -101,6 +111,15 @@ function configDe(p: PedidoCiclo): Config {
     };
   }
   const controle = p.ciclo.controles.find((c) => c.id === e.controleId);
+  if (controle?.tipo === "em_revisao") {
+    return {
+      titulo: `Cancelar a revisão da ${rev}`,
+      descricao: `O cliente tinha pedido: ${controle.motivo}`,
+      campo: { rotulo: "Motivo", obrigatorio: true, placeholder: "Ex.: o cliente desistiu da mudança" },
+      botao: "Cancelar revisão",
+      destrutivo: true,
+    };
+  }
   return {
     titulo: `Remover "${controle ? ROTULO_CONTROLE[controle.tipo] : "controle"}" da ${rev}`,
     descricao: controle ? `Aplicado por: ${controle.motivo}` : "",
@@ -108,6 +127,11 @@ function configDe(p: PedidoCiclo): Config {
     botao: "Remover",
     destrutivo: true,
   };
+}
+
+/** Liberação, envio ao cliente e "Em revisão" saem por `removerControlePasta`; bloqueio e restrição, pela outra. */
+function ehControleDePasta(tipo: TipoControle | undefined): boolean {
+  return tipo === "liberado_obra" || tipo === "enviado_cliente" || tipo === "em_revisao";
 }
 
 /** Diálogo único das ações do ciclo documental — montado uma vez por tabela. */
@@ -160,11 +184,9 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
             ? e.controle === "liberado_obra" || e.controle === "enviado_cliente"
               ? await aplicarControlePasta({ revisaoId, tipo: e.controle, motivo: valor })
               : e.controle === "em_revisao"
-                ? // A ação de "Em revisão" chega na tarefa seguinte; até lá nenhum menu a oferece.
-                  ({ ok: false, error: "Esta ação ainda não está disponível." } as const)
+                ? await marcarEmRevisao({ revisaoId, motivo: valor })
                 : await aplicarBloqueioOuRestricao({ revisaoId, tipo: e.controle, motivo: valor, escopos: e.controle === "bloqueio" ? escopos : undefined })
-            : pedido.ciclo.controles.find((c) => c.id === e.controleId)?.tipo === "liberado_obra" ||
-                pedido.ciclo.controles.find((c) => c.id === e.controleId)?.tipo === "enviado_cliente"
+            : ehControleDePasta(pedido.ciclo.controles.find((c) => c.id === e.controleId)?.tipo)
               ? await removerControlePasta({ controleId: e.controleId, motivo: valor })
               : await removerBloqueioOuRestricao({ controleId: e.controleId, motivo: valor });
       if (!r.ok) {

@@ -109,6 +109,8 @@ export type ParamsTelaDocumentos = {
   catExt?: string;
   pacote?: string;
   sub?: string;
+  /** `1` = só documentos com revisão marcada "Em revisão" (link do aviso ao projetista). */
+  emRevisao?: string;
   page?: string;
   pageSize?: string;
   sort?: string;
@@ -190,21 +192,23 @@ export async function TelaDocumentosProjeto({
     can(user, "arquivos", "bloquear"),
     restritoALiberadoObra(user),
   ]);
-  const configCiclo = ehAdminDoCiclo(user)
-    ? await prisma.configDocumentosProjeto
-        .findUnique({
-          where: { projetoId: id },
-          select: {
-            liberarObraAutomaticamente: true,
-            permitirPublicarComPendencias: true,
-            diasAlertaCompartilhado: true,
-          },
-        })
-        .then(
-          (c) =>
-            c ?? { liberarObraAutomaticamente: false, permitirPublicarComPendencias: false, diasAlertaCompartilhado: 7 },
-        )
-    : null;
+  // Sem linha de configuração vale o padrão do serviço (`configDoProjeto`): só o envio ao cliente nasce ligado.
+  const configGravada = await prisma.configDocumentosProjeto.findUnique({
+    where: { projetoId: id },
+    select: {
+      liberarObraAutomaticamente: true,
+      permitirPublicarComPendencias: true,
+      diasAlertaCompartilhado: true,
+      enviarAoClienteAutomaticamente: true,
+    },
+  });
+  const valoresCiclo = configGravada ?? {
+    liberarObraAutomaticamente: false,
+    permitirPublicarComPendencias: false,
+    diasAlertaCompartilhado: 7,
+    enviarAoClienteAutomaticamente: true,
+  };
+  const configCiclo = ehAdminDoCiclo(user) ? valoresCiclo : null;
   const podeExcluirArquivo = ehAdmin || podeExcluirCap;
   // Modelo federado (spec 2026-10-04 D6): quem vê a Compatibilização vê a pasta, sem a muralha por disciplina.
   const modeloFederado = podeCoordenacao ? await versoesDoModeloFederado(id) : [];
@@ -294,7 +298,7 @@ export async function TelaDocumentosProjeto({
   // Fase e formato são também as pastas da árvore; o resto é busca/filtro de verdade.
   const filtrosAlemDaPasta = [
     sp?.q, sp?.autor, sp?.periodo, sp?.val, sp?.status,
-    sp?.tipo, sp?.papel, sp?.catExt, sp?.pacote, sp?.sub,
+    sp?.tipo, sp?.papel, sp?.catExt, sp?.pacote, sp?.sub, sp?.emRevisao === "1" ? "1" : undefined,
   ].filter(preenchido).length;
   const filtrosAtivos = filtrosAlemDaPasta + [sp?.ext, sp?.fase].filter(preenchido).length;
   const selecaoPasta = { disciplinaId: selecionadaId, fase: sp?.fase ?? null, ext: sp?.ext ?? null };
@@ -325,6 +329,7 @@ export async function TelaDocumentosProjeto({
     pacote: sp?.pacote,
     sub: sp?.sub,
     situacao,
+    emRevisao: sp?.emRevisao === "1",
   };
   const lp = parseListParams(sp ?? {}, {
     sortFields: CAMPOS_ORDENACAO_DOC,
@@ -423,6 +428,7 @@ export async function TelaDocumentosProjeto({
       projeto={projeto}
       exclusoesPendentes={new Set(exclusoesPendentes)}
       configCiclo={configCiclo}
+      envioAutomaticoAoCliente={valoresCiclo.enviarAoClienteAutomaticamente}
       areas={areas}
       areaSelecionada={areaSelecionada}
       situacao={situacao}

@@ -4,6 +4,7 @@ import {
   SELECAO_ADICIONAR_LISTA,
   SELECAO_ENVIAR_CLIENTE,
   SELECAO_LIBERAR_OBRA,
+  SELECAO_MARCAR_EM_REVISAO,
   SELECAO_ENVIAR_ANALISE,
   SELECAO_PUBLICAR,
   SELECAO_BAIXAR,
@@ -23,6 +24,7 @@ const tudo: ContextoSelecaoDocumentos = {
   totalParaPublicar: 1,
   totalParaLiberarObra: 2,
   totalParaEnviarCliente: 3,
+  totalParaMarcarEmRevisao: 4,
   podeExcluir: true,
   podeGerirListas: true,
   temListas: true,
@@ -41,6 +43,7 @@ describe("itensDaSelecaoDeDocumentos", () => {
       SELECAO_PUBLICAR,
       SELECAO_LIBERAR_OBRA,
       SELECAO_ENVIAR_CLIENTE,
+      SELECAO_MARCAR_EM_REVISAO,
       SELECAO_ADICIONAR_LISTA,
       SELECAO_REMOVER_LISTA,
       SELECAO_LINK_PUBLICO,
@@ -56,6 +59,7 @@ describe("itensDaSelecaoDeDocumentos", () => {
       totalParaPublicar: 0,
       totalParaLiberarObra: 0,
       totalParaEnviarCliente: 0,
+      totalParaMarcarEmRevisao: 0,
       podeExcluir: false,
       temListas: false,
       listaAberta: false,
@@ -79,6 +83,11 @@ describe("itensDaSelecaoDeDocumentos", () => {
     const itens = itensDaSelecaoDeDocumentos(tudo);
     expect(itens.find((i) => i.id === SELECAO_LIBERAR_OBRA)).toMatchObject({ rotulo: "Liberar para obra (2)" });
     expect(itens.find((i) => i.id === SELECAO_ENVIAR_CLIENTE)).toMatchObject({ rotulo: "Enviar ao cliente (3)" });
+  });
+
+  it("marcar em revisão diz quantas publicadas entram", () => {
+    const itens = itensDaSelecaoDeDocumentos(tudo);
+    expect(itens.find((i) => i.id === SELECAO_MARCAR_EM_REVISAO)).toMatchObject({ rotulo: "Marcar em revisão (4)" });
   });
 
   it("no menu, o rótulo diz quantos documentos", () => {

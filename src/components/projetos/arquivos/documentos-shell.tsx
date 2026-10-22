@@ -113,6 +113,7 @@ export function DocumentosShell({
   nomenclatura,
   exclusoesPendentes,
   configCiclo = null,
+  envioAutomaticoAoCliente = false,
 }: {
   /** Só no diretório geral: a árvore de ano → projeto e o começo da trilha. */
   moldura?: MolduraDiretorio;
@@ -169,6 +170,8 @@ export function DocumentosShell({
   linkPublico: LinkPublicoProps | null;
   /** Só para admin: configuração do ciclo documental do projeto (A9). */
   configCiclo?: ValoresConfigCiclo | null;
+  /** O projeto envia ao cliente o que é publicado — a confirmação do lote "Publicar" avisa. */
+  envioAutomaticoAoCliente?: boolean;
   nomenclatura: {
     projeto: React.ComponentProps<typeof NomenclaturaProjetoButton>["nomenclaturaProjeto"];
     global: React.ComponentProps<typeof NomenclaturaProjetoButton>["nomenclaturaGlobal"];
@@ -384,6 +387,7 @@ export function DocumentosShell({
             fases={fases}
             colunas={colunas}
             exclusoesPendentes={exclusoesPendentes}
+            envioAutomaticoAoCliente={envioAutomaticoAoCliente}
           />
           </div>
           {/* Pasta só com subpastas (raiz, fase) não tem documento para paginar. */}

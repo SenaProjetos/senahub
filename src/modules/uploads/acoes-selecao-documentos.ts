@@ -1,4 +1,4 @@
-import { BadgeCheck, Download, HardHat, ListMinus, ListPlus, Send, Share2, ShieldCheck, Trash2, UserRoundCheck } from "lucide-react";
+import { BadgeCheck, Download, HardHat, ListMinus, ListPlus, MessageSquareWarning, Send, Share2, ShieldCheck, Trash2, UserRoundCheck } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 
@@ -16,6 +16,7 @@ export const SELECAO_ENVIAR_ANALISE = "selecao-enviar-analise";
 export const SELECAO_PUBLICAR = "selecao-publicar";
 export const SELECAO_LIBERAR_OBRA = "selecao-liberar-obra";
 export const SELECAO_ENVIAR_CLIENTE = "selecao-enviar-cliente";
+export const SELECAO_MARCAR_EM_REVISAO = "selecao-marcar-em-revisao";
 export const SELECAO_ADICIONAR_LISTA = "selecao-adicionar-lista";
 export const SELECAO_REMOVER_LISTA = "selecao-remover-lista";
 export const SELECAO_LINK_PUBLICO = "selecao-link-publico";
@@ -34,6 +35,8 @@ export type ContextoSelecaoDocumentos = {
   totalParaLiberarObra?: number;
   /** Ciclo documental: revisões publicadas da seleção que a pessoa pode enviar ao cliente (ainda sem o envio). */
   totalParaEnviarCliente?: number;
+  /** Ciclo documental: revisões publicadas da seleção, ainda sem a marca, que a pessoa pode marcar "Em revisão". */
+  totalParaMarcarEmRevisao?: number;
   podeExcluir: boolean;
   podeGerirListas: boolean;
   temListas: boolean;
@@ -72,6 +75,9 @@ export function itensDaSelecaoDeDocumentos(ctx: ContextoSelecaoDocumentos): Acao
       : null,
     (ctx.totalParaEnviarCliente ?? 0) > 0
       ? { tipo: "acao", id: SELECAO_ENVIAR_CLIENTE, rotulo: `Enviar ao cliente (${ctx.totalParaEnviarCliente})`, icone: UserRoundCheck }
+      : null,
+    (ctx.totalParaMarcarEmRevisao ?? 0) > 0
+      ? { tipo: "acao", id: SELECAO_MARCAR_EM_REVISAO, rotulo: `Marcar em revisão (${ctx.totalParaMarcarEmRevisao})`, icone: MessageSquareWarning }
       : null,
     ctx.podeGerirListas && ctx.temListas
       ? { tipo: "acao", id: SELECAO_ADICIONAR_LISTA, rotulo: "Adicionar à lista", icone: ListPlus }

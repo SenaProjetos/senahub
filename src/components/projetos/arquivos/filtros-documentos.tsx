@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -102,6 +103,8 @@ export function FiltrosDocumentos({
   const subId = sp.get("sub") ?? "";
   const catExt = sp.get("catExt") ?? "";
   const pacote = sp.get("pacote") ?? "";
+  // "Em revisão": o cliente pediu ajuste numa revisão publicada (destino do aviso ao projetista).
+  const emRevisao = sp.get("emRevisao") === "1";
 
   const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState(q);
@@ -128,12 +131,13 @@ export function FiltrosDocumentos({
     subId ? { chave: "sub", rotulo: subs.find((item) => item.id === subId)?.nome ?? "Sub" } : null,
     catExt ? { chave: "catExt", rotulo: CATEGORIA_EXTENSAO_LABEL[catExt as keyof typeof CATEGORIA_EXTENSAO_LABEL] ?? catExt } : null,
     pacote ? { chave: "pacote", rotulo: pacote === "backup" ? "Backup" : rotuloPacote(pacote) } : null,
+    emRevisao ? { chave: "emRevisao", rotulo: "Em revisão" } : null,
   ].filter((c): c is { chave: string; rotulo: string } => c !== null);
 
   function limparTudo() {
     setParams({
       q: null, ext: null, autor: null, periodo: null, val: null, status: null, fase: null,
-      tipo: null, papel: null, catExt: null, pacote: null, sub: null,
+      tipo: null, papel: null, catExt: null, pacote: null, sub: null, emRevisao: null,
     });
   }
 
@@ -197,6 +201,19 @@ export function FiltrosDocumentos({
           </SheetHeader>
 
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
+            <div className="space-y-1.5">
+              <label className="flex items-start gap-2 text-sm font-medium">
+                <Checkbox
+                  checked={emRevisao}
+                  onCheckedChange={(v) => setParams({ emRevisao: v === true ? "1" : null })}
+                />
+                <span>Só documentos em revisão</span>
+              </label>
+              <p className="text-xs text-muted-foreground">
+                Documentos cuja revisão publicada o cliente pediu para ajustar.
+              </p>
+            </div>
+
             <div className="space-y-1.5">
               <Label htmlFor="filtro-ext">Extensão</Label>
               <Select

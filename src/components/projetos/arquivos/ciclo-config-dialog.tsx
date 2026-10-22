@@ -22,6 +22,7 @@ export type ValoresConfigCiclo = {
   liberarObraAutomaticamente: boolean;
   permitirPublicarComPendencias: boolean;
   diasAlertaCompartilhado: number;
+  enviarAoClienteAutomaticamente: boolean;
 };
 
 /**
@@ -78,6 +79,21 @@ export function CicloConfigDialog({ projetoId, valores }: { projetoId: string; v
               checked={form.liberarObraAutomaticamente}
               disabled={pendente}
               onCheckedChange={(v) => setForm((f) => ({ ...f, liberarObraAutomaticamente: v }))}
+            />
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <Label htmlFor="cfg-enviar-cliente">Publicar já envia ao cliente</Label>
+              <p className="text-xs text-muted-foreground">
+                A revisão publicada entra na pasta Compartilhado do link do cliente. Desligado, só vai se a revisão anterior
+                estava enviada; as outras se enviam pelo menu do documento.
+              </p>
+            </div>
+            <Switch
+              id="cfg-enviar-cliente"
+              checked={form.enviarAoClienteAutomaticamente}
+              disabled={pendente}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, enviarAoClienteAutomaticamente: v }))}
             />
           </div>
           <div className="flex items-start justify-between gap-4">

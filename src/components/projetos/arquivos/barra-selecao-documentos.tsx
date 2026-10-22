@@ -4,7 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { validarArquivosLote, excluirUploadsLote } from "@/modules/uploads/actions";
-import { aplicarControlePasta, enviarParaAnalise, publicarRevisao } from "@/modules/uploads/ciclo/actions";
+import { aplicarControlePasta, enviarParaAnalise, marcarEmRevisao, publicarRevisao } from "@/modules/uploads/ciclo/actions";
 import { CONFIRMACOES_DO_CICLO, confirmacaoDaRecusa, type ConfirmacaoDoCiclo } from "@/modules/uploads/ciclo/confirmacoes";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LinkSelecaoArquivosDialog } from "@/components/projetos/link-selecao-arquivos-button";
@@ -39,6 +39,7 @@ import {
   SELECAO_ENVIAR_ANALISE,
   SELECAO_ENVIAR_CLIENTE,
   SELECAO_LIBERAR_OBRA,
+  SELECAO_MARCAR_EM_REVISAO,
   SELECAO_PUBLICAR,
   SELECAO_EXCLUIR,
   SELECAO_LINK_PUBLICO,
@@ -47,7 +48,10 @@ import {
   itensDaSelecaoDeDocumentos,
 } from "@/modules/uploads/acoes-selecao-documentos";
 
-type LoteCiclo = "enviar" | "publicar" | "liberar_obra" | "enviar_cliente";
+type LoteCiclo = "enviar" | "publicar" | "liberar_obra" | "enviar_cliente" | "marcar_em_revisao";
+
+/** Aviso da confirmação do lote "Publicar" quando o projeto envia ao cliente o que é publicado. */
+export const AVISO_PUBLICAR_ENVIA_AO_CLIENTE = "As revisões publicadas vão para o cliente.";
 
 /**
  * No relatório do lote: as revisões que o servidor recusou pedindo uma confirmação (carimbo ilegível no
@@ -120,6 +124,8 @@ export function useAcoesSelecaoDocumentos({
   paraPublicar,
   paraLiberarObra,
   paraEnviarCliente,
+  paraMarcarEmRevisao = [],
+  envioAutomaticoAoCliente = false,
   podeExcluir,
   podeGerirListas,
   podeGerirLink,
@@ -143,6 +149,10 @@ export function useAcoesSelecaoDocumentos({
   paraLiberarObra: RevisaoDoLote[];
   /** Revisões selecionadas publicadas, ainda não enviadas ao cliente, que a pessoa pode enviar. */
   paraEnviarCliente: RevisaoDoLote[];
+  /** Revisões selecionadas publicadas, ainda sem a marca "Em revisão", que a pessoa pode marcar. */
+  paraMarcarEmRevisao?: RevisaoDoLote[];
+  /** O projeto envia ao cliente o que é publicado — a confirmação do lote "Publicar" avisa. */
+  envioAutomaticoAoCliente?: boolean;
   podeExcluir: boolean;
   /** Espelho visual do gate das Actions; o servidor continua validando o escopo. */
   podeGerirListas: boolean;
@@ -178,6 +188,7 @@ export function useAcoesSelecaoDocumentos({
     totalParaPublicar: paraPublicar.length,
     totalParaLiberarObra: paraLiberarObra.length,
     totalParaEnviarCliente: paraEnviarCliente.length,
+    totalParaMarcarEmRevisao: paraMarcarEmRevisao.length,
     podeExcluir,
     podeGerirListas,
     temListas: listas.length > 0,
@@ -287,9 +298,17 @@ export function useAcoesSelecaoDocumentos({
   }
 
   const revisoesDoLote = (tipo: LoteCiclo) =>
-    tipo === "enviar" ? paraEnviar : tipo === "publicar" ? paraPublicar : tipo === "liberar_obra" ? paraLiberarObra : paraEnviarCliente;
-  // Liberar para obra e enviar ao cliente pedem o motivo (vale para todas), como a ação de uma revisão só.
-  const loteExigeTexto = loteCiclo === "liberar_obra" || loteCiclo === "enviar_cliente";
+    tipo === "enviar"
+      ? paraEnviar
+      : tipo === "publicar"
+        ? paraPublicar
+        : tipo === "liberar_obra"
+          ? paraLiberarObra
+          : tipo === "marcar_em_revisao"
+            ? paraMarcarEmRevisao
+            : paraEnviarCliente;
+  // Liberar para obra, enviar ao cliente e marcar em revisão pedem o motivo (vale para todas), como a ação de uma revisão só.
+  const loteExigeTexto = loteCiclo === "liberar_obra" || loteCiclo === "enviar_cliente" || loteCiclo === "marcar_em_revisao";
   const faltaTextoLote = loteExigeTexto && textoLote.trim() === "";
   const totalDoLote = loteCiclo ? revisoesDoLote(loteCiclo).length : 0;
 
@@ -307,7 +326,9 @@ export function useAcoesSelecaoDocumentos({
           ? ["publicada", "publicadas"]
           : tipo === "liberar_obra"
             ? ["liberada para obra", "liberadas para obra"]
-            : ["enviada ao cliente", "enviadas ao cliente"];
+            : tipo === "marcar_em_revisao"
+              ? ["marcada em revisão", "marcadas em revisão"]
+              : ["enviada ao cliente", "enviadas ao cliente"];
     // Carimbo ilegível no envio e documento sem tipo publicado sem DWG não são erro a corrigir: pedem a
     // mesma confirmação da ação de uma revisão só e refazem só essas — cada uma grava o evento no histórico.
     const confirmacao: ConfirmacaoDoCiclo | null = tipo === "enviar" ? "carimbo" : tipo === "publicar" ? "dwg" : null;
@@ -342,6 +363,8 @@ export function useAcoesSelecaoDocumentos({
             return aplicarControlePasta({ revisaoId, tipo: "liberado_obra", motivo: texto! });
           case "enviar_cliente":
             return aplicarControlePasta({ revisaoId, tipo: "enviado_cliente", motivo: texto! });
+          case "marcar_em_revisao":
+            return marcarEmRevisao({ revisaoId, motivo: texto! });
         }
       },
       substantivo: ["revisão", "revisões"],
@@ -368,6 +391,8 @@ export function useAcoesSelecaoDocumentos({
         return setLoteCiclo("liberar_obra");
       case SELECAO_ENVIAR_CLIENTE:
         return setLoteCiclo("enviar_cliente");
+      case SELECAO_MARCAR_EM_REVISAO:
+        return setLoteCiclo("marcar_em_revisao");
       case SELECAO_ADICIONAR_LISTA:
         return setDialogoListaAberto(true);
       case SELECAO_REMOVER_LISTA:
@@ -436,23 +461,29 @@ export function useAcoesSelecaoDocumentos({
                 ? "Liberar revisões para obra"
                 : loteCiclo === "enviar_cliente"
                   ? "Enviar revisões ao cliente"
-                  : "Enviar revisões para análise"}
+                  : loteCiclo === "marcar_em_revisao"
+                    ? "Marcar em revisão"
+                    : "Enviar revisões para análise"}
           </DialogTitle>
           <DialogDescription>
             {loteCiclo === "publicar"
-              ? `${paraPublicar.length} ${paraPublicar.length === 1 ? "revisão em análise será publicada" : "revisões em análise serão publicadas"}. Publicado não volta; a revisão anterior de cada documento é arquivada.`
+              ? `${paraPublicar.length} ${paraPublicar.length === 1 ? "revisão em análise será publicada" : "revisões em análise serão publicadas"}. Publicado não volta; a revisão anterior de cada documento é arquivada.${envioAutomaticoAoCliente ? ` ${AVISO_PUBLICAR_ENVIA_AO_CLIENTE}` : ""}`
               : loteCiclo === "liberar_obra"
                 ? `${totalDoLote} ${totalDoLote === 1 ? "revisão publicada será liberada" : "revisões publicadas serão liberadas"} para obra. A equipe de obra passa a ver e é avisada; a que não puder (restrição, bloqueio) aparece no relatório com o motivo.`
                 : loteCiclo === "enviar_cliente"
                   ? `${totalDoLote} ${totalDoLote === 1 ? "revisão publicada será enviada" : "revisões publicadas serão enviadas"} ao cliente. O cliente passa a ver na pasta dele no link; a que não puder aparece no relatório com o motivo.`
-                  : `${paraEnviar.length} ${paraEnviar.length === 1 ? "revisão em andamento vai" : "revisões em andamento vão"} para análise. Cada uma passa pelas verificações do envio; a que não passar aparece no relatório com o que corrigir.`}
+                  : loteCiclo === "marcar_em_revisao"
+                    ? `${totalDoLote} ${totalDoLote === 1 ? "revisão publicada será marcada" : "revisões publicadas serão marcadas"} em revisão. Continuam com o cliente e na obra até a próxima ser publicada; os responsáveis de cada disciplina são avisados.`
+                    : `${paraEnviar.length} ${paraEnviar.length === 1 ? "revisão em andamento vai" : "revisões em andamento vão"} para análise. Cada uma passa pelas verificações do envio; a que não passar aparece no relatório com o que corrigir.`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-2">
           <Label htmlFor="texto-lote-ciclo">
             {loteCiclo === "publicar"
               ? "Justificativa (só para quem tiver apontamentos em aberto, se o projeto permitir)"
-              : loteExigeTexto
+              : loteCiclo === "marcar_em_revisao"
+                ? "O que o cliente pediu (vale para todas; fica no histórico de cada revisão)"
+                : loteExigeTexto
                 ? "Motivo (vale para todas; fica no histórico de cada revisão)"
                 : "O que mudou (vale para todas; obrigatório da R01 em diante)"}
           </Label>
@@ -476,7 +507,9 @@ export function useAcoesSelecaoDocumentos({
                   ? "Liberar para obra"
                   : loteCiclo === "enviar_cliente"
                     ? "Enviar ao cliente"
-                    : "Enviar para análise"}
+                    : loteCiclo === "marcar_em_revisao"
+                      ? "Marcar em revisão"
+                      : "Enviar para análise"}
           </Button>
         </DialogFooter>
       </DialogContent>

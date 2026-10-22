@@ -22,7 +22,7 @@ import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { useAcoesDocumento } from "@/components/projetos/arquivos/use-acoes-documento";
 import { PainelDocumentoDetalhe } from "@/components/projetos/arquivos/painel-documento-detalhe";
 import { TituloDocumento } from "@/components/projetos/arquivos/titulo-documento";
-import { SeloEstado, SeloNovo, SelosControles } from "@/components/projetos/arquivos/ciclo-selos";
+import { SeloEstado, SeloNovo, SeloRevisaoPedida, SelosControles } from "@/components/projetos/arquivos/ciclo-selos";
 import { Button } from "@/components/ui/button";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
@@ -288,6 +288,7 @@ function CartaoDocumento({
             <>
               <SeloEstado ciclo={linha.ciclo} />
               <SelosControles controles={linha.ciclo.controles} />
+              <SeloRevisaoPedida emRevisao={linha.emRevisao} numeroDaLinha={linha.ciclo.numero} />
             </>
           ) : (
             linha.statusNome && <BadgeStatusDocumento linha={linha} />
@@ -383,6 +384,7 @@ export function TabelaDocumentos({
   fases,
   colunas,
   exclusoesPendentes,
+  envioAutomaticoAoCliente = false,
 }: {
   projetoId: string;
   linhas: LinhaDoc[];
@@ -407,6 +409,8 @@ export function TabelaDocumentos({
   colunas: Set<string>;
   /** Ids de Upload com pedido de exclusão pendente — sinal na linha do documento dono. */
   exclusoesPendentes: Set<string>;
+  /** O projeto envia ao cliente o que é publicado (o lote "Publicar" avisa). */
+  envioAutomaticoAoCliente?: boolean;
 }) {
   // Título recém-gravado, por documento: a linha muda na hora e o servidor confirma depois. Some quando
   // chega a página nova (padrão "derivar estado da prop": comparar durante o render, sem efeito).
@@ -470,7 +474,7 @@ export function TabelaDocumentos({
   // Documento, detalhes e as opcionais visíveis: o nome da pasta vai do Nº até antes das ações.
   const colunasDoNome = 2 + COLUNAS_OPCIONAIS.filter((c) => colunas.has(c)).length;
 
-  function paraControle(tipo: "liberado_obra" | "enviado_cliente") {
+  function paraControle(tipo: "liberado_obra" | "enviado_cliente" | "em_revisao") {
     return documentosSelecionados
       .filter(
         (d) =>
@@ -500,6 +504,9 @@ export function TabelaDocumentos({
     // Liberar para obra / enviar ao cliente: só revisão publicada, sem o controle já aplicado.
     paraLiberarObra: paraControle("liberado_obra"),
     paraEnviarCliente: paraControle("enviado_cliente"),
+    // "Em revisão": só a publicada ainda sem a marca (pensado para a pasta Compartilhado inteira).
+    paraMarcarEmRevisao: paraControle("em_revisao"),
+    envioAutomaticoAoCliente,
     podeExcluir,
     podeGerirListas,
     podeGerirLink,
@@ -763,6 +770,7 @@ export function TabelaDocumentos({
                     <div className="flex flex-wrap items-center gap-1">
                       <SeloEstado ciclo={l.ciclo} />
                       <SelosControles controles={l.ciclo.controles} />
+                      <SeloRevisaoPedida emRevisao={l.emRevisao} numeroDaLinha={l.ciclo.numero} />
                     </div>
                   ) : (
                     <BadgeStatusDocumento linha={l} />
