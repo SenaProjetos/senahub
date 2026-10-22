@@ -2,6 +2,29 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.27.0](https://github.com/SenaProjetos/senahub/compare/v1.26.1...v1.27.0) (2026-10-22)
+
+
+### ✨ Funcionalidades
+
+* **arquivos:** banco do envio automático ao cliente e do controle "Em revisão" ([47e6b39](https://github.com/SenaProjetos/senahub/commit/47e6b393ffe06e7e83af8d3215db0d3d4c463046))
+* **arquivos:** descrição da revisão lida do carimbo, com contestação do projetista ([bf19ffd](https://github.com/SenaProjetos/senahub/commit/bf19ffddb3972a892b8fba0e267cc45d299a5d92))
+* **arquivos:** leitura do quadro de revisão do carimbo ([66d1b0c](https://github.com/SenaProjetos/senahub/commit/66d1b0cee0ef7045c77e27839e03d90ec911395b))
+* **arquivos:** link público mostra a revisão marcada "Em revisão" ([0a3bfdf](https://github.com/SenaProjetos/senahub/commit/0a3bfdf05a0ad6bc7377189b8dd31069980cdcc1))
+* **arquivos:** marcar em revisão na aba Arquivos, em lote e no filtro ([4a78695](https://github.com/SenaProjetos/senahub/commit/4a7869576fab9f281f5e95eaf6cae3c93d3d825d))
+* **arquivos:** publicar envia ao cliente e controle "Em revisão" no serviço ([72b6a15](https://github.com/SenaProjetos/senahub/commit/72b6a152925bc20790ca90fe6941dc8a9f272f95))
+* **arquivos:** regras do controle "Em revisão" e do envio automático ao cliente ([3bc7ecf](https://github.com/SenaProjetos/senahub/commit/3bc7ecf4383a324e7ab7fae7773ac79080c85814))
+
+
+### 🐛 Correções
+
+* **arquivos:** 0000 não vira prancha 0, renomear relê fase/tipo/nº e sigla de projeto não repete a geral ([2c67856](https://github.com/SenaProjetos/senahub/commit/2c6785652680f42051c96feaa1be36d69321aba5))
+* **arquivos:** ajustes da revisão final do envio ao cliente e do carimbo ([e66de9f](https://github.com/SenaProjetos/senahub/commit/e66de9f134bea50232330b9f43f392a5dee99219))
+* **arquivos:** carimbo confere código separado por sublinhado ([df760c7](https://github.com/SenaProjetos/senahub/commit/df760c7db0acc2f07ad4be8773c8160d16f52cb9))
+* **arquivos:** PDF só com desenho, DWG com confirmação em documento sem tipo e confirmações no lote ([6079c3b](https://github.com/SenaProjetos/senahub/commit/6079c3b61675e4a489267524631d366684313f1c))
+* **arquivos:** quadro de revisão lê descrição com rótulo alinhado à esquerda ([3d75c3f](https://github.com/SenaProjetos/senahub/commit/3d75c3f6cf71878be8a505987f93b2d54ab0e15c))
+* **arquivos:** quadro de revisão mantém a borda exata do rótulo centralizado ([000d6c4](https://github.com/SenaProjetos/senahub/commit/000d6c4a5d444ad35b069edaf26800cb1d571642))
+
 ## [1.26.1](https://github.com/SenaProjetos/senahub/compare/v1.26.0...v1.26.1) (2026-10-21)
 
 
