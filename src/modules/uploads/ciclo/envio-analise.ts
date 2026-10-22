@@ -7,7 +7,15 @@ import { montarVocabulario } from "@/modules/uploads/nomenclatura/vocabulario";
 import { compilarPadrao } from "@/modules/uploads/nomenclatura/padrao";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { gravarEventoNoTx } from "@/modules/uploads/historico/service";
-import { mensagemDosProblemas, problemasDoEnvio, type ArquivoParaEnvio } from "./envio-regras";
+import {
+  descricaoDoCarimbo,
+  descricaoVemDoCarimbo,
+  mensagemDosProblemas,
+  PRECISA_DESCRICAO_A_PARTIR_DE,
+  problemasDoEnvio,
+  type ArquivoParaEnvio,
+  type DescricaoDoCarimbo,
+} from "./envio-regras";
 import { conferirCarimbo, MOTIVO_CARIMBO_ILEGIVEL, type LeituraCarimbo } from "./carimbo";
 import type { RevisaoCarregada } from "./service";
 
@@ -33,11 +41,15 @@ function extensao(nome: string): string {
  *
  * Projeto em "Nomenclatura livre" (licitação segue o padrão do órgão): o nome e a revisão do carimbo não
  * bloqueiam; PDF, arquivo idêntico, descrição e o código do carimbo × nome do arquivo continuam valendo.
+ *
+ * Descrição (spec de 2026-10-21 §3): da R01 em diante a descrição é a do quadro de revisão do carimbo; linha
+ * vazia ou genérica bloqueia. `contestarCarimbo` = o projetista disse que o carimbo foi lido errado: vale a
+ * descrição digitada (mesma regra de genérico) e a revisão guarda o que o carimbo dizia, para quem analisa.
  */
 export async function verificarEnvioParaAnalise(
   r: RevisaoCarregada,
   tx: Tx,
-  opts: { carimbo: CarimboDoEnvio; confirmarSemCarimbo: boolean; userId: string },
+  opts: { carimbo: CarimboDoEnvio; confirmarSemCarimbo: boolean; contestarCarimbo: boolean; userId: string },
 ): Promise<Record<string, Prisma.InputJsonValue>> {
   const projetoId = r.documento.disciplina.projetoId;
   // Uma leitura por vez: a transação tem UMA conexão (sem Promise.all em `tx` — guard do projeto).
@@ -76,6 +88,17 @@ export async function verificarEnvioParaAnalise(
     outrosPadroes: nomenclatura.outrosPadroes,
   });
 
+  const descricaoLida: DescricaoDoCarimbo | null = opts.carimbo
+    ? descricaoDoCarimbo({
+        numero: r.numero,
+        quadro: opts.carimbo.leitura.quadro,
+        revisaoDoCarimbo: opts.carimbo.leitura.revisao,
+        nomenclaturaLivre: !nomenclatura.exigir,
+      })
+    : null;
+  // Só se contesta uma leitura que existe: sem quadro (ou sem PDF) a descrição já é a digitada.
+  const contestada = opts.contestarCarimbo && descricaoLida !== null && descricaoLida.tipo !== "sem_quadro";
+
   const problemas = problemasDoEnvio({
     numero: r.numero,
     descricao: r.descricao,
@@ -86,6 +109,8 @@ export async function verificarEnvioParaAnalise(
     modelo: nomenclatura.padrao,
     codigoProjeto: projeto.codigo,
     nomenclaturaLivre: !nomenclatura.exigir,
+    carimbo: descricaoLida,
+    contestada,
   });
   const carimbo = opts.carimbo
     ? conferirCarimbo(opts.carimbo.leitura, { nomeArquivo: opts.carimbo.nomeArquivo, numero: r.numero, conferirRevisao: nomenclatura.exigir })
@@ -104,6 +129,41 @@ export async function verificarEnvioParaAnalise(
     });
   }
 
+  const descricao = await gravarOrigemDaDescricao(tx, r, descricaoLida, contestada);
+
   // Vai no evento de estado: qual versão interna foi para análise (e se o carimbo foi conferido).
-  return { versao: r.ultimaVersao, carimbo: carimbo === null ? "sem_pdf" : carimbo.leituraFalhou ? "nao_conferido" : "conferido" };
+  return {
+    versao: r.ultimaVersao,
+    carimbo: carimbo === null ? "sem_pdf" : carimbo.leituraFalhou ? "nao_conferido" : "conferido",
+    ...(descricao ? { descricao } : {}),
+  };
+}
+
+/**
+ * Grava de onde veio a descrição (já verificada) e devolve o trecho do evento de estado. Lida do carimbo:
+ * o texto do carimbo SUBSTITUI o digitado. Contestada: fica o digitado e o que o carimbo dizia (`null` =
+ * linha vazia). R00 sem descrição: nada a registrar.
+ */
+async function gravarOrigemDaDescricao(
+  tx: Tx,
+  r: RevisaoCarregada,
+  lida: DescricaoDoCarimbo | null,
+  contestada: boolean,
+): Promise<Prisma.InputJsonObject | null> {
+  const digitada = r.descricao?.trim() || null;
+  if (r.numero >= PRECISA_DESCRICAO_A_PARTIR_DE && lida?.tipo === "lida" && descricaoVemDoCarimbo(lida, contestada)) {
+    await tx.documentoRevisao.update({ where: { id: r.id }, data: { descricao: lida.texto, descricaoOrigem: "carimbo", descricaoCarimbo: null } });
+    r.descricao = lida.texto;
+    return { origem: "carimbo", lido: lida.texto };
+  }
+  if (r.numero >= PRECISA_DESCRICAO_A_PARTIR_DE && contestada && lida) {
+    const lido = lida.tipo === "lida" || lida.tipo === "generica" ? lida.texto : null;
+    await tx.documentoRevisao.update({ where: { id: r.id }, data: { descricaoOrigem: "contestada", descricaoCarimbo: lido } });
+    return { origem: "contestada", lido, digitado: digitada };
+  }
+  await tx.documentoRevisao.update({
+    where: { id: r.id },
+    data: { descricaoOrigem: digitada ? "digitada" : null, descricaoCarimbo: null },
+  });
+  return digitada ? { origem: "digitada", digitado: digitada } : null;
 }

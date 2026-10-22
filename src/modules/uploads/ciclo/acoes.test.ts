@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { escolhaDoCiclo, itensDoCiclo, type CicloDaLinha } from "./acoes";
+import { avisoDaDescricao, escolhaDoCiclo, itensDoCiclo, type CicloDaLinha } from "./acoes";
 
 function ciclo(p: Partial<CicloDaLinha> = {}): CicloDaLinha {
   return {
@@ -10,6 +10,8 @@ function ciclo(p: Partial<CicloDaLinha> = {}): CicloDaLinha {
     estado: "em_andamento",
     versao: 1,
     descricao: null,
+    descricaoOrigem: null,
+    descricaoCarimbo: null,
     controles: [],
     novo: false,
     podeEnviar: true,
@@ -98,5 +100,25 @@ describe("itensDoCiclo", () => {
     expect(escolhaDoCiclo("ciclo:aplicar:bloqueio")).toEqual({ tipo: "aplicar", controle: "bloqueio" });
     expect(escolhaDoCiclo("ciclo:remover:abc")).toEqual({ tipo: "remover", controleId: "abc" });
     expect(escolhaDoCiclo("renomear")).toBeNull();
+  });
+});
+
+describe("avisoDaDescricao", () => {
+  it("em análise com descrição contestada: diz o que o carimbo dizia", () => {
+    expect(avisoDaDescricao({ estado: "compartilhado", descricaoOrigem: "contestada", descricaoCarimbo: "REVISÕES" })).toBe(
+      "Descrição digitada pelo projetista; o carimbo dizia: REVISÕES",
+    );
+    expect(avisoDaDescricao({ estado: "compartilhado", descricaoOrigem: "contestada", descricaoCarimbo: null })).toBe(
+      "Descrição digitada pelo projetista; o carimbo não tinha descrição.",
+    );
+  });
+
+  it("sem aviso: descrição do carimbo ou digitada, ou fora da análise", () => {
+    expect(avisoDaDescricao({ estado: "compartilhado", descricaoOrigem: "carimbo", descricaoCarimbo: null })).toBeNull();
+    expect(avisoDaDescricao({ estado: "compartilhado", descricaoOrigem: "digitada", descricaoCarimbo: null })).toBeNull();
+    expect(avisoDaDescricao({ estado: "compartilhado", descricaoOrigem: null, descricaoCarimbo: null })).toBeNull();
+    for (const estado of ["em_andamento", "publicado", "arquivado", null] as const) {
+      expect(avisoDaDescricao({ estado, descricaoOrigem: "contestada", descricaoCarimbo: "REVISÕES" })).toBeNull();
+    }
   });
 });

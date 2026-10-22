@@ -22,7 +22,7 @@ import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { useAcoesDocumento } from "@/components/projetos/arquivos/use-acoes-documento";
 import { PainelDocumentoDetalhe } from "@/components/projetos/arquivos/painel-documento-detalhe";
 import { TituloDocumento } from "@/components/projetos/arquivos/titulo-documento";
-import { SeloEstado, SeloNovo, SeloRevisaoPedida, SelosControles } from "@/components/projetos/arquivos/ciclo-selos";
+import { SeloDescricaoContestada, SeloEstado, SeloNovo, SeloRevisaoPedida, SelosControles } from "@/components/projetos/arquivos/ciclo-selos";
 import { Button } from "@/components/ui/button";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
@@ -289,6 +289,7 @@ function CartaoDocumento({
               <SeloEstado ciclo={linha.ciclo} />
               <SelosControles controles={linha.ciclo.controles} />
               <SeloRevisaoPedida emRevisao={linha.emRevisao} numeroDaLinha={linha.ciclo.numero} />
+              <SeloDescricaoContestada ciclo={linha.ciclo} />
             </>
           ) : (
             linha.statusNome && <BadgeStatusDocumento linha={linha} />
@@ -771,6 +772,7 @@ export function TabelaDocumentos({
                       <SeloEstado ciclo={l.ciclo} />
                       <SelosControles controles={l.ciclo.controles} />
                       <SeloRevisaoPedida emRevisao={l.emRevisao} numeroDaLinha={l.ciclo.numero} />
+                      <SeloDescricaoContestada ciclo={l.ciclo} />
                     </div>
                   ) : (
                     <BadgeStatusDocumento linha={l} />

@@ -24,6 +24,11 @@ import {
 import { verificarEnvioParaAnalise } from "../src/modules/uploads/ciclo/envio-analise";
 import { lerCarimboDoArquivo } from "../src/modules/uploads/ciclo/carimbo-servidor";
 import { conferirCarimbo } from "../src/modules/uploads/ciclo/carimbo";
+import {
+  MOTIVO_DESCRICAO_DIGITADA_GENERICA,
+  motivoDescricaoGenerica,
+  motivoDescricaoVazia,
+} from "../src/modules/uploads/ciclo/envio-regras";
 import { verificarIntegridadeCiclo } from "../src/modules/uploads/ciclo/integridade-service";
 import { MOTIVO_CORRECAO_INTEGRIDADE } from "../src/modules/uploads/ciclo/integridade";
 import { MOTIVO_SEM_DWG_SEM_TIPO } from "../src/modules/uploads/ciclo/regras";
@@ -129,7 +134,12 @@ async function main() {
     const a4 = await recusa(() =>
       prisma.$transaction(async (tx) => {
         const { carregarRevisao } = await import("../src/modules/uploads/ciclo/service");
-        await verificarEnvioParaAnalise(await carregarRevisao(tx, r1.id), tx, { carimbo: null, confirmarSemCarimbo: false, userId: usuario.id });
+        await verificarEnvioParaAnalise(await carregarRevisao(tx, r1.id), tx, {
+          carimbo: null,
+          confirmarSemCarimbo: false,
+          contestarCarimbo: false,
+          userId: usuario.id,
+        });
       }),
     );
     check("A4: nome fora da nomenclatura é recusado com o que corrigir", a4 !== null && /nome/i.test(a4));
@@ -141,13 +151,74 @@ async function main() {
       prisma.$transaction(async (tx) => {
         const { carregarRevisao } = await import("../src/modules/uploads/ciclo/service");
         await verificarEnvioParaAnalise(await carregarRevisao(tx, r1.id), tx, {
-          carimbo: { leitura: { temTexto: true, codigos: [], revisao: 1 }, nomeArquivo: `${tag}-doc.pdf` },
+          carimbo: { leitura: { temTexto: true, codigos: [], revisao: 1, quadro: null }, nomeArquivo: `${tag}-doc.pdf` },
           confirmarSemCarimbo: false,
+          contestarCarimbo: false,
           userId: usuario.id,
         });
       }),
     );
     check("nomenclatura livre: nome e revisão do carimbo não bloqueiam o envio", livre === null);
+
+    // Descrição da R01 lida do quadro de revisão do carimbo (ainda em nomenclatura livre, para o nome do
+    // smoke não bloquear): linha vazia/genérica bloqueia, contestar grava o digitado e o que o carimbo dizia.
+    const dDesc = await documento("descricao");
+    const rDesc = await revisao(dDesc.id, 2);
+    const leituraR01 = (texto: string) => ({
+      temTexto: true,
+      codigos: [],
+      revisao: 1,
+      quadro: { linhas: [{ numero: 0, texto: "EMISSÃO INICIAL" }, { numero: 1, texto }] },
+    });
+    const enviarR01 = (texto: string, extra: { descricao?: string; contestar?: boolean } = {}) =>
+      enviarParaAnaliseNoBanco({
+        revisaoId: rDesc.id,
+        quem,
+        descricao: extra.descricao,
+        verificar: (rev, tx) =>
+          verificarEnvioParaAnalise(rev, tx, {
+            carimbo: { leitura: leituraR01(texto), nomeArquivo: `${tag}-doc.pdf` },
+            confirmarSemCarimbo: false,
+            contestarCarimbo: extra.contestar ?? false,
+            userId: usuario.id,
+          }),
+      });
+    const revDesc = () =>
+      prisma.documentoRevisao.findUniqueOrThrow({ where: { id: rDesc.id }, select: { descricao: true, descricaoOrigem: true, descricaoCarimbo: true } });
+    check("descrição do carimbo: linha vazia bloqueia", (await recusa(() => enviarR01(""))) === motivoDescricaoVazia("R01"));
+    check("descrição do carimbo: texto genérico bloqueia", (await recusa(() => enviarR01("REVISÕES"))) === motivoDescricaoGenerica("REVISÕES"));
+    check(
+      "descrição do carimbo: contestar com texto genérico também bloqueia",
+      (await recusa(() => enviarR01("REVISÕES", { contestar: true, descricao: "Ajustes" }))) === MOTIVO_DESCRICAO_DIGITADA_GENERICA,
+    );
+    await enviarR01("REVISÕES", { contestar: true, descricao: "Ajuste da laje L3" });
+    const contestada = await revDesc();
+    check(
+      "descrição contestada: fica o digitado e o que o carimbo dizia",
+      (await estado(rDesc.id)) === "compartilhado" &&
+        contestada.descricao === "Ajuste da laje L3" &&
+        contestada.descricaoOrigem === "contestada" &&
+        contestada.descricaoCarimbo === "REVISÕES",
+    );
+    const eventoContestado = await prisma.documentoEvento.findFirst({
+      where: { revisaoId: rDesc.id, tipo: "estado" },
+      orderBy: { createdAt: "desc" },
+      select: { detalhe: true },
+    });
+    const detalheDesc = (eventoContestado?.detalhe as { descricao?: { origem?: string; lido?: string | null; digitado?: string } } | null)?.descricao;
+    check(
+      "descrição contestada: o evento de estado guarda lido e digitado",
+      detalheDesc?.origem === "contestada" && detalheDesc.lido === "REVISÕES" && detalheDesc.digitado === "Ajuste da laje L3",
+    );
+    await devolverNoBanco({ revisaoId: rDesc.id, quem, motivo: "Conferir o carimbo" });
+    await enviarR01("AJUSTE DAS COTAS DO TÉRREO");
+    const lida = await revDesc();
+    check(
+      "descrição lida do carimbo substitui a digitada e limpa a contestação",
+      lida.descricao === "AJUSTE DAS COTAS DO TÉRREO" && lida.descricaoOrigem === "carimbo" && lida.descricaoCarimbo === null,
+    );
+    // O documento fica em análise: sem arquivo vivo, ele sai da conta do 6-B mais abaixo.
+    await prisma.upload.updateMany({ where: { revisaoId: rDesc.id }, data: { excluidoEm: new Date() } });
     await prisma.nomenclaturaConfig.delete({ where: { projetoId: projeto.id } });
 
     // Carimbo, lido no SERVIDOR (pdfjs legacy) de um PDF real do acervo de dev: o carimbo diz

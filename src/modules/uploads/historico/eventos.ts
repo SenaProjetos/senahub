@@ -121,6 +121,16 @@ function mudancaTexto(m: unknown): string | null {
   return `${aspas(de ?? null)} → ${aspas(para ?? null)}`;
 }
 
+/** Envio para análise em que o projetista contestou a descrição lida do carimbo (`detalhe.descricao`). */
+function descricaoContestada(v: unknown): string | null {
+  if (!v || typeof v !== "object") return null;
+  const { origem, lido } = v as { origem?: unknown; lido?: unknown };
+  if (origem !== "contestada") return null;
+  return typeof lido === "string" && lido
+    ? `descrição contestada: o carimbo dizia ${aspas(lido)}`
+    : "descrição contestada: o carimbo não tinha descrição";
+}
+
 /**
  * Complemento legível do rótulo, a partir do `detalhe` gravado. Tolerante a lixo: o JSON vem do
  * banco (inclusive linhas importadas do AuditLog), então campo ausente só omite o trecho.
@@ -173,6 +183,7 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
         para ? (de ? `${de} → ${para}` : para) : null,
         texto("motivo"),
         d.automatico === true ? "automático" : null,
+        descricaoContestada(d.descricao),
       ].filter(Boolean);
       return partes.length ? partes.join(" · ") : null;
     }

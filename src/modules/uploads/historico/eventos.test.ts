@@ -109,3 +109,22 @@ describe("pendências do ciclo documental", () => {
     expect(complementoEvento("pendencia_dispensada", {})).toBeNull();
   });
 });
+
+describe("envio para análise com a descrição contestada", () => {
+  const base = { de: "em_andamento", para: "compartilhado", revisao: 2, automatico: false };
+
+  it("diz que o projetista contestou e o que o carimbo dizia", () => {
+    expect(
+      complementoEvento("estado", { ...base, descricao: { origem: "contestada", lido: "REVISÕES", digitado: "Ajuste da laje L3" } }),
+    ).toBe('R01 · Em andamento → Em análise · descrição contestada: o carimbo dizia "REVISÕES"');
+    expect(complementoEvento("estado", { ...base, descricao: { origem: "contestada", lido: null, digitado: "Ajuste da laje L3" } })).toBe(
+      "R01 · Em andamento → Em análise · descrição contestada: o carimbo não tinha descrição",
+    );
+  });
+
+  it("descrição do carimbo ou digitada não muda o texto", () => {
+    expect(complementoEvento("estado", { ...base, descricao: { origem: "carimbo", lido: "AJUSTE DAS COTAS" } })).toBe(
+      "R01 · Em andamento → Em análise",
+    );
+  });
+});

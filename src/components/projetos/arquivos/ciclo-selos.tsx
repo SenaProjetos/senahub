@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { cn, rotuloRevisao } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
-import { dicaDoControle, type CicloDaLinha, type ControleDaLinha } from "@/modules/uploads/ciclo/acoes";
+import { avisoDaDescricao, dicaDoControle, type CicloDaLinha, type ControleDaLinha } from "@/modules/uploads/ciclo/acoes";
 import { COR_CONTROLE, COR_ESTADO, ESTADO_ISO, ROTULO_CONTROLE, ROTULO_ESTADO } from "@/modules/uploads/ciclo/estados";
 
 /** Selo do estado da revisão (ciclo documental). O termo da ISO 19650 vai na dica. */
@@ -25,6 +25,17 @@ export function SelosControles({ controles }: { controles: readonly ControleDaLi
       {ROTULO_CONTROLE[c.tipo]}
     </Badge>
   ));
+}
+
+/** Revisão em análise com a descrição digitada contra o carimbo: quem analisa confere o PDF. O texto vai na dica. */
+export function SeloDescricaoContestada({ ciclo }: { ciclo: CicloDaLinha }) {
+  const aviso = avisoDaDescricao(ciclo);
+  if (!aviso) return null;
+  return (
+    <Badge variant="outline" className="shrink-0 border-warning/40 bg-warning/10 text-[10px] text-warning" title={aviso} aria-label={aviso}>
+      Descrição contestada
+    </Badge>
+  );
 }
 
 /** A5: revisão recebida e ainda não aberta por quem olha. Derivado — não é status. */

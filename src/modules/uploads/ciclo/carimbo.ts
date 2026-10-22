@@ -17,6 +17,7 @@
 import type { ItemTextoPdf } from "@/lib/ler-texto-pdf";
 import { rotuloRevisao } from "@/lib/utils";
 import { paraEspacoDeLeitura, type ItemLeitura } from "../titulo-carimbo";
+import { lerQuadroDeRevisao, type QuadroRevisao } from "./quadro-revisao";
 
 export type LeituraCarimbo = {
   temTexto: boolean;
@@ -24,9 +25,11 @@ export type LeituraCarimbo = {
   codigos: string[];
   /** Revisão lida (0 = R00), ou `null`. */
   revisao: number | null;
+  /** Quadro de revisão do carimbo (o que mudou em cada revisão), ou `null` sem quadro reconhecido. */
+  quadro: QuadroRevisao | null;
 };
 
-export const LEITURA_VAZIA: LeituraCarimbo = { temTexto: false, codigos: [], revisao: null };
+export const LEITURA_VAZIA: LeituraCarimbo = { temTexto: false, codigos: [], revisao: null, quadro: null };
 
 /** Mesma frase no servidor (ActionError) e na tela, que reconhece o caso e oferece a confirmação. */
 export const MOTIVO_CARIMBO_ILEGIVEL =
@@ -88,7 +91,7 @@ export function lerCarimbo(itens: readonly ItemTextoPdf[]): LeituraCarimbo {
     const comRev = [...brutos].map((c) => c.replace(/\.(DWG|PDF|DXF|RVT|IFC|NWD)$/, "").match(REV_FINAL)).find(Boolean);
     if (comRev) revisao = Number(comRev[1]);
   }
-  return { temTexto: true, codigos, revisao };
+  return { temTexto: true, codigos, revisao, quadro: lerQuadroDeRevisao(itens) };
 }
 
 export type ConferenciaCarimbo = { problemas: string[]; leituraFalhou: boolean };

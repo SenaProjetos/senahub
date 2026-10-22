@@ -204,6 +204,8 @@ export const CICLO_FORA: CicloDaLinha = {
   estado: null,
   versao: null,
   descricao: null,
+  descricaoOrigem: null,
+  descricaoCarimbo: null,
   controles: [],
   novo: false,
   podeEnviar: false,
@@ -211,6 +213,11 @@ export const CICLO_FORA: CicloDaLinha = {
   podeAlterarPasta: false,
   podeBloquear: false,
 };
+
+/** A coluna é texto livre no banco: valor desconhecido vira "sem origem", nunca um aviso falso. */
+function origemDaDescricao(v: string | null): CicloDaLinha["descricaoOrigem"] {
+  return v === "carimbo" || v === "digitada" || v === "contestada" ? v : null;
+}
 
 /** A5: "Novo" é derivado — revisão de outra pessoa, criada depois da última abertura, nos últimos 30 dias. */
 const NOVO_ATE_MS = 30 * 86_400_000;
@@ -500,6 +507,8 @@ export async function listarDocumentosAgrupados(opts: {
           estado: true,
           ultimaVersao: true,
           descricao: true,
+          descricaoOrigem: true,
+          descricaoCarimbo: true,
           createdAt: true,
           createdById: true,
           controles: {
@@ -628,6 +637,8 @@ export async function listarDocumentosAgrupados(opts: {
             estado: revDaLinha.estado as EstadoRevisao,
             versao: revDaLinha.ultimaVersao,
             descricao: revDaLinha.descricao,
+            descricaoOrigem: origemDaDescricao(revDaLinha.descricaoOrigem),
+            descricaoCarimbo: revDaLinha.descricaoCarimbo,
             controles: revDaLinha.controles.map((c) => ({ ...c, tipo: c.tipo as TipoControle, escopos: [...c.escopos] })),
             novo: revisaoNova(revDaLinha, userId, lidoEmPorDoc.get(d.id) ?? null),
             podeEnviar: opts.podeEnviarCap && escreveNaDisciplina,

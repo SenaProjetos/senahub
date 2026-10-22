@@ -11,7 +11,7 @@ import { rotuloRevisao } from "@/lib/utils";
 import { HistoricoDocumento } from "@/components/projetos/arquivos/historico-documento";
 import { SeloEstado } from "@/components/projetos/arquivos/ciclo-selos";
 import { CicloAcaoDialog, type PedidoCiclo } from "@/components/projetos/arquivos/ciclo-acao-dialog";
-import { escolhaDoCiclo, itensDoCiclo } from "@/modules/uploads/ciclo/acoes";
+import { avisoDaDescricao, escolhaDoCiclo, itensDoCiclo } from "@/modules/uploads/ciclo/acoes";
 import { ROTULO_CONTROLE } from "@/modules/uploads/ciclo/estados";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +73,7 @@ export function PainelDocumentoDetalhe({
   // Ação do ciclo aberta a partir dos botões da seção "Ciclo da revisão" (mesmo diálogo do menu da linha).
   const [pedidoCiclo, setPedidoCiclo] = useState<PedidoCiclo | null>(null);
   const acoesCiclo = itensDoCiclo(linha.ciclo).filter((i) => i.tipo === "acao");
+  const avisoDescricao = avisoDaDescricao(linha.ciclo);
 
   // Ao abrir, o formulário recarrega da linha atual — não do que estava em memória desde a montagem.
   const [estavaAberto, setEstavaAberto] = useState(aberto);
@@ -232,6 +233,12 @@ export function PainelDocumentoDetalhe({
                   <p className="whitespace-pre-wrap text-sm">
                     <span className="text-xs text-muted-foreground">O que mudou: </span>
                     {linha.ciclo.descricao}
+                  </p>
+                )}
+                {avisoDescricao && (
+                  <p role="note" className="rounded-md border border-warning/40 bg-warning/10 px-2 py-1.5 text-xs">
+                    {avisoDescricao}
+                    {avisoDescricao.endsWith(".") ? "" : "."} Confira o quadro de revisão no PDF antes de publicar.
                   </p>
                 )}
                 {linha.ciclo.controles.length > 0 && (

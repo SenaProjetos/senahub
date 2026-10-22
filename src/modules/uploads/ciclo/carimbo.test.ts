@@ -40,15 +40,15 @@ const LOCALIZA = [
 
 describe("lerCarimbo", () => {
   it("SENA novo: código com extensão e revisão 00", () => {
-    expect(lerCarimbo(SENA_NOVO)).toEqual({ temTexto: true, codigos: ["260029-HDR-BS-6001-DE"], revisao: 0 });
+    expect(lerCarimbo(SENA_NOVO)).toEqual({ temTexto: true, codigos: ["260029-HDR-BS-6001-DE"], revisao: 0, quadro: null });
   });
 
   it("SENA antigo: o campo CÓDIGO tem o nome do DWG — código não é lido, só a revisão", () => {
-    expect(lerCarimbo(SENA_ANTIGO)).toEqual({ temTexto: true, codigos: [], revisao: 0 });
+    expect(lerCarimbo(SENA_ANTIGO)).toEqual({ temTexto: true, codigos: [], revisao: 0, quadro: null });
   });
 
   it("Localiza: sem valor ao lado de REVISÃO, a revisão sai do -R00 do código", () => {
-    expect(lerCarimbo(LOCALIZA)).toEqual({ temTexto: true, codigos: ["26027-EST-EX-4006-DTC"], revisao: 0 });
+    expect(lerCarimbo(LOCALIZA)).toEqual({ temTexto: true, codigos: ["26027-EST-EX-4006-DTC"], revisao: 0, quadro: null });
   });
 
   it("aceita R01, REV 01, REV.1 e o valor no mesmo trecho do rótulo", () => {
@@ -73,7 +73,7 @@ describe("lerCarimbo", () => {
       it_("REVISÃO:", 1310, 650),
       it_("R00", 1405, 686),
     ];
-    expect(lerCarimbo(itens)).toEqual({ temTexto: true, codigos: ["1SG-HID-PE-001-TER-PLAEXE"], revisao: 0 });
+    expect(lerCarimbo(itens)).toEqual({ temTexto: true, codigos: ["1SG-HID-PE-001-TER-PLAEXE"], revisao: 0, quadro: null });
     expect(conferirCarimbo(lerCarimbo(itens), { nomeArquivo: "1SG-HID-PE-001-TER-PLAEXE-R00.pdf", numero: 1 }).problemas).toEqual([]);
   });
 
@@ -146,7 +146,7 @@ describe("código separado por sublinhado", () => {
   const SUBLINHADO = [it_("2558_HDR_EX_6001_DTC_R00.DWG", 10, 10), it_("REVISÃO:", 200, 10), it_("00", 240, 10)];
 
   it("lê o código e a revisão", () => {
-    expect(lerCarimbo(SUBLINHADO)).toEqual({ temTexto: true, codigos: ["2558-HDR-EX-6001-DTC"], revisao: 0 });
+    expect(lerCarimbo(SUBLINHADO)).toEqual({ temTexto: true, codigos: ["2558-HDR-EX-6001-DTC"], revisao: 0, quadro: null });
   });
 
   it("sem o campo REVISÃO, a revisão vem do _Rnn final do código", () => {
@@ -154,6 +154,7 @@ describe("código separado por sublinhado", () => {
       temTexto: true,
       codigos: ["2558-HDR-EX-6001-DTC"],
       revisao: 2,
+      quadro: null,
     });
   });
 
@@ -164,7 +165,7 @@ describe("código separado por sublinhado", () => {
 
   it("código sem _Rnn é lido e a revisão fica em aberto", () => {
     const leitura = lerCarimbo([it_("25102_EST_EX_DTC_4001", 10, 10)]);
-    expect(leitura).toEqual({ temTexto: true, codigos: ["25102-EST-EX-DTC-4001"], revisao: null });
+    expect(leitura).toEqual({ temTexto: true, codigos: ["25102-EST-EX-DTC-4001"], revisao: null, quadro: null });
     expect(conferirCarimbo(leitura, { nomeArquivo: "25102_EST_EX_DTC_4001.pdf", numero: 1 }).problemas).toEqual([]);
   });
 

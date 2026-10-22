@@ -53,6 +53,8 @@ describe("itensDeDocumento — ciclo documental", () => {
     estado: "publicado" as const,
     versao: 1,
     descricao: null,
+    descricaoOrigem: null,
+    descricaoCarimbo: null,
     controles: [],
     novo: false,
     podeEnviar: true,

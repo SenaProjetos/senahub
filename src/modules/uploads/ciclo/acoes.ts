@@ -27,6 +27,10 @@ export type CicloDaLinha = {
   /** Versão interna atual da revisão (R01 · v3). */
   versao: number | null;
   descricao: string | null;
+  /** De onde veio a descrição (`carimbo` | `digitada` | `contestada`); nulo = sem descrição ou anterior. */
+  descricaoOrigem: "carimbo" | "digitada" | "contestada" | null;
+  /** O que o carimbo dizia quando o projetista contestou a leitura (`null` = linha vazia). */
+  descricaoCarimbo: string | null;
   controles: ControleDaLinha[];
   /** A5: revisão recebida e ainda não aberta por quem olha (derivado, nunca gravado). */
   novo: boolean;
@@ -119,4 +123,15 @@ export function itensDoCiclo(c: CicloDaLinha, travado?: string): AcaoItem[] {
 export function dicaDoControle(c: ControleDaLinha): string {
   const escopo = c.tipo === "bloqueio" && c.escopos.length ? ` (${c.escopos.join(", ")})` : "";
   return `${ROTULO_CONTROLE[c.tipo]}${escopo}: ${c.motivo}${c.automatico ? " · automático" : ""}`;
+}
+
+/**
+ * Aviso para quem analisa: o projetista contestou a leitura do carimbo e digitou a descrição. Só na revisão
+ * em análise — é ali que se confere o PDF antes de publicar.
+ */
+export function avisoDaDescricao(c: Pick<CicloDaLinha, "estado" | "descricaoOrigem" | "descricaoCarimbo">): string | null {
+  if (c.estado !== "compartilhado" || c.descricaoOrigem !== "contestada") return null;
+  return c.descricaoCarimbo
+    ? `Descrição digitada pelo projetista; o carimbo dizia: ${c.descricaoCarimbo}`
+    : "Descrição digitada pelo projetista; o carimbo não tinha descrição.";
 }

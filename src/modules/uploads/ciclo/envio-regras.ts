@@ -7,12 +7,14 @@
  * nome segue o padrão de outro dono e as verificações do nome ficam de fora (`nomenclaturaLivre`). Os metadados vêm do nome, do carimbo e da
  * detecção; o único campo digitado é a descrição da revisão, obrigatória da R01 em diante.
  *
- * A conferência com o CARIMBO (código e revisão) não está aqui: só entra depois de o dono ver exemplos
- * reais da leitura (spec, "Em aberto").
+ * A conferência do código e da revisão do CARIMBO está em `carimbo.ts`. Aqui entra só a DESCRIÇÃO lida do
+ * quadro de revisão do carimbo (`quadro-revisao.ts`, spec de 2026-10-21 §3): da R01 em diante, linha vazia
+ * ou genérica bloqueia, e o projetista pode contestar a leitura digitando a descrição (`contestada`).
  */
 import { rotuloRevisao } from "@/lib/utils";
 import type { Interpretacao } from "@/modules/uploads/nomenclatura/interpretar";
 import { ehDocumentoDeModelo } from "./escopo";
+import { descricaoGenerica, textoDaRevisao, type QuadroRevisao } from "./quadro-revisao";
 
 export type ArquivoParaEnvio = { nome: string; ext: string; hash: string };
 
@@ -36,7 +38,69 @@ export type EntradaEnvio = {
    * outro dono (licitação segue o do órgão), então nada do que se lê do NOME bloqueia o envio.
    */
   nomenclaturaLivre?: boolean;
+  /** O que o quadro de revisão do carimbo diz desta revisão; `null` = revisão sem PDF. */
+  carimbo: DescricaoDoCarimbo | null;
+  /** O projetista marcou "O carimbo foi lido errado": vale a descrição digitada. */
+  contestada: boolean;
 };
+
+/** A descrição desta revisão no quadro de revisão do carimbo do PDF. */
+export type DescricaoDoCarimbo =
+  | { tipo: "lida"; texto: string }
+  | { tipo: "vazia" }
+  | { tipo: "generica"; texto: string }
+  | { tipo: "sem_quadro" };
+
+function ultimaLinhaComTexto(q: QuadroRevisao): string | null {
+  return [...q.linhas].reverse().find((l) => l.texto.trim() !== "")?.texto ?? null;
+}
+
+/**
+ * `numero` = número interno da revisão (1 = R00) → `textoDaRevisao(q, numero - 1)`; `revisaoDoCarimbo` já é
+ * 0 = R00. Em "Nomenclatura livre" (licitação) o carimbo segue a numeração do órgão: a linha é a do
+ * `REVISÃO:` lido do próprio carimbo e, sem ele, a última linha preenchida.
+ */
+export function descricaoDoCarimbo(p: {
+  numero: number;
+  quadro: QuadroRevisao | null;
+  revisaoDoCarimbo: number | null;
+  nomenclaturaLivre: boolean;
+}): DescricaoDoCarimbo {
+  if (!p.quadro) return { tipo: "sem_quadro" };
+  const texto = p.nomenclaturaLivre
+    ? p.revisaoDoCarimbo !== null
+      ? textoDaRevisao(p.quadro, p.revisaoDoCarimbo)
+      : ultimaLinhaComTexto(p.quadro)
+    : textoDaRevisao(p.quadro, p.numero - 1);
+  if (texto === null || texto.trim() === "") return { tipo: "vazia" };
+  return descricaoGenerica(texto) ? { tipo: "generica", texto } : { tipo: "lida", texto };
+}
+
+/** O carimbo decide a descrição (não contestado e com quadro lido)? Mesmo critério no envio e na tela. */
+export function descricaoVemDoCarimbo(carimbo: DescricaoDoCarimbo | null, contestada: boolean): boolean {
+  return carimbo !== null && carimbo.tipo !== "sem_quadro" && !contestada;
+}
+
+export const motivoDescricaoVazia = (rotulo: string) => `Preencha no carimbo o que mudou nesta revisão (${rotulo}).`;
+export const motivoDescricaoGenerica = (texto: string) =>
+  `A descrição no carimbo (${texto}) não diz o que mudou. Escreva no carimbo o que foi alterado.`;
+export const MOTIVO_DESCRICAO_DIGITADA_GENERICA = "A descrição não diz o que mudou. Escreva o que foi alterado nesta revisão.";
+export const MOTIVO_SEM_DESCRICAO = "Descreva o que mudou nesta revisão.";
+
+/** Da R01 em diante: a descrição lida do carimbo ou, sem quadro / contestada, a digitada. */
+function problemasDaDescricao(e: EntradaEnvio): string[] {
+  if (e.numero < PRECISA_DESCRICAO_A_PARTIR_DE) return [];
+  const c = e.carimbo;
+  if (c && descricaoVemDoCarimbo(c, e.contestada)) {
+    if (c.tipo === "vazia") return [motivoDescricaoVazia(rotuloRevisao(e.numero))];
+    if (c.tipo === "generica") return [motivoDescricaoGenerica(c.texto)];
+    return [];
+  }
+  const digitada = e.descricao?.trim();
+  if (!digitada) return [MOTIVO_SEM_DESCRICAO];
+  if (descricaoGenerica(digitada)) return [MOTIVO_DESCRICAO_DIGITADA_GENERICA];
+  return [];
+}
 
 const primeirosDigitos = (texto: string) => texto.match(/\d+/)?.[0] ?? "";
 
@@ -114,9 +178,7 @@ export function problemasDoEnvio(e: EntradaEnvio): string[] {
     }
   }
 
-  if (e.numero >= PRECISA_DESCRICAO_A_PARTIR_DE && !e.descricao?.trim()) {
-    problemas.push("Descreva o que mudou nesta revisão.");
-  }
+  problemas.push(...problemasDaDescricao(e));
   return problemas;
 }
 

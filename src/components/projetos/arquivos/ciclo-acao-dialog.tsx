@@ -23,13 +23,20 @@ import {
   devolverRevisao,
   enviarParaAnalise,
   marcarEmRevisao,
+  previaDoEnvio,
   publicarRevisao,
   removerBloqueioOuRestricao,
   removerControlePasta,
 } from "@/modules/uploads/ciclo/actions";
 import type { CicloDaLinha, EscolhaCiclo } from "@/modules/uploads/ciclo/acoes";
 import { ESCOPOS_BLOQUEIO, ROTULO_CONTROLE, ROTULO_ESCOPO, type EscopoBloqueio, type TipoControle } from "@/modules/uploads/ciclo/estados";
-import { PRECISA_DESCRICAO_A_PARTIR_DE } from "@/modules/uploads/ciclo/envio-regras";
+import {
+  descricaoVemDoCarimbo,
+  motivoDescricaoGenerica,
+  motivoDescricaoVazia,
+  PRECISA_DESCRICAO_A_PARTIR_DE,
+  type DescricaoDoCarimbo,
+} from "@/modules/uploads/ciclo/envio-regras";
 import { CONFIRMACOES_DO_CICLO, confirmacaoDaRecusa, type ConfirmacaoDoCiclo } from "@/modules/uploads/ciclo/confirmacoes";
 
 /** O que a linha manda abrir: a escolha do menu e o ciclo da revisão. */
@@ -129,6 +136,54 @@ function configDe(p: PedidoCiclo): Config {
   };
 }
 
+/** Prévia da descrição lida do carimbo, guardada com a revisão a que se refere (resposta atrasada não vale). */
+type PreviaEnvio = { revisaoId: string; carimbo: DescricaoDoCarimbo | null; rotulo: string };
+
+function ehEnvioComDescricao(p: PedidoCiclo | null): boolean {
+  return (
+    p !== null &&
+    p.escolha.tipo === "transicao" &&
+    p.escolha.acao === "enviar_analise" &&
+    (p.ciclo.numero ?? 1) >= PRECISA_DESCRICAO_A_PARTIR_DE
+  );
+}
+
+/**
+ * O que o carimbo disse da descrição desta revisão: o texto lido (só leitura) ou por que bloqueia, e a caixa
+ * "O carimbo foi lido errado" — o projetista sempre pode contestar e digitar a descrição.
+ */
+function DescricaoDoCarimboNoEnvio({
+  previa,
+  contestar,
+  onContestar,
+  desabilitado,
+}: {
+  previa: PreviaEnvio & { carimbo: Exclude<DescricaoDoCarimbo, { tipo: "sem_quadro" }> };
+  contestar: boolean;
+  onContestar: (v: boolean) => void;
+  desabilitado: boolean;
+}) {
+  const c = previa.carimbo;
+  return (
+    <div className="space-y-2">
+      {c.tipo === "lida" ? (
+        <div className="space-y-1 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+          <p className="text-xs text-muted-foreground">O que mudou nesta revisão, lido do carimbo ({previa.rotulo})</p>
+          <p className="whitespace-pre-wrap font-medium">{c.texto}</p>
+        </div>
+      ) : (
+        <p role="alert" className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
+          {c.tipo === "vazia" ? motivoDescricaoVazia(previa.rotulo) : motivoDescricaoGenerica(c.texto)}
+        </p>
+      )}
+      <label className="flex items-start gap-2 text-sm">
+        <Checkbox checked={contestar} disabled={desabilitado} onCheckedChange={(v) => onContestar(v === true)} />
+        <span>O carimbo foi lido errado. Vou digitar o que mudou (quem analisa é avisado para conferir o PDF).</span>
+      </label>
+    </div>
+  );
+}
+
 /** Liberação, envio ao cliente e "Em revisão" saem por `removerControlePasta`; bloqueio e restrição, pela outra. */
 function ehControleDePasta(tipo: TipoControle | undefined): boolean {
   return tipo === "liberado_obra" || tipo === "enviado_cliente" || tipo === "em_revisao";
@@ -144,6 +199,22 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
   // O servidor pediu uma confirmação explícita (carimbo ilegível, publicar sem DWG).
   const [pede, setPede] = useState<ConfirmacaoDoCiclo | null>(null);
   const [confirmou, setConfirmou] = useState(false);
+  // Envio da R01 em diante: o que o carimbo diz da descrição, e se o projetista contestou a leitura.
+  const [previa, setPrevia] = useState<PreviaEnvio | null>(null);
+  const [contestar, setContestar] = useState(false);
+  const revisaoDoEnvio = ehEnvioComDescricao(pedido) ? pedido!.ciclo.revisaoId : null;
+  useEffect(() => {
+    if (!revisaoDoEnvio) return;
+    let vivo = true;
+    void previaDoEnvio({ revisaoId: revisaoDoEnvio }).then((r) => {
+      if (!vivo) return;
+      // Prévia que falhou: segue com o campo digitado — o servidor relê o carimbo no envio de qualquer jeito.
+      setPrevia({ revisaoId: revisaoDoEnvio, carimbo: r.ok ? r.data.carimbo : null, rotulo: r.ok ? r.data.rotulo : "" });
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [revisaoDoEnvio]);
   // O botão principal fica desabilitado até a confirmação: o foco do teclado vem para a caixa.
   const caixaRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -158,9 +229,22 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
     setErro(null);
     setPede(null);
     setConfirmou(false);
+    setContestar(false);
+    setPrevia(null);
   }
 
-  const cfg = pedido ? configDe(pedido) : null;
+  const cfgBase = pedido ? configDe(pedido) : null;
+  // R01 em diante: até a prévia chegar não há campo; com o carimbo lido, o campo só aparece contestando.
+  const previaAtual = revisaoDoEnvio && previa?.revisaoId === revisaoDoEnvio ? previa : null;
+  const lendoCarimbo = revisaoDoEnvio !== null && previaAtual === null;
+  const doCarimbo = previaAtual?.carimbo && previaAtual.carimbo.tipo !== "sem_quadro" ? { ...previaAtual, carimbo: previaAtual.carimbo } : null;
+  const carimboDecide = doCarimbo !== null && descricaoVemDoCarimbo(doCarimbo.carimbo, contestar);
+  const cfg =
+    cfgBase && revisaoDoEnvio && (lendoCarimbo || carimboDecide)
+      ? { ...cfgBase, campo: null }
+      : cfgBase;
+  // Linha vazia ou genérica no carimbo bloqueia no servidor: só segue contestando.
+  const carimboBloqueia = carimboDecide && doCarimbo.carimbo.tipo !== "lida";
   const faltaTexto = !!cfg?.campo?.obrigatorio && texto.trim() === "";
   const faltaEscopo = !!cfg?.escopos && escopos.length === 0;
   const faltaConfirmar = pede !== null && !confirmou;
@@ -174,7 +258,12 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
       const r =
         e.tipo === "transicao"
           ? e.acao === "enviar_analise"
-            ? await enviarParaAnalise({ revisaoId, descricao: valor || undefined, confirmarSemCarimbo: pede === "carimbo" && confirmou })
+            ? await enviarParaAnalise({
+                revisaoId,
+                descricao: cfg.campo ? valor || undefined : undefined,
+                confirmarSemCarimbo: pede === "carimbo" && confirmou,
+                contestarCarimbo: doCarimbo !== null && contestar,
+              })
             : e.acao === "publicar"
               ? await publicarRevisao({ revisaoId, justificativa: valor || undefined, confirmarSemDwg: pede === "dwg" && confirmou })
               : e.acao === "devolver"
@@ -218,6 +307,10 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
               </DialogDescription>
             </DialogHeader>
             <DialogBody className="space-y-3">
+              {lendoCarimbo && <p className="text-sm text-muted-foreground">Lendo a descrição no carimbo do PDF…</p>}
+              {doCarimbo && (
+                <DescricaoDoCarimboNoEnvio previa={doCarimbo} contestar={contestar} onContestar={setContestar} desabilitado={pendente} />
+              )}
               {cfg.campo && (
                 <div className="space-y-1.5">
                   <Label htmlFor="ciclo-texto">{cfg.campo.rotulo}</Label>
@@ -264,7 +357,7 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
             </DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={onFechar} disabled={pendente}>Cancelar</Button>
-              <Button variant={cfg.destrutivo ? "destructive" : "default"} onClick={executar} disabled={pendente || faltaTexto || faltaEscopo || faltaConfirmar}>
+              <Button variant={cfg.destrutivo ? "destructive" : "default"} onClick={executar} disabled={pendente || faltaTexto || faltaEscopo || faltaConfirmar || lendoCarimbo || carimboBloqueia}>
                 {pendente ? "Aguarde…" : cfg.botao}
               </Button>
             </DialogFooter>

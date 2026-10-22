@@ -15,6 +15,9 @@ import {
 } from "./service";
 import { verificarEnvioParaAnalise, type CarimboDoEnvio } from "./envio-analise";
 import { lerCarimboDoArquivo } from "./carimbo-servidor";
+import { descricaoDoCarimbo, PRECISA_DESCRICAO_A_PARTIR_DE, type DescricaoDoCarimbo } from "./envio-regras";
+import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { rotuloRevisao } from "@/lib/utils";
 import { notificarPublicacao, notificarTransicao, notificarControle } from "./notificacoes";
 
 /**
@@ -26,6 +29,52 @@ import { notificarPublicacao, notificarTransicao, notificarControle } from "./no
 const id = z.string().min(1);
 const motivo = z.string().trim().min(1, "Informe o motivo.").max(1000);
 
+/** O carimbo do PDF mais recente da revisão, lido no servidor e FORA de transação (ler PDF é lento). */
+async function carimboDaRevisao(revisaoId: string): Promise<CarimboDoEnvio> {
+  const pdf = await prisma.upload.findFirst({
+    where: { revisaoId, excluidoEm: null, nomeArquivo: { endsWith: ".pdf", mode: "insensitive" } },
+    orderBy: { createdAt: "desc" },
+    select: { nomeArquivo: true, caminho: true },
+  });
+  return pdf ? { leitura: await lerCarimboDoArquivo(pdf.caminho), nomeArquivo: pdf.nomeArquivo } : null;
+}
+
+/**
+ * O que o diálogo do envio mostra antes de enviar: a descrição que o carimbo dá para esta revisão (ou por
+ * que ela bloqueia). Só leitura — o envio relê o carimbo e decide de novo, nunca confia nesta prévia.
+ * `carimbo: null` = revisão sem PDF ou R00 (a descrição só vem do carimbo da R01 em diante).
+ */
+export const previaDoEnvio = defineAction(
+  {
+    modulo: "uploads",
+    acao: "ciclo-previa-envio",
+    recurso: "arquivos",
+    permissao: "enviar",
+    audit: false,
+    schema: z.object({ revisaoId: id }),
+  },
+  async (input, { user }): Promise<{ carimbo: DescricaoDoCarimbo | null; rotulo: string }> => {
+    await exigirEscopoDaRevisao(user, input.revisaoId);
+    const rev = await prisma.documentoRevisao.findUnique({
+      where: { id: input.revisaoId },
+      select: { numero: true, documento: { select: { disciplina: { select: { projetoId: true } } } } },
+    });
+    if (!rev) throw new ActionError("Revisão não encontrada.");
+    const rotulo = rotuloRevisao(rev.numero);
+    if (rev.numero < PRECISA_DESCRICAO_A_PARTIR_DE) return { carimbo: null, rotulo };
+    const lido = await carimboDaRevisao(input.revisaoId);
+    if (!lido) return { carimbo: null, rotulo };
+    const nomenclatura = await resolverNomenclatura(rev.documento.disciplina.projetoId);
+    const carimbo = descricaoDoCarimbo({
+      numero: rev.numero,
+      quadro: lido.leitura.quadro,
+      revisaoDoCarimbo: lido.leitura.revisao,
+      nomenclaturaLivre: !nomenclatura.exigir,
+    });
+    return { carimbo, rotulo };
+  },
+);
+
 export const enviarParaAnalise = defineAction(
   {
     modulo: "uploads",
@@ -35,28 +84,31 @@ export const enviarParaAnalise = defineAction(
     entidade: "DocumentoRevisao",
     schema: z.object({
       revisaoId: id,
-      /** Descrição da revisão — o único metadado digitado; obrigatória da R01 em diante. */
+      /** Descrição digitada: sem quadro de revisão no carimbo (ou sem PDF), ou contestando o carimbo. */
       descricao: z.string().trim().max(500).optional(),
       /** Carimbo ilegível: a pessoa confirmou o envio sem a conferência (vira evento no histórico). */
       confirmarSemCarimbo: z.boolean().optional(),
+      /** "O carimbo foi lido errado": vale a descrição digitada, e quem analisa é avisado. */
+      contestarCarimbo: z.boolean().optional(),
     }),
     entidadeId: (_d, input) => input.revisaoId,
   },
   async (input, { user }) => {
     await exigirEscopoDaRevisao(user, input.revisaoId);
-    // O carimbo é lido ANTES da transação: ler um PDF leva tempo e não pode segurar a conexão.
-    const pdf = await prisma.upload.findFirst({
-      where: { revisaoId: input.revisaoId, excluidoEm: null, nomeArquivo: { endsWith: ".pdf", mode: "insensitive" } },
-      orderBy: { createdAt: "desc" },
-      select: { nomeArquivo: true, caminho: true },
-    });
-    const carimbo: CarimboDoEnvio = pdf ? { leitura: await lerCarimboDoArquivo(pdf.caminho), nomeArquivo: pdf.nomeArquivo } : null;
+    // O carimbo é lido ANTES da transação: ler um PDF leva tempo e não pode segurar a conexão. E é sempre
+    // relido aqui — a descrição que a tela mostrou não vale como prova.
+    const carimbo = await carimboDaRevisao(input.revisaoId);
     const r = await enviarParaAnaliseNoBanco({
       revisaoId: input.revisaoId,
       quem: { userId: user.id },
       descricao: input.descricao,
       verificar: (rev, tx) =>
-        verificarEnvioParaAnalise(rev, tx, { carimbo, confirmarSemCarimbo: input.confirmarSemCarimbo === true, userId: user.id }),
+        verificarEnvioParaAnalise(rev, tx, {
+          carimbo,
+          confirmarSemCarimbo: input.confirmarSemCarimbo === true,
+          contestarCarimbo: input.contestarCarimbo === true,
+          userId: user.id,
+        }),
     });
     await notificarTransicao(r, "enviar_analise", user.id);
     return { revisaoId: r.revisaoId };
