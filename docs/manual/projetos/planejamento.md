@@ -126,7 +126,11 @@ Clique numa linha (ou em **Nova tarefa**). Quem tem só `planejamento:ver` não 
   **Restrição de data** (abaixo) — ao criar, dá para já informar **Não iniciar antes de**.
 - **Agrupamento** (linha com subtarefas): não tem duração própria — início, término e duração vêm das
   atividades dentro dele, e ele não vira marco.
-- **Disciplina** (opcional).
+- **Disciplina** (opcional). Uma linha **nova** nasce com a disciplina do **agrupamento** em que entra
+  (**Inserir acima** e **Subtarefa de**), nunca com a da linha ao lado; dentro de um agrupamento sem
+  disciplina (como "Gestão"), ela nasce sem disciplina. Você pode trocar à mão. Mover ou recuar uma linha
+  **não** muda a disciplina dela (mexeria em responsável, card e pagamento) — se ela ficar numa disciplina
+  diferente da do agrupamento, o verificador avisa (veja abaixo).
 - **Fase** (opcional): aparece quando a disciplina escolhida tem
   [etapas](etapas-e-pagamento-por-fase.md). É o que liga um **marco** à fase que ele entrega.
 - **Progresso** (de 5 em 5%), que o coordenador **informa**. O sistema só **sugere**: o
@@ -327,8 +331,16 @@ semanal** da nota. Abra **Achados do verificador** para ver as regras que dispar
 | Tipo | O que acusa |
 | --- | --- |
 | **Erro** (bloqueia a aprovação) | dependência circular · marco com duração · atividade sem duração · concluída sem término real · **crítica atrasada** (no caminho crítico, já passou do término combinado) · futura com avanço (ainda não começou e já tem %) |
-| **Alerta** | sem Data de Status · excesso de restrições · iniciada sem início real · bloqueada · sem responsável · duração excessiva (mais de 20 dias) · atrasada |
+| **Alerta** | sem Data de Status · excesso de restrições · iniciada sem início real · bloqueada · sem responsável · duração excessiva (mais de 20 dias) · atrasada · **disciplina diferente do agrupamento** |
 | **Informativo** | sem predecessora · sem sucessora · sem horas previstas · agrupamento com gente atribuída |
+
+**Disciplina diferente do agrupamento** acusa a linha de uma disciplina que está dentro do agrupamento de
+outra (por exemplo, uma "Visita técnica" de Elétrica dentro de Hidrossanitário). Linha **sem** disciplina nunca
+é acusada. Esse alerta **não pesa na nota**. O botão **Usar a disciplina do agrupamento**, ao lado do achado,
+passa as linhas apontadas para a disciplina e a fase do agrupamento, depois de confirmar. Quem já estava
+atribuído à linha **continua** (confira a coluna Recursos); a linha que ficar sem ninguém recebe o responsável da
+disciplina nova. O botão fica desabilitado, com o motivo, quando o cronograma está aprovado — para corrigir, use
+**Revisar planejamento**.
 
 As regras de **atraso** (atrasada, crítica atrasada, futura com avanço) só rodam depois que a
 **Data de Status** é definida. **Atrasada** compara com o **término da linha de base** (o combinado);
@@ -377,7 +389,10 @@ plano volta a travar. É o que responde, no fim do projeto, "por que o prazo and
 - **Aplicar ao projeto** — leva o fim previsto da EAP para o **prazo das disciplinas** (o maior fim
   entre as tarefas de cada disciplina). Disciplina com **etapas** só recebe o prazo de linha que
   tenha a **fase** da etapa.
-- **Tarefas (kanban)** — cada atividade da equipe com gente escalada vira um **card**; o botão de
+- **Tarefas (kanban)** — cada atividade da equipe com gente escalada vira um **card**, com a **sigla da
+  fase antes do nome** (por exemplo, "BS · Modelagem" e "EX · Modelagem"), para a mesma disciplina em fases
+  distintas não virar dois cards iguais. Cards de cronogramas já aprovados ganham a sigla na próxima
+  reprogramação. O botão de
   lista (**Gerar tarefa no kanban**) força a sincronização de uma linha. Em rascunho fica
   desabilitado.
 - **Ponto** — dá para dizer em qual tarefa você trabalhou; as horas aparecem no editor

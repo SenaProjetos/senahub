@@ -20,6 +20,17 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## EAP: disciplina da linha e fase no card (outubro/2026)
+
+- **Linha nova nasce na disciplina certa.** Ao inserir uma linha na EAP, ela agora recebe a disciplina do
+  **agrupamento** em que entra, e não a da linha ao lado. Antes, uma "Visita técnica" inserida ao lado de uma
+  linha de Hidrossanitário nascia como Hidrossanitário, com o responsável dessa disciplina.
+- **Aviso e correção.** O verificador do cronograma avisa quando uma linha está numa disciplina diferente da
+  do agrupamento, e o botão **Usar a disciplina do agrupamento** corrige.
+  [Saiba mais](projetos/planejamento.md#saúde-e-verificador)
+- **Fase no card.** O card da tarefa gerado da EAP mostra a fase antes do nome ("BS · Modelagem"), para a mesma
+  disciplina em fases diferentes não aparecer duas vezes igual no quadro e no ponto.
+
 ## Compatibilização: tirar modelos da lista (outubro/2026)
 
 - **Lista de disciplinas mais curta.** Na aba Compatibilização, o coordenador ou o administrador pode tirar
