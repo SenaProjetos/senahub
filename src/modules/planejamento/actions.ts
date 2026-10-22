@@ -25,7 +25,7 @@ import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agrega
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
-import { alinharDisciplinasNoBanco } from "@/modules/planejamento/disciplina-linha-service";
+import { MAX_LINHAS, alinharDisciplinasNoBanco } from "@/modules/planejamento/disciplina-linha-service";
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
 import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
@@ -414,7 +414,17 @@ export const alinharDisciplinaAoAgrupamento = defineAction(
     ...plan,
     acao: "alinhar-disciplina-eap",
     entidade: "EapTarefa",
-    schema: z.object({ projetoId: z.string().min(1), tarefaIds: z.array(z.string().min(1)).min(1).max(2000) }),
+    schema: z.object({
+      projetoId: z.string().min(1),
+      tarefaIds: z.array(z.string().min(1)).min(1, "Escolha ao menos uma linha.").max(MAX_LINHAS, `Corrija no máximo ${MAX_LINHAS} linhas de uma vez.`),
+    }),
+    entidadeId: (_data, i) => i.projetoId,
+    // O antes de cada linha pedida (disciplina e fase): a correção é em massa e o log só guardaria os ids.
+    capturarAntes: (i) =>
+      prisma.eapTarefa.findMany({
+        where: { projetoId: i.projetoId, id: { in: i.tarefaIds } },
+        select: { id: true, disciplinaId: true, etapaId: true },
+      }),
   },
   async (i, { user }) => {
     const { corrigidas } = await alinharDisciplinasNoBanco(i.projetoId, i.tarefaIds);

@@ -1,9 +1,15 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { divergenciasDeDisciplina } from "./disciplina-linha";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
 import { exigirPlanoEditavel } from "./trava-plano-service";
+
+type Db = Prisma.TransactionClient | typeof prisma;
+
+/** Teto de linhas por chamada (o schema da action usa o mesmo). */
+export const MAX_LINHAS = 500;
 
 /**
  * Passa para a disciplina (e a fase) do agrupamento as linhas que divergem dela — o botão do achado
@@ -20,20 +26,30 @@ export async function alinharDisciplinasNoBanco(
   tarefaIds: readonly string[],
 ): Promise<{ corrigidas: string[] }> {
   const pedidas = new Set(tarefaIds);
-  const nos = await prisma.eapTarefa.findMany({
-    where: { projetoId },
-    select: { id: true, parentId: true, disciplinaId: true, etapaId: true },
-  });
-  const aCorrigir = divergenciasDeDisciplina(nos).filter((d) => pedidas.has(d.tarefaId));
-  if (aCorrigir.length === 0) return { corrigidas: [] };
+  const divergentes = async (db: Db) =>
+    divergenciasDeDisciplina(
+      await db.eapTarefa.findMany({ where: { projetoId }, select: { id: true, parentId: true, disciplinaId: true, etapaId: true } }),
+    ).filter((d) => pedidas.has(d.tarefaId));
+  if ((await divergentes(prisma)).length === 0) return { corrigidas: [] };
 
   await exigirPlanoEditavel(projetoId);
-  await prisma.$transaction(async (tx) => {
-    for (const d of aCorrigir) {
-      await tx.eapTarefa.update({ where: { id: d.tarefaId }, data: { disciplinaId: d.esperadaId, etapaId: d.etapaEsperadaId } });
-    }
-  });
-  const corrigidas = aCorrigir.map((d) => d.tarefaId);
-  await herdarResponsaveisNoProjeto(prisma, projetoId, corrigidas);
+  // Lê DE NOVO dentro da transação e grava só se a linha ainda está na disciplina que se achou errada: edição
+  // concorrente (da linha ou do pai) entre a leitura e a gravação não é sobrescrita em silêncio.
+  const corrigidas = await prisma.$transaction(
+    async (tx) => {
+      const feitas: string[] = [];
+      for (const d of await divergentes(tx)) {
+        const r = await tx.eapTarefa.updateMany({
+          where: { id: d.tarefaId, disciplinaId: d.atualId },
+          data: { disciplinaId: d.esperadaId, etapaId: d.etapaEsperadaId },
+        });
+        if (r.count === 1) feitas.push(d.tarefaId);
+      }
+      return feitas;
+    },
+    // Até `MAX_LINHAS` updates em sequência: o padrão de 5 s do Prisma não basta para uma EAP grande.
+    { timeout: 30_000 },
+  );
+  if (corrigidas.length > 0) await herdarResponsaveisNoProjeto(prisma, projetoId, corrigidas);
   return { corrigidas };
 }
