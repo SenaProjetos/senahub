@@ -34,12 +34,12 @@ export const MOTIVO_CARIMBO_ILEGIVEL =
 
 /**
  * Código de documento: prefixo opcional (`PRJ-`), projeto (3–6 caracteres começando por dígito: `260029`,
- * `1SG`) + 2 ou mais blocos, com extensão opcional. Nunca começa depois de hífen — senão
+ * `1SG`) + 2 ou mais blocos, com extensão opcional. Os blocos separam-se por hífen ou sublinhado (`2558_HDR_EX_6001_DTC_R00`; `codigoBase` unifica). Nunca começa depois de hífen/sublinhado — senão
  * `1SG-HID-PE-001-TER-PLAEXE` virava `001-TER-PLAEXE` (o primeiro bloco só de dígitos no meio do código).
  */
 const CODIGO =
-  /(?<![\w.-])((?:[A-Za-z]{1,4}-)?\d[A-Za-z0-9]{2,5}(?:-[A-Za-zÀ-ÿ0-9]{1,12}){2,})(?:\.(?:dwg|pdf|dxf|rvt|ifc|nwd))?(?![\w-])/gi;
-const REV_FINAL = /-R(\d{1,3})$/;
+  /(?<![\w.-])((?:[A-Za-z]{1,4}[-_])?\d[A-Za-z0-9]{2,5}(?:[-_][A-Za-zÀ-ÿ0-9]{1,12}){2,})(?:\.(?:dwg|pdf|dxf|rvt|ifc|nwd))?(?![\w-])/gi;
+const REV_FINAL = /[-_]R(\d{1,3})$/;
 const ROTULO_REVISAO = /^\s*REVIS[ÃA]O\s*:\s*(.*)$/i;
 const VALOR_REVISAO = /^(?:R|REV\.?\s*)?0*(\d{1,3})$/i;
 
@@ -49,7 +49,8 @@ export function codigoBase(texto: string): string {
     .trim()
     .toUpperCase()
     .replace(/\.(DWG|PDF|DXF|RVT|IFC|NWD)$/, "")
-    .replace(REV_FINAL, "");
+    .replace(REV_FINAL, "")
+    .replace(/_/g, "-");
 }
 
 function revisaoDoValor(texto: string): number | null {

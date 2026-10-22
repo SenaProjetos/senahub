@@ -134,4 +134,46 @@ describe("conferirCarimbo", () => {
     expect(codigoBase("26027-est-ex-4006-dtc-R00.pdf")).toBe("26027-EST-EX-4006-DTC");
     expect(codigoBase("260029-HDR-BS-6001-DE.DWG")).toBe("260029-HDR-BS-6001-DE");
   });
+
+  it("codigoBase trata sublinhado e hífen como o mesmo separador", () => {
+    expect(codigoBase("2558_HDR_EX_6001_DTC_R00.DWG")).toBe("2558-HDR-EX-6001-DTC");
+    expect(codigoBase("2558_HDR_EX_6001_DTC-R01.pdf")).toBe("2558-HDR-EX-6001-DTC");
+    expect(codigoBase("25102_EST_EX_DTC_4001")).toBe("25102-EST-EX-DTC-4001");
+  });
+});
+
+describe("código separado por sublinhado", () => {
+  const SUBLINHADO = [it_("2558_HDR_EX_6001_DTC_R00.DWG", 10, 10), it_("REVISÃO:", 200, 10), it_("00", 240, 10)];
+
+  it("lê o código e a revisão", () => {
+    expect(lerCarimbo(SUBLINHADO)).toEqual({ temTexto: true, codigos: ["2558-HDR-EX-6001-DTC"], revisao: 0 });
+  });
+
+  it("sem o campo REVISÃO, a revisão vem do _Rnn final do código", () => {
+    expect(lerCarimbo([it_("2558_HDR_EX_6001_DTC_R02.DWG", 10, 10)])).toEqual({
+      temTexto: true,
+      codigos: ["2558-HDR-EX-6001-DTC"],
+      revisao: 2,
+    });
+  });
+
+  it("confere com o nome do arquivo: código igual, revisão diferente aponta só a revisão", () => {
+    const r = conferirCarimbo(lerCarimbo(SUBLINHADO), { nomeArquivo: "2558_HDR_EX_6001_DTC_R01.pdf", numero: 2 });
+    expect(r.problemas).toEqual(["O carimbo indica R00, mas o sistema espera R01."]);
+  });
+
+  it("código sem _Rnn é lido e a revisão fica em aberto", () => {
+    const leitura = lerCarimbo([it_("25102_EST_EX_DTC_4001", 10, 10)]);
+    expect(leitura).toEqual({ temTexto: true, codigos: ["25102-EST-EX-DTC-4001"], revisao: null });
+    expect(conferirCarimbo(leitura, { nomeArquivo: "25102_EST_EX_DTC_4001.pdf", numero: 1 }).problemas).toEqual([]);
+  });
+
+  it("código diferente do arquivo ainda bloqueia", () => {
+    const r = conferirCarimbo(lerCarimbo(SUBLINHADO), { nomeArquivo: "2558_HDR_EX_6002_DTC_R00.pdf", numero: 1 });
+    expect(r.problemas).toEqual(["O carimbo indica o código 2558-HDR-EX-6001-DTC, mas o arquivo se chama 2558-HDR-EX-6002-DTC."]);
+  });
+
+  it("nunca começa um código no meio de outro (depois de sublinhado)", () => {
+    expect(lerCarimbo([it_("ABC_HID_PE_001_TER_PLAEXE", 10, 10)]).codigos).toEqual([]);
+  });
 });
