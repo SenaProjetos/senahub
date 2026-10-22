@@ -68,6 +68,8 @@ export type ArquivoPublico = {
   faseId: string | null;
   faseSigla: string | null;
   faseNome: string | null;
+  /** Motivo da marca "Em revisão" na revisão deste arquivo (o cliente pediu ajuste); `null` = sem marca. */
+  emRevisao: string | null;
 };
 /**
  * O arquivo como a PÁGINA precisa dele. Fase fica de fora de propósito: depois do agrupamento,
@@ -118,6 +120,16 @@ const DOCUMENTO_REGRAS = {
   status: { select: { final: true } },
   substituidoPor: { select: { status: { select: { final: true } } } },
 } as const;
+/**
+ * A revisão do upload com a marca "Em revisão" ativa (se houver). Um `revisao` só por select: o das
+ * regras (`numero`) e este se fundem aqui, repetir a chave sobrescreveria um deles.
+ */
+const REVISAO_COM_MARCA = {
+  select: {
+    numero: true,
+    controles: { where: { tipo: "em_revisao", removidoEm: null }, select: { motivo: true }, take: 1 },
+  },
+} as const;
 const SELECT_REGRAS = {
   pacote: true,
   documentoId: true,
@@ -132,6 +144,7 @@ const SELECT_REGRAS = {
  */
 const SELECT_REGRAS_COM_FASE = {
   ...SELECT_REGRAS,
+  revisao: REVISAO_COM_MARCA,
   documento: {
     select: {
       ...DOCUMENTO_REGRAS,
@@ -143,6 +156,7 @@ const SELECT_REGRAS_COM_FASE = {
 /** O que a regra das pastas do cliente (`situacoesDoUpload`) precisa ver de cada upload, com a fase. */
 const SELECT_SITUACAO = {
   revisaoId: true,
+  revisao: REVISAO_COM_MARCA,
   pacote: true,
   documento: {
     select: {
@@ -293,6 +307,7 @@ async function conteudoDaSelecao(uploadIds: string[], agruparPorFase: boolean): 
         nomeArquivo: true,
         tamanho: true,
         versao: true,
+        revisao: REVISAO_COM_MARCA,
         disciplina: { select: { id: true, disciplinaTextoLegado: true } },
         documento: { select: { fase: { select: { id: true, sigla: true, nome: true } } } },
       },
@@ -318,6 +333,7 @@ function paraArquivoPublico(u: {
   nomeArquivo: string;
   tamanho: number;
   versao: number;
+  revisao?: { controles: { motivo: string }[] } | null;
   documento: { fase: { id: string; sigla: string; nome: string } | null } | null;
 }): ArquivoPublico {
   return {
@@ -326,6 +342,7 @@ function paraArquivoPublico(u: {
     tamanho: u.tamanho,
     ehPdf: ehPdf(u.nomeArquivo),
     versao: u.versao,
+    emRevisao: u.revisao?.controles[0]?.motivo ?? null,
     faseId: u.documento?.fase?.id ?? null,
     faseSigla: u.documento?.fase?.sigla ?? null,
     faseNome: u.documento?.fase?.nome ?? null,
@@ -357,6 +374,7 @@ function emPastas(
           tamanho: a.tamanho,
           ehPdf: a.ehPdf,
           versao: a.versao,
+          emRevisao: a.emRevisao,
         })),
       })),
     })),

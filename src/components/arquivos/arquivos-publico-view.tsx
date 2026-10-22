@@ -52,8 +52,19 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
       ) : (
         <FileIcon className="size-4 shrink-0 text-muted-foreground" />
       )}
-      <span className="min-w-0 flex-1 truncate" title={arquivo.nome}>
-        {arquivo.nome}
+      {/* No celular a marca desce para a linha de baixo: lado a lado ela comeria o nome do arquivo. */}
+      <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+        <span className="max-w-full truncate" title={arquivo.nome}>
+          {arquivo.nome}
+        </span>
+        {arquivo.emRevisao !== null && (
+          <span
+            className="shrink-0 rounded-sm border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+            title={arquivo.emRevisao ? `Em revisão: ${arquivo.emRevisao}` : "Em revisão"}
+          >
+            Em revisão
+          </span>
+        )}
       </span>
       <span className="shrink-0 font-mono text-xs text-muted-foreground" title={`Revisão ${arquivo.versao}`}>
         {rotuloRevisao(arquivo.versao)}
