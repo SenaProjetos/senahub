@@ -74,7 +74,11 @@ funciona normalmente. Corrigir o dia no espelho nunca trava: sem tarefa, as hora
 
 Aba **Minhas horas** (`/ponto/horas`): suas horas registradas no período escolhido (7, 14 ou 30 dias,
 mês atual, mês anterior ou intervalo livre), com total, média por dia com registro e um gráfico por
-projeto. Só mostra as suas horas. O card **Minhas horas** no Início traz os últimos 14 dias e abre esta aba.
+projeto. O card **Minhas horas** no Início traz os últimos 14 dias e abre esta aba.
+
+Quem vê o espelho de ponto da equipe (permissão "Ver espelho de ponto de outros usuários", como no
+**Espelho**) ganha um seletor de pessoa no topo da aba e vê as horas de qualquer colaborador; o período
+escolhido continua o mesmo ao trocar de pessoa. Os demais veem só as próprias horas.
 
 ## Para gestores (RH)
 
