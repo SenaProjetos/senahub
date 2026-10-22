@@ -65,7 +65,7 @@ npm run smoke:ponto-disciplina     # rateio R2: disciplina na sessão, reunião 
 npm run smoke:rateio-fechamento    # rateio R3: fechar só mês terminado, reabrir com motivo (evento), recalcular mês antigo, divergência depois do fechamento
 npm run smoke:horas-disciplina     # rateio R5: orçado (linha de base) × planejado (EAP) × realizado (ponto), coordenador × projetista, reais só para quem vê custo
 npm run smoke:folha-financeiro     # folha R4: 7 contas no fechamento, guias no dia 20, mesma conta ao fechar de novo, parte que sai é cancelada, reabrir com motivo e versão assinada
-npm run smoke:ifc-federado         # IFC federado: child de verdade, R00/R01/R02 nunca repetida, trava de geração viva, arquivo sumido, unidade recusada, geração travada liberada, regra de leitura
+npm run smoke:ifc-federado         # IFC federado: child de verdade, modelo fora da compatibilização (série), R00/R01/R02 nunca repetida, trava de geração viva, arquivo sumido, unidade recusada, geração travada liberada, regra de leitura
 npm run verify:ifc-federado -- <projetoId>   # junta os IFCs vigentes de um projeto real (sem gravar) e confere IfcProduct do federado = soma dos modelos
 ```
 
@@ -659,6 +659,10 @@ corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. 
 - **Apontamentos (3D issues)** — mirror `Pendencia`: `ApontamentoCoordenacao` (denormalized, no FK) anchored to IfcGuids + camera (persisted in **IFC space**, Z-up), numbered per-project, workflow aberta|resolvida|fechada|descartada, spawn one Tarefa with a TarefaItem each (`enviarApontamentosCoordenacao`). Snapshot PNG via multipart route (`/api/coordenacao/snapshot`). Deep-link `?apontamento=N` restores camera+selection. Notifications use categoria `coordenacao`.
 - **BCF 2.1 export (`bcf/writer.ts`)** — pure, tested XML writer (like `lib/dxf.ts`): `bcf.version` + `{TopicGuid}/markup.bcf` + `viewpoint.bcfv` (+ `snapshot.png`), zipped via `archiver` in `bcf/exportar.ts`, served by `/api/coordenacao/bcf`. Camera vectors (direction/up) derived in the writer from position+target (viewer never rolls). `viewer/coords.ts` = pure three↔IFC axis conversion (Y-up↔Z-up), tested. Export-only in v1 (`bcfGuid` stored on each apontamento for future round-trip import).
 - **IFC federado** (`coordenacao/federado/`): junção no texto STEP em child process (`scripts/federar-ifc.ts`, job `gerar-ifc-federado`), vira `Documento` origem `modelo_federado` na pasta Modelo federado do Desenvolvimento; filtros por origem só via `documentos-cliente/origens.ts`. A revisão é 1 + gerações concluídas do projeto (nunca reaproveitada, mesmo excluindo versões); leitura = `coordenacao:ver` + enxergar o projeto, escrita só pelas ações do próprio federado.
+- **Modelo fora da compatibilização** (`ModeloCoordenacaoOculto`, ação `definirModeloNaCompatibilizacao`, `coordenacao:gerir`):
+  vale para a SÉRIE do arquivo (`serieDoModelo`: disciplina + nome, ou o Documento recebido), então a revisão nova continua fora.
+  `modelosCoordenacao` devolve todos com `oculto`; cada leitor decide — o painel, o realinhamento, o diff e
+  `candidatosDoProjeto` (federado) tiram; a lista de conversões e o Custos mostram.
 
 **Comercial / CRM (`modules/comercial/`)** — reforma F0-F7 **concluída** em 2026-09-02 (ver
 `docs/crm/06-progresso.md`, entrada mais recente). `docs/crm/` é o registro histórico da decisão:

@@ -45,9 +45,12 @@ export type VersaoFederada = {
 /** `DocumentoVersao.tamanho` é `Int`: um arquivo maior que isto não cabe na linha (spec §5.4). */
 const TAMANHO_MAX_INT = 2_147_483_647;
 
-/** Modelos da Compatibilização, com o caminho do IFC e a inspeção de schema/unidade — na ordem do painel. */
+/**
+ * Modelos da Compatibilização, com o caminho do IFC e a inspeção de schema/unidade — na ordem do painel. Os que a
+ * coordenação tirou da Compatibilização não entram (nem como opção).
+ */
 export async function candidatosDoProjeto(projetoId: string): Promise<(CandidatoFederado & { item: ItemComposicao })[]> {
-  const modelos = await modelosCoordenacao(projetoId);
+  const modelos = (await modelosCoordenacao(projetoId)).filter((m) => !m.oculto);
   const uploadIds = modelos.filter((m) => m.tipo === "upload").map((m) => m.uploadId);
   const versaoIds = modelos.filter((m) => m.tipo === "documento").map((m) => parseModeloId(m.uploadId).id);
   const [uploads, versoes] = [

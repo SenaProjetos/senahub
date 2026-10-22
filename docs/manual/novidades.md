@@ -20,6 +20,14 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Compatibilização: tirar modelos da lista (outubro/2026)
+
+- **Lista de disciplinas mais curta.** Na aba Compatibilização, o coordenador ou o administrador pode tirar
+  um modelo da compatibilização pelo olho riscado ao lado dele. O modelo sai do painel, da comparação de
+  versões e do IFC federado, mas continua na aba Arquivos; a revisão nova do mesmo arquivo continua fora.
+  Para trazer de volta, use **Fora da compatibilização**, no fim do painel.
+  [Saiba mais](projetos/compatibilizacao.md#tirar-um-modelo-da-compatibilização)
+
 ## Arquivos: envio ao cliente, "Em revisão" e descrição do carimbo (outubro/2026)
 
 - **Publicar já envia ao cliente.** A revisão publicada entra na pasta Compartilhado na hora. O administrador

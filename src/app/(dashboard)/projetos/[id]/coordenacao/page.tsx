@@ -74,6 +74,7 @@ export default async function CoordenacaoPage({
     versao: m.versao,
     tamanho: m.tamanho,
     enviadoEm: m.enviadoEm.toISOString(),
+    oculto: m.oculto,
     conversao: m.conversao
       ? {
           status: m.conversao.status,

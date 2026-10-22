@@ -1322,6 +1322,7 @@ model Projeto {
   @@index([tipoEmpreendimentoId])
   regrasPreenchimento RegraCategorizacao[]
   geracoesModeloFederado GeracaoModeloFederado[]
+  modelosForaDaCompatibilizacao ModeloCoordenacaoOculto[]
   @@map("projeto")
 }
 
@@ -7905,6 +7906,23 @@ model GeracaoModeloFederado {
 
   @@index([projetoId, criadoEm])
   @@map("geracao_modelo_federado")
+}
+
+/// Modelo tirado da Compatibilização pela coordenação: some do painel de disciplinas, do realinhamento, do
+/// diff e do IFC federado (continua na aba Arquivos e na lista de conversões). Vale para a SÉRIE do arquivo
+/// (`serieDoModelo`): a revisão nova do mesmo arquivo continua fora até alguém incluir de volta.
+model ModeloCoordenacaoOculto {
+  id            String   @id @default(cuid())
+  projetoId     String
+  projeto       Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// `u:<disciplinaId>:<nome do arquivo em minúsculas>` (IFC de disciplina) ou `d:<documentoId>` (recebido).
+  serie         String
+  /// Denormalizado, sem FK (como os apontamentos): só para o histórico.
+  ocultadoPorId String
+  createdAt     DateTime @default(now())
+
+  @@unique([projetoId, serie])
+  @@map("modelo_coordenacao_oculto")
 }
 
 /// Visualizador DWG: estado da conversão DWG → DXF (via ODA File Converter,
