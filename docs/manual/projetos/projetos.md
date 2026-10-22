@@ -420,6 +420,25 @@ cadastro**, e as respostas caem direto nesta aba (salvam sozinhas, campo a campo
   aviso quando o briefing fica completo). Para não receber, desligue **Formulário
   preenchido pelo cliente** em *Preferências → Notificações*.
 
+### Ajustar o formulário ao projeto (aba Inputs)
+
+**Briefing de Start** — o botão **Personalizar** mostra todas as seções e perguntas do
+briefing com uma marca de "aparece". Desligue a **seção** inteira ou desmarque **perguntas**
+soltas que não se aplicam a este projeto; clique em **Concluir** para voltar ao formulário.
+
+- O que fica oculto some da aba e do link do cliente e **não conta no status** (uma
+  pergunta obrigatória oculta não deixa o briefing "Em preenchimento").
+- Ocultar **não apaga resposta**: mostrar de novo traz o que já estava preenchido.
+- Vale só para este projeto; os outros continuam com o briefing completo.
+
+**Perguntas extras** — cada pergunta tem o menu **⋯** (ou botão direito):
+
+- **Editar pergunta** muda o texto e a disciplina; a resposta fica.
+- **Remover do formulário** tira a pergunta da aba e do link. Ela vai para **Perguntas
+  removidas**, no fim do cartão, com a resposta guardada — **Restaurar** devolve as duas.
+- **Aplicar padrão** e gerar o link **não recriam** uma pergunta padrão que você removeu
+  ou editou.
+
 ### Colunas e filtros da tabela de arquivos (aba Arquivos)
 
 A tabela mostra um DOCUMENTO por linha (não um arquivo — quando o PDF e o DWG de uma mesma

@@ -1352,6 +1352,7 @@ model InputTemplate {
   ordem      Int      @default(0)
   ativo      Boolean  @default(true)
   createdAt  DateTime @default(now())
+  inputs     InputProjeto[]
 
   @@index([disciplina])
   @@map("input_template")
@@ -1365,10 +1366,19 @@ model InputProjeto {
   pergunta   String
   resposta   String?
   ordem      Int      @default(0)
+  /// Pergunta padrão de origem: o padrão nunca recria uma pergunta que veio dele, nem
+  /// editada nem removida. Linhas antigas (null) casam pelo texto.
+  templateId String?
+  template   InputTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  /// Removida do formulário (fora da tela e do link). A linha fica para restaurar e para
+  /// o padrão não recriá-la; a resposta é guardada.
+  removidoEm DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@unique([projetoId, templateId])
   @@index([projetoId])
+  @@index([templateId])
   @@map("input_projeto")
 }
 
@@ -1383,6 +1393,10 @@ model BriefingProjeto {
   status        String    @default("nao_iniciado")
   preenchidoPor String?
   preenchidoEm  DateTime?
+  /// Seções (`SecaoBriefing.id`) e campos (`CampoBriefing.chave`) ocultos NESTE projeto:
+  /// somem da tela e do link e não contam no status. As respostas ficam guardadas.
+  secoesOcultas String[]  @default([])
+  camposOcultos String[]  @default([])
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

@@ -5,38 +5,71 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma/client";
-import { calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
-import { aplicarFormatosDoBriefing } from "@/modules/inputs/briefing-formato";
+import type { SessionUser } from "@/lib/session";
+import { projetoVisivel } from "@/modules/planejamento/queries";
+import {
+  aplicarOcultos,
+  BRIEFING_SCHEMA,
+  calcularStatusBriefing,
+  existeNoBriefing,
+} from "@/modules/inputs/briefing-schema";
+import { gravarRespostasBriefing } from "@/modules/inputs/briefing-service";
+import { perguntasDoPadraoParaCriar } from "@/modules/inputs/perguntas";
 import {
   adicionarInputSchema,
+  editarInputSchema,
   removerInputSchema,
   responderInputsSchema,
   gerarLinkSchema,
   atualizarLinkSchema,
+  visibilidadeBriefingSchema,
 } from "@/modules/inputs/schemas";
 
 const projBase = { modulo: "projetos", recurso: "projetos", permissao: "gerir" } as const;
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
-/** Cria, no projeto, os inputs padrão (InputTemplate) das disciplinas dele — sem duplicar. */
+async function exigirProjetoVisivel(
+  user: Pick<SessionUser, "id" | "superUsuario" | "escopoGlobalPerfil" | "tipo">,
+  projetoId: string,
+) {
+  if (!(await projetoVisivel(user, projetoId))) throw new ActionError("Projeto não encontrado.");
+}
+
+/** A pergunta do projeto (ativa ou removida) — `capturarAntes` e a mensagem certa quando a escrita não casa. */
+const perguntaDoProjeto = (i: { id: string; projetoId: string }) =>
+  prisma.inputProjeto.findFirst({ where: { id: i.id, projetoId: i.projetoId } });
+
+/** Mensagem para a escrita condicionada que não casou: a pergunta não existe ou mudou de estado. */
+async function motivoNaoCasou(i: { id: string; projetoId: string }, seRemovida: string, seAtiva: string) {
+  const atual = await perguntaDoProjeto(i);
+  if (!atual) return "Pergunta não encontrada.";
+  return atual.removidoEm ? seRemovida : seAtiva;
+}
+
+/**
+ * Cria, no projeto, os inputs padrão (InputTemplate) das disciplinas dele — sem duplicar e sem
+ * ressuscitar: pergunta que veio do padrão e foi editada ou removida não volta.
+ */
 async function aplicarInputsPadraoCore(projetoId: string): Promise<number> {
   const [proj, existentes, templates] = await Promise.all([
     prisma.projeto.findUnique({ where: { id: projetoId }, select: { disciplinas: { select: { disciplinaTextoLegado: true } } } }),
-    prisma.inputProjeto.findMany({ where: { projetoId }, select: { disciplina: true, pergunta: true } }),
+    // Ativas E removidas: as duas impedem o padrão de recriar a pergunta.
+    prisma.inputProjeto.findMany({ where: { projetoId }, select: { templateId: true, disciplina: true, pergunta: true } }),
     prisma.inputTemplate.findMany({ where: { ativo: true }, orderBy: [{ disciplina: "asc" }, { ordem: "asc" }] }),
   ]);
   if (!proj) return 0;
-  const discs = new Set(proj.disciplinas.map((d) => d.disciplinaTextoLegado));
-  const jaTem = new Set(existentes.map((e) => `${e.disciplina ?? ""}|${e.pergunta}`));
-  const novos = templates.filter(
-    (t) => (t.disciplina == null || discs.has(t.disciplina)) && !jaTem.has(`${t.disciplina ?? ""}|${t.pergunta}`),
+  const novos = perguntasDoPadraoParaCriar(
+    templates,
+    existentes,
+    proj.disciplinas.map((d) => d.disciplinaTextoLegado),
   );
   if (novos.length === 0) return 0;
-  await prisma.inputProjeto.createMany({
-    data: novos.map((t) => ({ projetoId, disciplina: t.disciplina, pergunta: t.pergunta, ordem: t.ordem })),
+  // Único (projetoId, templateId): dois "Aplicar padrão" simultâneos não duplicam.
+  const { count } = await prisma.inputProjeto.createMany({
+    data: novos.map((t) => ({ projetoId, disciplina: t.disciplina, pergunta: t.pergunta, ordem: t.ordem, templateId: t.id })),
+    skipDuplicates: true,
   });
-  return novos.length;
+  return count;
 }
 
 export const adicionarInput = defineAction(
@@ -49,7 +82,8 @@ export const adicionarInput = defineAction(
     schema: adicionarInputSchema,
     entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
   },
-  async (input) => {
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
     const ordem = await prisma.inputProjeto.count({ where: { projetoId: input.projetoId } });
     const item = await prisma.inputProjeto.create({
       data: {
@@ -64,6 +98,36 @@ export const adicionarInput = defineAction(
   },
 );
 
+/** Edita o texto e a disciplina de uma pergunta ativa. A resposta fica como está. */
+export const editarInput = defineAction(
+  {
+    modulo: "projetos",
+    acao: "editar-input",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "InputProjeto",
+    schema: editarInputSchema,
+    entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
+    capturarAntes: perguntaDoProjeto,
+  },
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
+    const { count } = await prisma.inputProjeto.updateMany({
+      where: { id: input.id, projetoId: input.projetoId, removidoEm: null },
+      data: { pergunta: input.pergunta, disciplina: input.disciplina || null },
+    });
+    if (count !== 1) {
+      throw new ActionError(await motivoNaoCasou(input, "Esta pergunta foi removida. Restaure-a para editar.", "Não foi possível editar a pergunta."));
+    }
+    revalidatePath(`/projetos/${input.projetoId}`);
+    return { id: input.id };
+  },
+);
+
+/**
+ * Tira a pergunta do formulário (tela e link). A linha e a resposta ficam: restaurar devolve
+ * as duas, e o padrão não recria a pergunta.
+ */
 export const removerInput = defineAction(
   {
     modulo: "projetos",
@@ -72,13 +136,46 @@ export const removerInput = defineAction(
     permissao: "gerir",
     entidade: "InputProjeto",
     schema: removerInputSchema,
-    // Correlação no histórico pelo projeto (o input é deletado — id sai do id-set).
-    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+    entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
+    capturarAntes: perguntaDoProjeto,
   },
-  async (input) => {
-    const item = await prisma.inputProjeto.delete({ where: { id: input.id } });
-    revalidatePath(`/projetos/${item.projetoId}`);
-    return { id: input.id, projetoId: item.projetoId };
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
+    const { count } = await prisma.inputProjeto.updateMany({
+      where: { id: input.id, projetoId: input.projetoId, removidoEm: null },
+      data: { removidoEm: new Date() },
+    });
+    if (count !== 1) {
+      throw new ActionError(await motivoNaoCasou(input, "Esta pergunta já foi removida.", "Não foi possível remover a pergunta."));
+    }
+    revalidatePath(`/projetos/${input.projetoId}`);
+    return { id: input.id, projetoId: input.projetoId };
+  },
+);
+
+/** Devolve ao formulário uma pergunta removida, com a resposta que ela tinha. */
+export const restaurarInput = defineAction(
+  {
+    modulo: "projetos",
+    acao: "restaurar-input",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "InputProjeto",
+    schema: removerInputSchema,
+    entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
+    capturarAntes: perguntaDoProjeto,
+  },
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
+    const { count } = await prisma.inputProjeto.updateMany({
+      where: { id: input.id, projetoId: input.projetoId, removidoEm: { not: null } },
+      data: { removidoEm: null },
+    });
+    if (count !== 1) {
+      throw new ActionError(await motivoNaoCasou(input, "Não foi possível restaurar a pergunta.", "Esta pergunta já está no formulário."));
+    }
+    revalidatePath(`/projetos/${input.projetoId}`);
+    return { id: input.id, projetoId: input.projetoId };
   },
 );
 
@@ -93,14 +190,21 @@ export const responderInputs = defineAction(
     schema: responderInputsSchema,
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
-  async (input) => {
-    await prisma.$transaction(
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
+    // Só perguntas ATIVAS deste projeto: id de outro projeto ou pergunta removida não é gravado,
+    // e a tela avisa quantas ficaram de fora (removidas por outra pessoa enquanto editava).
+    const gravadas = await prisma.$transaction(
       input.respostas.map((r) =>
-        prisma.inputProjeto.update({ where: { id: r.id }, data: { resposta: r.resposta || null } }),
+        prisma.inputProjeto.updateMany({
+          where: { id: r.id, projetoId: input.projetoId, removidoEm: null },
+          data: { resposta: r.resposta || null },
+        }),
       ),
     );
+    const salvas = gravadas.reduce((n, g) => n + g.count, 0);
     revalidatePath(`/projetos/${input.projetoId}`);
-    return { projetoId: input.projetoId };
+    return { projetoId: input.projetoId, salvas, ignoradas: input.respostas.length - salvas };
   },
 );
 
@@ -119,23 +223,61 @@ export const salvarBriefing = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   async (input, { user }) => {
-    // Antes de qualquer escrita: só o e-mail/telefone que MUDOU é validado; o inválido já gravado segue salvando.
-    const gravado = await prisma.briefingProjeto.findUnique({
-      where: { projetoId: input.projetoId },
-      select: { respostasJson: true },
-    });
-    const formatos = aplicarFormatosDoBriefing(
-      input.respostas,
-      (gravado?.respostasJson ?? null) as Record<string, unknown> | null,
-    );
-    if (!formatos.ok) throw new ActionError(formatos.erro, formatos.campos);
-    const respostas = formatos.respostas;
-    const status = calcularStatusBriefing(respostas);
-    const respostasJson = respostas as unknown as Prisma.InputJsonValue;
-    await prisma.briefingProjeto.upsert({
-      where: { projetoId: input.projetoId },
-      create: { projetoId: input.projetoId, respostasJson, status, preenchidoPor: user.name, preenchidoEm: new Date() },
-      update: { respostasJson, status, preenchidoPor: user.name, preenchidoEm: new Date() },
+    await exigirProjetoVisivel(user, input.projetoId);
+    // Só o e-mail/telefone que MUDOU é validado; o inválido já gravado segue salvando.
+    const r = await gravarRespostasBriefing(input.projetoId, input.respostas, user.name);
+    if (!r.ok) throw new ActionError(r.erro, r.campos);
+    revalidatePath(`/projetos/${input.projetoId}`);
+    return { projetoId: input.projetoId, status: r.status };
+  },
+);
+
+/**
+ * Oculta (ou mostra de novo) uma seção ou um campo do briefing NESTE projeto. As respostas
+ * ficam guardadas; o status é recalculado sobre o que continua visível.
+ */
+export const definirVisibilidadeBriefing = defineAction(
+  {
+    modulo: "projetos",
+    acao: "visibilidade-briefing",
+    recurso: "projetos",
+    permissao: "gerir",
+    entidade: "BriefingProjeto",
+    schema: visibilidadeBriefingSchema,
+    entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
+    capturarAntes: (i) =>
+      prisma.briefingProjeto.findUnique({
+        where: { projetoId: i.projetoId },
+        select: { secoesOcultas: true, camposOcultos: true, status: true },
+      }),
+  },
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
+    if (!existeNoBriefing(input.alvo, input.chave)) throw new ActionError("Pergunta do briefing não encontrada.");
+    const status = await prisma.$transaction(async (tx) => {
+      // A linha pode não existir (briefing nunca preenchido). Depois de garantida, a trava
+      // serializa dois cliques simultâneos — sem ela, um sobrescreveria a lista do outro.
+      await tx.briefingProjeto.createMany({ data: [{ projetoId: input.projetoId }], skipDuplicates: true });
+      await tx.$queryRaw`SELECT 1 FROM "briefing_projeto" WHERE "projetoId" = ${input.projetoId} FOR UPDATE`;
+      const atual = await tx.briefingProjeto.findUniqueOrThrow({
+        where: { projetoId: input.projetoId },
+        select: { respostasJson: true, secoesOcultas: true, camposOcultos: true },
+      });
+      const lista = input.alvo === "secao" ? atual.secoesOcultas : atual.camposOcultos;
+      const nova = input.oculto ? [...new Set([...lista, input.chave])] : lista.filter((c) => c !== input.chave);
+      const ocultos = {
+        secoes: input.alvo === "secao" ? nova : atual.secoesOcultas,
+        campos: input.alvo === "campo" ? nova : atual.camposOcultos,
+      };
+      const novoStatus = calcularStatusBriefing(
+        (atual.respostasJson ?? {}) as Record<string, unknown>,
+        aplicarOcultos(BRIEFING_SCHEMA, ocultos),
+      );
+      await tx.briefingProjeto.update({
+        where: { projetoId: input.projetoId },
+        data: { secoesOcultas: ocultos.secoes, camposOcultos: ocultos.campos, status: novoStatus },
+      });
+      return novoStatus;
     });
     revalidatePath(`/projetos/${input.projetoId}`);
     return { projetoId: input.projetoId, status };
@@ -159,7 +301,8 @@ export const gerarLinkInput = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
     capturarAntes: (i) => prisma.linkPublicoInput.findUnique({ where: { projetoId: i.projetoId } }),
   },
-  async (input) => {
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
     // Garante que os inputs padrão das disciplinas estejam no projeto antes de liberar o link.
     await aplicarInputsPadraoCore(input.projetoId);
     const token = randomBytes(18).toString("hex");
@@ -185,7 +328,8 @@ export const atualizarLinkInput = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
     capturarAntes: (i) => prisma.linkPublicoInput.findUnique({ where: { projetoId: i.projetoId } }),
   },
-  async (input) => {
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
     const link = await prisma.linkPublicoInput.findUnique({ where: { projetoId: input.projetoId } });
     if (!link) throw new ActionError("Gere o link público antes de configurá-lo.");
     await prisma.linkPublicoInput.update({
@@ -203,7 +347,8 @@ export const atualizarLinkInput = defineAction(
 // ── Inputs padrão por disciplina (#3) ─────────────────────────
 export const aplicarInputsPadrao = defineAction(
   { ...projBase, acao: "aplicar-inputs-padrao", entidade: "InputProjeto", schema: z.object({ projetoId: z.string().min(1) }), entidadeId: (_d, i) => (i as { projetoId: string }).projetoId },
-  async (i) => {
+  async (i, { user }) => {
+    await exigirProjetoVisivel(user, i.projetoId);
     const criados = await aplicarInputsPadraoCore(i.projetoId);
     revalidatePath(`/projetos/${i.projetoId}`);
     return { criados };

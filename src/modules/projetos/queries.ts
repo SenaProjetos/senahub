@@ -649,7 +649,7 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
 export async function abasComConteudo(projetoId: string) {
   const [inputs, financeiro, servicos, arquivos, arts, coordenacao, diario, eap] =
     await Promise.all([
-      prisma.inputProjeto.count({ where: { projetoId } }),
+      prisma.inputProjeto.count({ where: { projetoId, removidoEm: null } }),
       prisma.lancamento.count({ where: { projetoId } }),
       prisma.servicoTerceirizado.count({ where: { projetoId } }),
       prisma.upload.count({ where: { disciplina: { projetoId }, excluidoEm: null } }),

@@ -4,8 +4,10 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { obterProjeto } from "@/modules/projetos/queries";
-import { listarInputs, linkInput, progressoInputs, obterBriefing } from "@/modules/inputs/queries";
+import { listarInputs, listarInputsRemovidos, linkInput, progressoInputs, obterBriefing } from "@/modules/inputs/queries";
 import {
+  aplicarOcultos,
+  BRIEFING_SCHEMA,
   prePopularRespostas,
   calcularStatusBriefing,
   type StatusBriefing,
@@ -25,10 +27,12 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, projetoCompleto, inputs, link, progresso, briefing] = await Promise.all([
+  const [podeGerir, projetoCompleto, inputs, removidos, link, progresso, briefing] = await Promise.all([
     can(user, "projetos", "gerir"),
     obterProjeto(user, id),
     listarInputs(id),
+    // Removidas só servem para restaurar — quem não gere nem consulta.
+    can(user, "projetos", "gerir").then((pode) => (pode ? listarInputsRemovidos(id) : [])),
     linkInput(id),
     progressoInputs(id),
     obterBriefing(id),
@@ -47,7 +51,9 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
     telefone: cliente?.telefone,
     endereco: projetoCompleto.endereco ?? undefined,
   });
-  const statusBriefing: StatusBriefing = (briefing?.status as StatusBriefing) ?? calcularStatusBriefing(respostasSalvas);
+  const ocultos = { secoes: briefing?.secoesOcultas ?? [], campos: briefing?.camposOcultos ?? [] };
+  const statusBriefing: StatusBriefing =
+    (briefing?.status as StatusBriefing) ?? calcularStatusBriefing(respostasSalvas, aplicarOcultos(BRIEFING_SCHEMA, ocultos));
 
   // Situação do link em uma frase — o botão fica ACIMA do formulário, porque o
   // link abre o formulário inteiro (briefing + perguntas extras).
@@ -90,6 +96,7 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
         disciplinas={disciplinas}
         canEdit={podeGerir}
         status={statusBriefing}
+        ocultos={ocultos}
       />
 
       <InputsPanel
@@ -97,6 +104,12 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
         podeGerir={podeGerir}
         disciplinas={disciplinas}
         itens={inputs.map((i) => ({
+          id: i.id,
+          disciplina: i.disciplina,
+          pergunta: i.pergunta,
+          resposta: i.resposta ?? "",
+        }))}
+        removidos={removidos.map((i) => ({
           id: i.id,
           disciplina: i.disciplina,
           pergunta: i.pergunta,

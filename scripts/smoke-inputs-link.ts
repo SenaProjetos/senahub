@@ -78,13 +78,13 @@ async function main() {
 
     // 4) Briefing incompleto dentro da janela: também não notifica.
     const obrigatorias = chavesObrigatorias();
-    const r4 = await putBriefing(req({ respostas: { [obrigatorias[0]]: "preenchido" } }), novoCtx());
+    const r4 = await putBriefing(req({ respostas: { [obrigatorias[0]]: preenchido(obrigatorias[0]) } }), novoCtx());
     const b4 = (await r4.json()) as { status: string };
     check("briefing parcial fica em_preenchimento", b4.status === "em_preenchimento");
     check("briefing parcial na janela não notifica", (await contarNotificacoes()) === apos1);
 
     // 5) Transição para completo FURA a janela.
-    const completo = Object.fromEntries(obrigatorias.map((c) => [c, "preenchido"]));
+    const completo = Object.fromEntries(obrigatorias.map((c) => [c, preenchido(c)]));
     const r5 = await putBriefing(req({ respostas: completo }), novoCtx());
     const b5 = (await r5.json()) as { status: string };
     check("briefing fica completo", b5.status === "completo");
@@ -118,6 +118,32 @@ async function main() {
       data: { expiraEm: new Date(Date.now() + 60 * 60_000) },
     });
     check("validade futura mantém o link de pé", (await inputsPorToken(token))?.id === projeto.id);
+
+    // 10) Pergunta removida some do link e não recebe resposta; a resposta guardada fica.
+    await prisma.inputProjeto.update({ where: { id: pergunta.id }, data: { removidoEm: new Date() } });
+    const comRemovida = await inputsPorToken(token);
+    check("pergunta removida fora do link", comRemovida?.inputs.every((i) => i.id !== pergunta.id) === true);
+    const r10 = await putInputs(req({ respostas: [{ id: pergunta.id, resposta: "depois de removida" }] }), novoCtx());
+    check("PUT ignora pergunta removida", ((await r10.json()) as { salvos: number }).salvos === 0);
+    const guardada = await prisma.inputProjeto.findUnique({ where: { id: pergunta.id } });
+    check("resposta da removida continua guardada", guardada?.resposta === "resposta 2");
+
+    // 11) Obrigatório oculto no projeto não segura o status; a resposta dele não é apagada.
+    const [oculta, ...visiveis] = obrigatorias;
+    await prisma.briefingProjeto.update({ where: { projetoId: projeto.id }, data: { camposOcultos: [oculta] } });
+    const semOculta = Object.fromEntries(visiveis.map((c) => [c, preenchido(c)]));
+    const r11 = await putBriefing(req({ respostas: { ...semOculta, [oculta]: "" } }), novoCtx());
+    check("obrigatório oculto não conta no status", ((await r11.json()) as { status: string }).status === "completo");
+    const b11 = await prisma.briefingProjeto.findUnique({ where: { projetoId: projeto.id } });
+    check(
+      "envio do link não apaga a resposta do campo oculto",
+      (b11?.respostasJson as Record<string, unknown>)[oculta] === preenchido(oculta),
+    );
+    const linkOculto = await inputsPorToken(token);
+    check("página do link recebe a lista de ocultos", linkOculto?.briefing?.camposOcultos.includes(oculta) === true);
+    await prisma.briefingProjeto.update({ where: { projetoId: projeto.id }, data: { camposOcultos: [] } });
+    const r11b = await putBriefing(req({ respostas: { ...semOculta, [oculta]: "" } }), novoCtx());
+    check("mostrar de novo volta a exigir", ((await r11b.json()) as { status: string }).status === "em_preenchimento");
   } finally {
     await prisma.notificacao.deleteMany({ where: { href: `/projetos/${projeto.id}/inputs` } });
     await prisma.projeto.delete({ where: { id: projeto.id } });
@@ -126,6 +152,14 @@ async function main() {
 
   console.log(ok ? "\nSMOKE INPUTS-LINK OK" : "\nSMOKE INPUTS-LINK FALHOU");
   process.exit(ok ? 0 : 1);
+}
+
+/** Valor válido para a chave: e-mail e telefone passam pela validação de formato (ADR-0010). */
+function preenchido(chave: string): string {
+  const campo = BRIEFING_SCHEMA.flatMap((s) => s.campos).find((c) => c.chave === chave);
+  if (campo?.formato === "email") return "smoke@exemplo.com";
+  if (campo?.formato === "telefone") return "(81) 99999-8888";
+  return "preenchido";
 }
 
 /** Chaves obrigatórias do briefing (fonte: o próprio schema, sem lista paralela). */

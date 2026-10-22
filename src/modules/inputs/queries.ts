@@ -7,10 +7,20 @@ export async function listarInputTemplates() {
   return prisma.inputTemplate.findMany({ orderBy: [{ disciplina: "asc" }, { ordem: "asc" }] });
 }
 
+/** Perguntas extras ATIVAS do projeto (as removidas ficam fora da tela e do link). */
 export async function listarInputs(projetoId: string) {
   return prisma.inputProjeto.findMany({
-    where: { projetoId },
+    where: { projetoId, removidoEm: null },
     orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }],
+  });
+}
+
+/** Perguntas extras removidas do formulário — para restaurar. */
+export async function listarInputsRemovidos(projetoId: string) {
+  return prisma.inputProjeto.findMany({
+    where: { projetoId, removidoEm: { not: null } },
+    orderBy: { removidoEm: "desc" },
+    select: { id: true, disciplina: true, pergunta: true, resposta: true, removidoEm: true },
   });
 }
 
@@ -26,8 +36,8 @@ export async function obterBriefing(projetoId: string) {
 /** Progresso de preenchimento (respondidas / total). */
 export async function progressoInputs(projetoId: string) {
   const [total, respondidas] = await Promise.all([
-    prisma.inputProjeto.count({ where: { projetoId } }),
-    prisma.inputProjeto.count({ where: { projetoId, NOT: { resposta: null } } }),
+    prisma.inputProjeto.count({ where: { projetoId, removidoEm: null } }),
+    prisma.inputProjeto.count({ where: { projetoId, removidoEm: null, NOT: { resposta: null } } }),
   ]);
   return { total, respondidas };
 }
@@ -43,9 +53,12 @@ export async function inputsPorToken(token: string) {
           nome: true,
           codigo: true,
           endereco: true,
-          inputs: { orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }] },
+          inputs: {
+            where: { removidoEm: null },
+            orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }],
+          },
           disciplinas: { select: { disciplinaTextoLegado: true } },
-          briefing: { select: { respostasJson: true, status: true } },
+          briefing: { select: { respostasJson: true, status: true, secoesOcultas: true, camposOcultos: true } },
           cliente: { select: { nome: true, email: true, telefone: true } },
         },
       },

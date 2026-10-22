@@ -1351,7 +1351,7 @@ export async function lembreteInputsCliente(): Promise<number> {
           },
         },
       },
-      inputs: { where: { resposta: null }, select: { id: true } },
+      inputs: { where: { resposta: null, removidoEm: null }, select: { id: true } },
     },
   });
 
