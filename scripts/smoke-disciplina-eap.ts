@@ -3,6 +3,7 @@
  * O vitest cobre as regras puras (`disciplina-linha.ts`, `qualidade.ts`); aqui vai o I/O:
  *   - A2 — a correção "Usar a disciplina do agrupamento": só o que ainda diverge, sem tirar quem já está atribuído,
  *     recusada com o plano aprovado.
+ *   - A3 — o card gerado da EAP leva a sigla da fase no título, e a segunda sincronização não regrava nada.
  *   - A1 — "Inserir acima" cria a linha com a disciplina do AGRUPAMENTO-pai, não a da vizinha (causa do "Visita técnica
  *     veio como Hidro"), e o responsável da disciplina só desce quando há disciplina.
  *
@@ -12,6 +13,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativo";
 import { inserirLinhaAcima } from "../src/modules/planejamento/arvore-service";
+import { sincronizarCards } from "../src/modules/planejamento/recursos-service";
 import { alinharDisciplinasNoBanco } from "../src/modules/planejamento/disciplina-linha-service";
 import { MOTIVO_PLANO_TRAVADO } from "../src/modules/planejamento/trava-plano";
 
@@ -112,6 +114,18 @@ async function main() {
     const travado = await erroDe(() => alinharDisciplinasNoBanco(projeto.id, [Z.id]));
     check("cronograma aprovado recusa com a frase da trava", travado === MOTIVO_PLANO_TRAVADO, travado);
     check("e nada foi gravado", (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: Z.id }, select: { disciplinaId: true } })).disciplinaId === ele.id);
+
+    // ── A3: a fase no título do card (cronograma aprovado a esta altura) ─────
+    await prisma.eapAtribuicao.create({ data: { tarefaId: M.id, userId: admin.id, papel: "pro", horasPrevistas: 8, principal: true } });
+    await sincronizarCards(prisma, projeto.id, admin.id);
+    const cardM = await prisma.tarefa.findUnique({ where: { eapTarefaId: M.id }, select: { titulo: true } });
+    check("o card nasce com a sigla da fase no título", cardM?.titulo === `${fase.sigla} · Modelagem`, cardM);
+    await prisma.eapTarefa.update({ where: { id: M.id }, data: { nome: "Modelagem hidráulica" } });
+    await sincronizarCards(prisma, projeto.id, admin.id);
+    const renomeado = await prisma.tarefa.findUnique({ where: { eapTarefaId: M.id }, select: { titulo: true } });
+    check("renomear a linha leva o título do card junto, com a fase", renomeado?.titulo === `${fase.sigla} · Modelagem hidráulica`, renomeado);
+    const de3 = await sincronizarCards(prisma, projeto.id, admin.id);
+    check("sincronizar de novo não regrava card nenhum (compara o título composto)", de3.atualizados === 0 && de3.criados === 0, de3);
   } finally {
     await prisma.tarefa.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: projeto.id } });

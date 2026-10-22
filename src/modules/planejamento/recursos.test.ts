@@ -18,6 +18,7 @@ import {
   parcelasDePerfis,
   pessoasSemHoras,
   regraDoRecursoExterno,
+  tituloDoCard,
   somarCarga,
   type LinhaCarga,
   type PessoaCapacidade,
@@ -448,5 +449,17 @@ describe("detectarSobrecargas (D18)", () => {
       motivosReducao: new Map([["joao", new Map([["2026-W38", ["férias"]]])]]),
     });
     expect(s[0]).toMatchObject({ userId: "joao", capacidade: 0, excesso: 10, motivosReducao: ["férias"] });
+  });
+});
+
+describe("tituloDoCard (Fase A, A3)", () => {
+  it("põe a sigla da fase antes do nome, para a mesma disciplina em fases distintas não virar dois cards iguais", () => {
+    expect(tituloDoCard("Modelagem", "BS")).toBe("BS · Modelagem");
+    expect(tituloDoCard("Modelagem", "EX")).toBe("EX · Modelagem");
+  });
+
+  it("sem fase, ou com fase em branco, o título é o nome da linha", () => {
+    expect(tituloDoCard("Modelagem", null)).toBe("Modelagem");
+    expect(tituloDoCard("Modelagem", "  ")).toBe("Modelagem");
   });
 });
