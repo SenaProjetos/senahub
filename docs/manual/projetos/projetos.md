@@ -530,8 +530,8 @@ coordenação devolver ou publicar.
 - **Enviar para análise** — o sistema confere sozinho e só deixa passar com tudo certo: nome no padrão do
   projeto, disciplina/etapa/tipo existentes no catálogo, código do projeto, PDF presente quando a revisão tem
   desenho (DWG, DXF ou RVT — planilha de quantitativos ou memorial em Word seguem sem PDF), nenhum arquivo
-  igual ao da revisão anterior, a **descrição do que mudou** (obrigatória da R01 em diante) e o
-  **carimbo do PDF**: o código e a revisão escritos no carimbo têm de bater com o nome do arquivo e com a
+  igual ao da revisão anterior, a **descrição do que mudou** (obrigatória da R01 em diante; veja
+  "Descrição lida do carimbo" abaixo) e o **carimbo do PDF**: o código e a revisão escritos no carimbo têm de bater com o nome do arquivo e com a
   revisão esperada. Se o carimbo não puder ser lido (PDF sem texto, memorial sem carimbo), o sistema avisa e
   pede que você confirme o envio; fica registrado no histórico. No envio de várias de uma vez, as que
   pararam no carimbo aparecem no relatório com a mesma confirmação, para enviar só elas. O modelo IFC é um documento próprio e dispensa o PDF. Se
@@ -548,6 +548,10 @@ coordenação devolver ou publicar.
   apontamentos em aberto também impedem, a menos que o projeto permita publicar assim: aí você escreve uma
   justificativa e a revisão ganha uma **restrição** que sai sozinha quando os apontamentos forem
   resolvidos. Ao publicar, a revisão anterior é **arquivada** e perde a liberação para obra.
+  **Publicar já envia ao cliente:** a revisão publicada entra na pasta **Compartilhado** do link do cliente
+  no mesmo gesto, sem precisar de um segundo passo "Enviar ao cliente".
+- **Marcar em revisão…** — para a revisão **publicada** que o cliente pediu para mudar (veja "Cliente pediu
+  revisão" abaixo).
 - **Arquivar** — para documento cancelado ou obsoleto, com motivo.
 
 **Controles** aparecem como etiquetas ao lado do estado (passe o mouse para ver o motivo):
@@ -556,6 +560,8 @@ coordenação devolver ou publicar.
   nas pastas **Liberado para obra** e **Compartilhado** do link do cliente. Quem já estava enviado ao
   cliente continua: ao publicar a revisão nova, o envio passa para ela sozinho. A liberação para obra pode
   ser automática na publicação, se o projeto ligar essa opção.
+- **Em revisão** (etiqueta âmbar) — o cliente pediu mudança nesta revisão publicada; a revisão continua com
+  o cliente e na obra até a próxima ser publicada.
 - **Bloqueado** — impede baixar, atualizar ou excluir (você escolhe) e também impede mudar o estado.
 - **Com restrição** — a revisão não pode ser liberada para obra enquanto a restrição existir.
 
@@ -569,6 +575,53 @@ com apontamentos e o prazo para avisar de revisão parada em análise.
 
 > Backup do modelo (pacote B) e as pastas (Aprovação, Laudo, Recebidos, Geral…) ficam fora do ciclo e
 > funcionam como antes.
+
+### Publicar já envia ao cliente
+
+Em todo projeto, **publicar uma revisão já a envia ao cliente**: ela aparece na pasta **Compartilhado** do link
+do cliente, e a revisão anterior sai de lá porque foi arquivada. Quem não quiser esse comportamento num
+projeto desliga em **Arquivos → ⋯ → Ciclo dos documentos → Publicar já envia ao cliente** (só administradores).
+Desligado, vale a regra de antes: a revisão nova só vai para o cliente se a anterior já tinha ido, e o resto
+continua manual, em **Enviar ao cliente**.
+
+### Cliente pediu revisão: "Em revisão"
+
+Quando o cliente pede mudança numa prancha que já está com ele, a coordenação registra isso no sistema:
+
+1. Na revisão **publicada** (botão direito ou ⋯ da linha), escolha **Marcar em revisão…** e escreva **o que o
+   cliente pediu**. Para várias de uma vez, selecione as linhas da pasta **Compartilhado** e use a barra de
+   seleção. Quem pode: a mesma permissão de liberar para obra (alterar status).
+2. A revisão atual (por exemplo, R00) **continua com o cliente e na obra**, agora com a etiqueta âmbar
+   **Em revisão**. A etiqueta aparece também no link público do cliente e, enquanto a R01 está sendo feita,
+   como **"R00 em revisão"** na linha do documento em Desenvolvimento. A obra segue usando a R00 até a R01 ser
+   publicada.
+3. Os **responsáveis da disciplina** recebem a notificação **"Revisão solicitada"**, com o pedido do cliente.
+4. Para achar tudo o que está pedindo revisão, use o filtro **Em revisão** na barra de Arquivos.
+5. A etiqueta **sai sozinha** quando a próxima revisão é publicada. Se o pedido foi cancelado, use **Cancelar
+   revisão…** na própria linha e informe o motivo; a etiqueta sai e o histórico do documento guarda quem fez.
+
+Marcar e cancelar ficam registrados no **Histórico** do documento. Criar um apontamento não marca a revisão
+nem devolve o documento: "Devolver para ajustes" continua manual.
+
+### Descrição lida do carimbo
+
+Da **R01 em diante**, o **Enviar para análise** lê a descrição do que mudou direto da **tabela de revisões do
+carimbo** do PDF, e mostra o que leu antes de você confirmar. O sistema **recusa** o envio quando:
+
+- a linha da revisão está **vazia**: "Preencha no carimbo o que mudou nesta revisão (R01)." — corrija o
+  carimbo e envie o PDF de novo;
+- a descrição é **genérica** (por exemplo "REVISÕES" ou "ALTERAÇÕES"), ou seja, não diz o que mudou.
+
+**Se o sistema leu errado** (o carimbo está certo, mas a leitura falhou), marque **"O carimbo foi lido
+errado"** e digite a descrição. Ela não pode ser genérica. O sistema registra que a descrição foi digitada
+pelo projetista e a coordenação vê: *"Descrição digitada pelo projetista; o carimbo dizia: …"*.
+
+Documentos **sem tabela de revisões** (memorial, carimbo antigo) seguem como antes, com o campo de
+descrição digitado. No envio em lote, o documento que parou na descrição fica de fora com o motivo; para
+contestar a leitura, use o envio individual.
+
+Os códigos de carimbo com **sublinhado** (por exemplo `2558_HDR_EX_6001_DTC`) também são conferidos contra o
+nome do arquivo.
 
 ### Histórico de cada documento (aba Arquivos)
 

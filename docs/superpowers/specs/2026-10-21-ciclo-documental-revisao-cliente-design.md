@@ -206,3 +206,25 @@ nome de cliente, endereço ou CREA), gravados como fixture JSON no repositório.
 
 Cor exata da tag; layout do item de menu e do lote; como o diálogo de envio mostra a descrição lida; heurística
 de tolerância de alinhamento na leitura do quadro (calibrar nas amostras); nome dos arquivos novos.
+
+## Estado (2026-10-21)
+
+**Feito** (branch `dev-vscode`, commits `47e6b393..bf19ffdd` + este de documentação): envio automático ao cliente
+na publicação (config por projeto, padrão ligado, "Publicar já envia ao cliente" em Ciclo dos documentos);
+controle "Em revisão" (marcar, cancelar com motivo, sair sozinha ao publicar a próxima, filtro na barra de
+Arquivos, selo no link público e na linha de Desenvolvimento, aviso "Revisão solicitada" aos responsáveis,
+marcação em lote); descrição lida do quadro de revisão do carimbo no "Enviar para análise", com recusa de linha
+vazia ou genérica e contestação do projetista ("O carimbo foi lido errado"); conferência de código com
+sublinhado. Manual (`docs/manual/projetos/projetos.md`) e `docs/manual/novidades.md` atualizados.
+
+**Verificado:** `npm test` (608 arquivos, 6862 testes), `npm run lint` (0 erros), `tsc --noEmit` do app e do
+servidor (`tsconfig.server.json`), `npm run smoke:ciclo-documental` (inclui envio automático ligado/desligado,
+marcar/cancelar/sair sozinha na R01) e `npm run build`, todos com saída 0. Telas conferidas no dev server
+(1366x768 e 390x844, claro e escuro no link público) com prints e roteiro em
+`prints-auditoria/2026-10-21_revisao-cliente/` (gitignored; `LEIAME.md` lista cada print).
+
+**Deploy:**
+1. `npx prisma migrate deploy` (2 migrações: `20261021100000_ciclo_revisao_cliente` e
+   `20261021100100_controle_em_revisao_um_ativo`).
+2. Reiniciar o serviço.
+3. Nenhum `db:seed` (sem permissão nova: "Marcar em revisão" usa a de liberar para obra).

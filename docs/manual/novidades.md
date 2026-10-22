@@ -20,6 +20,19 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Arquivos: envio ao cliente, "Em revisão" e descrição do carimbo (outubro/2026)
+
+- **Publicar já envia ao cliente.** A revisão publicada entra na pasta Compartilhado na hora. O administrador
+  pode desligar por projeto em Arquivos, ⋯, Ciclo dos documentos.
+- **Marcar em revisão.** Quando o cliente pede mudança numa prancha publicada, a coordenação marca a revisão
+  e informa o pedido. A R00 continua com o cliente e na obra, com a etiqueta "Em revisão", e os responsáveis
+  da disciplina são avisados. A etiqueta sai sozinha quando a revisão nova é publicada, ou em "Cancelar
+  revisão". Há um filtro "Em revisão" em Arquivos.
+- **Descrição lida do carimbo.** Da R01 em diante, o Enviar para análise lê o que mudou na tabela de revisões
+  do carimbo e recusa linha vazia ou genérica ("REVISÕES"). Se a leitura errar, o projetista marca "O
+  carimbo foi lido errado" e digita a descrição; a coordenação vê que foi digitada.
+- **Códigos com sublinhado** (como `2558_HDR_EX_6001_DTC`) passam a ser conferidos no carimbo.
+
 ## Arquivos: planilhas, memoriais e confirmação no envio em lote (outubro/2026)
 
 - **Planilha de quantitativos, memorial em Word e outros arquivos sem desenho** podem ser enviados para
