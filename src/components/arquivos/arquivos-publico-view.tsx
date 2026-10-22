@@ -16,6 +16,8 @@ import {
 import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
 import { FASE_TODAS } from "@/modules/uploads/arvore-navegacao";
 import { cn, rotuloRevisao } from "@/lib/utils";
+import { classeDoStatus } from "@/modules/uploads/status-documento";
+import { COR_CONTROLE } from "@/modules/uploads/ciclo/estados";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
@@ -52,17 +54,25 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
       ) : (
         <FileIcon className="size-4 shrink-0 text-muted-foreground" />
       )}
-      {/* No celular a marca desce para a linha de baixo: lado a lado ela comeria o nome do arquivo. */}
-      <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-        <span className="max-w-full truncate" title={arquivo.nome}>
-          {arquivo.nome}
+      {/* No celular a marca desce para a linha de baixo: lado a lado ela comeria o nome do arquivo. O motivo vai
+          em texto visível embaixo (no toque não há `title`), cortado numa linha, inteiro na dica. */}
+      <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+        <span className="flex max-w-full min-w-0 flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+          <span className="max-w-full truncate" title={arquivo.nome}>
+            {arquivo.nome}
+          </span>
+          {arquivo.emRevisao !== null && (
+            <span
+              className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_CONTROLE.em_revisao))}
+              title={arquivo.emRevisao ? `Em revisão: ${arquivo.emRevisao}` : "Em revisão"}
+            >
+              Em revisão
+            </span>
+          )}
         </span>
-        {arquivo.emRevisao !== null && (
-          <span
-            className="shrink-0 rounded-sm border border-amber-300 bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium leading-none text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-            title={arquivo.emRevisao ? `Em revisão: ${arquivo.emRevisao}` : "Em revisão"}
-          >
-            Em revisão
+        {arquivo.emRevisao && (
+          <span className="max-w-full truncate text-xs text-muted-foreground" title={`Em revisão: ${arquivo.emRevisao}`}>
+            Em revisão: {arquivo.emRevisao}
           </span>
         )}
       </span>

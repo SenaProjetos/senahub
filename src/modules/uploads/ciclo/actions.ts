@@ -88,7 +88,10 @@ export const enviarParaAnalise = defineAction(
       descricao: z.string().trim().max(500).optional(),
       /** Carimbo ilegível: a pessoa confirmou o envio sem a conferência (vira evento no histórico). */
       confirmarSemCarimbo: z.boolean().optional(),
-      /** "O carimbo foi lido errado": vale a descrição digitada, e quem analisa é avisado. */
+      /**
+       * "O carimbo foi lido errado": vale a descrição digitada. Quem analisa vê o aviso na linha e no painel da
+       * revisão ("Descrição contestada") — não sai notificação.
+       */
       contestarCarimbo: z.boolean().optional(),
     }),
     entidadeId: (_d, input) => input.revisaoId,

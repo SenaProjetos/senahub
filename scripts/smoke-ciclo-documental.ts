@@ -32,6 +32,7 @@ import {
 import { verificarIntegridadeCiclo } from "../src/modules/uploads/ciclo/integridade-service";
 import { MOTIVO_CORRECAO_INTEGRIDADE } from "../src/modules/uploads/ciclo/integridade";
 import { MOTIVO_SEM_DWG_SEM_TIPO } from "../src/modules/uploads/ciclo/regras";
+import { conteudoPublicoPorToken, type ConteudoPublico } from "../src/modules/projetos/arquivos/link-publico";
 
 async function main() {
   const tag = `SMKCICLO_${Date.now()}`;
@@ -122,6 +123,14 @@ async function main() {
   const estado = async (id: string) => (await prisma.documentoRevisao.findUnique({ where: { id }, select: { estado: true } }))?.estado;
   const ativos = async (id: string) =>
     (await prisma.controleRevisao.findMany({ where: { revisaoId: id, removidoEm: null }, select: { tipo: true, origem: true } })).map((c) => c.tipo);
+  // Link público "por situação" (as pastas Compartilhado e Liberado para obra): o que o cliente e a obra veem.
+  const tokenLink = `${tag}_link`;
+  const arquivosNoLink = async () => {
+    const conteudo: ConteudoPublico | null = await conteudoPublicoPorToken(tokenLink);
+    return (conteudo?.situacoes ?? []).flatMap((s) =>
+      s.disciplinas.flatMap((d) => d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos.map((a) => ({ situacao: s.id, ...a }))))),
+    );
+  };
 
   try {
     await config({});
@@ -402,6 +411,20 @@ async function main() {
     const pE = await ponteirosDe(dE.id);
     check("marca não tira a R00 do cliente nem da obra", pE?.revisaoCompartilhadaId === rE0.id && pE?.revisaoLiberadaObraId === rE0.id);
 
+    // O link público mostra a marca, com o motivo, nas duas pastas do cliente (spec §Restrições).
+    await prisma.linkPublicoArquivos.create({
+      data: { projetoId: projeto.id, token: tokenLink, escopo: "disciplinas", disciplinaIds: [disciplinaId], porSituacao: true, criadoPorId: usuario.id },
+    });
+    const motivoMarca = (await prisma.controleRevisao.findFirstOrThrow({ where: { revisaoId: rE0.id, tipo: "em_revisao", removidoEm: null }, select: { motivo: true } })).motivo;
+    const idsE0 = new Set(rE0.uploads.map((u) => u.id));
+    const noLinkMarcado = (await arquivosNoLink()).filter((a) => idsE0.has(a.id));
+    check(
+      "link público: a R00 marcada aparece em Compartilhado e em Liberado para obra com o motivo",
+      noLinkMarcado.some((a) => a.situacao === "compartilhado") &&
+        noLinkMarcado.some((a) => a.situacao === "liberado_obra") &&
+        noLinkMarcado.every((a) => a.emRevisao === motivoMarca),
+    );
+
     const marcaE0 = await prisma.controleRevisao.findFirstOrThrow({ where: { revisaoId: rE0.id, tipo: "em_revisao", removidoEm: null }, select: { id: true } });
     check("cancelar revisão exige motivo", (await recusa(() => removerControleNoBanco({ controleId: marcaE0.id, quem, motivo: " " }))) === "Informe o motivo.");
 
@@ -410,6 +433,12 @@ async function main() {
     check(
       "publicar R01 tira a marca da R00",
       (await estado(rE0.id)) === "arquivado" && marcaRemovida?.removidoEm != null && marcaRemovida.motivoRemocao === "Revisão R01 publicada" && (await ativos(rE1.id)).includes("enviado_cliente"),
+    );
+    const idsE1 = new Set(rE1.uploads.map((u) => u.id));
+    const noLinkDepois = (await arquivosNoLink()).filter((a) => idsE0.has(a.id) || idsE1.has(a.id));
+    check(
+      "link público: publicada a R01, a marca some (o link mostra a R01, sem \"Em revisão\")",
+      noLinkDepois.length > 0 && noLinkDepois.every((a) => idsE1.has(a.id) && a.emRevisao === null),
     );
 
     // Envio automático desligado = a herança de antes (a nova só vai ao cliente se a anterior estava lá).
@@ -425,6 +454,7 @@ async function main() {
       pubF1.envioAoCliente === "herdado" && (await ativos(rF1.id)).includes("enviado_cliente") && !(await ativos(rF0.id)).includes("em_revisao"),
     );
   } finally {
+    await prisma.linkPublicoArquivos.deleteMany({ where: { token: tokenLink } });
     await prisma.projeto.delete({ where: { id: projeto.id } });
     await prisma.cliente.delete({ where: { id: cliente.id } });
   }

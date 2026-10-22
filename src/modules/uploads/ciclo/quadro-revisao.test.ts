@@ -140,7 +140,11 @@ describe("textoDaRevisao", () => {
 });
 
 describe("descricaoGenerica", () => {
-  it.each(["REVISÕES", "Revisão", "ALTERAÇÕES GERAIS", "REV 01 - AJUSTES", "EMISSÃO INICIAL", "Correções.", ""])(
+  it.each([
+    "REVISÕES", "Revisão", "ALTERAÇÕES GERAIS", "REV 01 - AJUSTES", "EMISSÃO INICIAL", "Correções.", "",
+    // Número e "REV"/"R" soltos (depois de tirar a pontuação) não dizem o que mudou.
+    "REVISÃO 02", "REV - AJUSTES", "R-01 AJUSTES",
+  ])(
     "%j é genérica",
     (texto) => expect(descricaoGenerica(texto)).toBe(true),
   );

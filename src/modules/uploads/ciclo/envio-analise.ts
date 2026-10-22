@@ -44,7 +44,8 @@ function extensao(nome: string): string {
  *
  * Descrição (spec de 2026-10-21 §3): da R01 em diante a descrição é a do quadro de revisão do carimbo; linha
  * vazia ou genérica bloqueia. `contestarCarimbo` = o projetista disse que o carimbo foi lido errado: vale a
- * descrição digitada (mesma regra de genérico) e a revisão guarda o que o carimbo dizia, para quem analisa.
+ * descrição digitada (mesma regra de genérico) e a revisão guarda o que o carimbo dizia: quem analisa vê o aviso
+ * "Descrição contestada" na linha e no painel da revisão (não é notificação).
  */
 export async function verificarEnvioParaAnalise(
   r: RevisaoCarregada,

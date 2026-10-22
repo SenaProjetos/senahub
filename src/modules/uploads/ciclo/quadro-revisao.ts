@@ -232,6 +232,8 @@ export function textoDaRevisao(q: QuadroRevisao, revisao: number): string | null
 }
 
 const LIGACOES = new Set(["DE", "DA", "DO", "DAS", "DOS", "E", "A", "O"]);
+/** Sobras do prefixo de revisão separado por pontuação ("REV - …", "R-01 …"): sozinhas não dizem nada. */
+const SOLTOS_DE_REVISAO = new Set(["REV", "R"]);
 const PALAVRAS_GENERICAS = new Set([
   "REVISAO", "REVISOES", "ALTERACAO", "ALTERACOES", "ATUALIZACAO", "ATUALIZACOES", "AJUSTE", "AJUSTES",
   "MODIFICACAO", "MODIFICACOES", "CORRECAO", "CORRECOES", "GERAL", "GERAIS",
@@ -239,8 +241,9 @@ const PALAVRAS_GENERICAS = new Set([
 
 /**
  * `true` quando a descrição não diz O QUE mudou ("REVISÕES", "REV 01 - AJUSTES", "EMISSÃO INICIAL"):
- * tirando prefixo de revisão (`REV 01`, `R01`), pontuação e palavras de ligação, sobra nada ou só
- * palavras genéricas.
+ * tirando prefixo de revisão (`REV 01`, `R01`), pontuação, palavras de ligação e os pedaços soltos que
+ * sobram dele (número sozinho, `REV`/`R` sozinhos: "REVISÃO 02", "REV - AJUSTES", "R-01 AJUSTES"), sobra
+ * nada ou só palavras genéricas.
  */
 export function descricaoGenerica(texto: string): boolean {
   const base = semPontuacao(
@@ -251,6 +254,6 @@ export function descricaoGenerica(texto: string): boolean {
   if (base === "EMISSAO INICIAL") return true;
   return base
     .split(" ")
-    .filter((p) => p !== "" && !LIGACOES.has(p))
+    .filter((p) => p !== "" && !LIGACOES.has(p) && !SOLTOS_DE_REVISAO.has(p) && !/^\d+$/.test(p))
     .every((p) => PALAVRAS_GENERICAS.has(p));
 }

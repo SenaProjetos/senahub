@@ -60,7 +60,8 @@ export const COR_CONTROLE: Record<TipoControle, string> = {
   enviado_cliente: "info",
   bloqueio: "perigo",
   restricao: "revisao",
-  em_revisao: "aguardando",
+  // Âmbar, como no link público: roxo (`aguardando`) é o Arquivado.
+  em_revisao: "atencao",
 };
 
 /** Controles que levam a revisão a uma pasta do cliente — só existem em revisão publicada (I5, D1-c). */

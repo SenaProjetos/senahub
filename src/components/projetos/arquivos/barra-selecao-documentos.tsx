@@ -53,6 +53,9 @@ type LoteCiclo = "enviar" | "publicar" | "liberar_obra" | "enviar_cliente" | "ma
 /** Aviso da confirmação do lote "Publicar" quando o projeto envia ao cliente o que é publicado. */
 export const AVISO_PUBLICAR_ENVIA_AO_CLIENTE = "As revisões publicadas vão para o cliente.";
 
+/** Embaixo do campo de "Marcar em revisão" (uma revisão ou o lote): o motivo sai no link público. */
+export const AVISO_MOTIVO_EM_REVISAO_PUBLICO = "O texto aparece para o cliente e para a obra no link dos arquivos.";
+
 /**
  * No relatório do lote: as revisões que o servidor recusou pedindo uma confirmação (carimbo ilegível no
  * envio, documento sem tipo publicado sem DWG) seguem daqui, só elas, com a confirmação marcada.
@@ -485,7 +488,7 @@ export function useAcoesSelecaoDocumentos({
                 ? "O que o cliente pediu (vale para todas; fica no histórico de cada revisão)"
                 : loteExigeTexto
                 ? "Motivo (vale para todas; fica no histórico de cada revisão)"
-                : "O que mudou (vale para todas; obrigatório da R01 em diante)"}
+                : "O que mudou (usado só quando o carimbo não traz o quadro de revisão)"}
           </Label>
           <textarea
             id="texto-lote-ciclo"
@@ -495,6 +498,7 @@ export function useAcoesSelecaoDocumentos({
             onChange={(ev) => setTextoLote(ev.target.value)}
             className="min-h-20 w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
           />
+          {loteCiclo === "marcar_em_revisao" && <p className="text-xs text-muted-foreground">{AVISO_MOTIVO_EM_REVISAO_PUBLICO}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setLoteCiclo(null)} disabled={lote.pendente}>Cancelar</Button>

@@ -21,6 +21,7 @@ import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { useAcoesDocumento } from "@/components/projetos/arquivos/use-acoes-documento";
 import { PainelDocumentoDetalhe } from "@/components/projetos/arquivos/painel-documento-detalhe";
+import { EnvioAoClienteProvider } from "@/components/projetos/arquivos/ciclo-acao-dialog";
 import { TituloDocumento } from "@/components/projetos/arquivos/titulo-documento";
 import { SeloDescricaoContestada, SeloEstado, SeloNovo, SeloRevisaoPedida, SelosControles } from "@/components/projetos/arquivos/ciclo-selos";
 import { Button } from "@/components/ui/button";
@@ -581,16 +582,20 @@ export function TabelaDocumentos({
             description: "Envie o primeiro arquivo para começar.",
           };
     return (
-      <div className="rounded-md border border-border bg-card">
-        <EmptyState icon={temFiltroAtivo ? SearchX : FileX2} title={vazio.title} description={vazio.description} />
-        {/* Excluir a última linha cai aqui: o diálogo em curso não pode sumir no meio. */}
-        {acoes.portal}
-        {selecaoAcoes.portal}
-      </div>
+      <EnvioAoClienteProvider ativo={envioAutomaticoAoCliente}>
+        <div className="rounded-md border border-border bg-card">
+          <EmptyState icon={temFiltroAtivo ? SearchX : FileX2} title={vazio.title} description={vazio.description} />
+          {/* Excluir a última linha cai aqui: o diálogo em curso não pode sumir no meio. */}
+          {acoes.portal}
+          {selecaoAcoes.portal}
+        </div>
+      </EnvioAoClienteProvider>
     );
   }
 
   return (
+    // O diálogo do ciclo (do hook e do painel de detalhes) lê daqui se "Publicar" envia ao cliente.
+    <EnvioAoClienteProvider ativo={envioAutomaticoAoCliente}>
     <div className="space-y-3">
       <DicaMenuContexto />
 
@@ -874,5 +879,6 @@ export function TabelaDocumentos({
       {acoes.portal}
       {selecaoAcoes.portal}
     </div>
+    </EnvioAoClienteProvider>
   );
 }

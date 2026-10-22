@@ -418,11 +418,12 @@ export async function listarDocumentosAgrupados(opts: {
                   where u4."documentoId" = d.id and u4."excluidoEm" is null and u4."substituidoPorId" is null
                     and (u4.pacote::text = 'B' or coalesce(ea2."ehBackup", false))))
           )
-      -- $23: "Em revisão" — alguma revisão do documento com a marca ativa (só existe em revisão publicada).
+      -- $23: "Em revisão" — a revisão PUBLICADA do documento com a marca ativa (a mesma regra da etiqueta da linha).
       and ($23::boolean is null or exists (
             select 1 from controle_revisao cr
             join documento_revisao dre on dre.id = cr."revisaoId"
-            where dre."documentoId" = d.id and cr.tipo = 'em_revisao' and cr."removidoEm" is null))
+            where dre."documentoId" = d.id and dre.estado = 'publicado'
+              and cr.tipo = 'em_revisao' and cr."removidoEm" is null))
     group by d.id
   `;
   const params = [
