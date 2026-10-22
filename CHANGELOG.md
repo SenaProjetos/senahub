@@ -2,6 +2,14 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.28.0](https://github.com/SenaProjetos/senahub/compare/v1.27.0...v1.28.0) (2026-10-22)
+
+
+### ✨ Funcionalidades
+
+* **inputs:** formulário do projeto editável — briefing ocultável e perguntas extras removíveis ([2e0bf98](https://github.com/SenaProjetos/senahub/commit/2e0bf986cf271538dcfbd26afc6dadf9d8fb4c03))
+* **ponto:** Minhas horas com seletor de pessoa para quem vê o espelho da equipe ([95c1773](https://github.com/SenaProjetos/senahub/commit/95c17738cae0a0d7e8f534d93bdca6d1e9384c4b))
+
 ## [1.27.0](https://github.com/SenaProjetos/senahub/compare/v1.26.1...v1.27.0) (2026-10-22)
 
 
