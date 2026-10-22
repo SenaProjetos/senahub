@@ -18,7 +18,14 @@ export function disciplinaParaLinhaNova(pai: PaiDaLinha | null): { disciplinaId:
   return { disciplinaId: pai.disciplinaId, etapaId: pai.etapaId };
 }
 
-export type NoDisciplina = { id: string; parentId: string | null; disciplinaId: string | null; etapaId: string | null };
+export type NoDisciplina = {
+  id: string;
+  parentId: string | null;
+  disciplinaId: string | null;
+  etapaId: string | null;
+  /** Agrupamento (tem filhas). Não é achado: o conserto é mover o bloco, não trocar a disciplina dele. */
+  ehResumo?: boolean;
+};
 
 export type Divergencia = {
   tarefaId: string;
@@ -31,14 +38,16 @@ export type Divergencia = {
 
 /**
  * Linhas com disciplina diferente da do ancestral mais próximo COM disciplina. Linha sem disciplina nunca é
- * achado (pode ser proposital), nem linha sem ancestral com disciplina. Ciclo de `parentId` não acusa; `parentId`
+ * achado (pode ser proposital), nem linha sem ancestral com disciplina, nem agrupamento: "Elétrica" recuada por
+ * engano para dentro de "Hidro" tem o BLOCO no lugar errado — trocar a disciplina do agrupamento faria as folhas
+ * virarem achado no clique seguinte e a Elétrica inteira acabaria Hidro. Ciclo de `parentId` não acusa; `parentId`
  * que aponta para fora da lista vale como raiz. Ordem de entrada.
  */
 export function divergenciasDeDisciplina(nos: readonly NoDisciplina[]): Divergencia[] {
   const porId = new Map(nos.map((n) => [n.id, n]));
   const out: Divergencia[] = [];
   for (const n of nos) {
-    if (!n.disciplinaId) continue;
+    if (!n.disciplinaId || n.ehResumo) continue;
     // Sobe até a raiz: ciclo (revisitou alguém) = estrutura inválida, o verificador de ciclos cuida — aqui não acusa.
     const vistos = new Set<string>([n.id]);
     let esperadaId: string | null = null;
@@ -59,4 +68,14 @@ export function divergenciasDeDisciplina(nos: readonly NoDisciplina[]): Divergen
     if (esperadaId !== n.disciplinaId) out.push({ tarefaId: n.id, atualId: n.disciplinaId, esperadaId, etapaEsperadaId });
   }
   return out;
+}
+
+/**
+ * A fase que acompanha a linha numa disciplina: a primeira candidata que a disciplina TEM cadastrada
+ * (`DisciplinaEtapa`), ou nenhuma. Fase fora da lista da disciplina fica invisível no editor e não liga o marco à
+ * etapa — é a mesma regra do editor da linha ao trocar de disciplina. Candidatas em ordem de preferência
+ * (a fase da própria linha primeiro, depois a do agrupamento).
+ */
+export function faseQueAcompanha(candidatas: readonly (string | null)[], fasesDaDisciplina: ReadonlySet<string>): string | null {
+  return candidatas.find((e): e is string => e != null && fasesDaDisciplina.has(e)) ?? null;
 }

@@ -12,6 +12,7 @@ import {
   type Posicao,
 } from "./arvore-eap";
 import { disciplinaParaLinhaNova } from "./disciplina-linha";
+import { faseDaLinhaNova } from "./disciplina-linha-service";
 import { reservarIdsParaLinhas } from "./id-corporativo";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
 
@@ -79,7 +80,10 @@ export async function inserirLinhaAcima(id: string): Promise<{ projetoId: string
   if (!plano.ok) throw new ActionError(plano.motivo);
   // A1: a disciplina (e a fase) vêm do AGRUPAMENTO onde a linha entra, não da linha de referência — herdar da
   // vizinha criava, por exemplo, uma "Visita técnica" de Hidro com o responsável de Hidro.
-  const { disciplinaId, etapaId } = disciplinaParaLinhaNova(nos.find((n) => n.id === plano.paiId) ?? null);
+  const herdada = disciplinaParaLinhaNova(nos.find((n) => n.id === plano.paiId) ?? null);
+  const disciplinaId = herdada.disciplinaId;
+  // A fase só vai se a disciplina a tem cadastrada: fase fora da lista dela ficaria invisível no editor.
+  const etapaId = await faseDaLinhaNova(prisma, disciplinaId, herdada.etapaId);
   const nova = await prisma.$transaction(async (tx) => {
     await tx.eapTarefa.updateMany({ where: { projetoId, ordem: { gte: plano.aPartirDeOrdem } }, data: { ordem: { increment: 1 } } });
     const [idCorporativo] = await reservarIdsParaLinhas(tx, ["atv"]);

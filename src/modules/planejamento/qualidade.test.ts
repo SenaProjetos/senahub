@@ -75,6 +75,15 @@ describe("disciplina diferente do agrupamento (Fase A, A2)", () => {
     expect(ids).not.toContain("M");
   });
 
+  it("agrupamento de outra disciplina dentro de um agrupamento não é achado (mover o bloco, não trocar a disciplina)", () => {
+    const linhas = [
+      boa({ id: "H", nome: "Hidro", ehResumo: true, tipoEap: "disc", parentId: null, disciplinaId: "hid" }),
+      boa({ id: "E", nome: "Elétrica", ehResumo: true, tipoEap: "disc", parentId: "H", disciplinaId: "ele" }),
+      boa({ id: "E1", nome: "Quadros", parentId: "E", disciplinaId: "ele" }),
+    ];
+    expect(regras(linhas)).not.toContain("disciplina_diferente_do_agrupamento");
+  });
+
   it("chamador antigo, sem parentId/disciplinaId, não dispara a regra", () => {
     expect(regras([boa(), boa({ id: "t2" })])).not.toContain("disciplina_diferente_do_agrupamento");
   });

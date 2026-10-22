@@ -336,8 +336,9 @@ semanal** da nota. Abra **Achados do verificador** para ver as regras que dispar
 
 **Disciplina diferente do agrupamento** acusa a linha de uma disciplina que está dentro do agrupamento de
 outra (por exemplo, uma "Visita técnica" de Elétrica dentro de Hidrossanitário). Linha **sem** disciplina nunca
-é acusada. Esse alerta **não pesa na nota**. O botão **Usar a disciplina do agrupamento**, ao lado do achado,
-passa as linhas apontadas para a disciplina e a fase do agrupamento, depois de confirmar. Quem já estava
+é acusada, e **agrupamento** também não (se um bloco inteiro foi parar no lugar errado, mova o bloco). Esse alerta **não pesa na nota**. O botão **Usar a disciplina do agrupamento**, ao lado do achado,
+passa as linhas apontadas para a disciplina do agrupamento, depois de confirmar. A fase da linha fica quando a
+disciplina nova a tem cadastrada; senão entra a do agrupamento (se a disciplina a tem) ou a linha fica sem fase. Quem já estava
 atribuído à linha **continua** (confira a coluna Recursos); a linha que ficar sem ninguém recebe o responsável da
 disciplina nova. O botão fica desabilitado, com o motivo, quando o cronograma está aprovado — para corrigir, use
 **Revisar planejamento**.

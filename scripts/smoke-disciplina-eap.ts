@@ -41,7 +41,8 @@ async function erroDe(fn: () => Promise<unknown>): Promise<string | null> {
 async function main() {
   const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   const fase = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", projetoId: null, ativo: true }, select: { id: true, sigla: true } });
-  if (!admin || !fase) {
+  const fase2 = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", projetoId: null, ativo: true, id: { not: fase?.id } }, select: { id: true } });
+  if (!admin || !fase || !fase2) {
     console.log("Banco de dev sem admin ou sem fase — rode `npm run db:seed`.");
     process.exitCode = 1;
     return;
@@ -54,6 +55,8 @@ async function main() {
   try {
     const hid = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Hidrossanitário" } });
     const ele = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Elétrica" } });
+    // Hidro tem a fase cadastrada (como no projeto real); Elétrica não tem nenhuma.
+    await prisma.disciplinaEtapa.create({ data: { disciplinaId: hid.id, etapaId: fase.id, percentual: 100, ordem: 0 } });
     await prisma.disciplinaResponsavel.create({ data: { disciplinaId: hid.id, userId: admin.id } });
     await prisma.cronogramaProjeto.create({ data: { projetoId: projeto.id, inicioProjeto: d("2026-10-05") } });
 
@@ -86,6 +89,13 @@ async function main() {
     const c = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: naRaiz.novaId }, select: { disciplinaId: true, parentId: true } });
     check("inserir acima na raiz: nasce sem disciplina", c.disciplinaId === null && c.parentId === null, c);
 
+    // a fase só vai se a disciplina a tem cadastrada: pai de Elétrica com fase, e Elétrica não a tem
+    const topoEle = await nova("Elétrica topo", F.id, ele.id, fase.id, "res");
+    const filhaEle = await nova("Quadros", topoEle.id, ele.id, null);
+    const semFase = await inserirLinhaAcima(filhaEle.id);
+    const f1 = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: semFase.novaId }, select: { disciplinaId: true, etapaId: true } });
+    check("a linha nova herda a disciplina, mas a fase só se a disciplina a tem cadastrada", f1.disciplinaId === ele.id && f1.etapaId === null, f1);
+
     // a vizinha de OUTRA disciplina não vaza: inserir acima de uma linha de Elétrica dentro de Gestão
     const eleSobGestao = await nova("Quadros", G.id, ele.id, null);
     const d1 = await inserirLinhaAcima(eleSobGestao.id);
@@ -94,16 +104,25 @@ async function main() {
 
     // ── A2: corrigir para a disciplina do agrupamento ────────────────────────
     // H (Hidro) › V (Elétrica) · H › GH (sem disciplina) › Y (Elétrica)
-    const V = await nova("Visita técnica", H.id, ele.id, null);
+    const V = await nova("Visita técnica", H.id, ele.id, fase.id);
+    const W = await nova("Outra", H.id, ele.id, fase2.id);
+    const bloco = await nova("Bloco elétrico", H.id, ele.id, null, "res");
+    await nova("Quadro do bloco", bloco.id, ele.id, null);
     const GH = await nova("Gestão de Hidro", H.id, null, null, "res");
     const Y = await nova("Quadros de Hidro", GH.id, ele.id, null);
     await prisma.eapAtribuicao.create({ data: { tarefaId: V.id, userId: admin.id, papel: "pro", horasPrevistas: 4, principal: true } });
 
-    const r1 = await alinharDisciplinasNoBanco(projeto.id, [V.id, Y.id, M.id]);
-    check("corrige só as que divergem (M já estava certa)", [...r1.corrigidas].sort().join() === [V.id, Y.id].sort().join(), r1);
+    const r0 = await alinharDisciplinasNoBanco(projeto.id, [bloco.id]);
+    check("agrupamento de outra disciplina não é corrigido (o conserto é mover o bloco)", r0.corrigidas.length === 0 && (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: bloco.id }, select: { disciplinaId: true } })).disciplinaId === ele.id, r0);
+
+    const r1 = await alinharDisciplinasNoBanco(projeto.id, [V.id, W.id, Y.id, M.id]);
+    check("corrige só as que divergem (M já estava certa)", [...r1.corrigidas].sort().join() === [V.id, W.id, Y.id].sort().join(), r1);
     const vDepois = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: V.id }, select: { disciplinaId: true, etapaId: true } });
     const yDepois = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: Y.id }, select: { disciplinaId: true, etapaId: true } });
-    check("viram Hidro, com a fase do agrupamento", vDepois.disciplinaId === hid.id && vDepois.etapaId === fase.id && yDepois.disciplinaId === hid.id, { vDepois, yDepois });
+    check("viram Hidro; a linha sem fase ganha a do agrupamento", yDepois.disciplinaId === hid.id && yDepois.etapaId === fase.id && vDepois.disciplinaId === hid.id, { vDepois, yDepois });
+    check("a fase da própria linha fica quando a disciplina nova a tem (o marco não perde a etapa)", vDepois.etapaId === fase.id, vDepois);
+    const wDepois = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: W.id }, select: { etapaId: true } });
+    check("fase que a disciplina nova NÃO tem cadastrada sai; entra a do agrupamento", wDepois.etapaId === fase.id, wDepois);
     check("quem já estava atribuído continua, sem duplicar", (await prisma.eapAtribuicao.count({ where: { tarefaId: V.id } })) === 1);
     check("a linha corrigida que estava sem ninguém ganha o responsável da nova disciplina", (await prisma.eapAtribuicao.count({ where: { tarefaId: Y.id, userId: admin.id } })) === 1);
     const r2 = await alinharDisciplinasNoBanco(projeto.id, [V.id, Y.id]);
@@ -130,6 +149,7 @@ async function main() {
     await prisma.tarefa.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.cronogramaProjeto.deleteMany({ where: { projetoId: projeto.id } });
+    await prisma.disciplinaEtapa.deleteMany({ where: { disciplina: { projetoId: projeto.id } } });
     await prisma.disciplina.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.projeto.delete({ where: { id: projeto.id } });
     await prisma.cliente.delete({ where: { id: cliente.id } });

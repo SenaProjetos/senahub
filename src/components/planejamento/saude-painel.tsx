@@ -355,16 +355,17 @@ export function SaudePainel({
                 </Badge>
                 <span>{REGRA_LABEL[regra] ?? regra}</span>
                 {regra === "disciplina_diferente_do_agrupamento" && podeGerir && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="ml-auto"
-                    disabled={pending || planoTravado({ aprovado, emRevisao })}
-                    title={planoTravado({ aprovado, emRevisao }) ? MOTIVO_PLANO_TRAVADO : undefined}
-                    onClick={() => void alinharDisciplinas(lista.flatMap((a) => (a.tarefaId ? [a.tarefaId] : [])))}
-                  >
-                    Usar a disciplina do agrupamento
-                  </Button>
+                  // O motivo vai no <span>: o botão desabilitado não recebe o mouse (pointer-events-none) e o `title` dele nunca apareceria.
+                  <span className="ml-auto" title={planoTravado({ aprovado, emRevisao }) ? MOTIVO_PLANO_TRAVADO : undefined}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending || planoTravado({ aprovado, emRevisao })}
+                      onClick={() => void alinharDisciplinas(lista.flatMap((a) => (a.tarefaId ? [a.tarefaId] : [])))}
+                    >
+                      Usar a disciplina do agrupamento
+                    </Button>
+                  </span>
                 )}
               </div>
             ))}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { disciplinaParaLinhaNova, divergenciasDeDisciplina, type NoDisciplina } from "./disciplina-linha";
+import { disciplinaParaLinhaNova, divergenciasDeDisciplina, faseQueAcompanha, type NoDisciplina } from "./disciplina-linha";
 
 describe("disciplinaParaLinhaNova", () => {
   it("sem pai: nasce sem disciplina e sem fase", () => {
@@ -53,7 +53,33 @@ describe("divergenciasDeDisciplina", () => {
     expect(divergenciasDeDisciplina([no("A", "B", "x"), no("B", "A", "y")])).toEqual([]);
   });
 
+  it("agrupamento (linha com filhas) nunca é achado: o conserto é mover o bloco, não trocar a disciplina dele", () => {
+    // "Elétrica" recuada por engano para dentro de "Hidro": só o bloco estaria errado, e trocar a disciplina dele
+    // arrastaria as folhas no clique seguinte.
+    const nos: NoDisciplina[] = [
+      no("H", null, "hid"),
+      { ...no("E", "H", "ele"), ehResumo: true },
+      no("E1", "E", "ele"),
+    ];
+    expect(divergenciasDeDisciplina(nos)).toEqual([]);
+  });
+
   it("parentId para id ausente é tratado como raiz", () => {
     expect(divergenciasDeDisciplina([no("A", "fantasma", "x")])).toEqual([]);
+  });
+});
+
+describe("faseQueAcompanha", () => {
+  const fases = new Set(["bs", "ex"]);
+
+  it("fica com a primeira fase que a disciplina tem cadastrada", () => {
+    expect(faseQueAcompanha(["bs", "ex"], fases)).toBe("bs");
+    expect(faseQueAcompanha(["pl", "ex"], fases)).toBe("ex");
+  });
+
+  it("ignora candidata nula e devolve null quando nenhuma serve", () => {
+    expect(faseQueAcompanha([null, "bs"], fases)).toBe("bs");
+    expect(faseQueAcompanha(["pl", null], fases)).toBeNull();
+    expect(faseQueAcompanha(["bs"], new Set())).toBeNull();
   });
 });

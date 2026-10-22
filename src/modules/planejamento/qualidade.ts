@@ -168,7 +168,7 @@ export function verificarCronograma(entrada: EntradaQualidade): Achado[] {
   const divergentes = divergenciasDeDisciplina(
     linhas
       .filter((l) => l.disciplinaId !== undefined)
-      .map((l) => ({ id: l.id, parentId: l.parentId ?? null, disciplinaId: l.disciplinaId ?? null, etapaId: null })),
+      .map((l) => ({ id: l.id, parentId: l.parentId ?? null, disciplinaId: l.disciplinaId ?? null, etapaId: null, ehResumo: l.ehResumo })),
   );
   for (const dv of divergentes) {
     add(

@@ -124,6 +124,8 @@ export function EapDialog({
     setForm(tarefa ? de(tarefa) : vazio);
     setDisciplinaTocada(false);
   }
+  // O diálogo de "Nova tarefa" fica montado: a escolha manual da disciplina vale só para a abertura em que foi feita.
+  if (!open && disciplinaTocada) setDisciplinaTocada(false);
 
   // Restrição — estado próprio, editado por ação dedicada (não faz parte do salvar geral).
   const [restricaoTipo, setRestricaoTipo] = useState(tarefa?.restricaoTipo ?? "");
