@@ -549,6 +549,7 @@ export function EapWorkspace({
         <SaudePainel
           projetoId={projeto.id}
           podeAprovar={podeAprovar}
+          podeGerir={podeGerir}
           podeExecutado={podeExecutado}
           aprovado={cronograma.aprovado}
           emRevisao={cronograma.emRevisao}

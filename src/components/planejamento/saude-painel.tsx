@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ShieldAlert, ShieldCheck, ShieldQuestion, CalendarClock, Flag, Plus, Lock, LockOpen, X } from "lucide-react";
 import {
   abrirRevisaoPlanejamento,
+  alinharDisciplinaAoAgrupamento,
   aprovarCronogramaAction,
   cancelarRevisaoPlanejamento,
   replanejarCronograma,
@@ -14,6 +15,7 @@ import {
 } from "@/modules/planejamento/actions";
 import { agruparPorRegra, contarPorSeveridade, type Achado } from "@/modules/planejamento/qualidade";
 import { motivoDaBaseline, rotuloBaseline, type VersaoBaseline } from "@/modules/planejamento/baselines";
+import { MOTIVO_PLANO_TRAVADO, planoTravado } from "@/modules/planejamento/trava-plano";
 import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +60,7 @@ const FAIXA_COR: Record<string, string> = {
 export function SaudePainel({
   projetoId,
   podeAprovar,
+  podeGerir,
   podeExecutado,
   aprovado,
   emRevisao,
@@ -77,6 +80,8 @@ export function SaudePainel({
 }: {
   projetoId: string;
   podeAprovar: boolean;
+  /** `planejamento:gerir` — o botão que corrige a disciplina das linhas. */
+  podeGerir: boolean;
   podeExecutado: boolean;
   aprovado: boolean;
   /** "Revisar planejamento" aberto: o plano aprovado está destravado até a nova linha de base (`trava-plano.ts`). */
@@ -184,6 +189,26 @@ export function SaudePainel({
       const r = await abrirRevisaoPlanejamento({ projetoId });
       if (r.ok) {
         toast.success("Planejamento em revisão — o plano está liberado para edição.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  async function alinharDisciplinas(tarefaIds: string[]) {
+    const ok = await confirm({
+      title: "Usar a disciplina do agrupamento?",
+      description:
+        `${tarefaIds.length === 1 ? "1 linha passa" : `${tarefaIds.length} linhas passam`} para a disciplina (e a fase) do agrupamento em que ` +
+        "estão. Quem já está atribuído continua; a linha que estiver sem ninguém recebe o responsável da disciplina nova.",
+      confirmLabel: "Corrigir",
+    });
+    if (!ok) return;
+    start(async () => {
+      const r = await alinharDisciplinaAoAgrupamento({ projetoId, tarefaIds });
+      if (r.ok) {
+        toast.success(r.data.corrigidas === 1 ? "1 linha corrigida." : `${r.data.corrigidas} linhas corrigidas.`, {
+          description: "Confira a coluna Recursos: quem já estava atribuído continua.",
+        });
         router.refresh();
       } else toast.error(r.error);
     });
@@ -329,6 +354,18 @@ export function SaudePainel({
                   {lista.length}
                 </Badge>
                 <span>{REGRA_LABEL[regra] ?? regra}</span>
+                {regra === "disciplina_diferente_do_agrupamento" && podeGerir && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto"
+                    disabled={pending || planoTravado({ aprovado, emRevisao })}
+                    title={planoTravado({ aprovado, emRevisao }) ? MOTIVO_PLANO_TRAVADO : undefined}
+                    onClick={() => void alinharDisciplinas(lista.flatMap((a) => (a.tarefaId ? [a.tarefaId] : [])))}
+                  >
+                    Usar a disciplina do agrupamento
+                  </Button>
+                )}
               </div>
             ))}
           </div>

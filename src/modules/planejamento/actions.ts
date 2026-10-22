@@ -25,6 +25,7 @@ import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agrega
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
 import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
+import { alinharDisciplinasNoBanco } from "@/modules/planejamento/disciplina-linha-service";
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
 import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
@@ -401,6 +402,26 @@ export const moverEapTarefaNoNivel = defineAction(
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { ok: true };
+  },
+);
+
+/**
+ * O botão do achado "disciplina diferente do agrupamento" (Fase A, A2): passa as linhas para a disciplina e a fase do
+ * agrupamento em que estão. Recalcula do banco (a lista da tela pode estar velha) e recusa com o plano aprovado.
+ */
+export const alinharDisciplinaAoAgrupamento = defineAction(
+  {
+    ...plan,
+    acao: "alinhar-disciplina-eap",
+    entidade: "EapTarefa",
+    schema: z.object({ projetoId: z.string().min(1), tarefaIds: z.array(z.string().min(1)).min(1).max(2000) }),
+  },
+  async (i, { user }) => {
+    const { corrigidas } = await alinharDisciplinasNoBanco(i.projetoId, i.tarefaIds);
+    if (corrigidas.length === 0) throw new ActionError("Nada a corrigir: as linhas já estão na disciplina do agrupamento.");
+    await aposMudarEap(i.projetoId, user.id);
+    revProjeto(i.projetoId);
+    return { corrigidas: corrigidas.length };
   },
 );
 
