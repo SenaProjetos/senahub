@@ -19,10 +19,10 @@
  *    (sem ":"): "REVISÃO:" é o campo do carimbo, não a coluna; "ASSUNTO:" é o título da prancha.
  * 2. LINHAS = itens só-número alinhados com o rótulo de revisão, do lado do cabeçalho onde eles estão,
  *    em sequência (um salto grande = já é outro texto da folha).
- * 3. COLUNA DA DESCRIÇÃO: com uma coluna seguinte (AUTOR, DESENHO…), a borda direita é o meio entre o
- *    centro do rótulo da descrição e o centro do rótulo seguinte (sem passar do início dele) — vale com
- *    o rótulo centralizado ou alinhado à esquerda. Sem coluna seguinte (modelos C e D), supõe o rótulo
- *    centralizado: a borda direita é o espelho da borda esquerda em torno do centro dele. Um item entra
+ * 3. COLUNA DA DESCRIÇÃO: a borda direita é o espelho da borda esquerda em torno do centro do rótulo
+ *    (exata quando o rótulo é centralizado, como nas 12 amostras). Com coluna seguinte (AUTOR,
+ *    DESENHO…), vale o maior entre o espelho e o meio dos centros dos dois rótulos — com o rótulo
+ *    alinhado à esquerda o espelho encolheria a coluna — sem passar do início do rótulo seguinte. Um item entra
  *    pelo CENTRO: o nome do autor fica centralizado sob AUTOR/DESENHO e às vezes começa colado no fim
  *    da descrição (PEDF3) — pelo início ele entraria. A borda esquerda é o fim da coluna do número, ou
  *    o fim do último rótulo entre REVISÃO e DESCRIÇÃO (modelo D: Data e Emitido por ficam no meio).
@@ -160,9 +160,10 @@ function lerCabecalho(itens: ItemLeitura[], cab: Cabecalho): QuadroRevisao {
   const proxima = naLinhaDoCabecalho
     .filter((it) => it.x >= fimDe(descricao) - 0.5)
     .sort((a, b) => a.x - b.x)[0];
+  const espelho = 2 * centroDe(descricao) - esquerda;
   const direita = proxima
-    ? Math.min(proxima.x, (centroDe(descricao) + centroDe(proxima)) / 2)
-    : 2 * centroDe(descricao) - esquerda;
+    ? Math.min(proxima.x, Math.max(espelho, (centroDe(descricao) + centroDe(proxima)) / 2))
+    : espelho;
 
   const ehNumero = new Set(numeros);
   const naDescricao = itens.filter(

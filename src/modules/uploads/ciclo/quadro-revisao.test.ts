@@ -108,6 +108,15 @@ describe("lerQuadroDeRevisao — casos de borda", () => {
     }
     expect(textoDaRevisao(lerQuadroDeRevisao([...cabecalhoEsquerda(), ...palavras])!, 1)).toBe(DESCRICAO_LONGA);
   });
+  it("rótulo centralizado (25102): palavra entre o meio dos rótulos e o espelho entra, o autor não", () => {
+    // "B5" termina em x=3143; o meio entre ASSUNTO e DESENHO fica em 3142,25 e o espelho em 3202,2.
+    const itens = [
+      ...itensDe("25102_EST_EX_DTC_4001"),
+      { str: "NOVOS", x: 3146.5, y: 251.3, w: 27, h: 9, pagina: 1, giro: 0 },
+    ];
+    const texto = textoDaRevisao(lerQuadroDeRevisao(itens)!, 1);
+    expect(texto).toBe("REVISÃO DA LOCAÇÃO DOS BLOCOS B1 E B5 NOVOS");
+  });
   it("linhas ordenadas por número", () => {
     const quadro = lerQuadroDeRevisao(itensDe("2525-EST-EX-DTC-433"));
     expect(quadro!.linhas.map((l) => l.numero)).toEqual([0, 1, 2, 3, 4, 5, 6]);
