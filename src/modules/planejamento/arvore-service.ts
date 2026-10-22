@@ -11,6 +11,7 @@ import {
   type Movimento,
   type Posicao,
 } from "./arvore-eap";
+import { disciplinaParaLinhaNova } from "./disciplina-linha";
 import { reservarIdsParaLinhas } from "./id-corporativo";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
 
@@ -25,12 +26,12 @@ type Db = Prisma.TransactionClient | typeof prisma;
 async function carregar(id: string) {
   const t = await prisma.eapTarefa.findUnique({
     where: { id },
-    select: { projetoId: true, disciplinaId: true, inicioPrevisto: true, fimPrevisto: true },
+    select: { projetoId: true, inicioPrevisto: true, fimPrevisto: true },
   });
   if (!t) throw new ActionError("Tarefa não encontrada.");
   const nos = await prisma.eapTarefa.findMany({
     where: { projetoId: t.projetoId },
-    select: { id: true, parentId: true, ordem: true, tipoEap: true },
+    select: { id: true, parentId: true, ordem: true, tipoEap: true, disciplinaId: true, etapaId: true },
   });
   return { ...t, nos };
 }
@@ -73,9 +74,12 @@ export async function avancarLinha(id: string): Promise<{ projetoId: string }> {
 }
 
 export async function inserirLinhaAcima(id: string): Promise<{ projetoId: string; novaId: string }> {
-  const { projetoId, nos, disciplinaId, inicioPrevisto, fimPrevisto } = await carregar(id);
+  const { projetoId, nos, inicioPrevisto, fimPrevisto } = await carregar(id);
   const plano = planoDeInsercaoAcima(nos, id);
   if (!plano.ok) throw new ActionError(plano.motivo);
+  // A1: a disciplina (e a fase) vêm do AGRUPAMENTO onde a linha entra, não da linha de referência — herdar da
+  // vizinha criava, por exemplo, uma "Visita técnica" de Hidro com o responsável de Hidro.
+  const { disciplinaId, etapaId } = disciplinaParaLinhaNova(nos.find((n) => n.id === plano.paiId) ?? null);
   const nova = await prisma.$transaction(async (tx) => {
     await tx.eapTarefa.updateMany({ where: { projetoId, ordem: { gte: plano.aPartirDeOrdem } }, data: { ordem: { increment: 1 } } });
     const [idCorporativo] = await reservarIdsParaLinhas(tx, ["atv"]);
@@ -84,8 +88,9 @@ export async function inserirLinhaAcima(id: string): Promise<{ projetoId: string
         idCorporativo,
         projetoId,
         parentId: plano.paiId,
-        // Nasce na disciplina da linha de referência; datas provisórias — o reagendamento grava as do motor.
+        // Datas provisórias — o reagendamento grava as do motor.
         disciplinaId,
+        etapaId,
         nome: "Nova tarefa",
         tipoEap: "atv",
         duracaoDias: 1,

@@ -19,6 +19,7 @@ import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
 import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
 import { MOTIVO_PLANO_TRAVADO } from "@/modules/planejamento/trava-plano";
+import { disciplinaParaLinhaNova } from "@/modules/planejamento/disciplina-linha";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,9 +117,12 @@ export function EapDialog({
   const [form, setForm] = useState(tarefa ? de(tarefa) : vazio);
   const key = tarefa?.id ?? "nova";
   const [lastKey, setLastKey] = useState(key);
+  // A1: linha nova nasce com a disciplina do agrupamento escolhido em "Subtarefa de" — até a pessoa escolher a dela.
+  const [disciplinaTocada, setDisciplinaTocada] = useState(false);
   if (lastKey !== key) {
     setLastKey(key);
     setForm(tarefa ? de(tarefa) : vazio);
+    setDisciplinaTocada(false);
   }
 
   // Restrição — estado próprio, editado por ação dedicada (não faz parte do salvar geral).
@@ -393,14 +397,15 @@ export function EapDialog({
               <Label>Disciplina (opcional)</Label>
               <Select
                 value={form.disciplinaId}
-                onValueChange={(v) =>
+                onValueChange={(v) => {
+                  setDisciplinaTocada(true);
                   setForm((f) => {
                     const disciplinaId = v ?? NONE;
                     // Fase de outra disciplina não aponta etapa desta: troca de disciplina limpa a fase.
                     const aindaVale = disciplinas.find((d) => d.id === disciplinaId)?.etapas.some((e) => e.etapaId === f.etapaId);
                     return { ...f, disciplinaId, etapaId: aindaVale ? f.etapaId : NONE };
-                  })
-                }
+                  });
+                }}
               >
                 <SelectTrigger disabled={trava}>
                   <SelectValue />
@@ -489,7 +494,17 @@ export function EapDialog({
               <Label>Subtarefa de (opcional)</Label>
               <Select
                 value={form.parentId}
-                onValueChange={(v) => setForm((f) => ({ ...f, parentId: v ?? NONE }))}
+                onValueChange={(v) =>
+                  setForm((f) => {
+                    const parentId = v ?? NONE;
+                    if (disciplinaTocada) return { ...f, parentId };
+                    const pai = tarefas.find((t) => t.id === parentId);
+                    const herdada = disciplinaParaLinhaNova(pai ? { disciplinaId: pai.disciplinaId, etapaId: pai.etapaId } : null);
+                    // A fase só fica se a disciplina herdada a tem cadastrada (senão a action recusa).
+                    const temFase = disciplinas.find((d) => d.id === herdada.disciplinaId)?.etapas.some((e) => e.etapaId === herdada.etapaId);
+                    return { ...f, parentId, disciplinaId: herdada.disciplinaId ?? NONE, etapaId: temFase && herdada.etapaId ? herdada.etapaId : NONE };
+                  })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
