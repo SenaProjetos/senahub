@@ -23,6 +23,9 @@ import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { historicoRevisoesDocumento, irmaosDoDocumento, casosEscopoExclusao } from "@/modules/uploads/queries";
 import { expandirSelecao } from "@/modules/uploads/exclusao-escopo";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
+import { leitorDoProjeto } from "@/modules/uploads/nomenclatura/leitor-do-projeto";
+import { confiavel, type Campo } from "@/modules/uploads/nomenclatura/interpretar";
+import { metadadoAoRenomear } from "@/modules/uploads/nomenclatura/precedencia";
 import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 import { registrarEventoDocumento, registrarEventoUploads } from "@/modules/uploads/historico/service";
 import { exigirEscopoDocumento } from "@/modules/uploads/escopo-documento";
@@ -494,6 +497,60 @@ const renomearSchema = z.object({
 });
 
 /**
+ * O que o renomeio muda em fase, tipo e nº do documento: lê o nome antigo e o novo pelo motor do
+ * projeto e aplica `metadadoAoRenomear` campo a campo (só leitura de confiança alta, D7). `campos`
+ * vai para o evento "metadados" em siglas, como na edição manual.
+ */
+async function releituraAoRenomear(
+  documentoId: string,
+  disciplina: { projetoId: string; disciplinaId: string | null },
+  nomeAntes: string,
+  nomeDepois: string,
+): Promise<{ dados: { faseId?: string; tipoId?: string; numeroPrancha?: number }; campos: ReturnType<typeof camposAlterados> }> {
+  const doc = await prisma.documentoDisciplina.findUnique({
+    where: { id: documentoId },
+    select: {
+      faseId: true,
+      tipoId: true,
+      numeroPrancha: true,
+      substituidoPorId: true,
+      fase: { select: { sigla: true } },
+      tipo: { select: { sigla: true } },
+    },
+  });
+  // Documento absorvido por merge não recebe metadado (mesma recusa da edição manual).
+  if (!doc || doc.substituidoPorId) return { dados: {}, campos: {} };
+  const { ler, vocabulario } = await leitorDoProjeto(disciplina.projetoId, disciplina.disciplinaId);
+  const antes = ler(nomeAntes);
+  const depois = ler(nomeDepois);
+  const valor = <T>(c: Campo<T> | undefined) => (confiavel(c) ? c.valor : undefined);
+
+  const faseId = metadadoAoRenomear(doc.faseId, valor(antes.fase), valor(depois.fase));
+  const tipoId = metadadoAoRenomear(doc.tipoId, valor(antes.tipo), valor(depois.tipo));
+  // Prancha 0 (leitura antiga de `…-0000-M3D`) conta como vazia.
+  const numeroPrancha = metadadoAoRenomear(doc.numeroPrancha || null, valor(antes.numero), valor(depois.numero));
+  const dados = {
+    ...(faseId !== undefined ? { faseId } : {}),
+    ...(tipoId !== undefined ? { tipoId } : {}),
+    ...(numeroPrancha !== undefined ? { numeroPrancha } : {}),
+  };
+  const campos = camposAlterados(
+    {
+      fase: doc.fase?.sigla ?? null,
+      tipo: doc.tipo?.sigla ?? null,
+      numeroPrancha: doc.numeroPrancha != null ? String(doc.numeroPrancha) : null,
+    },
+    {
+      fase: faseId !== undefined ? vocabulario.siglaDe("fase", faseId) : (doc.fase?.sigla ?? null),
+      tipo: tipoId !== undefined ? vocabulario.siglaDe("tipo", tipoId) : (doc.tipo?.sigla ?? null),
+      numeroPrancha: numeroPrancha !== undefined ? String(numeroPrancha) : doc.numeroPrancha != null ? String(doc.numeroPrancha) : null,
+    },
+    ["fase", "tipo", "numeroPrancha"] as const,
+  );
+  return { dados, campos };
+}
+
+/**
  * Renomeia o nome exibido de um upload (não altera o arquivo físico nem a versão).
  * A cadeia de versões é derivada por (disciplinaId, pacote, nomeArquivo) — sem FK —,
  * então renomeamos TODAS as versões do arquivo em bloco. Renomear só a versão atual
@@ -501,6 +558,8 @@ const renomearSchema = z.object({
  * (versões anteriores) ficaria órfão sob o nome antigo.
  * Permitido ao responsável da disciplina ou perfil global. Auditado (de → para),
  * com `entidadeId = disciplinaId` para correlação no histórico do projeto.
+ * Fase, tipo e nº que vieram do nome antigo seguem o nome novo (`releituraAoRenomear`) — só para
+ * quem também pode editar os metadados (responsável ou `arquivos:editar_metadados`).
  */
 export const renomearUpload = defineAction(
   {
@@ -512,7 +571,10 @@ export const renomearUpload = defineAction(
     schema: renomearSchema,
     entidadeId: (d) => (d as { disciplinaId?: string } | undefined)?.disciplinaId,
     capturarAntes: (input) =>
-      prisma.upload.findUnique({ where: { id: input.uploadId }, select: { nomeArquivo: true } }),
+      prisma.upload.findUnique({
+        where: { id: input.uploadId },
+        select: { nomeArquivo: true, documento: { select: { faseId: true, tipoId: true, numeroPrancha: true } } },
+      }),
   },
   async (input, { user }) => {
     const up = await prisma.upload.findUnique({
@@ -524,7 +586,7 @@ export const renomearUpload = defineAction(
         pastaId: true,
         documentoId: true,
         disciplinaId: true,
-        disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
+        disciplina: { select: { projetoId: true, disciplinaId: true, responsaveis: { select: { userId: true } } } },
       },
     });
     if (!up) throw new ActionError("Arquivo não encontrado.");
@@ -575,13 +637,25 @@ export const renomearUpload = defineAction(
       throw new ActionError("Já existe um arquivo com esse nome nesta pasta.");
     }
 
+    // Fase, tipo e nº que vieram do nome antigo acompanham o nome novo (`metadadoAoRenomear`) — só
+    // para quem pode editar metadado. Falha na releitura não impede o renomeio: só deixa o metadado.
+    const podeMetadado = ehResp || (await can(user, "arquivos", "editar_metadados"));
+    let releitura: Awaited<ReturnType<typeof releituraAoRenomear>> | null = null;
+    if (up.documentoId && podeMetadado) {
+      try {
+        releitura = await releituraAoRenomear(up.documentoId, up.disciplina, up.nomeArquivo, nomeFinal);
+      } catch (erro) {
+        console.error("[renomear] releitura de fase/tipo/nº falhou", erro);
+      }
+    }
+
     const { count } = await prisma.$transaction(async (tx) => {
       // O pai carrega o nome exibido e a chave de agrupamento — precisa acompanhar o
       // rename, senão o próximo upload com o nome novo não encontra esta cadeia.
       if (up.documentoId) {
         await tx.documentoDisciplina.update({
           where: { id: up.documentoId },
-          data: { nomeArquivo: nomeBase, chave: chaveNova },
+          data: { nomeArquivo: nomeBase, chave: chaveNova, ...releitura?.dados },
         });
       }
       // Renomear o documento renomeia também as versões substituídas (o histórico segue o nome).
@@ -602,9 +676,18 @@ export const renomearUpload = defineAction(
         userId: user.id,
         detalhe: { de: up.nomeArquivo, para: nomeFinal },
       });
+      if (releitura && Object.keys(releitura.campos).length > 0) {
+        await registrarEventoDocumento({
+          documentoId: up.documentoId,
+          uploadId: up.id,
+          tipo: "metadados",
+          userId: user.id,
+          detalhe: { campos: releitura.campos, origem: "renomeio" },
+        });
+      }
     }
     revalidatePath(`/projetos/${up.disciplina.projetoId}/arquivos`);
-    return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal, versoes: count };
+    return { disciplinaId: up.disciplinaId, de: up.nomeArquivo, para: nomeFinal, versoes: count, metadados: releitura?.dados ?? {} };
   },
 );
 

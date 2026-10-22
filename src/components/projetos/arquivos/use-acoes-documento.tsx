@@ -249,7 +249,8 @@ export function useAcoesDocumento({
               autoFocus
             />
             <p className="text-xs text-muted-foreground">
-              Muda apenas o nome exibido — o arquivo enviado e a revisão continuam os mesmos.
+              Muda o nome exibido — o arquivo enviado e a revisão continuam os mesmos. Fase, tipo e nº que vieram do
+              nome antigo passam a seguir o nome novo; o que foi escolhido à mão fica.
             </p>
           </div>
           <DialogFooter>

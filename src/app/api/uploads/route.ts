@@ -384,7 +384,9 @@ export async function POST(req: Request) {
 
     const faseFinal = resolverMetadado(faseSelecionada?.id, faseDoNome?.valor, documentoExistente?.faseId);
     const tipoFinal = resolverMetadado(tipoSelecionado?.id, tipoDoNome?.valor, documentoExistente?.tipoId);
-    const numeroFinal = resolverMetadado<number>(null, numeroDoNome?.valor, documentoExistente?.numeroPrancha);
+    // Prancha 0 gravada antes de 2026-10-21 (leitura de `…-0000-M3D`) conta como vazia: senão o nome
+    // certo de um envio seguinte nunca preenche o número.
+    const numeroFinal = resolverMetadado<number>(null, numeroDoNome?.valor, documentoExistente?.numeroPrancha || null);
     const subFinal = resolverMetadado(subSelecionada?.id, subDoNome?.valor, documentoExistente?.subdisciplinaId);
     const metadados = {
       ...(faseFinal ? { faseId: faseFinal.valor } : {}),

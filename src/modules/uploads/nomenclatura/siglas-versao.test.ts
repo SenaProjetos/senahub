@@ -6,6 +6,7 @@ import {
   faixaDoEspelho,
   intersecaoFaixas,
   linhasParaChecarColisao,
+  siglaQueOGeralJaTem,
   siglasDasColunas,
   siglasEfetivas,
   siglasNaVersao,
@@ -330,5 +331,36 @@ describe("catalogosDaVersao", () => {
     });
     const cat = catalogosDaVersao(entrada, 1);
     expect([...cat.fases, ...cat.tipos].some((i) => i.id === "fl-a1")).toBe(false);
+  });
+});
+
+describe("siglaQueOGeralJaTem (sigla própria de projeto repetindo a geral)", () => {
+  const linha = (sigla: string, oficial: boolean, versaoDesde: number, versaoAte: number | null) => ({ sigla, oficial, versaoDesde, versaoAte });
+  // O catálogo de produção em 2026-10-21: o DET da v1 aceitava DE; o DET da v2 só aceita DET.
+  const geral = [
+    { nome: "Projeto Executivo", sigla: "EX", sinonimos: [], versaoDesde: 1, versaoAte: null, siglas: [linha("EX", true, 1, null)] },
+    {
+      nome: "Desenho Técnico",
+      sigla: "DET",
+      sinonimos: ["DTC", "DE"],
+      versaoDesde: 1,
+      versaoAte: 1,
+      siglas: [linha("DET", true, 1, 1), linha("DTC", false, 1, 1), linha("DE", false, 1, 1)],
+    },
+    { nome: "Detalhes", sigla: "DET", sinonimos: [], versaoDesde: 2, versaoAte: null, siglas: [linha("DET", true, 2, null)] },
+  ];
+
+  it("recusa a sigla que o geral já tem na versão do projeto", () => {
+    expect(siglaQueOGeralJaTem(["ex"], geral, 2)).toEqual({ sigla: "EX", nome: "Projeto Executivo" });
+    expect(siglaQueOGeralJaTem(["XYZ", "DE"], geral, 1)).toEqual({ sigla: "DE", nome: "Desenho Técnico" });
+  });
+
+  it("libera a sigla que o geral não tem naquela versão (o DE que a v2 perdeu)", () => {
+    expect(siglaQueOGeralJaTem(["DE"], geral, 2)).toBeNull();
+  });
+
+  it("item geral sem linha de sigla é lido pelas colunas", () => {
+    const antigo = [{ nome: "A1", sigla: "A1", sinonimos: ["A-1"], versaoDesde: 1, versaoAte: null, siglas: [] }];
+    expect(siglaQueOGeralJaTem(["A-1"], antigo, 3)).toEqual({ sigla: "A-1", nome: "A1" });
   });
 });

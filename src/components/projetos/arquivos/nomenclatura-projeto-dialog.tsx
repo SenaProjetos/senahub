@@ -84,6 +84,11 @@ export function NomenclaturaProjetoButton({
 
           <section className="space-y-2">
             <h3 className="text-sm font-semibold">Siglas deste projeto</h3>
+            {podeEditar && (
+              <p className="text-xs text-muted-foreground">
+                Só para o que o catálogo geral não reconhece na versão deste projeto — sigla que já existe lá é recusada.
+              </p>
+            )}
             {podeEditar ? (
               <ListaMestreConfigView catalogos={siglasProjeto} projetoId={projetoId} />
             ) : siglasAtivas.length === 0 ? (

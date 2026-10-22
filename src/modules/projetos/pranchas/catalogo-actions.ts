@@ -10,9 +10,11 @@ import {
   decidirSiglasAoSalvar,
   faixaDoEspelho,
   linhasParaChecarColisao,
+  siglaQueOGeralJaTem,
   siglasDasColunas,
   type FaixaVersao,
 } from "@/modules/uploads/nomenclatura/siglas-versao";
+import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { garantirSiglasSemColisao } from "@/modules/uploads/nomenclatura/siglas-guardas";
 import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
@@ -46,6 +48,36 @@ async function garantirSemColisaoPrancha(
   }
 }
 
+/**
+ * Sigla própria de projeto não repete a do catálogo geral na versão que o projeto segue
+ * (2026-10-21): um EX do projeto ao lado do EX geral abria duas pastas EX em Arquivos e tirava os
+ * envios do item geral. Sigla que o geral NÃO tem naquela versão (o DE que a v2 perdeu) continua livre.
+ */
+async function garantirQueOGeralNaoTem(
+  categoriaAlvo: "folha" | "tipo" | "fase",
+  projetoId: string,
+  item: { sigla: string; sinonimos: string[] },
+) {
+  const versao = (await resolverNomenclatura(projetoId)).versao?.numero ?? 1;
+  const geral = await prisma.pranchaCatalogo.findMany({
+    where: { categoria: categoriaAlvo, projetoId: null, ativo: true },
+    select: {
+      nome: true,
+      sigla: true,
+      sinonimos: true,
+      versaoDesde: true,
+      versaoAte: true,
+      siglas: { select: { sigla: true, oficial: true, versaoDesde: true, versaoAte: true } },
+    },
+  });
+  const repetida = siglaQueOGeralJaTem([item.sigla, ...item.sinonimos], geral, versao);
+  if (repetida) {
+    throw new ActionError(
+      `"${repetida.sigla}" já existe no catálogo geral (“${repetida.nome}”) na versão que este projeto segue — use essa, sem criar uma sigla só do projeto.`,
+    );
+  }
+}
+
 export const criarCatalogoPrancha = defineAction(
   {
     ...base,
@@ -70,6 +102,7 @@ export const criarCatalogoPrancha = defineAction(
     // Sigla de folha e sigla própria de projeto não têm validade por versão.
     const faixa: FaixaVersao = { versaoDesde: 1, versaoAte: null };
     await garantirSemColisaoPrancha(i.categoria, projetoId, { sigla, sinonimos }, null);
+    if (projetoId) await garantirQueOGeralNaoTem(i.categoria, projetoId, { sigla, sinonimos });
     await garantirSiglasSemColisao(
       { tipo: "prancha", id: null, faixa },
       { tipo: "prancha", categoria: i.categoria, projetoId },
@@ -119,6 +152,7 @@ export const editarCatalogoPrancha = defineAction(
         nome: true,
         categoria: true,
         projetoId: true,
+        ativo: true,
         sigla: true,
         sinonimos: true,
         versaoDesde: true,
@@ -151,6 +185,14 @@ export const editarCatalogoPrancha = defineAction(
       );
     }
     await garantirSemColisaoPrancha(existe.categoria, existe.projetoId, { sigla, sinonimos }, i.id);
+    // Só quando muda a sigla, os sinônimos ou reativa: desativar a repetida, ou só renomear uma sigla
+    // antiga, continua possível.
+    const mudouSigla =
+      sigla !== existe.sigla.toUpperCase() ||
+      sinonimos.join("|") !== normalizarSinonimos(existe.sigla.toUpperCase(), existe.sinonimos).join("|");
+    if (existe.projetoId && i.ativo && (mudouSigla || !existe.ativo)) {
+      await garantirQueOGeralNaoTem(existe.categoria, existe.projetoId, { sigla, sinonimos });
+    }
     await garantirSiglasSemColisao(
       { tipo: "prancha", id: i.id, faixa },
       { tipo: "prancha", categoria: existe.categoria, projetoId: existe.projetoId },

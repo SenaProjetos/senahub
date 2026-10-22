@@ -68,6 +68,17 @@ describe("interpretarNomeArquivo — leitura básica", () => {
     expect(confiavel(r.tipo)).toBe(true);
   });
 
+  it("0000 é a posição do número sem prancha (modelo IFC), não a prancha 0", () => {
+    const modelo = ler("260020-EST-EX-0000-M3D.ifc");
+    expect(modelo.numero).toBeUndefined();
+    expect(modelo.fase?.valor).toBe("f-ex");
+    // O zero à esquerda continua sendo só formatação.
+    expect(ler("260020-EST-EX-0405-DET.pdf").numero?.valor).toBe(405);
+    expect(ler("260020-EST-EX-0000-DET.pdf", { padrao: "{proj}-{disc}-{fase}-{nº}-{tipo}" }).numero).toBeUndefined();
+    // Com um número de verdade no nome, o `0000` não toma o lugar dele.
+    expect(ler("260020-EST-EX-0000-DET-405.pdf").numero?.valor).toBe(405);
+  });
+
   it("não inventa campo sem evidência", () => {
     const r = ler("planta.pdf");
     expect(r.fase).toBeUndefined();
