@@ -41,14 +41,17 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  semFundo = false,
   ...props
 }: SheetPrimitive.Popup.Props & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  /** Sem o fundo escurecido: o que está atrás continua à vista e clicável (use com `modal={false}` no `Sheet`). */
+  semFundo?: boolean
 }) {
   return (
     <SheetPortal>
-      <SheetOverlay />
+      {!semFundo && <SheetOverlay />}
       <SheetPrimitive.Popup
         data-slot="sheet-content"
         data-side={side}

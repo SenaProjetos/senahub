@@ -442,9 +442,8 @@ export function FaixaCronograma({
       {aprovado && emRevisao && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-warning/30 bg-warning/10 px-3 py-1.5 text-xs">
           <span className="min-w-0 flex-1">
-            <strong>Em revisão{revisaoAbertaEm ? ` desde ${formatarData(revisaoAbertaEm)}` : ""}.</strong> Estrutura, durações e dependências
-            liberadas; a revisão fecha com uma nova linha de base
-            {revisaoAlterada ? " — o plano já mudou, então ela não pode mais ser cancelada." : "."}
+            <strong>Em revisão{revisaoAbertaEm ? ` desde ${formatarData(revisaoAbertaEm)}` : ""}.</strong> A revisão fecha com uma nova linha de base
+            {revisaoAlterada ? " — o plano já mudou, então não dá mais para cancelar." : "."}
           </span>
           {podeAprovar && !revisaoAlterada && (
             <Button size="sm" variant="ghost" className="h-7" onClick={cancelarRevisao} disabled={pending}>

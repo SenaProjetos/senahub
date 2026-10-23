@@ -210,6 +210,24 @@ async function restaurar(tx: Prisma.TransactionClient, projetoId: string, plano:
   for (const r of plano.religarBaselineLinhas) await tx.eapBaselineLinha.updateMany({ where: { id: r.id, tarefaId: null }, data: { tarefaId: r.tarefaId } });
 }
 
+/** A foto do plano tirada antes de uma gravação em várias etapas (salvar a linha inteira), para voltar se uma falhar. */
+export const fotoDoPlano = (projetoId: string): Promise<EstadoPlano> => fotoConsistente(projetoId);
+
+/**
+ * Volta o plano à foto tirada no começo da MESMA ação, quando uma etapa dela falhou depois de outras já gravadas: o
+ * "tudo ou nada" de quem grava em passos separados. Sem passo de desfazer e sem conferência de impressão — a foto é
+ * desta ação, não de um passo da pilha.
+ */
+export async function voltarAFoto(projetoId: string, foto: EstadoPlano): Promise<void> {
+  await prisma.$transaction(
+    async (tx) => {
+      const atual = await lerEstadoDoPlano(tx, projetoId);
+      await restaurar(tx, projetoId, planoDeRestauracao(atual, foto));
+    },
+    { timeout: 60_000, maxWait: 30_000 },
+  );
+}
+
 /** `limparPassos` para depois de uma ação que já aconteceu: falha ao limpar nunca vira erro da ação. */
 export async function descartarPassos(projetoId: string): Promise<void> {
   await limparPassos(projetoId).catch((e) => console.error("[desfazer] falha ao descartar os passos:", e));

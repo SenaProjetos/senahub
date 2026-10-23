@@ -93,7 +93,7 @@ export function SaudeCronogramaPainel({
 
   return (
     <Sheet open={aberto} onOpenChange={onAbertoChange}>
-      <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-md">
+      <SheetContent className="w-full gap-0 overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md">
         <SheetHeader className="border-b">
           <SheetTitle className="pr-8 text-base font-bold">Saúde do cronograma</SheetTitle>
           <SheetDescription className="sr-only">Nota, achados do verificador e linha de base do cronograma.</SheetDescription>

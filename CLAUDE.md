@@ -49,6 +49,7 @@ npm run smoke:documentos-validade  # documento com validade: aviso 60/30/7/venci
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta (atrasada não some), sugestão da atividade de hoje, validação, edição do dia, apontado × previsto
 npm run ensaio:eap [-- --refazer]  # (só banco de dev) projeto de ensaio estilo Arapiraca: etapas, EAP com gente, cronograma aprovado, cards e 1 usuário por perfil (senha Demo@2026); `ensaio:conferir` lê o que cada perfil enxerga
 npm run smoke:desfazer-eap  # Ctrl+Z da EAP: foto do plano, passo só se o plano mudou, mesmos ids e idCorporativo ao restaurar (linha, vínculo, pessoa, parcela de contrato), recusa se outra pessoa editou, pilha de 20, plano aprovado
+npm run smoke:salvar-linha-eap  # "Salvar" do painel da linha: várias mudanças = um passo de desfazer, término vence duração, início = alfinete, tudo ou nada, plano aprovado só nome e %
 npm run smoke:salvar-modelo-eap  # salvar a EAP de um projeto como modelo e aplicar o modelo salvo em outro (árvore, durações, marcos, vínculo, Externo; sem pessoas/%)
 npm run smoke:eap-datas  # datas digitadas na EAP: término → duração (sem restrição), início → restrição 'não iniciar antes de' (o motor respeita ou mantém a data real), agrupamento/marco recusados, 'mover junto' das restrições ao mudar o início do projeto
 npm run smoke:eap-lote  # EAP em lote: recuar/avançar/mover/excluir várias linhas (tudo ou nada, irmãs seguidas não se aninham), colar várias tarefas, copiar/colar bloco

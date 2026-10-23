@@ -50,7 +50,7 @@ export function ExecucaoDialog({
   const [fim, setFim] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [chave, setChave] = useState<string | null>(null);
-  // Reinicia os campos quando abre para outra linha (mesmo padrão de `EapDialog`).
+  // Reinicia os campos quando abre para outra linha (mesmo padrão do painel da linha).
   if ((linha?.id ?? null) !== chave) {
     setChave(linha?.id ?? null);
     setInicio(linha?.inicioReal ?? "");

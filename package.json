@@ -49,6 +49,7 @@
     "ensaio:eap": "tsx --tsconfig tsconfig.server.json scripts/ensaio-eap.ts",
     "diagnosticar:disciplina-eap": "tsx --tsconfig tsconfig.server.json scripts/diagnosticar-disciplina-eap.ts",
     "smoke:desfazer-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-desfazer-eap.ts",
+    "smoke:salvar-linha-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-salvar-linha-eap.ts",
     "smoke:salvar-modelo-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-salvar-modelo-eap.ts",
     "smoke:eap-datas": "tsx --tsconfig tsconfig.server.json scripts/smoke-eap-datas.ts",
     "smoke:eap-lote": "tsx --tsconfig tsconfig.server.json scripts/smoke-eap-lote.ts",

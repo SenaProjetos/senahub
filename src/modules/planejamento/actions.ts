@@ -23,7 +23,6 @@ import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
 import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agregado-service";
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
-import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
 import { MAX_LINHAS, alinharDisciplinasNoBanco } from "@/modules/planejamento/disciplina-linha-service";
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
@@ -39,8 +38,7 @@ import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "@/modules/plane
 import { lerDataDigitada } from "@/modules/planejamento/datas-linha";
 import { definirInicioDaLinha, definirTerminoDaLinha, moverRestricoesDoProjeto } from "@/modules/planejamento/datas-linha-service";
 import { desfazerUltimoPasso, descartarPassos } from "@/modules/planejamento/desfazer/service";
-import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
-import { mudaCampoDoPlano } from "@/modules/planejamento/trava-plano";
+import { editarLinhaNoBanco, faseDaLinha, salvarLinhaNoBanco } from "@/modules/planejamento/linha-service";
 import {
   abrirRevisao,
   cancelarRevisao,
@@ -59,23 +57,6 @@ const revRecursos = () => revalidatePath("/recursos");
 
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
-
-/**
- * Fase da linha (F7.0): um id do catálogo de FASES (global ou deste projeto) — o mesmo que a
- * etapa da disciplina usa (F4). É o que liga um marco da EAP à fase que ele entrega (D31) e o que
- * `aplicarAoProjeto` usa para levar a data à etapa certa. Exige disciplina: fase solta, sem
- * disciplina, não aponta etapa nenhuma. Devolve o id a gravar (ou nulo).
- */
-async function faseDaLinha(projetoId: string, disciplinaId: string | null, etapaId: string | null | undefined) {
-  if (!etapaId) return null;
-  if (!disciplinaId) throw new ActionError("Escolha a disciplina antes da fase.");
-  const fase = await prisma.pranchaCatalogo.findFirst({
-    where: { id: etapaId, categoria: "fase", OR: [{ projetoId: null }, { projetoId }] },
-    select: { id: true },
-  });
-  if (!fase) throw new ActionError("Fase não encontrada no catálogo.");
-  return fase.id;
-}
 
 // ── EAP ──────────────────────────────────────────────────────
 
@@ -252,81 +233,7 @@ export const editarEapTarefa = defineAction(
   comPassoDaAction(
     { projetoDe: (i) => projetoDaLinha(i.id), rotulo: (i) => `Editar "${i.nome}"` },
     async (i, { user }) => {
-    const antes = await prisma.eapTarefa.findUnique({
-      where: { id: i.id },
-      select: {
-        disciplinaId: true,
-        etapaId: true,
-        projetoId: true,
-        tipoEap: true,
-        duracaoDias: true,
-        progresso: true,
-        _count: { select: { filhas: true } },
-      },
-    });
-    if (!antes) throw new ActionError("Tarefa não encontrada.");
-    // B2 (`edicao-linha.ts`): só alterna atividade ↔ marco; agrupamento não grava duração; marco é 0.
-    const regra = regrasDeEdicao(
-      { tipoEap: antes.tipoEap, duracaoDias: Number(antes.duracaoDias), ehResumo: antes._count.filhas > 0 },
-      { marco: i.marco, duracaoDias: i.duracaoDias },
-    );
-    if (!regra.ok) throw new ActionError(regra.motivo);
-    const { tipoEap, duracaoDias } = regra;
-    // Plano aprovado (`trava-plano.ts`): nome e % seguem livres; duração, marco, disciplina e fase, não.
-    const mudaPlano = mudaCampoDoPlano(
-      { tipoEap: antes.tipoEap, duracaoDias: Number(antes.duracaoDias), disciplinaId: antes.disciplinaId, etapaId: antes.etapaId },
-      { tipoEap, duracaoDias, disciplinaId: i.disciplinaId || null, etapaId: i.etapaId === undefined ? undefined : i.etapaId || null },
-    );
-    if (mudaPlano) await exigirPlanoEditavel(antes.projetoId);
-    if (regra.virouMarco) {
-      // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
-      // conta — carga, custo e rollup — sem ninguém ver.
-      const comHoras = await prisma.eapAtribuicao.count({ where: { tarefaId: i.id, horasPrevistas: { gt: 0 } } });
-      if (comHoras > 0) {
-        throw new ActionError("Esta linha tem horas previstas. Zere as horas das pessoas antes de transformá-la em marco.");
-      }
-    }
-    // Fase: ausente não mexe (quem não manda o campo não apaga a fase de ninguém); trocar de
-    // disciplina sem mandar a fase a limpa — a fase de outra disciplina não aponta etapa desta.
-    const mudouDisciplina = (antes.disciplinaId ?? null) !== (i.disciplinaId || null);
-    const etapaId =
-      i.etapaId !== undefined
-        ? await faseDaLinha(antes.projetoId, i.disciplinaId || null, i.etapaId)
-        : mudouDisciplina
-          ? null
-          : undefined;
-    // Decisão #17: a mudança do % vai para o histórico NA MESMA TRANSAÇÃO — é o histórico que responde
-    // pelo número que o Valor Agregado publica numa data passada.
-    const t = await prisma.$transaction(async (tx) => {
-      const linha = await tx.eapTarefa.update({
-        where: { id: i.id },
-        data: {
-          nome: i.nome,
-          disciplinaId: i.disciplinaId || null,
-          ...(etapaId !== undefined ? { etapaId } : {}),
-          progresso: i.progresso,
-          tipoEap,
-          ...(duracaoDias !== undefined ? { duracaoDias } : {}),
-        },
-        select: { projetoId: true },
-      });
-      await registrarProgresso(tx, {
-        tarefaId: i.id,
-        projetoId: linha.projetoId,
-        anterior: antes.progresso,
-        progresso: i.progresso,
-        autorId: user.id,
-        origem: "informado",
-        ehResumo: antes._count.filhas > 0,
-      });
-      return linha;
-    });
-    // Linha que MUDOU de disciplina e está sem ninguém recebe o responsável da nova (D22).
-    // Só na mudança: herdar a cada edição devolveria as pessoas a uma linha que o
-    // coordenador esvaziou de propósito — bastaria renomeá-la.
-    if (mudouDisciplina) {
-      await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id]);
-    }
+    const t = await editarLinhaNoBanco(i, user.id);
     await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { id: i.id };
@@ -1459,4 +1366,42 @@ export const registrarExecucao = defineAction(
     if (fase?.marcadaEntregue) revalidatePath(`/projetos/${projetoId}`);
     return { status, fase };
   },
+);
+
+/**
+ * O "Salvar" do painel da linha: tudo o que mudou nela numa chamada — nome, tipo, disciplina, fase, duração, %,
+ * predecessoras, início (o alfinete), término (a duração) e restrição. UM reagendamento e UM passo de desfazer; tudo ou
+ * nada (`salvarLinhaNoBanco`). Pessoas e bloqueio seguem nas ações deles (gravam na hora).
+ */
+export const salvarLinhaEap = defineAction(
+  {
+    ...plan,
+    acao: "salvar-linha-eap",
+    entidade: "EapTarefa",
+    schema: editarSchema.extend({
+      inicio: diaIso.optional(),
+      termino: diaIso.optional(),
+      restricao: z
+        .object({ tipo: restricaoSchema.shape.tipo, data: diaIso.optional() })
+        .optional(),
+      predecessoras: predecessorasSchema.shape.vinculos.optional(),
+    }),
+    entidadeId: (_d, i) => i.id,
+    // Decimal não vai para o JSON da auditoria: a duração sai como número.
+    capturarAntes: async (i) => {
+      const t = await prisma.eapTarefa.findUnique({
+        where: { id: i.id },
+        select: { nome: true, tipoEap: true, disciplinaId: true, etapaId: true, duracaoDias: true, progresso: true, restricaoTipo: true, restricaoData: true },
+      });
+      return t ? { ...t, duracaoDias: Number(t.duracaoDias), restricaoData: t.restricaoData ? paraDia(t.restricaoData) : null } : null;
+    },
+  },
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: (i) => `Editar "${i.nome}"` },
+    async (i, { user }) => {
+      const r = await salvarLinhaNoBanco(i, user.id);
+      revProjeto(r.projetoId);
+      return { inicio: r.inicio, fim: r.fim };
+    },
+  ),
 );

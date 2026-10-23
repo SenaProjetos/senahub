@@ -84,7 +84,7 @@ import {
   itensDoPlanejamento,
 } from "@/modules/planejamento/acoes-planejamento";
 import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
-import { EapDialog } from "@/components/planejamento/eap-dialog";
+import { EapLinhaPainel } from "@/components/planejamento/eap-linha-painel";
 import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
 import { FaixaCronograma } from "@/components/planejamento/faixa-cronograma";
 import type { ComparativoBase } from "@/components/planejamento/saude-cronograma-painel";
@@ -187,10 +187,10 @@ export function EapWorkspace({
   const confirm = useConfirm();
   /** Linha recém-inserida: o nome dela abre em edição assim que chega na tabela. */
   const [novaLinhaId, setNovaLinhaId] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<{ open: boolean; tarefa: EapTarefaDTO | null }>({
-    open: false,
-    tarefa: null,
-  });
+  /** Painel da linha (substitui o antigo diálogo): a linha aberta, ou "nova tarefa". */
+  const [painel, setPainel] = useState<{ aberto: boolean; linhaId: string | null; nova: boolean }>({ aberto: false, linhaId: null, nova: false });
+  /** Alterações não salvas no painel: abrir outra linha pergunta antes de descartar. */
+  const alteracoesNoPainel = useRef(0);
   const [filtro, setFiltro] = useState<Filtro>("todas");
   /** "Ver na tabela" de um achado do verificador: só as linhas dele (some ao trocar de filtro). */
   const [achadoFiltro, setAchadoFiltro] = useState<{ rotulo: string; ids: Set<string> } | null>(null);
@@ -213,9 +213,20 @@ export function EapWorkspace({
   const semCusto = tarefas.filter((t) => !t.ehResumo && t.custo == null).length;
   const [lookahead, setLookahead] = useState<Lookahead>("todas");
 
-  const abrir = (tarefa: EapTarefaDTO | null) => {
+  const abrir = async (tarefa: EapTarefaDTO | null) => {
     if (!podeGerir) return;
-    setDialog({ open: true, tarefa });
+    const mesma = painel.aberto && (tarefa ? painel.linhaId === tarefa.id : painel.nova);
+    if (mesma) return;
+    if (painel.aberto && alteracoesNoPainel.current > 0) {
+      const ok = await confirm({
+        title: "Descartar as alterações da linha aberta?",
+        description: "Elas não foram salvas.",
+        confirmLabel: "Descartar",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    setPainel({ aberto: true, linhaId: tarefa?.id ?? null, nova: !tarefa });
   };
   const vazio = tarefas.length === 0;
   // Aprovado e fora de revisão: o plano está travado (`trava-plano.ts`). O servidor recusa do mesmo jeito.
@@ -377,6 +388,12 @@ export function EapWorkspace({
     () => tarefas.flatMap((t) => t.predecessoras.map((v) => ({ tarefaId: t.id, predecessoraId: v.predecessoraId }))),
     [tarefas],
   );
+  const codigoPorId = useMemo(() => new Map(gradeDaArvore.map((l) => [l.t.id, l.codigo])), [gradeDaArvore]);
+  // ↑↓ do painel da linha andam na ordem da tabela, só pelas linhas que os filtros deixam à vista.
+  const ordemDaTabela = useMemo(() => {
+    const vis = new Set(visiveis.map((t) => t.id));
+    return gradeDaArvore.map((l) => l.t.id).filter((id) => vis.has(id));
+  }, [gradeDaArvore, visiveis]);
   const itensDaSelecao = (ids: string[] = selecionadas) =>
     itensDeEstruturaEap({ nos: nosDaArvore, nomes: nomesDasLinhas, selecionadas: ids, planoTravado: travado, podeColar: copiadas.length > 0 });
 
@@ -449,7 +466,7 @@ export function EapWorkspace({
     }
     switch (item.id) {
       case ACAO_ABRIR:
-        abrir(t);
+        void abrir(t);
         return;
       case ACAO_ATUALIZAR:
         setExecucao(t);
@@ -779,7 +796,7 @@ export function EapWorkspace({
           acoes={
             <>
               {podeGerir && (
-                <Button size="sm" onClick={() => abrir(null)} disabled={travado} title={travado ? MOTIVO_PLANO_TRAVADO : undefined}>
+                <Button size="sm" onClick={() => void abrir(null)} disabled={travado} title={travado ? MOTIVO_PLANO_TRAVADO : undefined}>
                   <Plus className="size-3.5" /> Nova tarefa
                 </Button>
               )}
@@ -854,7 +871,7 @@ export function EapWorkspace({
                   {previasModelos.length > 0 && (
                     <AplicarModeloDialog projetoId={projeto.id} previas={previasModelos} />
                   )}
-                  <Button variant={disciplinas.length > 0 ? "outline" : "default"} onClick={() => abrir(null)}>
+                  <Button variant={disciplinas.length > 0 ? "outline" : "default"} onClick={() => void abrir(null)}>
                     <Rocket className="size-3.5" /> Criar tarefa manual
                   </Button>
                 </div>
@@ -899,11 +916,11 @@ export function EapWorkspace({
             mostrarCusto={custoTotal != null}
             hoje={hoje}
             filtroIds={filtro === "todas" && lookahead === "todas" && !achadoFiltro ? null : new Set(visiveis.map((t) => t.id))}
-            onAbrir={podeGerir ? (t) => abrir(t) : undefined}
+            onAbrir={podeGerir ? (t) => void abrir(t) : undefined}
             celulaRecursos={
               podeGerir
                 ? (t, conteudo) => (
-                    <RecursosDaCelula linha={t} pessoas={pessoas} onAbrirLinha={() => abrir(t)}>
+                    <RecursosDaCelula linha={t} pessoas={pessoas} onAbrirLinha={() => void abrir(t)}>
                       {conteudo}
                     </RecursosDaCelula>
                   )
@@ -1009,15 +1026,24 @@ export function EapWorkspace({
       )}
 
       {podeGerir && (
-        <EapDialog
-          tarefa={dialog.tarefa}
-          open={dialog.open}
-          onOpenChange={(o) => setDialog((d) => ({ ...d, open: o }))}
+        <EapLinhaPainel
+          aberto={painel.aberto}
+          linhaId={painel.linhaId}
+          nova={painel.nova}
+          onFechar={() => setPainel({ aberto: false, linhaId: null, nova: false })}
+          onNavegar={(id) => setPainel({ aberto: true, linhaId: id, nova: false })}
+          ordem={ordemDaTabela}
+          codigoPorId={codigoPorId}
+          tarefas={tarefas}
           projetoId={projeto.id}
           disciplinas={disciplinas}
-          tarefas={tarefas}
           pessoas={pessoas}
           planoTravado={travado}
+          linhasDaArvore={linhasDaArvore}
+          dependenciasDaArvore={dependenciasDaArvore}
+          onAlteracoes={(n) => {
+            alteracoesNoPainel.current = n;
+          }}
         />
       )}
     </div>
