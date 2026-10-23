@@ -125,6 +125,8 @@ export type PlanoGanttProps = {
    * seleciona o intervalo. É o que as setas da barra de estrutura e o menu de contexto usam para agir em várias linhas.
    */
   onSelecaoChange?: (ids: string[]) => void;
+  /** Abre a janela da árvore de predecessoras da linha (um botão ao lado da célula Predecessoras). */
+  onEscolherPredecessoras?: (t: EapTarefaDTO) => void;
   /** Cada vez que este número muda, a seleção é limpa (o botão "Limpar" da barra de estrutura). */
   sinalLimparSelecao?: number;
   /** Uma linha recém-criada cujo nome deve abrir em edição assim que ela aparecer na tabela. */
@@ -182,6 +184,7 @@ export function PlanoGantt({
   onAcao,
   onMover,
   onSelecaoChange,
+  onEscolherPredecessoras,
   sinalLimparSelecao = 0,
   focoNomeId = null,
   onFocoConsumido,
@@ -603,7 +606,25 @@ export function PlanoGantt({
       w: 112,
       render: (l) => {
         const texto = gravado(l.t.id, "pred") ?? formatarPredecessoras(l.t.predecessoras, codigoPorId);
-        return envolver(l, "pred", "Predecessoras", <span className="truncate font-mono text-xs text-muted-foreground" title={texto}>{texto}</span>);
+        const celula = envolver(l, "pred", "Predecessoras", <span className="truncate font-mono text-xs text-muted-foreground" title={texto}>{texto}</span>);
+        if (!onEscolherPredecessoras || !ehEditavel(l, "pred")) return celula;
+        return (
+          <div className="flex w-full min-w-0 items-center gap-0.5">
+            {celula}
+            <button
+              type="button"
+              className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-primary/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Escolher as predecessoras da tarefa ${l.codigo} numa árvore`}
+              title="Escolher numa árvore"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEscolherPredecessoras(l.t);
+              }}
+            >
+              <ListTree className="size-3" />
+            </button>
+          </div>
+        );
       },
     };
     const recursos: Coluna = {
@@ -716,7 +737,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
   // da alça não refazer as células de todas as linhas (só a largura muda).

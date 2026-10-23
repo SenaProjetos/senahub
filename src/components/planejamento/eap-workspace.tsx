@@ -52,10 +52,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { AplicarModeloDialog, type PreviaDeModelo } from "@/components/planejamento/modelos/aplicar-modelo-dialog";
 import { BarraEstrutura } from "@/components/planejamento/barra-estrutura";
 import { ColarTarefasDialog } from "@/components/planejamento/colar-tarefas-dialog";
+import { PredecessorasDialog } from "@/components/planejamento/predecessoras-dialog";
 import { DesfazerBotao } from "@/components/planejamento/desfazer-botao";
 import { GerarEapDisciplinasDialog } from "@/components/planejamento/modelos/gerar-eap-disciplinas-dialog";
 import type { OpcaoDeDisciplina } from "@/modules/planejamento/modelos/disciplina-service";
-import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
+import { montarGrade, type Vinculo } from "@/modules/planejamento/gantt-linhas";
 import {
   ACAO_ABRIR,
   ACAO_ATUALIZAR,
@@ -179,6 +180,8 @@ export function EapWorkspace({
   const [sinalLimparSelecao, setSinalLimparSelecao] = useState(0);
   /** Janela "Novas tarefas" (colar várias de uma vez). */
   const [colarAberto, setColarAberto] = useState(false);
+  /** Janela da árvore de predecessoras: a linha em edição, ou `null`. */
+  const [predAberta, setPredAberta] = useState<EapTarefaDTO | null>(null);
   /** Área de cópia: as linhas que o Copiar guardou (a estrutura é lida de novo na hora de colar). */
   const [copiadas, setCopiadas] = useState<string[]>([]);
   /** Linha no "Atualizar tarefa" (datas reais) — `null` = fechado. */
@@ -855,6 +858,7 @@ export function EapWorkspace({
             onEditarPredecessoras={podeGerir && !travado ? editarPredecessoras : undefined}
             onErro={(mensagem) => toast.error(mensagem)}
             onSelecaoChange={setSelecionadas}
+            onEscolherPredecessoras={podeGerir && !travado ? setPredAberta : undefined}
             sinalLimparSelecao={sinalLimparSelecao}
             menuDe={(t, contexto) =>
               selecionadas.length > 1 && selecionadas.includes(t.id)
@@ -901,6 +905,17 @@ export function EapWorkspace({
 
       {podeExecutado && (
         <ExecucaoDialog linha={execucao} onClose={() => setExecucao(null)} podeAprovarFase={podeAprovarFase} />
+      )}
+
+      {podeGerir && (
+        <PredecessorasDialog
+          tarefa={predAberta ? { id: predAberta.id, nome: predAberta.nome, codigo: montarGrade(tarefas).find((l) => l.t.id === predAberta.id)?.codigo ?? "" } : null}
+          linhas={montarGrade(tarefas).map((l) => ({ id: l.t.id, parentId: l.t.parentId, ordem: l.t.ordem, codigo: l.codigo, nome: l.t.nome, tipoEap: l.t.tipoEap }))}
+          dependencias={tarefas.flatMap((t) => t.predecessoras.map((v) => ({ tarefaId: t.id, predecessoraId: v.predecessoraId })))}
+          vinculosAtuais={predAberta?.predecessoras ?? []}
+          onAplicar={(vinculos) => (predAberta ? editarPredecessoras(predAberta, vinculos) : Promise.resolve(null))}
+          onFechar={() => setPredAberta(null)}
+        />
       )}
 
       {podeGerir && (
