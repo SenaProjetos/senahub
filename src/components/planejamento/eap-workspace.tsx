@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import {
   Plus,
   ListPlus,
+  BookmarkPlus,
   CheckCheck,
   ArrowLeft,
   Rocket,
@@ -55,6 +56,7 @@ import { AplicarModeloDialog, type PreviaDeModelo } from "@/components/planejame
 import { BarraEstrutura } from "@/components/planejamento/barra-estrutura";
 import { ColarTarefasDialog } from "@/components/planejamento/colar-tarefas-dialog";
 import { PredecessorasDialog } from "@/components/planejamento/predecessoras-dialog";
+import { SalvarComoModeloDialog } from "@/components/planejamento/modelos/salvar-como-modelo-dialog";
 import { DesfazerBotao } from "@/components/planejamento/desfazer-botao";
 import { GerarEapDisciplinasDialog } from "@/components/planejamento/modelos/gerar-eap-disciplinas-dialog";
 import type { OpcaoDeDisciplina } from "@/modules/planejamento/modelos/disciplina-service";
@@ -113,6 +115,7 @@ export function EapWorkspace({
   opcoesDisciplinas = [],
   impedimentoApagar = null,
   ultimoPasso = null,
+  tiposEmpreendimento = [],
   largurasColunas,
   noProjeto,
 }: {
@@ -156,6 +159,8 @@ export function EapWorkspace({
   impedimentoApagar?: string | null;
   /** O que o Ctrl+Z desfaria agora (rótulo da última ação desta pessoa neste projeto); `null` = nada. */
   ultimoPasso?: string | null;
+  /** Tipos de empreendimento para o "Salvar como modelo" (vazio quando quem olha não monta a EAP). */
+  tiposEmpreendimento?: { id: string; nome: string }[];
   /** Larguras de coluna do Gantt que o usuário ajustou (preferência dele). */
   largurasColunas?: Larguras;
   /**
@@ -182,6 +187,7 @@ export function EapWorkspace({
   const [sinalLimparSelecao, setSinalLimparSelecao] = useState(0);
   /** Janela "Novas tarefas" (colar várias de uma vez). */
   const [colarAberto, setColarAberto] = useState(false);
+  const [salvarModeloAberto, setSalvarModeloAberto] = useState(false);
   /** Uma ação de estrutura (setas, copiar/colar, excluir) está gravando: trava a barra contra duplo clique. */
   const [gravandoEstrutura, setGravandoEstrutura] = useState(false);
   /** Janela da árvore de predecessoras: a linha em edição, ou `null`. */
@@ -657,6 +663,11 @@ export function EapWorkspace({
                 <CheckCheck className="size-3.5" /> Aplicar ao projeto
               </Button>
               {tarefas.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => setSalvarModeloAberto(true)} title="Guarda a EAP deste projeto como modelo para os próximos">
+                  <BookmarkPlus className="size-3.5" /> Salvar como modelo
+                </Button>
+              )}
+              {tarefas.length > 0 && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -951,6 +962,18 @@ export function EapWorkspace({
           vinculosAtuais={predAberta.predecessoras}
           onAplicar={(vinculos) => editarPredecessoras(predAberta, vinculos)}
           onFechar={() => setPredAberta(null)}
+        />
+      )}
+
+      {podeGerir && tarefas.length > 0 && (
+        <SalvarComoModeloDialog
+          projetoId={projeto.id}
+          projetoCodigo={projeto.codigo}
+          tipos={tiposEmpreendimento}
+          totalLinhas={tarefas.length}
+          totalMarcos={tarefas.filter((t) => t.marco).length}
+          open={salvarModeloAberto}
+          onOpenChange={setSalvarModeloAberto}
         />
       )}
 

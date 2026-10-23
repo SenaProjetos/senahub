@@ -73,6 +73,10 @@ export default async function PlanejamentoProjetoPage({
   const opcoesDisciplinas = podeGerir ? await opcoesParaGerarDisciplinas(projetoId) : [];
   const impedimentoApagar = podeGerir && tarefas.length > 0 ? await impedimentoParaApagarEapDoProjeto(projetoId) : null;
   const ultimoPasso = podeGerir ? await rotuloDoUltimoPasso(projetoId, user.id) : null;
+  // "Salvar como modelo": o tipo de empreendimento é opcional, mas a lista vem do servidor (só quem monta a EAP precisa).
+  const tiposEmpreendimento = podeGerir && tarefas.length > 0
+    ? await prisma.tipoEmpreendimento.findMany({ where: { ativo: true }, select: { id: true, nome: true }, orderBy: [{ ordem: "asc" }, { nome: "asc" }] })
+    : [];
 
   return (
     <div className="space-y-6">
@@ -96,6 +100,7 @@ export default async function PlanejamentoProjetoPage({
         opcoesDisciplinas={opcoesDisciplinas}
         impedimentoApagar={impedimentoApagar}
         ultimoPasso={ultimoPasso}
+        tiposEmpreendimento={tiposEmpreendimento}
         largurasColunas={lerLarguras(preferencias[CHAVE_PREF_LARGURAS_GANTT])}
       />
       {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}
