@@ -11,6 +11,8 @@ import { prisma } from "../src/lib/prisma";
 import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativo";
 import { MOTIVO_NIVEL_MAIS_ALTO, MOTIVO_PRIMEIRA_DO_NIVEL, MOTIVO_SEM_IRMA_ACIMA, MOTIVO_ULTIMA_DO_NIVEL } from "../src/modules/planejamento/arvore-eap";
 import { avancarEmLote, excluirEmLote, moverEmLote, recuarEmLote } from "../src/modules/planejamento/arvore-lote-service";
+import { criarTarefasEmLote } from "../src/modules/planejamento/colar-tarefas-service";
+import { lerTarefasColadas } from "../src/modules/planejamento/colar-tarefas";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -102,7 +104,30 @@ async function main() {
     check("nenhuma linha escolhida: recusa", (await erroDe(() => excluirEmLote([]))) === "Escolha ao menos uma linha.");
     check("linha que não existe mais: recusa pedindo para atualizar", !!(await erroDe(() => excluirEmLote([X.id, "fantasma"]))));
     check("X continua lá depois das recusas", (await prisma.eapTarefa.count({ where: { id: X.id } })) === 1 && (await prisma.eapTarefa.count({ where: { id: X1.id } })) === 1);
+
+    // ── colar várias tarefas (C3) ────────────────────────────────────────────
+    const hid = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Hidro" } });
+    const G = await nova("Grupo Hidro", null);
+    await prisma.eapTarefa.update({ where: { id: G.id }, data: { disciplinaId: hid.id } });
+    const GA = await nova("Ga", G.id);
+    await nova("Gb", G.id);
+    await nova("Depois do grupo", null);
+    const leitura = lerTarefasColadas("Vistoria\t0\nLevantamento\t3\n\nRelatório");
+    if (!leitura.ok) throw new Error(leitura.erro);
+    const criadas = await criarTarefasEmLote({ projetoId: projeto.id, depoisDeId: GA.id, tarefas: leitura.tarefas });
+    check("colar 3 tarefas abaixo de Ga: entram no mesmo pai, na ordem, antes de Gb", criadas.ids.length === 3 && (await filhasDe(G.id)).join() === "Ga,Vistoria,Levantamento,Relatório,Gb", await filhasDe(G.id));
+    const novas = await prisma.eapTarefa.findMany({ where: { id: { in: criadas.ids } }, select: { nome: true, tipoEap: true, duracaoDias: true, disciplinaId: true, idCorporativo: true } });
+    const porNome = new Map(novas.map((l) => [l.nome, l]));
+    check("a disciplina é a do agrupamento", novas.every((l) => l.disciplinaId === hid.id), novas.map((l) => l.disciplinaId));
+    check("0 vira marco com duração 0; sem duração = 1 dia; 3 = 3 dias", porNome.get("Vistoria")?.tipoEap === "mrc" && Number(porNome.get("Vistoria")?.duracaoDias) === 0 && Number(porNome.get("Relatório")?.duracaoDias) === 1 && Number(porNome.get("Levantamento")?.duracaoDias) === 3);
+    check("cada uma tem idCorporativo, todos diferentes", novas.every((l) => !!l.idCorporativo) && new Set(novas.map((l) => l.idCorporativo)).size === 3);
+    const rais = await criarTarefasEmLote({ projetoId: projeto.id, depoisDeId: null, tarefas: [{ nome: "No fim", marco: false, duracaoDias: null }] });
+    const noFim = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: rais.ids[0] }, select: { parentId: true, disciplinaId: true, ordem: true } });
+    const maior = await prisma.eapTarefa.aggregate({ where: { projetoId: projeto.id }, _max: { ordem: true } });
+    check("sem referência: vai para o fim da raiz, sem disciplina", noFim.parentId === null && noFim.disciplinaId === null && noFim.ordem === maior._max.ordem, noFim);
+    check("referência de outro projeto: recusa", !!(await erroDe(() => criarTarefasEmLote({ projetoId: projeto.id, depoisDeId: estranha.id, tarefas: leitura.tarefas }))));
   } finally {
+    await prisma.disciplina.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: { in: [projeto.id, outroProjeto.id] } } });
     await prisma.cronogramaProjeto.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.projeto.deleteMany({ where: { id: { in: [projeto.id, outroProjeto.id] } } });

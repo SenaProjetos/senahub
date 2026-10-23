@@ -9,6 +9,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   Plus,
+  ListPlus,
   CheckCheck,
   ArrowLeft,
   Rocket,
@@ -49,6 +50,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AplicarModeloDialog, type PreviaDeModelo } from "@/components/planejamento/modelos/aplicar-modelo-dialog";
 import { BarraEstrutura } from "@/components/planejamento/barra-estrutura";
+import { ColarTarefasDialog } from "@/components/planejamento/colar-tarefas-dialog";
 import { DesfazerBotao } from "@/components/planejamento/desfazer-botao";
 import { GerarEapDisciplinasDialog } from "@/components/planejamento/modelos/gerar-eap-disciplinas-dialog";
 import type { OpcaoDeDisciplina } from "@/modules/planejamento/modelos/disciplina-service";
@@ -174,6 +176,8 @@ export function EapWorkspace({
   /** Linhas selecionadas no cronograma (Ctrl/Shift+clique), em ordem de documento. */
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
   const [sinalLimparSelecao, setSinalLimparSelecao] = useState(0);
+  /** Janela "Novas tarefas" (colar várias de uma vez). */
+  const [colarAberto, setColarAberto] = useState(false);
   /** Linha no "Atualizar tarefa" (datas reais) — `null` = fechado. */
   const [execucao, setExecucao] = useState<EapTarefaDTO | null>(null);
   /** Folhas sem custo conhecido — o que falta cadastrar para o custo previsto fechar. */
@@ -560,6 +564,15 @@ export function EapWorkspace({
               >
                 <Plus className="size-3.5" /> Nova tarefa
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setColarAberto(true)}
+                disabled={travado}
+                title={travado ? MOTIVO_PLANO_TRAVADO : "Cole várias tarefas de uma vez (uma por linha)"}
+              >
+                <ListPlus className="size-3.5" /> Novas tarefas
+              </Button>
               <DesfazerBotao projetoId={projeto.id} rotulo={ultimoPasso} travado={travado} />
               {disciplinas.length > 0 && !travado && (
                 <GerarEapDisciplinasDialog
@@ -865,6 +878,16 @@ export function EapWorkspace({
 
       {podeExecutado && (
         <ExecucaoDialog linha={execucao} onClose={() => setExecucao(null)} podeAprovarFase={podeAprovarFase} />
+      )}
+
+      {podeGerir && (
+        <ColarTarefasDialog
+          projetoId={projeto.id}
+          depoisDeId={selecionadas[0] ?? null}
+          depoisDeNome={selecionadas[0] ? (nomesDasLinhas.get(selecionadas[0]) ?? null) : null}
+          open={colarAberto}
+          onOpenChange={setColarAberto}
+        />
       )}
 
       {podeGerir && (

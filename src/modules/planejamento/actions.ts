@@ -29,6 +29,8 @@ import { MAX_LINHAS, alinharDisciplinasNoBanco } from "@/modules/planejamento/di
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
 import { MAX_LINHAS_LOTE } from "@/modules/planejamento/arvore-lote";
 import { avancarEmLote, excluirEmLote, moverEmLote, recuarEmLote } from "@/modules/planejamento/arvore-lote-service";
+import { lerTarefasColadas } from "@/modules/planejamento/colar-tarefas";
+import { criarTarefasEmLote } from "@/modules/planejamento/colar-tarefas-service";
 import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
@@ -496,6 +498,45 @@ export const excluirEapTarefas = defineAction(
       await aposMudarEap(r.projetoId, user.id);
       revProjeto(r.projetoId);
       return { linhas: r.linhas, excluidas: r.excluidas };
+    },
+  ),
+);
+
+/**
+ * "Novas tarefas": várias tarefas de uma vez a partir de um texto colado (uma por linha, `Nome<TAB>duração`). O texto vai
+ * ao servidor CRU e é lido aqui com `lerTarefasColadas`, a mesma função da prévia da tela — nunca há duas leituras.
+ * Entram abaixo de `depoisDeId`, no nível dele (`null` = fim da lista), com a disciplina do agrupamento (A1).
+ */
+export const criarEapTarefasEmLote = defineAction(
+  {
+    ...plan,
+    acao: "criar-eap-lote",
+    entidade: "EapTarefa",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      depoisDeId: z.string().min(1).nullable(),
+      texto: z.string().max(100_000, "O texto colado é grande demais."),
+    }),
+    entidadeId: (_d, i) => i.projetoId,
+    // O texto fica de fora da auditoria (pode ser enorme); o resultado diz quantas entraram.
+    redact: ["texto"],
+  },
+  comPassoDaAction(
+    {
+      projetoDe: async (i) => i.projetoId,
+      rotulo: (i) => {
+        const r = lerTarefasColadas(i.texto);
+        return r.ok ? `Colar ${r.tarefas.length === 1 ? "1 tarefa" : `${r.tarefas.length} tarefas`}` : "Colar tarefas";
+      },
+    },
+    async (i, { user }) => {
+      const leitura = lerTarefasColadas(i.texto);
+      if (!leitura.ok) throw new ActionError(leitura.linha > 0 ? `Linha ${leitura.linha}: ${leitura.erro}` : leitura.erro);
+      await exigirPlanoEditavel(i.projetoId);
+      const r = await criarTarefasEmLote({ projetoId: i.projetoId, depoisDeId: i.depoisDeId, tarefas: leitura.tarefas });
+      await aposMudarEap(i.projetoId, user.id);
+      revProjeto(i.projetoId);
+      return { criadas: r.ids.length };
     },
   ),
 );
