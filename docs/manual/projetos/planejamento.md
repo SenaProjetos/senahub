@@ -57,8 +57,8 @@ combinado original guardado para comparar.
 | **2. Início do projeto** | Define a data que ancora o cronograma. | **Definir início do projeto** |
 | **3. Aprovar** | Congela a **linha de base BL-00**, cria os cards de quem está escalado e **trava o plano**. | **Aprovar cronograma** |
 | **4. Acompanhar** | Informa %, datas reais, a Data de Status, e confere a saúde. | **Atualizar tarefa**, **Apurar** |
-| **5. Revisar** | Destrava o plano para mudar estrutura, durações ou dependências. | **Revisar planejamento** |
-| **6. Nova linha de base** | Fecha a revisão: nova versão da linha de base (BL-01, BL-02…), com motivo; a anterior fica guardada. | **Nova linha de base** |
+| **5. Revisar** | Destrava o plano para mudar estrutura, durações ou dependências. | **Revisar** (Revisar planejamento) |
+| **6. Nova linha de base** | Fecha a revisão: nova versão da linha de base (BL-01, BL-02…), com motivo; a anterior fica guardada. | **Fechar com nova linha de base…** |
 
 ## Como o cronograma calcula as datas
 
@@ -92,11 +92,34 @@ Se você usa o MS Project, isto será familiar:
   delas, e o **progresso** é a média ponderada pelas **horas previstas** (sem horas, pela
   duração). Nada disso se digita.
 
+## A tela
+
+De cima para baixo, quatro coisas — o resto fica guardado até você pedir:
+
+1. **Cabeçalho** (na barra do topo): o código e o nome do projeto, **Nova tarefa** e o **⋯** com o resto das ações
+   (Novas tarefas, Exportar Excel/PDF, Gerar EAP das disciplinas, Reagendar, Herdar responsáveis, Aplicar ao
+   projeto, Salvar como modelo e, separado, Apagar EAP). Quem só consulta vê no **⋯** só os exportar. O que o estado
+   impede aparece desabilitado com o motivo.
+2. **Faixa de status** (uma linha): a **saúde** (nota e achados — clique para abrir o painel **Saúde do
+   cronograma**), a **situação** com a ação dela (**rascunho → Aprovar cronograma**; **aprovado · BL-xx → Revisar**),
+   a **Data de Status** e o **Início** do projeto (o lápis abre um balão para mudar) e o **custo previsto**. Com a
+   revisão aberta, uma segunda linha amarela traz **Cancelar revisão** e **Fechar com nova linha de base…**.
+3. **Barra de ferramentas** (uma só): a **visão** (**Gantt**, **Controle** e **Indicadores**), **Comparar com** (no
+   Controle), os **filtros**, o **período**, a **escala**, **Hoje**, recolher/expandir tudo, **Desfazer** e
+   **Compacta**.
+4. **Tabela e gráfico**, ocupando o resto da tela (rola por dentro). Selecionou linhas? A barra de estrutura
+   (setas, copiar/colar, excluir) aparece flutuando no pé do quadro.
+
+A visão **Indicadores** junta o [Valor Agregado](valor-agregado.md) e o **Plano × real** (alocação planejada × horas
+registradas no ponto, no mês corrente), que antes ficavam embaixo do cronograma.
+
 ## 1. Montar a EAP (rascunho)
 
 ### Criar as linhas
 
-- **Nova tarefa** — abre o editor. Para uma subtarefa, escolha a linha em **Subtarefa de**; a
+As ações abaixo, menos **Nova tarefa**, ficam no **⋯** do cabeçalho.
+
+- **Nova tarefa** — abre o painel da linha, vazio. Para uma subtarefa, escolha a linha em **Subtarefa de**; a
   numeração em árvore (1, 1.2, 1.2.3) é recalculada sozinha.
 - **Gerar EAP das disciplinas** — abre uma janela com cada disciplina do projeto que ainda não tem
   tarefa na EAP. Quem tem **modelo de disciplina** (veja [Modelos de EAP](modelos-de-eap.md)) vem com ele
@@ -116,16 +139,25 @@ Se você usa o MS Project, isto será familiar:
 - **Herdar responsáveis** — preenche, em cada linha ainda **sem ninguém**, os responsáveis da
   disciplina dela. O que já tem gente não é tocado.
 
-### O editor da linha
+### O painel da linha
 
-Clique numa linha (ou em **Nova tarefa**). Quem tem só `planejamento:ver` não abre o editor.
+**Duplo clique** numa linha (ou **Enter** com ela selecionada, ou **Abrir** no menu) abre o **painel da linha** à
+direita — a tabela continua à vista. Quem tem só `planejamento:ver` não abre o painel.
 
-- **Nome** e **Marco** (data pontual, sem duração — como o marco do MS Project). A opção de marco só
-  aparece em atividade: linha de disciplina, pacote ou agrupamento mantém o tipo que tem.
-- **Duração (dias úteis)** — como no Project, você informa quanto a tarefa dura; **início e término
-  são calculados** (dependências + calendário, feriados incluídos) e aparecem logo ao lado. Aceita
-  meio dia (`0,5`); meio dia ainda ocupa um dia no calendário. Para prender a tarefa numa data, use
-  **Restrição de data** (abaixo) — ao criar, dá para já informar **Não iniciar antes de**.
+- **Andar entre as linhas sem fechar:** as setas **↑ ↓** do topo do painel (ou **Alt+↑ / Alt+↓**) vão para a linha de
+  cima ou de baixo, na ordem da tabela (com filtro, só pelas que aparecem).
+- **Um jeito só de gravar:** o rodapé conta as **alterações não salvas**; **Salvar** (ou **Ctrl+Enter**) grava tudo
+  de uma vez — nome, tipo, disciplina, fase, duração, datas, restrição, % e predecessoras — com **um** reagendamento
+  e **um** passo do **Desfazer**. É tudo ou nada: se o sistema recusar uma parte (um término antes do início, por
+  exemplo), nada é gravado. **Descartar** volta ao que está gravado. Trocar de linha com alteração pendente
+  pergunta antes. **Pessoas e horas** e o **bloqueio** gravam na hora, como antes.
+- **Nome** (no topo) e **Tipo**: **Atividade** ou **Marco** (data pontual, sem duração — como o marco do MS
+  Project). O tipo só aparece em atividade: linha de disciplina, pacote ou agrupamento mantém o que tem.
+- **Prazo:** **Duração (dias úteis)**, **Início** e **Término**, com as mesmas regras da tabela — mudar o término
+  muda a duração; digitar o início prende a tarefa nele (o alfinete, "não iniciar antes de"). Aceita meio dia
+  (`0,5`); meio dia ainda ocupa um dia no calendário. Logo abaixo, a **data fixada** em uma linha ("Sem data
+  fixada" ou "Não iniciar antes de 30/10/2026"), com **Tirar** e **Outra restrição…** para escolher um dos seis
+  tipos.
 - **Agrupamento** (linha com subtarefas): não tem duração própria — início, término e duração vêm das
   atividades dentro dele, e ele não vira marco.
 - **Disciplina** (opcional). Uma linha **nova** nasce com a disciplina do **agrupamento** em que entra
@@ -135,20 +167,22 @@ Clique numa linha (ou em **Nova tarefa**). Quem tem só `planejamento:ver` não 
   diferente da do agrupamento, o verificador avisa (veja abaixo).
 - **Fase** (opcional): aparece quando a disciplina escolhida tem
   [etapas](etapas-e-pagamento-por-fase.md). É o que liga um **marco** à fase que ele entrega.
-- **Progresso** (de 5 em 5%), que o coordenador **informa**. O sistema só **sugere**: o
+- **Andamento:** o **%** que o coordenador **informa** — botões **0, 25, 50, 75 e 100%** ou **outro** valor. O sistema só **sugere**: o
   checklist do card e a situação da disciplina aparecem como "Sugestão: X% — **usar**", e
   nada é gravado até você clicar em **Salvar**. Horas apontadas **não** viram sugestão (gastar
   hora não é avançar). Em linha de agrupamento o campo fica travado (é calculado).
 - **Subtarefa de** (só ao criar).
-- **Depende de (predecessoras)** — veja abaixo.
-- **Recursos** — pessoas, papéis e horas (ver
+- **Depende de:** só os **vínculos desta linha** — código, nome, tipo (Término → Início, Início → Início…) e a
+  defasagem em dias úteis, com **×** para tirar. Para acrescentar, **Escolher predecessoras na árvore** abre a
+  árvore da EAP. Embaixo, as **sucessoras** da linha.
+- **Pessoas e horas** — pessoas, papéis e horas (ver
   [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md)).
-- **Restrição de data** e **Bloqueio** — veja abaixo.
+- **Bloqueio** — "Registrar bloqueio…" abre o motivo e a previsão; veja abaixo.
 
 ### Desfazer (Ctrl+Z)
 
-Errou ao excluir, mover ou recuar? Use **Desfazer** (ao lado de **Nova tarefa**) ou **Ctrl+Z** (⌘Z no Mac). O botão
-mostra o que será desfeito ("Desfazer: Excluir \"Modelagem\"").
+Errou ao excluir, mover ou recuar? Use **Desfazer** (a seta curva na barra de ferramentas) ou **Ctrl+Z** (⌘Z no Mac).
+Passe o mouse no botão para ver o que será desfeito ("Desfazer: Excluir \"Modelagem\"").
 
 - **O que volta:** a última mudança **do plano feita por você** neste projeto — excluir, criar, inserir, mover,
   recuar/avançar, renomear, duração e marco, disciplina e fase, predecessoras, restrição de data, início do projeto,
@@ -286,20 +320,21 @@ base). Em **rascunho** ainda não existe card nem previsão de recebimento: o cr
 A tela segue o layout do MS Project: a **tabela** à esquerda e o **gráfico** à direita, nas mesmas
 linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalho em cima).
 
-- **Duas visões**, como no Project: **Gráfico de Gantt** (planejamento: EDT, Nome da tarefa, Duração,
-  Início, Término, Predecessoras e Nomes dos recursos) e **Gantt de Controle** (acompanhamento: % concluído,
+- **Visões**, como no Project: **Gantt** (o Gráfico de Gantt — planejamento: EDT, Nome da tarefa, Duração,
+  Início, Término, Predecessoras e Nomes dos recursos) e **Controle** (o Gantt de Controle — acompanhamento: % concluído,
   datas, linha de base e **Desvio**, com a barra da linha de base — **cinza escuro e fininha** — logo abaixo
   da barra prevista). Com mais de uma versão da linha de base, **Comparar com** escolhe qual delas o
   controle desenha e usa no Desvio (veja **Nova linha de base**, abaixo). As linhas de **agrupamento** têm um
   fundo um pouco mais escuro que as tarefas, para a estrutura saltar aos olhos.
-- **Filtros:** **Todas**, **Atrasadas**, **Críticas**, **Bloqueadas**. **Lookahead:** **Tudo**,
-  **7**, **15** ou **30 dias** (só o que começa ou termina no período). Com filtro ativo a tela mostra só
+- **Filtros:** **Todas**, **A validar**, **Atrasadas**, **Críticas**, **Bloqueadas**, com a quantidade em cada um.
+  **Período:** **tudo** ou os **próximos 7, 15 ou 30 dias** (só o que começa ou termina no período).
+  **Ver na tabela**, no painel de saúde, filtra as linhas de um achado (o filtro aparece como "Achado: …" e sai no ×). Com filtro ativo a tela mostra só
   as linhas que casaram, sem esconder nível; o editor continua vendo a EAP inteira.
 - **Escala:** **Dias**, **Semanas** ou **Meses**, com o cabeçalho em dois níveis (semana sobre dia, mês
   sobre semana, ano sobre mês). Os **fins de semana e feriados** vêm sombreados — o mesmo calendário que
-  agenda as tarefas. **Hoje** rola o gráfico até a data de hoje.
-- **Níveis:** o triângulo antes do nome **recolhe** ou **expande** um agrupamento; **Recolher** e
-  **Expandir** fazem isso com todos. O **EDT** é o **código da linha na EAP** — 1, 1.1, 1.1.1… (a EDT do Project). Ele se
+  agenda as tarefas. **Hoje** rola o gráfico até a data de hoje. A escala é o seletor ao lado de **Hoje**.
+- **Níveis:** o triângulo antes do nome **recolhe** ou **expande** um agrupamento; os dois botões de setas da
+  barra **recolhem** e **expandem** todos. O **EDT** é o **código da linha na EAP** — 1, 1.1, 1.1.1… (a EDT do Project). Ele se
   **refaz sozinho** quando você move, insere ou exclui linhas (mover a fase 33 para o lugar da 43 renumera tudo
   o que está dentro dela), não muda ao recolher ou filtrar, e é o que a coluna **Predecessoras** cita.
 - **Predecessoras:** escritas como no Project, com o **código da tarefa**: `1.2` (término→início), `1.2TI+2d`
@@ -312,7 +347,7 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
 - **Editar direto na tabela** (só quem monta o cronograma): clique no **Nome**, na **Duração**, no **%
   concluído** (Gantt de Controle) ou nas **Predecessoras** e digite na própria célula, como no Project.
   **Enter** grava e desce; **Tab** grava e vai para a próxima célula; **Esc** desiste; clicar fora grava.
-  **Duplo clique** na linha (ou **Enter** com a linha selecionada) abre a janela completa; **F2** edita o
+  **Duplo clique** na linha (ou **Enter** com a linha selecionada) abre o painel da linha; **F2** edita o
   nome. Agrupamento só edita o nome — o resto deriva das tarefas dentro dele.
   - **Duração:** `5` ou `5d` (dias úteis; aceita `1,5`). **`0`** ou **`marco`** transforma a tarefa em marco.
   - **Predecessoras:** `1.2`, `1.2TI+2d`, `1.5II`, `2.1TT-1d`, vários separados por `;`. O número é o **EDT** da
@@ -339,14 +374,14 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
     vai cair: acima ou abaixo da linha sob o mouse, **no nível dela** — é assim que se tira uma tarefa de um
     agrupamento e se põe em outro. Soltar logo abaixo de um agrupamento aberto põe a tarefa como a primeira
     dele. Não se solta uma tarefa dentro dela mesma. Com filtro ligado não há alça (use o menu). A
-    **disciplina** da tarefa não muda com o lugar: troque na janela da tarefa, se for o caso.
+    **disciplina** da tarefa não muda com o lugar: troque no painel da linha, se for o caso.
   - **Excluir** pede confirmação e diz quantas subtarefas vão junto; os cards já gerados ficam no quadro.
-- **Tabela compacta / completa:** a tabela abre compacta (sem Disciplina, Recursos e Custo) para dar
-  espaço ao gráfico; **Tabela completa** mostra todas as colunas, inclusive o **Custo** (só quem vê o
+- **Compacta:** ligado, esconde as colunas secundárias (Disciplina, Recursos e Custo) para dar espaço ao gráfico;
+  desligado, mostra todas as colunas, inclusive o **Custo** (só quem vê o
   financeiro). **✓** marca a linha concluída.
 - **Largura das colunas:** arraste a **borda direita do cabeçalho** de qualquer coluna para alargar ou
   estreitar (mínimo 44 px, máximo 640 px). Com o teclado, foque a borda e use **←** e **→**. **Duplo clique**
-  na borda devolve aquela coluna ao tamanho padrão, e **Larguras padrão** (ao lado de Tabela compacta) devolve
+  na borda devolve aquela coluna ao tamanho padrão, e **Larguras padrão** (ao lado de Compacta) devolve
   todas. A escolha é **sua**: fica guardada na sua conta e vale em qualquer cronograma e no editor de modelo.
 
 ### Datas reais: Atualizar tarefa
@@ -393,17 +428,18 @@ encerrado**. Apurar com a data de **hoje**, de manhã, leva para amanhã as tare
 não tiveram início registrado.
 
 Tarefa com data presa por restrição (por exemplo, **Iniciar em**) que precise andar ganha o aviso de
-**conflito de restrição**. Na janela da tarefa aparece "reprogramada para depois da Data de Status".
+**conflito de restrição**. No painel da linha aparece "reprogramada para depois da Data de Status".
 
 Toda **segunda-feira** o sistema avisa quem tem `cronograma:executado` dos cronogramas **aprovados**
 sem apuração há mais de 10 dias.
 
 ### Saúde e verificador
 
-O quadro no topo mostra a **saúde do cronograma** (0 a 100%: **saudável** a partir de 85,
-**atenção** a partir de 60, **crítico** abaixo disso) com o número de erros e alertas. A nota é
+A faixa de status mostra a **saúde do cronograma** (0 a 100%: **saudável** a partir de 85,
+**atenção** a partir de 60, **crítico** abaixo disso) e quantos achados há; clique nela para abrir o painel **Saúde
+do cronograma**. A nota é
 **provisória**: os pesos ainda serão calibrados com projetos reais. O sistema guarda uma **foto
-semanal** da nota. Abra **Achados do verificador** para ver as regras que dispararam:
+semanal** da nota. No painel, **Achados do verificador** lista as regras que dispararam (com **Ver na tabela** para filtrar as linhas):
 
 | Tipo | O que acusa |
 | --- | --- |
@@ -429,7 +465,7 @@ na nota.
 
 ### Plano travado e Revisar planejamento
 
-Depois de **aprovado**, o **plano fica travado** (etiqueta **plano travado** no painel de saúde). O que o combinado
+Depois de **aprovado**, o **plano fica travado** (etiqueta **plano travado** na faixa de status). O que o combinado
 com o cliente depende não muda sem deixar rastro:
 
 | Travado (é plano) | Livre (é acompanhamento) |
@@ -439,22 +475,22 @@ com o cliente depende não muda sem deixar rastro:
 | **Disciplina** e **fase** da linha | **Data de Status** (**Apurar**) |
 | **Predecessoras** e **restrição de data** | **Pessoas** e **horas** da linha, **bloqueio** |
 
-O que está travado aparece **desabilitado com o motivo** — no menu da linha, no **...** e na janela da tarefa.
+O que está travado aparece **desabilitado com o motivo** — no menu da linha, no **...** e no painel da linha.
 
-Para mudar o plano, clique em **Revisar planejamento** (exige `cronograma:aprovar`). A etiqueta vira **em
-revisão**, uma faixa amarela avisa e tudo volta a ser editável. A revisão **fecha com a Nova linha de base**,
-com o motivo. Se você abriu a revisão e **não mudou nada**, dá para **Cancelar revisão**; depois da primeira
+Para mudar o plano, clique em **Revisar** na faixa de status (é o **Revisar planejamento**; exige
+`cronograma:aprovar`). A etiqueta vira **em revisão**, uma linha amarela avisa e tudo volta a ser editável. A revisão
+**fecha com a nova linha de base** (**Fechar com nova linha de base…**, na linha amarela), com o motivo. Se você abriu a revisão e **não mudou nada**, dá para **Cancelar revisão**; depois da primeira
 mudança, só a nova linha de base fecha — é assim que toda mudança do combinado fica registrada.
 
 ### Nova linha de base
 
 A linha de base aprovada **nunca é sobrescrita**. Quando o combinado muda — atraso do cliente, aditivo de
 contrato, uma disciplina que entrou no meio do caminho — abra a revisão (**Revisar planejamento**), faça as
-mudanças e use **Nova linha de base** (o antigo *Replanejar*): informe o **motivo** (obrigatório) e confirme. O
+mudanças e use **Fechar com nova linha de base…** (o antigo *Replanejar*): informe o **motivo** (obrigatório) e confirme. O
 cronograma de hoje vira a nova referência (**BL-01**, depois BL-02…), as anteriores **ficam guardadas** e o
 plano volta a travar. É o que responde, no fim do projeto, "por que o prazo andou?". Exige `cronograma:aprovar`.
 
-- **Versões da linha de base** (no painel de saúde): cada versão com o **motivo**, a **data**, o **autor** e
+- **Versões da linha de base** (no painel **Saúde do cronograma**, com o comparativo no prazo / adiantadas / atrasadas): cada versão com o **motivo**, a **data**, o **autor** e
   quantas linhas guardou; a mais nova aparece como **atual**.
 - **Comparar com** (no **Gantt de Controle**, quando há mais de uma versão): escolhe com qual delas o plano de
   hoje é comparado. A barra, as colunas de início/término base e o **Desvio**, a legenda ("Linha de base
@@ -488,7 +524,7 @@ plano volta a travar. É o que responde, no fim do projeto, "por que o prazo and
   tempo, para **enxergar e sequenciar** projetos entre si. É só **leitura**: o prazo de cada projeto
   só se edita dentro dele. Filtros: busca por nome ou código, **situação** do projeto e **Com
   atraso**.
-- Abaixo do cronograma de cada projeto, **Plano × real** compara, no mês corrente, a alocação
+- Na visão **Indicadores** de cada projeto, **Plano × real** compara, no mês corrente, a alocação
   planejada de cada pessoa com as horas realmente registradas no ponto.
 
 ## Permissões
@@ -555,7 +591,7 @@ falta **definir o início do projeto**. Corrija e tente de novo.
 
 **Aprovei e preciso mudar uma data. E agora?** Se é o **realizado** (a tarefa começou ou terminou em outro
 dia), use **Atualizar tarefa** — não precisa destravar nada. Se é o **plano** (duração, dependência, tarefa
-nova), clique em **Revisar planejamento**, faça a mudança e feche com **Nova linha de base** e o motivo. A linha
+nova), clique em **Revisar planejamento**, faça a mudança e feche com **Fechar com nova linha de base…** e o motivo. A linha
 de base anterior fica guardada, e o Gantt de Controle deixa comparar com qualquer versão.
 
 **Por que a duração não abre para editar?** O cronograma está aprovado e o plano está travado. Veja **Plano

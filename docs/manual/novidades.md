@@ -20,6 +20,19 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Planejamento mais limpo e painel da linha (outubro/2026)
+
+- **Mais espaço para o cronograma:** o título do projeto subiu para a barra do topo, com **Nova tarefa** e o **⋯** (onde ficam
+  exportar, reagendar, herdar responsáveis, aplicar ao projeto, salvar como modelo e apagar a EAP). A saúde, a situação do
+  cronograma, a Data de Status, o início e o custo cabem numa **faixa de uma linha**, e filtros, período e escala numa **barra
+  só**. A tabela ocupa o resto da tela.
+- **Saúde do cronograma** abre num painel ao lado, com os achados (e **Ver na tabela** para filtrar as linhas), o comparativo com
+  a linha de base e as versões dela.
+- **Indicadores:** o Valor Agregado e o Plano × real agora são uma visão, ao lado de Gantt e Controle.
+- **Painel da linha** no lugar da janela de editar tarefa: a tabela continua à vista, as setas passam para a linha de cima ou de
+  baixo, as datas se editam como na tabela, o andamento tem botões de 0 a 100%, a lista de predecessoras mostra só as da linha e
+  **um Salvar** grava tudo de uma vez — um passo só no Ctrl+Z.
+
 ## EAP: datas na tabela e salvar como modelo (outubro/2026)
 
 - **Digite o início ou o término** direto na tabela da EAP. O **término** recalcula a duração em dias úteis; o **início** fixa a
