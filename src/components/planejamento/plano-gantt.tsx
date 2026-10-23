@@ -1160,6 +1160,9 @@ function CelulaEditavel({
 }) {
   const campoRef = useRef<HTMLInputElement | null>(null);
   const encerrada = useRef(false);
+  // O que o campo mostrava ao abrir: se a pessoa não digitou nada e o dado do servidor mudou no meio (outra gravação),
+  // confirmar não pode regravar o valor velho.
+  const abertoCom = useRef(valorInicial);
 
   // Volta o foco depois que a gravação termina (o campo desabilita enquanto salva e perde o foco).
   useEffect(() => {
@@ -1196,7 +1199,8 @@ function CelulaEditavel({
 
   const confirmar = (texto: string, destino: Destino) => {
     encerrada.current = true;
-    void aoConfirmar(texto, destino).then((ok) => {
+    const semDigitar = texto === abertoCom.current;
+    void aoConfirmar(semDigitar ? valorInicial : texto, destino).then((ok) => {
       if (!ok) encerrada.current = false; // continua editando: o próximo blur ou Enter tenta de novo
     });
   };
@@ -1207,6 +1211,7 @@ function CelulaEditavel({
         if (el && campoRef.current !== el) {
           campoRef.current = el;
           encerrada.current = false;
+          abertoCom.current = valorInicial;
           el.focus();
           el.select();
         }

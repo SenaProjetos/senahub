@@ -15,9 +15,10 @@ import { duracaoPeloTermino, moverRestricoes } from "./datas-linha";
 
 export const MOTIVO_DATA_DE_AGRUPAMENTO = "Agrupamento: o início e o término vêm das tarefas de dentro.";
 export const MOTIVO_MARCO_SEM_TERMINO = "Marco não tem término: ele é uma data só. Mude o início.";
+export const MOTIVO_TERMINO_FIXADO = "Esta linha tem o término fixado por uma restrição. Tire a restrição para mudar o término pela duração.";
 
 async function carregarLinha(id: string) {
-  const t = await prisma.eapTarefa.findUnique({ where: { id }, select: { projetoId: true, tipoEap: true, _count: { select: { filhas: true } } } });
+  const t = await prisma.eapTarefa.findUnique({ where: { id }, select: { projetoId: true, tipoEap: true, restricaoTipo: true, _count: { select: { filhas: true } } } });
   if (!t) throw new ActionError("Tarefa não encontrada.");
   if (t._count.filhas > 0) throw new ActionError(MOTIVO_DATA_DE_AGRUPAMENTO);
   return t;
@@ -34,6 +35,8 @@ export async function definirInicioDaLinha(p: { id: string; data: Dia }): Promis
 export async function definirTerminoDaLinha(p: { id: string; data: Dia }): Promise<{ projetoId: string; duracaoDias: number }> {
   const t = await carregarLinha(p.id);
   if (t.tipoEap === "mrc") throw new ActionError(MOTIVO_MARCO_SEM_TERMINO);
+  // Restrição de término manda no término (o motor deriva o início dela): mudar a duração não moveria o fim.
+  if (t.restricaoTipo?.startsWith("terminar")) throw new ActionError(MOTIVO_TERMINO_FIXADO);
   const plano = await planoDoProjeto(t.projetoId);
   const linha = plano?.resultado.linhas.get(p.id);
   if (!plano || !linha) throw new ActionError("Não foi possível calcular o início desta tarefa. Reagende o projeto e tente de novo.");
@@ -56,9 +59,9 @@ export async function moverRestricoesDoProjeto(
   if (!de) return { movidas: 0 };
   const plano = await planoDoProjeto(projetoId);
   if (!plano) return { movidas: 0 };
-  const linhas = await db.eapTarefa.findMany({ where: { projetoId, restricaoData: { not: null } }, select: { id: true, restricaoData: true } });
+  const linhas = await db.eapTarefa.findMany({ where: { projetoId, restricaoData: { not: null } }, select: { id: true, restricaoTipo: true, restricaoData: true } });
   const novas = moverRestricoes(
-    linhas.map((l) => ({ id: l.id, restricaoData: l.restricaoData ? paraDia(l.restricaoData) : null })),
+    linhas.map((l) => ({ id: l.id, restricaoTipo: l.restricaoTipo, restricaoData: l.restricaoData ? paraDia(l.restricaoData) : null })),
     de,
     para,
     plano.calendario,

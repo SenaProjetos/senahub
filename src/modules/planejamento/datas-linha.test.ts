@@ -75,25 +75,43 @@ describe("deslocamentoEmDiasUteis", () => {
 
 describe("moverRestricoes", () => {
   const linhas = [
-    { id: "a", restricaoData: "2026-10-08" },
-    { id: "b", restricaoData: null },
-    { id: "c", restricaoData: "2026-10-10" }, // sábado
+    { id: "a", restricaoTipo: "iniciar_nao_antes_de", restricaoData: "2026-10-08" },
+    { id: "b", restricaoTipo: null, restricaoData: null },
+    { id: "c", restricaoTipo: "iniciar_nao_antes_de", restricaoData: "2026-10-10" }, // sábado
   ];
 
   it("anda cada data pelos mesmos dias úteis do deslocamento e ignora quem não tem data", () => {
     expect(moverRestricoes(linhas, "2026-10-05", "2026-10-12", cal)).toEqual([
       { id: "a", restricaoData: "2026-10-15" },
-      // sábado normaliza para a segunda 12 e anda 5 dias úteis
+      // sábado: o motor começaria na segunda 12; anda 5 dias úteis a partir dela
       { id: "c", restricaoData: "2026-10-19" },
     ]);
   });
 
   it("para trás também: a mesma conta com sinal negativo", () => {
-    expect(moverRestricoes([{ id: "a", restricaoData: "2026-10-15" }], "2026-10-12", "2026-10-05", cal)).toEqual([{ id: "a", restricaoData: "2026-10-08" }]);
+    expect(moverRestricoes([{ id: "a", restricaoTipo: "iniciar_nao_antes_de", restricaoData: "2026-10-15" }], "2026-10-12", "2026-10-05", cal)).toEqual([
+      { id: "a", restricaoData: "2026-10-08" },
+    ]);
   });
 
   it("deslocamento zero não mexe em nada", () => {
     expect(moverRestricoes(linhas, "2026-10-05", "2026-10-05", cal)).toEqual([]);
     expect(moverRestricoes(linhas, "2026-10-05", "2026-10-06", cal)).toHaveLength(2); // 1 dia útil
+  });
+
+  it("restrição de INÍCIO em dia não útil normaliza para o dia útil SEGUINTE antes de andar, mesmo andando para trás", () => {
+    // sábado 17/10: o motor começa na segunda 19/10; −5 dias úteis a partir dela = segunda 12/10
+    expect(moverRestricoes([{ id: "x", restricaoTipo: "iniciar_em", restricaoData: "2026-10-17" }], "2026-10-12", "2026-10-05", cal)).toEqual([
+      { id: "x", restricaoData: "2026-10-12" },
+    ]);
+  });
+
+  it("restrição de TÉRMINO em dia não útil normaliza para o dia útil ANTERIOR antes de andar, mesmo andando para a frente", () => {
+    // sábado 17/10: o motor termina na sexta 16/10; +5 dias úteis a partir dela = sexta 23/10
+    for (const tipo of ["terminar_em", "terminar_nao_antes_de", "terminar_nao_depois_de"]) {
+      expect(moverRestricoes([{ id: "y", restricaoTipo: tipo, restricaoData: "2026-10-17" }], "2026-10-05", "2026-10-12", cal)).toEqual([
+        { id: "y", restricaoData: "2026-10-23" },
+      ]);
+    }
   });
 });

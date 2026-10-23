@@ -6,7 +6,7 @@
  * - O INÍCIO digitado vira restrição "não iniciar antes de" (o alfinete) — decisão do dono: a duração se mantém e a data
  *   fica fixada. Quando o início do PROJETO muda, a tela pergunta se essas datas fixadas andam junto (`moverRestricoes`).
  */
-import { diasUteisEntre, proximoDiaUtil, somarDiasUteis, type Calendario, type Dia } from "@/lib/calendario-trabalho";
+import { diaUtilAnterior, diasUteisEntre, proximoDiaUtil, somarDiasUteis, type Calendario, type Dia } from "@/lib/calendario-trabalho";
 
 const MSG_DATA_INVALIDA = "Data inválida. Use dd/mm/aaaa.";
 
@@ -60,16 +60,21 @@ export function deslocamentoEmDiasUteis(de: Dia, para: Dia, cal: Calendario): nu
 
 /**
  * "Mover junto": cada `restricaoData` anda os mesmos dias úteis que o início do projeto andou. Só devolve quem mudou
- * (linha sem data é ignorada; deslocamento zero não mexe em nada). A data que cai em fim de semana é normalizada para o
- * dia útil seguinte antes de andar (`somarDiasUteis`).
+ * (linha sem data é ignorada; deslocamento zero não mexe em nada). A data que cai em dia não útil é normalizada ANTES de
+ * andar, na direção que o motor usa para aquele tipo: restrição de início vai para o dia útil seguinte, restrição de
+ * término para o anterior (`somarDiasUteis` sozinha normalizaria na direção do deslocamento e erraria um dia útil).
  */
 export function moverRestricoes(
-  linhas: readonly { id: string; restricaoData: Dia | null }[],
+  linhas: readonly { id: string; restricaoTipo: string | null; restricaoData: Dia | null }[],
   de: Dia,
   para: Dia,
   cal: Calendario,
 ): { id: string; restricaoData: Dia }[] {
   const n = deslocamentoEmDiasUteis(de, para, cal);
   if (n === 0) return [];
-  return linhas.flatMap((l) => (l.restricaoData ? [{ id: l.id, restricaoData: somarDiasUteis(l.restricaoData, n, cal) }] : []));
+  return linhas.flatMap((l) => {
+    if (!l.restricaoData) return [];
+    const base = l.restricaoTipo?.startsWith("terminar") ? diaUtilAnterior(l.restricaoData, cal) : proximoDiaUtil(l.restricaoData, cal);
+    return [{ id: l.id, restricaoData: somarDiasUteis(base, n, cal) }];
+  });
 }
