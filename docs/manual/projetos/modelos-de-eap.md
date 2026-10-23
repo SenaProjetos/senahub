@@ -76,6 +76,21 @@ arquitetônico", "Validação pelo cliente", "Análise na prefeitura"). Desmarqu
 equipe. Essas linhas seguram prazo, mas **não geram card e não cobram hora** — veja
 [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md).
 
+## Salvar a EAP de um projeto como modelo
+
+Não precisa importar um arquivo: na EAP de qualquer projeto, o botão **Salvar como modelo** guarda a EAP **como ela está** para
+usar em outros projetos. Informe o nome, uma descrição (opcional) e o tipo de empreendimento (opcional); o modelo aparece em
+**Modelos de EAP** como qualquer outro.
+
+- **Entram:** a árvore, a ordem, os nomes, as durações, os **marcos**, as **predecessoras** (com tipo e atraso) e a marca de
+  **etapa de terceiro** ("Externo"). A disciplina entra quando tem **par no catálogo**; a fase entra quando é uma fase do
+  catálogo geral.
+- **Não entram:** pessoas, horas, % concluído, datas reais, **datas fixadas (alfinete)** e bloqueios. Aplicar o modelo cria as
+  tarefas sem ninguém e a 0%.
+- **Avisos:** disciplina sem par no catálogo (as linhas entram sem disciplina) e fase que só existe no projeto (entra sem fase)
+  são avisadas ao salvar. Agrupamento de tipo desconhecido vira agrupamento comum.
+- O limite é de **1200 linhas**. Salvar não mexe no projeto de origem.
+
 ## Aplicar num projeto
 
 Na aba **Planejamento** do projeto, com a **EAP vazia**, aparece **Usar modelo de EAP**. A janela

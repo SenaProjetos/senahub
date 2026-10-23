@@ -104,6 +104,8 @@ Se você usa o MS Project, isto será familiar:
   Sem modelo (ou escolhendo **Linha única**), a disciplina entra como uma tarefa só, que termina no prazo
   dela. É de **mão única**: disciplina nova entra na EAP, mas criar uma linha na EAP **não** cria
   disciplina.
+- **Salvar como modelo** — guarda a EAP **deste projeto** como um modelo para os próximos (veja
+  [Modelos de EAP](modelos-de-eap.md#salvar-a-eap-de-um-projeto-como-modelo)).
 - **Apagar EAP** — apaga **todas** as linhas da EAP (tarefas, marcos, vínculos e pessoas atribuídas) para
   recomeçar, por exemplo quando o modelo aplicado foi o errado. Depois, a tela vazia volta a oferecer
   **Usar modelo de EAP** e **Gerar EAP das disciplinas**. Ficam as **fases cadastradas nas disciplinas** (mexem
@@ -213,6 +215,26 @@ o **atraso**:
 O **atraso (latência)** é em dias úteis; **negativo = antecipação** (a tarefa começa antes de a
 outra terminar). O sistema recusa **dependência circular** — se uma escapar, ela é ignorada no
 cálculo e acusada como erro.
+
+### Datas direto na tabela
+
+Na tabela, as colunas **Início** e **Término** aceitam a data digitada (dd/mm/aaaa, dd/mm/aa ou só dd/mm). Elas **não** fazem a
+mesma coisa:
+
+- **Término digitado = duração.** O sistema conta os **dias úteis** do início da tarefa até a data (feriados não contam,
+  fim de semana também não) e grava essa duração. **Não** fixa nenhuma data: se a tarefa atrasar, o término anda junto.
+  Término antes do início é recusado, com a data do início na mensagem. Para uma data única, use um **marco** (digite **0**
+  na Duração).
+- **Início digitado = alfinete.** A data vira a restrição **"não iniciar antes de"** (ela substitui outra restrição que a
+  tarefa tivesse) e a duração se mantém. Se o cronograma não consegue começar na data — por causa das predecessoras ou
+  porque cai num dia não útil —, o aviso diz a data real, e o pedido fica gravado como alfinete.
+- Agrupamento não edita início nem término (vêm das tarefas de dentro); marco edita só o início; com o cronograma
+  aprovado fora de revisão, nada disso se edita. Cada edição é um passo do **Desfazer**.
+
+**Mudar o início do projeto:** se alguma tarefa tem data fixada (alfinete), o sistema pergunta antes: **Mover junto**
+desloca todas as datas fixadas pelos mesmos dias úteis que o início andou; **Manter as datas** deixa onde estão (elas
+ficam travadas e podem não acompanhar o novo início); **Cancelar** não grava nada. Sem tarefa fixada, grava direto.
+O desfazer volta o início e as datas.
 
 ### Restrição de data e o alfinete
 

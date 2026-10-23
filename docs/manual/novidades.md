@@ -20,6 +20,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## EAP: datas na tabela e salvar como modelo (outubro/2026)
+
+- **Digite o início ou o término** direto na tabela da EAP. O **término** recalcula a duração em dias úteis; o **início** fixa a
+  tarefa naquela data (alfinete). Se o cronograma não consegue começar na data pedida, o aviso diz a data real.
+- **Mudar o início do projeto** agora pergunta, quando há tarefas de data fixada, se elas **andam junto** (os mesmos dias úteis)
+  ou **ficam onde estão**.
+- **Salvar como modelo:** a EAP de um projeto vira um modelo para os próximos — com estrutura, durações, marcos e predecessoras,
+  sem pessoas, horas nem datas fixadas.
+  [Saiba mais](projetos/planejamento.md#datas-direto-na-tabela)
+
 ## EAP: várias linhas de uma vez (outubro/2026)
 
 - **Selecione e aja.** Na EAP, **Ctrl+clique** soma linhas e **Shift+clique** pega um intervalo. A barra de estrutura
