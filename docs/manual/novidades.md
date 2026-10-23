@@ -20,6 +20,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## EAP: várias linhas de uma vez (outubro/2026)
+
+- **Selecione e aja.** Na EAP, **Ctrl+clique** soma linhas e **Shift+clique** pega um intervalo. A barra de estrutura
+  (setas para avançar, recuar e mover, mais copiar, colar e excluir) age em todas de uma vez, e um Ctrl+Z desfaz o lote.
+- **Novas tarefas:** cole uma lista (do Excel, por exemplo) e crie dezenas de tarefas de uma vez, com a duração.
+- **Copiar um agrupamento inteiro** (com as subtarefas e as predecessoras entre elas) para outro lugar da EAP.
+- **Predecessoras numa árvore:** escolha clicando, sem digitar o código; as opções que não valem aparecem apagadas,
+  com o motivo.
+  [Saiba mais](projetos/planejamento.md#várias-linhas-de-uma-vez)
+
 ## EAP: desfazer com Ctrl+Z (outubro/2026)
 
 - **Errou? Desfaça.** Na EAP do planejamento, o botão **Desfazer** e o atalho **Ctrl+Z** voltam a última mudança do

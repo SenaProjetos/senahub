@@ -166,6 +166,35 @@ mostra o que será desfeito ("Desfazer: Excluir \"Modelagem\"").
 - **Dentro de um campo de texto** (nome da linha em edição, janela aberta), o Ctrl+Z continua sendo o do campo.
   Aperte **Esc** ou clique fora para usar o do plano — ou use o botão **Desfazer**.
 
+### Várias linhas de uma vez
+
+- **Selecionar:** clique numa linha; **Ctrl (⌘) + clique** soma ou tira uma linha; **Shift + clique** pega o intervalo
+  desde a última clicada. **Esc** (com o foco numa linha) ou **Limpar** desfaz a seleção.
+- **Barra de estrutura** (acima da tabela): as setas **Avançar** (←), **Recuar** (→), **Mover para cima** (↑) e
+  **Mover para baixo** (↓) agem sobre **todas** as linhas selecionadas, mais **Copiar**, **Colar abaixo** e **Excluir**. O
+  menu do botão direito sobre uma linha da seleção faz o mesmo, e os atalhos Alt+Shift+setas e Delete também valem para
+  a seleção.
+- **Recuar várias** põe as linhas selecionadas como irmãs, **sob a linha que estava acima delas** (não uma dentro da
+  outra). Selecionar um agrupamento e as subtarefas dele move só o agrupamento — as subtarefas vão junto.
+- **Tudo ou nada:** se uma das linhas não pode (a primeira do nível não recua; a do topo não sobe), **nada** muda, e o
+  aviso diz qual linha barrou. Cada ação em lote é **um** passo de desfazer: um Ctrl+Z devolve tudo.
+- **Excluir várias** pede uma confirmação só, com a contagem (e quantas subtarefas saem junto).
+- **Novas tarefas:** o botão ao lado de **Nova tarefa** abre uma janela para **colar uma lista** (uma tarefa por linha;
+  depois de um TAB, a duração em dias úteis — **0** ou **marco** cria um marco). As tarefas entram **logo abaixo da
+  primeira linha selecionada, no mesmo nível** (sem seleção, no fim da lista) e nascem na disciplina do agrupamento onde
+  entram. Até 200 por vez.
+- **Copiar e colar um bloco:** **Copiar** guarda as linhas selecionadas **e tudo o que está dentro delas**; **Colar abaixo**
+  (Ctrl+V com o foco numa linha) cria as cópias abaixo da linha escolhida. Vão junto a estrutura, as durações, os marcos
+  e as **predecessoras entre as linhas do bloco**; **não** vão pessoas, horas, % concluído, datas reais, restrições de
+  data nem vínculos com linhas de fora do bloco. As cópias tomam a disciplina do agrupamento de destino. O desfazer
+  apaga a cópia inteira.
+- **Escolher predecessoras numa árvore:** o ícone de árvore ao lado da célula **Predecessoras** abre a lista de todas
+  as tarefas, com busca por código ou nome. As que não podem ser escolhidas (a própria, a tarefa-mãe, uma subtarefa e
+  as que fechariam um ciclo) aparecem apagadas, com o motivo ao passar o mouse. Quem já era predecessora mantém o
+  tipo e o atraso; quem entra é término→início sem atraso (ajuste no texto da célula, como `1.2TI+2d`).
+- Nada disso vale com o cronograma aprovado (o plano está travado): os botões ficam desabilitados com o motivo.
+  **Copiar** funciona mesmo assim, porque não grava nada.
+
 ### Dependências
 
 Em **Depende de**, marque as tarefas que precisam acontecer antes. Para cada uma escolha o tipo e
