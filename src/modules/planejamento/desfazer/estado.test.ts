@@ -139,6 +139,14 @@ describe("planoDeRestauracao", () => {
     expect(planoDeRestauracao(atual, antes).religarParcelas).toEqual([{ id: "p1", marcoId: "K" }]);
   });
 
+  it("parcela e baseline que a foto de hoje nem lista (o marco sumiu, o ganho do SetNull) também são religadas", () => {
+    // A foto de hoje só lista o que aponta para uma linha que existe; a solta não aparece.
+    const antes = estado({ parcelas: [{ id: "p1", marcoId: "K" }], baselineLinhas: [{ id: "b1", tarefaId: "A" }] });
+    const p = planoDeRestauracao(estado(), antes);
+    expect(p.religarParcelas).toEqual([{ id: "p1", marcoId: "K" }]);
+    expect(p.religarBaselineLinhas).toEqual([{ id: "b1", tarefaId: "A" }]);
+  });
+
   it("linha de baseline solta hoje volta a apontar para a linha", () => {
     const antes = estado({ baselineLinhas: [{ id: "b1", tarefaId: "A" }] });
     const atual = estado({ baselineLinhas: [{ id: "b1", tarefaId: null }] });

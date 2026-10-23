@@ -184,11 +184,12 @@ export function planoDeRestauracao(atual: EstadoPlano, antes: EstadoPlano): Plan
     if (Object.keys(campos).length > 0) atualizarAtribuicoes.push({ id: a.id, campos });
   }
 
-  // Ganchos soltos pelo SetNull: religa só o que ficou solto (o que hoje aponta para outro lugar, é de quem mexeu).
-  const atualParcelas = new Map(atual.parcelas.map((p) => [p.id, p]));
-  const religarParcelas = antes.parcelas.flatMap((p) => (p.marcoId && atualParcelas.get(p.id) && atualParcelas.get(p.id)!.marcoId === null ? [{ id: p.id, marcoId: p.marcoId }] : []));
-  const atualBase = new Map(atual.baselineLinhas.map((b) => [b.id, b]));
-  const religarBaselineLinhas = antes.baselineLinhas.flatMap((b) => (b.tarefaId && atualBase.get(b.id) && atualBase.get(b.id)!.tarefaId === null ? [{ id: b.id, tarefaId: b.tarefaId }] : []));
+  // Ganchos soltos pelo SetNull. A foto de HOJE só lista o que aponta para uma linha que existe, então o gancho solto
+  // nem aparece nela (ausente = solto). O que hoje aponta para outra linha existente é de quem mexeu: fica.
+  const ligadasHoje = new Set(atual.parcelas.filter((p) => p.marcoId !== null).map((p) => p.id));
+  const religarParcelas = antes.parcelas.flatMap((p) => (p.marcoId && !ligadasHoje.has(p.id) ? [{ id: p.id, marcoId: p.marcoId }] : []));
+  const baseLigadasHoje = new Set(atual.baselineLinhas.filter((b) => b.tarefaId !== null).map((b) => b.id));
+  const religarBaselineLinhas = antes.baselineLinhas.flatMap((b) => (b.tarefaId && !baseLigadasHoje.has(b.id) ? [{ id: b.id, tarefaId: b.tarefaId }] : []));
 
   return {
     inicioProjeto: atual.inicioProjeto !== antes.inicioProjeto ? { de: atual.inicioProjeto, para: antes.inicioProjeto } : null,
