@@ -214,6 +214,7 @@ model User {
   cronogramasAprovados          CronogramaProjeto[]         @relation("CronogramaAprovador")
   eapBaselinesAutor             EapBaseline[]               @relation("EapBaselineAutor")
   eapCodigoHistorico            EapCodigoHistorico[]        @relation("EapCodigoAutor")
+  eapPassosDesfazer             EapPassoDesfazer[]
   eapAtribuicoes                EapAtribuicao[]             @relation("EapAtribuicaoPessoa")
   batidas                       Batida[]
   batidasAjustadas              Batida[]                    @relation("BatidaCriador")
@@ -1277,6 +1278,7 @@ model Projeto {
   saudeSnapshots          CronogramaSaudeSnapshot[]
   apuracoesValorAgregado  ValorAgregadoApuracao[]
   eapTarefas              EapTarefa[]
+  eapPassosDesfazer       EapPassoDesfazer[]
   alocacoes               Alocacao[]
   necessidadesHabilidade  NecessidadeHabilidade[]
   servicos                ServicoTerceirizado[]
@@ -5019,6 +5021,25 @@ model EapDependencia {
   @@unique([tarefaId, predecessoraId])
   @@index([predecessoraId])
   @@map("eap_dependencia")
+}
+
+/// Um passo da pilha de DESFAZER da EAP (Ctrl+Z), por projeto e por pessoa (as 20 últimas ações do plano).
+/// `antes` é a FOTO do plano inteiro antes da ação (`EstadoPlano`, `planejamento/desfazer/estado.ts`) e
+/// `depoisImpressao`, a impressão digital do plano logo depois dela: desfazer só vale se o plano de hoje ainda tem
+/// essa impressão (senão outra pessoa mexeu depois). Apagada ao aprovar o cronograma e ao fechar a revisão.
+model EapPassoDesfazer {
+  id              String   @id @default(cuid())
+  projetoId       String
+  projeto         Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rotulo          String
+  antes           Json
+  depoisImpressao String
+  createdAt       DateTime @default(now())
+
+  @@index([projetoId, userId, createdAt])
+  @@map("eap_passo_desfazer")
 }
 
 /// Histórico de mudança do código da EAP (Doc 02 §27). Como o código é mutável, é isto
