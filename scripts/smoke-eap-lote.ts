@@ -12,6 +12,7 @@ import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativ
 import { MOTIVO_NIVEL_MAIS_ALTO, MOTIVO_PRIMEIRA_DO_NIVEL, MOTIVO_SEM_IRMA_ACIMA, MOTIVO_ULTIMA_DO_NIVEL } from "../src/modules/planejamento/arvore-eap";
 import { avancarEmLote, excluirEmLote, moverEmLote, recuarEmLote } from "../src/modules/planejamento/arvore-lote-service";
 import { criarTarefasEmLote } from "../src/modules/planejamento/colar-tarefas-service";
+import { colarBloco } from "../src/modules/planejamento/colar-bloco-service";
 import { lerTarefasColadas } from "../src/modules/planejamento/colar-tarefas";
 
 let falhas = 0;
@@ -126,6 +127,40 @@ async function main() {
     const maior = await prisma.eapTarefa.aggregate({ where: { projetoId: projeto.id }, _max: { ordem: true } });
     check("sem referência: vai para o fim da raiz, sem disciplina", noFim.parentId === null && noFim.disciplinaId === null && noFim.ordem === maior._max.ordem, noFim);
     check("referência de outro projeto: recusa", !!(await erroDe(() => criarTarefasEmLote({ projetoId: projeto.id, depoisDeId: estranha.id, tarefas: leitura.tarefas }))));
+
+    // ── copiar um bloco e colar (C4) ─────────────────────────────────────────
+    const admin = await prisma.user.findFirstOrThrow({ where: { superUsuario: true, ativo: true }, select: { id: true } });
+    const ele = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Elétrica" } });
+    const F = await nova("Fora do bloco", null);
+    const B = await nova("Bloco", null);
+    await prisma.eapTarefa.update({ where: { id: B.id }, data: { disciplinaId: ele.id } });
+    const B1 = await nova("B1", B.id);
+    const B2 = await nova("B2", B.id);
+    await prisma.eapDependencia.create({ data: { tarefaId: B2.id, predecessoraId: B1.id, tipo: "fs", lagDias: 1 } });
+    await prisma.eapDependencia.create({ data: { tarefaId: B1.id, predecessoraId: F.id, tipo: "fs", lagDias: 0 } });
+    await prisma.eapTarefa.update({ where: { id: B2.id }, data: { restricaoTipo: "iniciar_nao_antes_de", restricaoData: d("2026-11-02"), progresso: 50 } });
+    await prisma.eapAtribuicao.create({ data: { tarefaId: B2.id, userId: admin.id, papel: "pro", horasPrevistas: 8, principal: true } });
+    await prisma.eapAtribuicao.create({ data: { tarefaId: B1.id, userId: null, papel: "ext", horasPrevistas: 0 } });
+
+    const colado = await colarBloco({ projetoId: projeto.id, origemIds: [B.id, B1.id], depoisDeId: GA.id });
+    check("colar o bloco (a mãe e as duas filhas, mesmo com a filha selecionada junto): 3 linhas novas", colado.criadas === 3 && colado.ids.length === 3, colado);
+    const copias = await prisma.eapTarefa.findMany({ where: { id: { in: colado.ids } }, select: { id: true, nome: true, parentId: true, disciplinaId: true, idCorporativo: true, restricaoTipo: true, progresso: true } });
+    const c = new Map(copias.map((l) => [l.nome, l]));
+    check("a cópia da mãe entra no pai do destino, logo abaixo de Ga", c.get("Bloco")?.parentId === G.id && (await filhasDe(G.id)).slice(0, 2).join() === "Ga,Bloco", await filhasDe(G.id));
+    check("as filhas copiadas ficam sob a cópia da mãe", c.get("B1")?.parentId === c.get("Bloco")?.id && c.get("B2")?.parentId === c.get("Bloco")?.id);
+    check("ids novos e idCorporativo novos e distintos", copias.every((l) => ![B.id, B1.id, B2.id].includes(l.id) && !!l.idCorporativo) && new Set(copias.map((l) => l.idCorporativo)).size === 3);
+    check("a disciplina é a do agrupamento de destino (Hidro), não a da origem (Elétrica)", copias.every((l) => l.disciplinaId === hid.id), copias.map((l) => l.disciplinaId));
+    const deps = await prisma.eapDependencia.findMany({ where: { OR: [{ tarefaId: { in: colado.ids } }, { predecessoraId: { in: colado.ids } }] }, select: { tarefaId: true, predecessoraId: true, lagDias: true } });
+    check("o vínculo interno B2→B1 foi copiado (e remapeado, com o atraso)", deps.some((x) => x.tarefaId === c.get("B2")!.id && x.predecessoraId === c.get("B1")!.id && Number(x.lagDias) === 1), deps);
+    check("o vínculo com a linha de fora NÃO foi copiado", !deps.some((x) => x.predecessoraId === F.id) && deps.length === 1, deps);
+    check("restrição de data e % não foram copiados", c.get("B2")?.restricaoTipo === null && c.get("B2")?.progresso === 0);
+    const atribs = await prisma.eapAtribuicao.findMany({ where: { tarefaId: { in: colado.ids } }, select: { tarefaId: true, papel: true, userId: true } });
+    check("a pessoa da origem não foi copiada, mas a marca Externo sim", !atribs.some((a) => a.userId === admin.id && a.tarefaId === c.get("B2")!.id) && atribs.some((a) => a.tarefaId === c.get("B1")!.id && a.papel === "ext"), atribs);
+    const intactas = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B2.id }, select: { restricaoTipo: true, progresso: true, disciplinaId: true } });
+    check("as originais continuam como estavam", intactas.restricaoTipo === "iniciar_nao_antes_de" && intactas.progresso === 50 && (await prisma.eapDependencia.count({ where: { tarefaId: { in: [B1.id, B2.id] } } })) === 2);
+    check("sem referência: a cópia vai para o fim da raiz, sem disciplina", (await colarBloco({ projetoId: projeto.id, origemIds: [B.id], depoisDeId: null })).criadas === 3);
+    check("origem de outro projeto: recusa", !!(await erroDe(() => colarBloco({ projetoId: projeto.id, origemIds: [estranha.id], depoisDeId: null }))));
+    check("referência de outro projeto: recusa", !!(await erroDe(() => colarBloco({ projetoId: projeto.id, origemIds: [B.id], depoisDeId: estranha.id }))));
   } finally {
     await prisma.disciplina.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: { in: [projeto.id, outroProjeto.id] } } });

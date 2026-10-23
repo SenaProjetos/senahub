@@ -31,6 +31,7 @@ import { MAX_LINHAS_LOTE } from "@/modules/planejamento/arvore-lote";
 import { avancarEmLote, excluirEmLote, moverEmLote, recuarEmLote } from "@/modules/planejamento/arvore-lote-service";
 import { lerTarefasColadas } from "@/modules/planejamento/colar-tarefas";
 import { criarTarefasEmLote } from "@/modules/planejamento/colar-tarefas-service";
+import { colarBloco } from "@/modules/planejamento/colar-bloco-service";
 import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
@@ -537,6 +538,41 @@ export const criarEapTarefasEmLote = defineAction(
       await aposMudarEap(i.projetoId, user.id);
       revProjeto(i.projetoId);
       return { criadas: r.ids.length };
+    },
+  ),
+);
+
+/**
+ * Colar o bloco copiado (a linha e tudo dentro dela) abaixo de `depoisDeId`, no nível dele (`null` = fim da lista).
+ * Estrutura, duração, marcos e vínculos internos vêm junto; pessoas, horas, % e restrições não. A disciplina é a do
+ * agrupamento de destino (A1). Um passo de desfazer.
+ */
+export const colarEapBloco = defineAction(
+  {
+    ...plan,
+    acao: "colar-eap-bloco",
+    entidade: "EapTarefa",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      origemIds: z
+        .array(z.string().min(1))
+        .min(1, "Copie linhas antes de colar.")
+        .max(MAX_LINHAS_LOTE, `Copie no máximo ${MAX_LINHAS_LOTE} linhas de uma vez.`),
+      depoisDeId: z.string().min(1).nullable(),
+    }),
+    entidadeId: (_d, i) => i.projetoId,
+  },
+  comPassoDaAction(
+    {
+      projetoDe: async (i) => i.projetoId,
+      rotulo: (i) => `Colar ${i.origemIds.length === 1 ? "1 linha" : `${i.origemIds.length} linhas`} copiadas`,
+    },
+    async (i, { user }) => {
+      await exigirPlanoEditavel(i.projetoId);
+      const r = await colarBloco({ projetoId: i.projetoId, origemIds: i.origemIds, depoisDeId: i.depoisDeId });
+      await aposMudarEap(i.projetoId, user.id);
+      revProjeto(i.projetoId);
+      return { criadas: r.criadas };
     },
   ),
 );

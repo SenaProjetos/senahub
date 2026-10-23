@@ -31,6 +31,7 @@ import {
   inserirEapTarefaAcima,
   apagarEap,
   avancarEapTarefas,
+  colarEapBloco,
   excluirEapTarefas,
   moverEapTarefasNoNivel,
   recuarEapTarefas,
@@ -67,7 +68,7 @@ import {
   ACAO_RECUAR,
   itensDeLinhaEap,
 } from "@/modules/planejamento/acoes-eap";
-import { itensDeEstruturaEap } from "@/modules/planejamento/acoes-lote-eap";
+import { ACAO_COLAR, ACAO_COPIAR, itensDeEstruturaEap } from "@/modules/planejamento/acoes-lote-eap";
 import type { NoArvore } from "@/modules/planejamento/arvore-eap";
 import { MOTIVO_PLANO_TRAVADO, planoTravado } from "@/modules/planejamento/trava-plano";
 import type { Larguras } from "@/modules/planejamento/gantt-larguras";
@@ -178,6 +179,8 @@ export function EapWorkspace({
   const [sinalLimparSelecao, setSinalLimparSelecao] = useState(0);
   /** Janela "Novas tarefas" (colar várias de uma vez). */
   const [colarAberto, setColarAberto] = useState(false);
+  /** Área de cópia: as linhas que o Copiar guardou (a estrutura é lida de novo na hora de colar). */
+  const [copiadas, setCopiadas] = useState<string[]>([]);
   /** Linha no "Atualizar tarefa" (datas reais) — `null` = fechado. */
   const [execucao, setExecucao] = useState<EapTarefaDTO | null>(null);
   /** Folhas sem custo conhecido — o que falta cadastrar para o custo previsto fechar. */
@@ -317,14 +320,21 @@ export function EapWorkspace({
   /** A árvore e os nomes que o descritor de estrutura precisa — tudo da lista que a tela já tem. */
   const nosDaArvore: NoArvore[] = tarefas.map((t) => ({ id: t.id, parentId: t.parentId, ordem: t.ordem, tipoEap: t.tipoEap }));
   const nomesDasLinhas = new Map(tarefas.map((t) => [t.id, t.nome]));
-  const itensDaSelecao = () =>
-    itensDeEstruturaEap({ nos: nosDaArvore, nomes: nomesDasLinhas, selecionadas, planoTravado: travado });
+  const itensDaSelecao = (ids: string[] = selecionadas) =>
+    itensDeEstruturaEap({ nos: nosDaArvore, nomes: nomesDasLinhas, selecionadas: ids, planoTravado: travado, podeColar: copiadas.length > 0 });
 
   /**
    * As setas da barra e o menu sobre uma SELEÇÃO: UMA chamada ao servidor (tudo ou nada, um reagendamento, um passo de
    * desfazer). O `confirm` vem ANTES de gravar e nenhuma passa por `startTransition`.
    */
   async function executarEstrutura(item: AcaoItemAcao, ids: string[]) {
+    if (item.id === ACAO_COPIAR) {
+      setCopiadas(ids);
+      toast.success(ids.length === 1 ? "1 linha copiada." : `${ids.length} linhas copiadas.`, {
+        description: "Escolha uma linha e use Colar abaixo.",
+      });
+      return;
+    }
     if (item.confirmar) {
       const ok = await confirm({
         title: item.confirmar.titulo,
@@ -335,7 +345,11 @@ export function EapWorkspace({
       if (!ok) return;
     }
     await naFila(async () => {
-      if (item.id === ACAO_RECUAR) {
+      if (item.id === ACAO_COLAR) {
+        const r = await colarEapBloco({ projetoId: projeto.id, origemIds: copiadas, depoisDeId: ids[0] ?? null });
+        if (!r.ok) return void toast.error(r.error);
+        toast.success(r.data.criadas === 1 ? "1 linha colada." : `${r.data.criadas} linhas coladas.`);
+      } else if (item.id === ACAO_RECUAR) {
         const r = await recuarEapTarefas({ ids });
         if (!r.ok) return void toast.error(r.error);
         if (r.data.paisComGente > 0) {
@@ -365,6 +379,8 @@ export function EapWorkspace({
   async function aoAcao(t: EapTarefaDTO, item: AcaoItemAcao) {
     // Menu aberto sobre uma seleção de várias linhas: a ação vale para todas (ADR-0002, regra 3).
     if (selecionadas.length > 1 && selecionadas.includes(t.id)) return executarEstrutura(item, selecionadas);
+    // Copiar e colar também estão no menu de UMA linha: valem para ela.
+    if (item.id === ACAO_COPIAR || item.id === ACAO_COLAR) return executarEstrutura(item, [t.id]);
     if (item.confirmar) {
       const ok = await confirm({
         title: item.confirmar.titulo,
@@ -846,6 +862,13 @@ export function EapWorkspace({
                 : itensDeLinhaEap(
                 { nome: t.nome, ehResumo: t.ehResumo, ...contexto },
                   { podeGerir, podeExecutado, cronogramaAprovado: !!cronograma?.aprovado, planoTravado: travado },
+                ).concat(
+                  podeGerir
+                    ? [
+                        { tipo: "separador", id: "sep-copiar-linha" } as const,
+                        ...itensDaSelecao([t.id]).filter((i) => i.tipo === "acao" && (i.id === ACAO_COPIAR || i.id === ACAO_COLAR)),
+                      ]
+                    : [],
                 )
             }
             onAcao={(t, item) => void aoAcao(t, item)}

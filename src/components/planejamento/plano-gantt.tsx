@@ -933,6 +933,12 @@ export function PlanoGantt({
                           } else if (e.key === "F2" && ehEditavel(l, "nome")) {
                             e.preventDefault();
                             iniciar(l.t.id, "nome");
+                          } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "c") {
+                            e.preventDefault();
+                            atalho("copiar-linhas");
+                          } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "v") {
+                            e.preventDefault();
+                            atalho("colar-linhas");
                           } else if (e.key === "Insert") {
                             e.preventDefault();
                             atalho("inserir-acima");
