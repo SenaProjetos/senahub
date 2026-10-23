@@ -659,12 +659,13 @@ export function EapWorkspace({
 
   const comIndicadores = indicadores != null;
   const visoes: [VisaoTela, string][] = [
+    // Quem não vê datas tem a estrutura ("EAP") e, se houver, os Indicadores (o Plano × real não depende das datas).
     ...(verDatas
       ? ([
           ["planejamento", "Gantt"],
           ["controle", "Controle"],
         ] as [VisaoTela, string][])
-      : []),
+      : ([["planejamento", "EAP"]] as [VisaoTela, string][])),
     ...(comIndicadores ? ([["indicadores", "Indicadores"]] as [VisaoTela, string][]) : []),
   ];
   const seletorVisao =
@@ -693,7 +694,6 @@ export function EapWorkspace({
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           Comparar com
           <select
-            aria-label="Versão da linha de base usada na comparação"
             value={baselineEscolhida ?? maisNova ?? ""}
             onChange={(e) => setBaselineEscolhida(Number(e.target.value) === maisNova ? null : Number(e.target.value))}
             className="h-7 max-w-56 rounded-sm border bg-background px-2 text-xs text-foreground outline-none focus-visible:border-primary"
@@ -740,7 +740,7 @@ export function EapWorkspace({
         {achadoFiltro && (
           <span className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
             Achado: {achadoFiltro.rotulo} ({achadoFiltro.ids.size})
-            <button type="button" aria-label="Tirar o filtro do achado" className="-mr-1 rounded-full p-0.5 hover:bg-primary-foreground/20" onClick={() => setAchadoFiltro(null)}>
+            <button type="button" aria-label="Tirar o filtro do achado" className="-my-1 -mr-1.5 inline-flex size-6 items-center justify-center rounded-full hover:bg-primary-foreground/20" onClick={() => setAchadoFiltro(null)}>
               <X className="size-3" />
             </button>
           </span>
@@ -848,6 +848,10 @@ export function EapWorkspace({
 
       {vazio ? (
         <div className="rounded-sm border border-dashed">
+          {(podeGerir || noProjeto) && (
+            // Sem linhas não há barra de ferramentas: o Desfazer (e o Ctrl+Z, que vive nele) e o link do Planejamento ficam aqui.
+            <div className="flex flex-wrap items-center justify-end gap-2 px-3 pt-3">{barraFim}</div>
+          )}
           <EmptyState
             icon={Rocket}
             title="Este projeto ainda não tem planejamento"

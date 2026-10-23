@@ -6,7 +6,7 @@ import type { Dia } from "@/lib/calendario-trabalho";
 import { paraDataUtc, paraDia } from "./agenda";
 import { regrasDeEdicao } from "./edicao-linha";
 import { mudaCampoDoPlano } from "./trava-plano";
-import { exigirPlanoEditavel, exigirPlanoEditavelDaLinha } from "./trava-plano-service";
+import { exigirPlanoEditavel } from "./trava-plano-service";
 import { registrarProgresso } from "./progresso-historico-service";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
 import { trocarPredecessoras } from "./dependencias-service";
@@ -158,34 +158,36 @@ export async function salvarLinhaNoBanco(i: SalvarLinha, autorId: string): Promi
   });
   if (!linha) throw new ActionError("Tarefa não encontrada.");
   const { projetoId } = linha;
-  // A foto do desfazer é só do PLANO (o % é acompanhamento e fica de fora dela): o % vai por último, quando todo o resto
-  // já passou — assim uma recusa no meio nunca deixa um % gravado.
-  const foto = await fotoDoPlano(projetoId);
+  if (i.restricao?.tipo && !i.restricao.data) throw new ActionError("Informe a data da restrição.");
+  // Predecessoras, datas e restrição são PLANO: com o plano aprovado, recusa ANTES de gravar qualquer coisa (nome e %
+  // seguem livres, mas não pela metade de uma gravação recusada).
+  const mexeNoPlano = !!(i.predecessoras || i.restricao || i.inicio || i.termino);
+  if (mexeNoPlano) await exigirPlanoEditavel(projetoId);
+  // Só uma gravação em várias etapas precisa da foto para voltar. A foto do desfazer é só do PLANO (o % é acompanhamento
+  // e fica de fora dela): o % vai por último, quando todo o resto já passou — uma recusa no meio nunca deixa % gravado.
+  const foto = mexeNoPlano ? await fotoDoPlano(projetoId) : null;
   try {
     await editarLinhaNoBanco({ ...i, progresso: linha.progresso }, autorId);
     if (i.predecessoras) {
-      await exigirPlanoEditavelDaLinha(i.id);
       await trocarPredecessoras({ tarefaId: i.id, vinculos: i.predecessoras });
     }
     if (i.restricao) {
-      if (i.restricao.tipo && !i.restricao.data) throw new ActionError("Informe a data da restrição.");
-      await exigirPlanoEditavelDaLinha(i.id);
       await prisma.eapTarefa.update({
         where: { id: i.id },
         data: { restricaoTipo: i.restricao.tipo, restricaoData: i.restricao.tipo && i.restricao.data ? paraDataUtc(i.restricao.data) : null },
       });
     } else if (i.inicio) {
-      await exigirPlanoEditavelDaLinha(i.id);
       await definirInicioDaLinha({ id: i.id, data: i.inicio });
     }
     // Por último: o término conta os dias úteis a partir do início que o motor dá DEPOIS das mudanças de cima.
     if (i.termino) {
-      await exigirPlanoEditavelDaLinha(i.id);
       await definirTerminoDaLinha({ id: i.id, data: i.termino });
     }
     if (i.progresso !== linha.progresso) {
       await prisma.$transaction(async (tx) => {
-        await tx.eapTarefa.update({ where: { id: i.id }, data: { progresso: i.progresso } });
+        // Condicionado ao % lido: se outra pessoa mudou nesse meio-tempo, recusa em vez de sobrescrever.
+        const r = await tx.eapTarefa.updateMany({ where: { id: i.id, progresso: linha.progresso }, data: { progresso: i.progresso } });
+        if (r.count !== 1) throw new ActionError("O % desta linha mudou enquanto você editava. Recarregue e tente de novo.");
         await registrarProgresso(tx, {
           tarefaId: i.id,
           projetoId,
@@ -198,10 +200,13 @@ export async function salvarLinhaNoBanco(i: SalvarLinha, autorId: string): Promi
       });
     }
   } catch (e) {
-    try {
-      await voltarAFoto(projetoId, foto);
-    } catch (falha) {
-      console.error("[salvar linha] falha ao voltar o plano depois de um erro:", falha);
+    if (foto) {
+      try {
+        await voltarAFoto(projetoId, foto);
+      } catch (falha) {
+        console.error("[salvar linha] falha ao voltar o plano depois de um erro:", falha);
+        throw new ActionError("Não foi possível salvar, e a linha pode ter ficado gravada pela metade. Recarregue a tela e confira.");
+      }
     }
     throw e;
   }

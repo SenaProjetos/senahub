@@ -162,6 +162,14 @@ export function EapLinhaPainel({
   useEffect(() => {
     onAlteracoes?.(totalMudou);
   }, [totalMudou, onAlteracoes]);
+  // A linha aberta sumiu (excluída pelo menu, por outra pessoa, ou desfeita com Ctrl+Z): o painel fecha — senão ele viraria
+  // um "Nova tarefa" com o Salvar criando uma linha.
+  // A linha recém-criada só chega na lista com o refresh: até lá ela não "sumiu".
+  const [criadaId, setCriadaId] = useState<string | null>(null);
+  const sumiu = aberto && !nova && !!linhaId && !linha && linhaId !== criadaId;
+  useEffect(() => {
+    if (sumiu) onFechar();
+  }, [sumiu, onFechar]);
 
   const [restricaoAberta, setRestricaoAberta] = useState(false);
   const [bloqueioAberto, setBloqueioAberto] = useState(false);
@@ -206,7 +214,7 @@ export function EapLinhaPainel({
   }
 
   function salvar() {
-    if (pending || !form.nome.trim()) return;
+    if (pending || !form.nome.trim() || (linha && mudou.length === 0)) return;
     const semDuracao = form.marco || ehResumo;
     const duracaoDias = Number(form.duracao.replace(",", "."));
     if (!semDuracao && !terminoDigitado && !(duracaoDias > 0)) {
@@ -233,17 +241,22 @@ export function EapLinhaPainel({
         if (!r.ok) return void toast.error(r.error);
         toast.success("Tarefa criada — datas calculadas.");
         setAlteracoes({});
+        setCriadaId(r.data.id);
         onNavegar(r.data.id);
         router.refresh();
         return;
       }
-      const mudouRestricao = mudou.includes("restricaoTipo") || mudou.includes("restricaoData");
+      // "Tirar" a data fixada e digitar um início novo = o início vira o alfinete (não some calado).
+      const mudouRestricao =
+        (mudou.includes("restricaoTipo") || mudou.includes("restricaoData")) && !(form.restricaoTipo === "" && mudou.includes("inicio") && form.inicio);
       const r = await salvarLinhaEap({
         id: linha.id,
         nome: form.nome,
         disciplinaId: form.disciplinaId,
         etapaId: form.etapaId,
-        duracaoDias: semDuracao || terminoDigitado ? undefined : duracaoDias,
+        // Com o término digitado a duração sai dele; o servidor ainda pede uma duração válida para o editar (marco que vira
+        // atividade tem 0): vai a gravada, ou 1.
+        duracaoDias: semDuracao ? undefined : terminoDigitado ? Number(base.duracao.replace(",", ".")) || 1 : duracaoDias,
         progresso: form.progresso,
         marco: form.marco,
         inicio: mudou.includes("inicio") && form.inicio ? form.inicio : undefined,
@@ -308,6 +321,8 @@ export function EapLinhaPainel({
   }
 
   function aoTeclar(e: KeyboardEvent) {
+    // Teclas da janela da árvore (portal, filho no React) não comandam o painel.
+    if (!(e.currentTarget as HTMLElement).contains(e.target as Node)) return;
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
       e.preventDefault();
       salvar();
@@ -323,7 +338,7 @@ export function EapLinhaPainel({
   const restricaoAtual = form.restricaoTipo ? `${RESTRICAO_LABEL[form.restricaoTipo] ?? form.restricaoTipo} ${form.restricaoData ? formatarData(form.restricaoData) : "—"}` : null;
 
   return (
-    <Sheet open={aberto} modal={false} disablePointerDismissal onOpenChange={(o) => !o && void fechar()}>
+    <Sheet open={aberto && !sumiu} modal={false} disablePointerDismissal onOpenChange={(o) => !o && void fechar()}>
       <SheetContent semFundo showCloseButton={false} className="w-full gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-[540px]" onKeyDown={aoTeclar}>
         {/* Cabeçalho: código, nome, sinais e ↑↓ */}
         <div className="space-y-2 border-b px-4 pb-3 pt-3">
@@ -565,7 +580,7 @@ export function EapLinhaPainel({
                       <Pin className="size-3.5 text-muted-foreground" aria-hidden />
                       <span className="min-w-0 flex-1">{restricaoAtual ?? <span className="text-muted-foreground">Sem data fixada — a tarefa segue as predecessoras.</span>}</span>
                       {restricaoAtual && !trava && (
-                        <button type="button" className="text-info hover:underline" onClick={() => set({ restricaoTipo: "", restricaoData: "" })}>
+                        <button type="button" className="text-info hover:underline" aria-label="Tirar a data fixada" onClick={() => set({ restricaoTipo: "", restricaoData: "" })}>
                           Tirar
                         </button>
                       )}
@@ -617,7 +632,7 @@ export function EapLinhaPainel({
                 <>
                   <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="% concluído">
                     {[0, 25, 50, 75, 100].map((v) => (
-                      <Button key={v} type="button" size="sm" variant="outline" aria-pressed={form.progresso === v} className={cn("h-7 w-12 px-0", form.progresso === v && "border-primary bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90")} onClick={() => set({ progresso: v })}>
+                      <Button key={v} type="button" size="sm" variant="outline" aria-pressed={form.progresso === v} className={cn("h-7 w-12 px-0", form.progresso === v && "border-primary bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-primary")} onClick={() => set({ progresso: v })}>
                         {v}%
                       </Button>
                     ))}
@@ -626,6 +641,7 @@ export function EapLinhaPainel({
                     </Label>
                     <Input
                       id="linha-progresso"
+                      aria-label="% concluído, outro valor"
                       inputMode="numeric"
                       className="h-7 w-16 font-mono"
                       value={String(form.progresso)}
@@ -685,8 +701,14 @@ export function EapLinhaPainel({
                         type="number"
                         className="h-7 w-14 px-1 font-mono text-xs"
                         disabled={trava}
-                        value={v.lagDias}
-                        onChange={(e) => set({ predecessoras: form.predecessoras.map((x, j) => (j === idx ? { ...x, lagDias: Number(e.target.value) || 0 } : x)) })}
+                        // Sem controle a cada tecla: "-" sozinho viraria 0 e não daria para digitar defasagem negativa. Grava ao sair.
+                        key={`${v.predecessoraId}:${v.lagDias}`}
+                        defaultValue={v.lagDias}
+                        onBlur={(e) => {
+                          const n = Number(e.target.value);
+                          if (e.target.value.trim() === "" || !Number.isFinite(n) || n === v.lagDias) return;
+                          set({ predecessoras: form.predecessoras.map((x, j) => (j === idx ? { ...x, lagDias: n } : x)) });
+                        }}
                       />
                       <span className="text-[11px] text-muted-foreground">d</span>
                       <Button

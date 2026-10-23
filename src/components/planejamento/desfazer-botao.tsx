@@ -66,7 +66,7 @@ export function DesfazerBotao({
         onClick={desfazer}
         disabled={!pode || pending}
         aria-keyshortcuts="Control+Z"
-        aria-label={compacto ? "Desfazer" : undefined}
+        aria-label={compacto ? (pode && rotulo ? `Desfazer: ${rotulo}` : "Desfazer") : undefined}
       >
         <Undo2 className="size-3.5" />
         {!compacto && " Desfazer"}

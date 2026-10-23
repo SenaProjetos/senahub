@@ -104,7 +104,7 @@ const editarSchema = z.object({
 const idSchema = z.object({ id: z.string().min(1) });
 const projetoIdSchema = z.object({ projetoId: z.string().min(1) });
 const depSchema = z.object({ tarefaId: z.string().min(1), predecessoraId: z.string().min(1) });
-const tipoVinculoSchema = z.enum(["fs", "ss", "ff", "sf"]);
+const tipoVinculoSchema = z.enum(["fs", "ss", "ff", "sf"], { message: "Tipo de vínculo inválido." });
 const vincularSchema = depSchema.extend({
   tipo: tipoVinculoSchema.default("fs"),
   lagDias: z.number().finite().default(0),
@@ -129,7 +129,7 @@ const restricaoSchema = z.object({
       "terminar_em",
       "terminar_nao_antes_de",
       "terminar_nao_depois_de",
-    ])
+    ], { message: "Tipo de restrição inválido." })
     .nullable(),
   data: opt(z.string()),
 });
@@ -995,7 +995,7 @@ const predecessorasSchema = z.object({
         predecessoraId: z.string().min(1),
         tipo: tipoVinculoSchema,
         // Dias ÚTEIS; negativo = antecipação (Doc 03 §13).
-        lagDias: z.number().finite().min(-9999).max(9999),
+        lagDias: z.number({ message: "Informe a defasagem em dias úteis." }).finite().min(-9999, "A defasagem vai de -9999 a 9999 dias úteis.").max(9999, "A defasagem vai de -9999 a 9999 dias úteis."),
       }),
     )
     .max(50, "Predecessoras demais para uma linha."),
@@ -1391,13 +1391,31 @@ export const salvarLinhaEap = defineAction(
     capturarAntes: async (i) => {
       const t = await prisma.eapTarefa.findUnique({
         where: { id: i.id },
-        select: { nome: true, tipoEap: true, disciplinaId: true, etapaId: true, duracaoDias: true, progresso: true, restricaoTipo: true, restricaoData: true },
+        select: {
+          nome: true,
+          tipoEap: true,
+          disciplinaId: true,
+          etapaId: true,
+          duracaoDias: true,
+          progresso: true,
+          restricaoTipo: true,
+          restricaoData: true,
+          predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
+        },
       });
-      return t ? { ...t, duracaoDias: Number(t.duracaoDias), restricaoData: t.restricaoData ? paraDia(t.restricaoData) : null } : null;
+      return t
+        ? {
+            ...t,
+            duracaoDias: Number(t.duracaoDias),
+            restricaoData: t.restricaoData ? paraDia(t.restricaoData) : null,
+            predecessoras: t.predecessoras.map((p) => ({ ...p, lagDias: Number(p.lagDias) })),
+          }
+        : null;
     },
   },
   comPassoDaAction(
-    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: (i) => `Editar "${i.nome}"` },
+    // O nome lido ANTES: numa renomeação, o Ctrl+Z diz qual linha era.
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Editar") },
     async (i, { user }) => {
       const r = await salvarLinhaNoBanco(i, user.id);
       revProjeto(r.projetoId);

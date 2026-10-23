@@ -336,7 +336,7 @@ export function FaixaCronograma({
           type="button"
           onClick={() => setPainelAberto(true)}
           className="inline-flex items-center gap-1.5 rounded-sm px-1 py-0.5 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label={`Saúde do cronograma: ${nota ?? "—"}%, ${resumoAchados}. Abrir detalhes`}
+          aria-label={`Saúde do cronograma: ${nota ?? "—"}%${faixa ? ` (${rotuloFaixa(faixa)})` : ""}, ${resumoAchados}. Abrir detalhes`}
         >
           <Icone className={`size-4 ${faixa ? FAIXA_COR[faixa]?.split(" ")[0] : "text-muted-foreground"}`} aria-hidden />
           <strong className="tabular-nums">{nota ?? "—"}%</strong>

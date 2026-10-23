@@ -146,7 +146,10 @@ export function SaudeCronogramaPainel({
                       >
                         {lista.length}
                       </Badge>
-                      <span className="min-w-0 flex-1">{rotulo}</span>
+                      <span className="min-w-0 flex-1">
+                        {rotulo}
+                        <span className="sr-only"> — {sev === "erro" ? "erro" : sev === "alerta" ? "alerta" : "aviso"}</span>
+                      </span>
                       {regra === "disciplina_diferente_do_agrupamento" && podeCorrigirDisciplina && (
                         // O motivo vai no <span>: o botão desabilitado não recebe o mouse e o `title` dele nunca apareceria.
                         <span title={planoTravado ? MOTIVO_PLANO_TRAVADO : undefined}>
@@ -160,6 +163,7 @@ export function SaudeCronogramaPainel({
                           type="button"
                           className="text-xs text-info underline-offset-2 hover:underline"
                           onClick={() => onVerNaTabela(rotulo, ids)}
+                          aria-label={`Ver na tabela as linhas: ${rotulo}`}
                         >
                           Ver na tabela
                         </button>
