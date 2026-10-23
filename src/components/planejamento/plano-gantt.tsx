@@ -120,6 +120,13 @@ export type PlanoGanttProps = {
    * subtarefas junto. Sem esta prop não há alça. Mover para cima/baixo pelo teclado passa pelo menu (`onAcao`).
    */
   onMover?: (t: EapTarefaDTO, alvoId: string, posicao: "antes" | "depois") => void;
+  /**
+   * A seleção de linhas mudou (ordem de documento). Clique simples seleciona uma; Ctrl/⌘+clique alterna; Shift+clique
+   * seleciona o intervalo. É o que as setas da barra de estrutura e o menu de contexto usam para agir em várias linhas.
+   */
+  onSelecaoChange?: (ids: string[]) => void;
+  /** Cada vez que este número muda, a seleção é limpa (o botão "Limpar" da barra de estrutura). */
+  sinalLimparSelecao?: number;
   /** Uma linha recém-criada cujo nome deve abrir em edição assim que ela aparecer na tabela. */
   focoNomeId?: string | null;
   onFocoConsumido?: () => void;
@@ -174,6 +181,8 @@ export function PlanoGantt({
   menuDe,
   onAcao,
   onMover,
+  onSelecaoChange,
+  sinalLimparSelecao = 0,
   focoNomeId = null,
   onFocoConsumido,
   celulaRecursos,
@@ -191,7 +200,14 @@ export function PlanoGantt({
   // com uma nesga de tela. Sem gráfico (sem datas) não há o que poupar.
   const [compacto, setCompacto] = useState(verDatas);
   const [hoverId, setHoverId] = useState<string | null>(null);
-  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+  // Seleção de várias linhas: o conjunto e a âncora do Shift+clique.
+  const [selecaoBruta, setSelecaoBruta] = useState<ReadonlySet<string>>(new Set());
+  const ancoraRef = useRef<string | null>(null);
+  const [sinalVisto, setSinalVisto] = useState(sinalLimparSelecao);
+  if (sinalLimparSelecao !== sinalVisto) {
+    setSinalVisto(sinalLimparSelecao);
+    setSelecaoBruta(new Set());
+  }
   const [edicao, setEdicao] = useState<{ id: string; campo: CampoEditavel } | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [invalida, setInvalida] = useState(false);
@@ -208,6 +224,43 @@ export function PlanoGantt({
   // A linha se identifica pelo CÓDIGO da EAP (1.2.3): é o que a coluna EDT mostra e o que as predecessoras citam.
   const codigoPorId = useMemo(() => new Map(grade.map((l) => [l.t.id, l.codigo])), [grade]);
   const idPorCodigo = useMemo(() => new Map(grade.map((l) => [l.codigo, l.t.id])), [grade]);
+  // Só vale o que ainda existe na lista (depois de excluir, o id some da seleção sem efeito para limpar).
+  const selecao = useMemo(() => {
+    const existentes = new Set(grade.map((l) => l.t.id));
+    return new Set([...selecaoBruta].filter((id) => existentes.has(id)));
+  }, [selecaoBruta, grade]);
+  const selecaoEmOrdem = useMemo(() => grade.map((l) => l.t.id).filter((id) => selecao.has(id)), [grade, selecao]);
+  const selecaoChave = selecaoEmOrdem.join("|");
+  useEffect(() => {
+    onSelecaoChange?.(selecaoEmOrdem);
+    // `selecaoChave` representa o conteúdo: sem ela o efeito dispararia a cada render (o array é novo toda vez).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selecaoChave]);
+
+  /** Clique numa linha: simples seleciona só ela; Ctrl/⌘ alterna; Shift seleciona o intervalo visível desde a âncora. */
+  function selecionarLinha(id: string, e?: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }) {
+    if (e?.shiftKey && ancoraRef.current) {
+      const ids = linhas.map((l) => l.t.id);
+      const a = ids.indexOf(ancoraRef.current);
+      const b = ids.indexOf(id);
+      if (a >= 0 && b >= 0) {
+        setSelecaoBruta(new Set(ids.slice(Math.min(a, b), Math.max(a, b) + 1)));
+        return;
+      }
+    }
+    if (e?.ctrlKey || e?.metaKey) {
+      setSelecaoBruta((atual) => {
+        const proxima = new Set(atual);
+        if (!proxima.delete(id)) proxima.add(id);
+        return proxima;
+      });
+      ancoraRef.current = id;
+      return;
+    }
+    setSelecaoBruta(new Set([id]));
+    ancoraRef.current = id;
+  }
+
   const contextos = useMemo(() => new Map(grade.map((l, i) => [l.t.id, contextoDaLinha(grade, i)])), [grade]);
   const linhas: Linha[] = useMemo(
     () => (filtroIds ? soAsDoFiltro(grade, filtroIds) : linhasVisiveis(grade, recolhidos)),
@@ -254,7 +307,7 @@ export function PlanoGantt({
   };
 
   const iniciar = (id: string, campo: CampoEditavel) => {
-    setSelecionadaId(id);
+    selecionarLinha(id);
     setInvalida(false);
     setEdicao({ id, campo });
   };
@@ -333,7 +386,7 @@ export function PlanoGantt({
     setInvalida(false);
     const prox = destino === "fica" ? null : vizinha(l.t.id, campo, destino);
     setEdicao(prox);
-    if (prox) setSelecionadaId(prox.id);
+    if (prox) selecionarLinha(prox.id);
     return true;
   }
 
@@ -854,18 +907,30 @@ export function PlanoGantt({
                     itens={itens}
                     onSelect={(item) => onAcao?.(l.t, item)}
                     aoAbrir={(aberto) => {
-                      if (aberto) setSelecionadaId(l.t.id);
+                      if (!aberto) return;
+                      // Menu de contexto fora da seleção troca a seleção pela linha clicada; dentro, mantém (ADR-0002).
+                      if (!selecao.has(l.t.id)) {
+                        setSelecaoBruta(new Set([l.t.id]));
+                        ancoraRef.current = l.t.id;
+                      }
                     }}
                     render={
                       <div
                         role="row"
                         tabIndex={0}
-                        aria-selected={selecionadaId === l.t.id}
-                        onClick={() => setSelecionadaId(l.t.id)}
+                        aria-selected={selecao.has(l.t.id)}
+                        onMouseDown={(e) => {
+                          // Shift+clique seleciona linhas, não texto.
+                          if (e.shiftKey) e.preventDefault();
+                        }}
+                        onClick={(e) => selecionarLinha(l.t.id, e)}
                         onDoubleClick={() => onAbrir?.(l.t)}
                         onKeyDown={(e) => {
                           if (e.target !== e.currentTarget) return; // teclas de dentro de uma célula em edição não chegam aqui
-                          if (e.key === "F2" && ehEditavel(l, "nome")) {
+                          if (e.key === "Escape" && selecao.size > 0) {
+                            e.preventDefault();
+                            setSelecaoBruta(new Set());
+                          } else if (e.key === "F2" && ehEditavel(l, "nome")) {
                             e.preventDefault();
                             iniciar(l.t.id, "nome");
                           } else if (e.key === "Insert") {
@@ -901,7 +966,7 @@ export function PlanoGantt({
                           // aos olhos. No hover ele escurece mais um degrau, senão não mudaria nada.
                           l.temFilhos && "bg-muted",
                           hoverId === l.t.id && (l.temFilhos ? "bg-border/60" : "bg-muted"),
-                          selecionadaId === l.t.id && "bg-primary/10",
+                          selecao.has(l.t.id) && "bg-primary/10",
                           arrasto?.junto.has(l.t.id) && "opacity-50",
                           // Onde a linha vai cair: um traço em cima ou embaixo desta.
                           destino?.id === l.t.id &&
@@ -958,9 +1023,9 @@ export function PlanoGantt({
                       escala={escala}
                       geo={geometria.get(l.t.id)}
                       top={i * ROW_H}
-                      destaque={hoverId === l.t.id || selecionadaId === l.t.id}
+                      destaque={hoverId === l.t.id || selecao.has(l.t.id)}
                       onHover={(h) => setHoverId((atual) => (h ? l.t.id : atual === l.t.id ? null : atual))}
-                      onSelecionar={() => setSelecionadaId(l.t.id)}
+                      onSelecionar={() => selecionarLinha(l.t.id)}
                       onAbrir={onAbrir}
                     />
                   ))}
@@ -1033,6 +1098,8 @@ function CelulaEditavel({
       <div
         className="flex h-6 min-w-0 flex-1 cursor-text items-center rounded-sm px-1 hover:bg-primary/5 hover:ring-1 hover:ring-primary/30"
         onClick={(e) => {
+          // Ctrl/⌘ e Shift+clique são seleção de linhas: deixa a linha tratar, sem abrir a edição da célula.
+          if (e.ctrlKey || e.metaKey || e.shiftKey) return;
           e.stopPropagation();
           aoIniciar();
         }}

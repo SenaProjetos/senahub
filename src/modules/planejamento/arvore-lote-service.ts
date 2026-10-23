@@ -5,6 +5,7 @@ import { ActionError } from "@/lib/action-error";
 import { avancarLinha, moverLinhaNoNivel, proximaOrdem, type Db } from "./arvore-service";
 import {
   MAX_LINHAS_LOTE,
+  motivoDaLinha,
   motivoParaAvancarEmLote,
   motivoParaMoverEmLote,
   planoDeRecuoEmLote,
@@ -39,7 +40,7 @@ export async function carregarLote(ids: readonly string[], db: Db = prisma) {
 }
 
 const recusa = (nomes: ReadonlyMap<string, string>, r: { motivo: string; linhaId?: string }) =>
-  new ActionError(r.linhaId && nomes.get(r.linhaId) ? `${nomes.get(r.linhaId)}: ${r.motivo}` : r.motivo);
+  new ActionError(motivoDaLinha(r.linhaId ? nomes.get(r.linhaId) : undefined, r.motivo));
 
 const TRANSACAO = { timeout: 60_000, maxWait: 30_000 };
 

@@ -26,6 +26,9 @@ export const MAX_LINHAS_LOTE = 200;
 
 const MOTIVO_NENHUMA_LINHA = "Escolha ao menos uma linha.";
 
+/** A frase de recusa com o nome da linha na frente: a MESMA no `ActionError` e no item desabilitado do menu. */
+export const motivoDaLinha = (nome: string | undefined, motivo: string): string => (nome ? `${nome}: ${motivo}` : motivo);
+
 /** As linhas em ordem de documento: profundidade, irmãs por `ordem` (empate pelo `id`) — a ordem que a tela mostra. */
 export function ordemDeDocumento(nos: readonly NoArvore[]): string[] {
   const ids = new Set(nos.map((n) => n.id));

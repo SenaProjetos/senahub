@@ -29,6 +29,10 @@ import {
   gerarTarefaDeEap,
   inserirEapTarefaAcima,
   apagarEap,
+  avancarEapTarefas,
+  excluirEapTarefas,
+  moverEapTarefasNoNivel,
+  recuarEapTarefas,
   moverEapTarefa,
   moverEapTarefaNoNivel,
   reagendarPlano,
@@ -44,6 +48,7 @@ import { somarDias } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AplicarModeloDialog, type PreviaDeModelo } from "@/components/planejamento/modelos/aplicar-modelo-dialog";
+import { BarraEstrutura } from "@/components/planejamento/barra-estrutura";
 import { DesfazerBotao } from "@/components/planejamento/desfazer-botao";
 import { GerarEapDisciplinasDialog } from "@/components/planejamento/modelos/gerar-eap-disciplinas-dialog";
 import type { OpcaoDeDisciplina } from "@/modules/planejamento/modelos/disciplina-service";
@@ -60,6 +65,8 @@ import {
   ACAO_RECUAR,
   itensDeLinhaEap,
 } from "@/modules/planejamento/acoes-eap";
+import { itensDeEstruturaEap } from "@/modules/planejamento/acoes-lote-eap";
+import type { NoArvore } from "@/modules/planejamento/arvore-eap";
 import { MOTIVO_PLANO_TRAVADO, planoTravado } from "@/modules/planejamento/trava-plano";
 import type { Larguras } from "@/modules/planejamento/gantt-larguras";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
@@ -164,6 +171,9 @@ export function EapWorkspace({
     tarefa: null,
   });
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  /** Linhas selecionadas no cronograma (Ctrl/Shift+clique), em ordem de documento. */
+  const [selecionadas, setSelecionadas] = useState<string[]>([]);
+  const [sinalLimparSelecao, setSinalLimparSelecao] = useState(0);
   /** Linha no "Atualizar tarefa" (datas reais) — `null` = fechado. */
   const [execucao, setExecucao] = useState<EapTarefaDTO | null>(null);
   /** Folhas sem custo conhecido — o que falta cadastrar para o custo previsto fechar. */
@@ -300,11 +310,57 @@ export function EapWorkspace({
     });
   }
 
+  /** A árvore e os nomes que o descritor de estrutura precisa — tudo da lista que a tela já tem. */
+  const nosDaArvore: NoArvore[] = tarefas.map((t) => ({ id: t.id, parentId: t.parentId, ordem: t.ordem, tipoEap: t.tipoEap }));
+  const nomesDasLinhas = new Map(tarefas.map((t) => [t.id, t.nome]));
+  const itensDaSelecao = () =>
+    itensDeEstruturaEap({ nos: nosDaArvore, nomes: nomesDasLinhas, selecionadas, planoTravado: travado });
+
+  /**
+   * As setas da barra e o menu sobre uma SELEÇÃO: UMA chamada ao servidor (tudo ou nada, um reagendamento, um passo de
+   * desfazer). O `confirm` vem ANTES de gravar e nenhuma passa por `startTransition`.
+   */
+  async function executarEstrutura(item: AcaoItemAcao, ids: string[]) {
+    if (item.confirmar) {
+      const ok = await confirm({
+        title: item.confirmar.titulo,
+        description: item.confirmar.descricao,
+        confirmLabel: item.confirmar.rotuloConfirmar ?? "Confirmar",
+        variant: item.variant === "destructive" ? "destructive" : undefined,
+      });
+      if (!ok) return;
+    }
+    await naFila(async () => {
+      if (item.id === ACAO_RECUAR) {
+        const r = await recuarEapTarefas({ ids });
+        if (!r.ok) return void toast.error(r.error);
+        if (r.data.paisComGente > 0) {
+          toast.warning("A tarefa de cima virou agrupamento e ainda tem pessoas atribuídas.", {
+            description: "As horas delas deixam de contar — passe as pessoas para as tarefas dentro do agrupamento.",
+          });
+        }
+      } else if (item.id === ACAO_AVANCAR) {
+        const r = await avancarEapTarefas({ ids });
+        if (!r.ok) return void toast.error(r.error);
+      } else if (item.id === ACAO_MOVER_CIMA || item.id === ACAO_MOVER_BAIXO) {
+        const r = await moverEapTarefasNoNivel({ ids, direcao: item.id === ACAO_MOVER_CIMA ? -1 : 1 });
+        if (!r.ok) return void toast.error(r.error);
+      } else if (item.id === ACAO_EXCLUIR) {
+        const r = await excluirEapTarefas({ ids });
+        if (!r.ok) return void toast.error(r.error);
+        toast.success(r.data.excluidas === 1 ? "Linha excluída." : `${r.data.excluidas} linhas excluídas.`);
+      }
+      router.refresh();
+    });
+  }
+
   /**
    * O que cada item do menu da linha faz (o descritor é `itensDeLinhaEap`). O `confirm` vem ANTES de qualquer
    * gravação — e nenhuma passa por `startTransition`: confirm dentro de transição trava o React 19.
    */
   async function aoAcao(t: EapTarefaDTO, item: AcaoItemAcao) {
+    // Menu aberto sobre uma seleção de várias linhas: a ação vale para todas (ADR-0002, regra 3).
+    if (selecionadas.length > 1 && selecionadas.includes(t.id)) return executarEstrutura(item, selecionadas);
     if (item.confirmar) {
       const ok = await confirm({
         title: item.confirmar.titulo,
@@ -735,6 +791,16 @@ export function EapWorkspace({
               ))}
           </div>
 
+          {podeGerir && (
+            <BarraEstrutura
+              itens={itensDaSelecao()}
+              total={selecionadas.length}
+              onAcao={(item) => void executarEstrutura(item, selecionadas)}
+              onLimpar={() => setSinalLimparSelecao((n) => n + 1)}
+              pendente={pending}
+            />
+          )}
+
           <PlanoGantt
             tarefas={tarefasComBase}
             rotuloBase={rotuloBase}
@@ -759,11 +825,15 @@ export function EapWorkspace({
             largurasIniciais={largurasColunas}
             onEditarPredecessoras={podeGerir && !travado ? editarPredecessoras : undefined}
             onErro={(mensagem) => toast.error(mensagem)}
+            onSelecaoChange={setSelecionadas}
+            sinalLimparSelecao={sinalLimparSelecao}
             menuDe={(t, contexto) =>
-              itensDeLinhaEap(
+              selecionadas.length > 1 && selecionadas.includes(t.id)
+                ? itensDaSelecao()
+                : itensDeLinhaEap(
                 { nome: t.nome, ehResumo: t.ehResumo, ...contexto },
-                { podeGerir, podeExecutado, cronogramaAprovado: !!cronograma?.aprovado, planoTravado: travado },
-              )
+                  { podeGerir, podeExecutado, cronogramaAprovado: !!cronograma?.aprovado, planoTravado: travado },
+                )
             }
             onAcao={(t, item) => void aoAcao(t, item)}
             onMover={podeGerir && !travado ? mover : undefined}
