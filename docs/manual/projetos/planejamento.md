@@ -143,6 +143,27 @@ Clique numa linha (ou em **Nova tarefa**). Quem tem só `planejamento:ver` não 
   [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md)).
 - **Restrição de data** e **Bloqueio** — veja abaixo.
 
+### Desfazer (Ctrl+Z)
+
+Errou ao excluir, mover ou recuar? Use **Desfazer** (ao lado de **Nova tarefa**) ou **Ctrl+Z** (⌘Z no Mac). O botão
+mostra o que será desfeito ("Desfazer: Excluir \"Modelagem\"").
+
+- **O que volta:** a última mudança **do plano feita por você** neste projeto — excluir, criar, inserir, mover,
+  recuar/avançar, renomear, duração e marco, disciplina e fase, predecessoras, restrição de data, início do projeto,
+  pessoas e horas. Excluir um agrupamento e desfazer devolve **tudo que ele levou junto**: as subtarefas, as
+  predecessoras, as pessoas atribuídas e a ligação de parcela de contrato com o marco, com os **mesmos códigos
+  corporativos** (`ATV-…`).
+- **Quantos passos:** os **20 últimos** por pessoa e por projeto; cada Ctrl+Z desfaz um passo.
+- **O que não volta:** % concluído, datas reais, bloqueio, Data de Status, aprovar/replanejar, aplicar modelo, gerar
+  EAP das disciplinas e **Apagar EAP** (este continua sem desfazer). Se você mudou o % depois de uma ação, desfazer
+  a ação não mexe no %.
+- **Se outra pessoa editou o plano depois da sua ação**, o sistema **não desfaz** (não sobrescreve o trabalho dela)
+  e descarta a sua lista de passos.
+- **Cronograma aprovado:** o desfazer só vale com o plano editável (rascunho ou **Revisar planejamento**). Ao
+  **aprovar** o cronograma, ou ao fechar a revisão com a nova linha de base, a lista de passos é apagada.
+- **Dentro de um campo de texto** (nome da linha em edição, janela aberta), o Ctrl+Z continua sendo o do campo.
+  Aperte **Esc** ou clique fora para usar o do plano — ou use o botão **Desfazer**.
+
 ### Dependências
 
 Em **Depende de**, marque as tarefas que precisam acontecer antes. Para cada uma escolha o tipo e

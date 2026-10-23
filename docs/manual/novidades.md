@@ -20,6 +20,13 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## EAP: desfazer com Ctrl+Z (outubro/2026)
+
+- **Errou? Desfaça.** Na EAP do planejamento, o botão **Desfazer** e o atalho **Ctrl+Z** voltam a última mudança do
+  plano que você fez — inclusive uma exclusão: o agrupamento volta com as subtarefas, as predecessoras e as
+  pessoas. Guarda os 20 últimos passos de cada pessoa, em cada projeto.
+  [Saiba mais](projetos/planejamento.md#desfazer-ctrl-z)
+
 ## EAP: disciplina da linha e fase no card (outubro/2026)
 
 - **Linha nova nasce na disciplina certa.** Ao inserir uma linha na EAP, ela agora recebe a disciplina do
