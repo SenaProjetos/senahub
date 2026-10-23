@@ -120,6 +120,13 @@ async function main() {
     check("plano editado por outra pessoa: recusa com a frase", recusa === MOTIVO_PLANO_MUDOU, recusa);
     check("e descarta a pilha, sem sobrescrever nada", (await passos()) === 0 && (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id } })).nome === "Edição de outra pessoa");
 
+    // ── dois Ctrl+Z ao mesmo tempo: um desfaz, o outro responde "nada para desfazer" ──
+    await comPasso({ ...p, rotulo: "Excluir a mãe de novo" }, () => prisma.eapTarefa.delete({ where: { id: M.id } }));
+    const duplo = await Promise.allSettled([desfazerUltimoPasso(p.projetoId, p.userId), desfazerUltimoPasso(p.projetoId, p.userId)]);
+    const rejeitado = duplo.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+    check("Ctrl+Z duplo: um passa e o outro recebe a frase de nada a desfazer (não um erro de banco)", duplo.filter((r) => r.status === "fulfilled").length === 1 && rejeitado.length === 1 && rejeitado[0].reason?.message === MOTIVO_NADA_A_DESFAZER, duplo.map((r) => (r.status === "rejected" ? String(r.reason?.message).slice(0, 80) : "ok")));
+    check("e a mãe voltou uma vez só", (await prisma.eapTarefa.count({ where: { projetoId: projeto.id } })) === 4);
+
     // ── o invólucro das actions (`comPassoDaAction`) ─────────────────────────
     const ctx = { user: { id: admin.id } } as never;
     const renomear = comPassoDaAction(

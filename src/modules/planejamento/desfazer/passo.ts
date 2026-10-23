@@ -1,7 +1,8 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { ActionError, type ActionContext } from "@/lib/with-action";
+import { ActionError } from "@/lib/action-error";
+import type { ActionContext } from "@/lib/with-action";
 import { comPasso } from "./service";
 
 /**

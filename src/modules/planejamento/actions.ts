@@ -31,7 +31,7 @@ import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "@/modules/planejamento/desfazer/passo";
-import { desfazerUltimoPasso, limparPassos } from "@/modules/planejamento/desfazer/service";
+import { desfazerUltimoPasso, descartarPassos } from "@/modules/planejamento/desfazer/service";
 import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
 import { mudaCampoDoPlano } from "@/modules/planejamento/trava-plano";
 import {
@@ -568,6 +568,8 @@ export const gerarEapDasDisciplinas = defineAction(
   async (i, { user }) => {
     await exigirPlanoEditavel(i.projetoId);
     const r = await gerarEapDasDisciplinasNoProjeto({ projetoId: i.projetoId, escolhas: i.escolhas });
+    // Gerar a EAP não tem desfazer: os passos de antes ficaram para trás (e responderiam "o plano mudou").
+    await descartarPassos(i.projetoId);
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;
@@ -595,6 +597,8 @@ export const apagarEap = defineAction(
   },
   async (i, { user }) => {
     const r = await apagarEapDoProjeto(i.projetoId);
+    // Apagar a EAP inteira não tem desfazer: a pilha de antes não vale mais.
+    await descartarPassos(i.projetoId);
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;
@@ -712,7 +716,7 @@ export const aprovarCronogramaAction = defineAction(
     try {
       const r = await aprovarCronograma(i.projetoId, ctx.user.id);
       // O plano congelou: o que havia para desfazer deixa de valer (e o desfazer só existe com o plano editável).
-      await limparPassos(i.projetoId);
+      await descartarPassos(i.projetoId);
       revProjeto(i.projetoId);
       revalidatePath(`/projetos/${i.projetoId}`);
       return r;
@@ -743,7 +747,7 @@ export const replanejarCronograma = defineAction(
     try {
       const r = await replanejar(i.projetoId, ctx.user.id, i.motivo, i.observacao || null);
       // A revisão fechou com nova linha de base: o plano voltou a travar e os passos de antes ficaram para trás.
-      await limparPassos(i.projetoId);
+      await descartarPassos(i.projetoId);
       revProjeto(i.projetoId);
       return r;
     } catch (e) {

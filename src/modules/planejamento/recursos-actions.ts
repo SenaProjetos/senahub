@@ -198,15 +198,18 @@ export const definirPrincipal = defineAction(
  */
 export const herdarResponsaveisDaDisciplina = defineAction(
   { ...plan, acao: "herdar-responsaveis", entidade: "EapTarefa", schema: z.object({ projetoId: z.string().min(1) }) },
-  async (i, { user }) => {
-    const criadas = await prisma.$transaction(async (tx) => {
-      const n = await herdarResponsaveisNoProjeto(tx, i.projetoId);
-      if (n > 0) await sincronizarCards(tx, i.projetoId, user.id);
-      return n;
-    });
-    revProjeto(i.projetoId);
-    return { criadas };
-  },
+  comPassoDaAction(
+    { projetoDe: async (i) => i.projetoId, rotulo: () => "Herdar os responsáveis das disciplinas" },
+    async (i, { user }) => {
+      const criadas = await prisma.$transaction(async (tx) => {
+        const n = await herdarResponsaveisNoProjeto(tx, i.projetoId);
+        if (n > 0) await sincronizarCards(tx, i.projetoId, user.id);
+        return n;
+      });
+      revProjeto(i.projetoId);
+      return { criadas };
+    },
+  ),
 );
 
 /**
@@ -259,7 +262,12 @@ const sugestaoSchema = z.discriminatedUnion("tipo", [
  */
 export const aplicarSugestaoRecurso = defineAction(
   { ...plan, acao: "aplicar-sugestao-recurso", schema: sugestaoSchema },
-  async (i, { user }) => {
+  comPassoDaAction(
+    {
+      projetoDe: (i) => (i.tipo === "atrasar" ? projetoDaLinha(i.linhaId) : projetoDaAtribuicao(i.atribuicaoId)),
+      rotulo: (i) => (i.tipo === "atrasar" ? "Atrasar o início da atividade" : "Passar a atividade para outra pessoa"),
+    },
+    async (i, { user }) => {
     if (i.tipo === "atrasar") {
       const linha = await prisma.eapTarefa.findUnique({
         where: { id: i.linhaId },
@@ -303,5 +311,6 @@ export const aplicarSugestaoRecurso = defineAction(
     }
     revProjeto(atrib.tarefa.projetoId);
     return { tipo: "passar" as const, fimProjeto: null };
-  },
+    },
+  ),
 );

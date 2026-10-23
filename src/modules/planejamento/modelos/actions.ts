@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { aposMudarEap } from "../pos-eap";
+import { descartarPassos } from "../desfazer/service";
 import { estruturaModeloSchema } from "./estrutura";
 import { aplicarModeloNoProjeto, salvarEdicaoDoModelo, salvarModeloDeEap } from "./service";
 import { criarModelosDeDisciplina } from "./disciplina-service";
@@ -137,6 +138,8 @@ export const aplicarModeloEap = defineAction(
   },
   async (i, { user }) => {
     const r = await aplicarModeloNoProjeto({ projetoId: i.projetoId, modeloId: i.modeloId });
+    // Aplicar um modelo não tem desfazer: a pilha de antes não vale mais.
+    await descartarPassos(i.projetoId);
     // O modelo traz duração e vínculo; as datas são do motor, então reagenda na sequência (e, com
     // cronograma aprovado — que não é o caso de projeto novo —, sincroniza card e previsão).
     await aposMudarEap(i.projetoId, user.id);

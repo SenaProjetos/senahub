@@ -28,7 +28,7 @@ const DATAS_DA_LINHA = ["inicioPrevisto", "fimPrevisto", "inicioReal", "fimReal"
 
 export const MOTIVO_NADA_A_DESFAZER = "Não há nada para desfazer.";
 export const MOTIVO_PLANO_MUDOU =
-  "O plano mudou depois dessa ação (alguém editou). Não dá para desfazer sem sobrescrever o trabalho dessa pessoa.";
+  "O plano mudou depois dessa ação (por outra pessoa ou por outra tela). Não dá para desfazer sem sobrescrever essa mudança.";
 
 /** A foto do plano: o que o desfazer guarda e compara. */
 export async function lerEstadoDoPlano(db: Db, projetoId: string): Promise<EstadoPlano> {
@@ -118,6 +118,10 @@ export async function desfazerUltimoPasso(projetoId: string, userId: string): Pr
 
   await prisma.$transaction(
     async (tx) => {
+      // Reserva o passo ANTES de mexer: dois Ctrl+Z simultâneos leem o mesmo passo, e o segundo deve ouvir "nada a
+      // desfazer" em vez de um erro de banco no meio da restauração.
+      const reservado = await tx.eapPassoDesfazer.deleteMany({ where: { id: passo.id } });
+      if (reservado.count !== 1) throw new ActionError(MOTIVO_NADA_A_DESFAZER);
       if (plano.inicioProjeto) {
         const inicio = plano.inicioProjeto.para ? new Date(`${plano.inicioProjeto.para}T00:00:00.000Z`) : null;
         await tx.cronogramaProjeto.updateMany({ where: { projetoId }, data: { inicioProjeto: inicio } });
@@ -148,10 +152,14 @@ export async function desfazerUltimoPasso(projetoId: string, userId: string): Pr
       // `updateMany` com `marcoId: null`: só religa o que continua solto, e não falha se o contrato foi apagado.
       for (const r of plano.religarParcelas) await tx.contratoParcelaEntrega.updateMany({ where: { id: r.id, marcoId: null }, data: { marcoId: r.marcoId } });
       for (const r of plano.religarBaselineLinhas) await tx.eapBaselineLinha.updateMany({ where: { id: r.id, tarefaId: null }, data: { tarefaId: r.tarefaId } });
-      await tx.eapPassoDesfazer.delete({ where: { id: passo.id } });
     },
     // Uma EAP de centenas de linhas são centenas de escritas em sequência: o padrão de 5 s não basta.
     { timeout: 60_000 },
   );
   return { rotulo: passo.rotulo };
+}
+
+/** `limparPassos` para depois de uma ação que já aconteceu: falha ao limpar nunca vira erro da ação. */
+export async function descartarPassos(projetoId: string): Promise<void> {
+  await limparPassos(projetoId).catch((e) => console.error("[desfazer] falha ao descartar os passos:", e));
 }
