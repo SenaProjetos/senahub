@@ -8,6 +8,7 @@ import { reagendarProjeto } from "./agenda";
 import { cargaDaEquipe } from "./recursos-queries";
 import { linhaAceitaAtribuicao, linhaAceitaHoras, regraDoRecursoExterno } from "./recursos";
 import { herdarResponsaveisNoProjeto, sincronizarCards, sincronizarPrincipal } from "./recursos-service";
+import { comPassoDaAction, projetoDaAtribuicao, projetoDaLinha } from "./desfazer/passo";
 import { exigirPlanoEditavel } from "./trava-plano-service";
 
 /**
@@ -77,7 +78,9 @@ export const salvarAtribuicao = defineAction(
     schema: salvarSchema,
     capturarAntes: async (i) => (i.id ? prisma.eapAtribuicao.findUnique({ where: { id: i.id } }) : null),
   },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.tarefaId), rotulo: () => "Atribuir pessoa ou horas" },
+    async (i, { user }) => {
     const linha = await linhaParaAtribuir(i.tarefaId);
     const aceita = linhaAceitaAtribuicao(linha);
     if (!aceita.ok) throw new ActionError(aceita.motivo);
@@ -131,7 +134,8 @@ export const salvarAtribuicao = defineAction(
       if (ehDuplicada(e)) throw new ActionError("Esta pessoa já está nesta linha com esse papel.");
       throw e;
     }
-  },
+    },
+  ),
 );
 
 export const removerAtribuicao = defineAction(
@@ -141,7 +145,9 @@ export const removerAtribuicao = defineAction(
     schema: z.object({ id: z.string().min(1) }),
     capturarAntes: async (i) => prisma.eapAtribuicao.findUnique({ where: { id: i.id } }),
   },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaAtribuicao(i.id), rotulo: () => "Remover pessoa da linha" },
+    async (i, { user }) => {
     const atual = await prisma.eapAtribuicao.findUnique({
       where: { id: i.id },
       select: { tarefaId: true, tarefa: { select: { projetoId: true } } },
@@ -154,13 +160,16 @@ export const removerAtribuicao = defineAction(
     });
     revProjeto(atual.tarefa.projetoId);
     return { id: i.id };
-  },
+    },
+  ),
 );
 
 /** Troca quem é o principal da linha (D41) — o que aparece no card e nos filtros. */
 export const definirPrincipal = defineAction(
   { ...plan, acao: "definir-principal", schema: z.object({ id: z.string().min(1) }) },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaAtribuicao(i.id), rotulo: () => "Trocar o principal da linha" },
+    async (i, { user }) => {
     const atual = await prisma.eapAtribuicao.findUnique({
       where: { id: i.id },
       select: { tarefaId: true, userId: true, tarefa: { select: { projetoId: true } } },
@@ -178,7 +187,8 @@ export const definirPrincipal = defineAction(
     });
     revProjeto(atual.tarefa.projetoId);
     return { id: i.id };
-  },
+    },
+  ),
 );
 
 /**

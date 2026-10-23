@@ -9,6 +9,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativo";
 import { MAX_PASSOS, MOTIVO_NADA_A_DESFAZER, MOTIVO_PLANO_MUDOU, comPasso, desfazerUltimoPasso, limparPassos, rotuloDoUltimoPasso } from "../src/modules/planejamento/desfazer/service";
+import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "../src/modules/planejamento/desfazer/passo";
 import { MOTIVO_PLANO_TRAVADO } from "../src/modules/planejamento/trava-plano";
 
 let falhas = 0;
@@ -119,12 +120,28 @@ async function main() {
     check("plano editado por outra pessoa: recusa com a frase", recusa === MOTIVO_PLANO_MUDOU, recusa);
     check("e descarta a pilha, sem sobrescrever nada", (await passos()) === 0 && (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id } })).nome === "Edição de outra pessoa");
 
+    // ── o invólucro das actions (`comPassoDaAction`) ─────────────────────────
+    const ctx = { user: { id: admin.id } } as never;
+    const renomear = comPassoDaAction(
+      { projetoDe: (i: { id: string; nome: string }) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Renomear") },
+      async (i: { id: string; nome: string }) => prisma.eapTarefa.update({ where: { id: i.id }, data: { nome: i.nome } }),
+    );
+    await renomear({ id: A.id, nome: "Via action" }, ctx);
+    check("o invólucro grava o passo com o nome da linha lido ANTES", (await rotuloDoUltimoPasso(p.projetoId, p.userId)) === 'Renomear "Minha edição"', await rotuloDoUltimoPasso(p.projetoId, p.userId));
+    await desfazerUltimoPasso(p.projetoId, p.userId);
+    check("e desfazer devolve o nome", (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: A.id } })).nome === "Minha edição");
+    const antesDoErro = await passos();
+    const semLinha = await erroDe(() => renomear({ id: "nao-existe", nome: "x" }, ctx));
+    check("linha inexistente: o handler responde o erro dele e nenhum passo nasce", !!semLinha && (await passos()) === antesDoErro, semLinha);
+
     // ── pilha de 20 ──────────────────────────────────────────────────────────
     for (let i = 0; i < MAX_PASSOS + 2; i++) await comPasso({ ...p, rotulo: `Passo ${i}` }, () => prisma.eapTarefa.update({ where: { id: A.id }, data: { nome: `Nome ${i}` } }));
     check(`a pilha guarda só os ${MAX_PASSOS} últimos`, (await passos()) === MAX_PASSOS && (await rotuloDoUltimoPasso(p.projetoId, p.userId)) === `Passo ${MAX_PASSOS + 1}`);
 
     // ── plano aprovado ───────────────────────────────────────────────────────
     await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true } });
+    await comPasso({ ...p, rotulo: "Pessoas e horas depois da aprovação" }, () => prisma.eapTarefa.update({ where: { id: A.id }, data: { nome: "Pós-aprovação" } }));
+    check("com o plano aprovado nem se guarda passo (ninguém poderia desfazer)", (await passos()) === MAX_PASSOS && (await rotuloDoUltimoPasso(p.projetoId, p.userId)) === `Passo ${MAX_PASSOS + 1}`);
     check("cronograma aprovado recusa com a frase da trava", (await erroDe(() => desfazerUltimoPasso(p.projetoId, p.userId))) === MOTIVO_PLANO_TRAVADO);
     check("a pilha não foi tocada pela recusa", (await passos()) === MAX_PASSOS);
     await limparPassos(projeto.id);

@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { exigirPlanoEditavel } from "../trava-plano-service";
+import { planoTravado } from "../trava-plano";
 import {
   impressaoDoPlano,
   planoDeRestauracao,
@@ -56,7 +57,10 @@ export async function lerEstadoDoPlano(db: Db, projetoId: string): Promise<Estad
 export async function comPasso<R>(p: { projetoId: string; userId: string; rotulo: string }, fn: () => Promise<R>): Promise<R> {
   let antes: EstadoPlano | null = null;
   try {
-    antes = await lerEstadoDoPlano(prisma, p.projetoId);
+    // Plano aprovado e fechado: o desfazer não vale lá (o plano está travado), então nem se guarda passo — pessoas e
+    // horas seguem editáveis depois da aprovação e acumulariam passos que ninguém poderia desfazer.
+    const cronograma = await prisma.cronogramaProjeto.findUnique({ where: { projetoId: p.projetoId }, select: { aprovado: true, emRevisao: true } });
+    if (!planoTravado(cronograma)) antes = await lerEstadoDoPlano(prisma, p.projetoId);
   } catch (e) {
     console.error("[desfazer] falha ao ler o plano antes da ação:", e);
   }
