@@ -13,7 +13,18 @@ import { MOTIVO_PLANO_TRAVADO } from "@/modules/planejamento/trava-plano";
  * ação da pessoa fez ("Excluir \"Mãe\""); `null` = nada a desfazer. O atalho não toma o Ctrl+Z de um campo de texto
  * em edição (da célula, do diálogo) nem de um diálogo aberto.
  */
-export function DesfazerBotao({ projetoId, rotulo, travado }: { projetoId: string; rotulo: string | null; travado: boolean }) {
+export function DesfazerBotao({
+  projetoId,
+  rotulo,
+  travado,
+  compacto = false,
+}: {
+  projetoId: string;
+  rotulo: string | null;
+  travado: boolean;
+  /** Só o ícone (a barra de ferramentas do cronograma); o nome vai no `aria-label` e a dica no `title`. */
+  compacto?: boolean;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const pode = !!rotulo && !travado;
@@ -48,8 +59,17 @@ export function DesfazerBotao({ projetoId, rotulo, travado }: { projetoId: strin
   const dica = travado ? MOTIVO_PLANO_TRAVADO : rotulo ? `Desfazer: ${rotulo} (Ctrl+Z)` : "Nada para desfazer";
   return (
     <span title={dica}>
-      <Button size="sm" variant="outline" type="button" onClick={desfazer} disabled={!pode || pending} aria-keyshortcuts="Control+Z">
-        <Undo2 className="size-3.5" /> Desfazer
+      <Button
+        size={compacto ? "icon-sm" : "sm"}
+        variant="outline"
+        type="button"
+        onClick={desfazer}
+        disabled={!pode || pending}
+        aria-keyshortcuts="Control+Z"
+        aria-label={compacto ? "Desfazer" : undefined}
+      >
+        <Undo2 className="size-3.5" />
+        {!compacto && " Desfazer"}
       </Button>
     </span>
   );

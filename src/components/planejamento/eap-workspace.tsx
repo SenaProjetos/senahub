@@ -2,25 +2,17 @@
 
 import { RecursosDaCelula } from "@/components/planejamento/recursos-celula";
 import { sinalDaLinha } from "@/modules/planejamento/sinais-linha";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { brl } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
   Plus,
-  ListPlus,
-  BookmarkPlus,
-  CheckCheck,
-  ArrowLeft,
   Rocket,
-  CalendarClock,
-  Trash2,
-  Download,
-  FileText,
-  UsersRound,
   CalendarCheck,
   ExternalLink,
+  X,
 } from "lucide-react";
 import {
   aplicarAoProjeto,
@@ -79,10 +71,23 @@ import { MOTIVO_PLANO_TRAVADO, planoTravado } from "@/modules/planejamento/trava
 import type { Larguras } from "@/modules/planejamento/gantt-larguras";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import {
+  ACAO_APAGAR_EAP,
+  ACAO_APLICAR,
+  ACAO_GERAR_DISCIPLINAS,
+  ACAO_HERDAR,
+  ACAO_NOVAS_TAREFAS,
+  ACAO_REAGENDAR,
+  ACAO_SALVAR_MODELO,
+  itensDoPlanejamento,
+} from "@/modules/planejamento/acoes-planejamento";
 import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
 import { EapDialog } from "@/components/planejamento/eap-dialog";
 import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
-import { SaudePainel } from "@/components/planejamento/saude-painel";
+import { FaixaCronograma } from "@/components/planejamento/faixa-cronograma";
+import type { ComparativoBase } from "@/components/planejamento/saude-cronograma-painel";
 import { rotuloBaseline, rotuloDaOpcao, tarefasComBaseline } from "@/modules/planejamento/baselines";
 
 const diasDesvio = (t: EapTarefaDTO) => {
@@ -92,6 +97,8 @@ const diasDesvio = (t: EapTarefaDTO) => {
   return Math.round((a - b) / 86400000);
 };
 
+/** A visão da tela: os dois Gantt e os Indicadores (Valor Agregado + Plano vs Real, que a página manda prontos). */
+type VisaoTela = ModoGantt | "indicadores";
 type Filtro = "todas" | "validar" | "atrasadas" | "criticas" | "bloqueadas";
 type Lookahead = "todas" | 7 | 15 | 30;
 
@@ -118,6 +125,7 @@ export function EapWorkspace({
   tiposEmpreendimento = [],
   largurasColunas,
   noProjeto,
+  indicadores,
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
@@ -168,10 +176,12 @@ export function EapWorkspace({
    * "← Planejamento" e entra o link para o Planejamento, onde a EAP se edita. `editar` = quem pode montar a EAP.
    */
   noProjeto?: { editar: boolean };
+  /** A visão Indicadores (Valor Agregado + Plano vs Real), renderizada no servidor. Sem ela, a visão não aparece. */
+  indicadores?: ReactNode;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [modo, setModo] = useState<ModoGantt>("planejamento");
+  const [modo, setModo] = useState<VisaoTela>("planejamento");
   // Qual versão da linha de base o Gantt de Controle compara. `null` = a mais recente (a que sempre foi).
   const [baselineEscolhida, setBaselineEscolhida] = useState<number | null>(null);
   const confirm = useConfirm();
@@ -182,12 +192,15 @@ export function EapWorkspace({
     tarefa: null,
   });
   const [filtro, setFiltro] = useState<Filtro>("todas");
+  /** "Ver na tabela" de um achado do verificador: só as linhas dele (some ao trocar de filtro). */
+  const [achadoFiltro, setAchadoFiltro] = useState<{ rotulo: string; ids: Set<string> } | null>(null);
   /** Linhas selecionadas no cronograma (Ctrl/Shift+clique), em ordem de documento. */
   const [selecionadas, setSelecionadas] = useState<string[]>([]);
   const [sinalLimparSelecao, setSinalLimparSelecao] = useState(0);
   /** Janela "Novas tarefas" (colar várias de uma vez). */
   const [colarAberto, setColarAberto] = useState(false);
   const [salvarModeloAberto, setSalvarModeloAberto] = useState(false);
+  const [gerarAberto, setGerarAberto] = useState(false);
   /** Uma ação de estrutura (setas, copiar/colar, excluir) está gravando: trava a barra contra duplo clique. */
   const [gravandoEstrutura, setGravandoEstrutura] = useState(false);
   /** Janela da árvore de predecessoras: a linha em edição, ou `null`. */
@@ -222,6 +235,7 @@ export function EapWorkspace({
   // filtrado na tela naquele momento.
   const visiveis = useMemo(() => {
     let base = tarefas;
+    if (achadoFiltro) base = base.filter((t) => achadoFiltro.ids.has(t.id));
     if (filtro === "atrasadas") {
       const hj = hoje;
       // Contra o combinado (a linha de base), como o verificador: com a Data de Status, a previsão de
@@ -242,7 +256,7 @@ export function EapWorkspace({
     // "Minhas atividades": o dado existe desde a F5 (`atribuicoes` por linha), mas o filtro
     // precisa do usuário logado na tela e ninguém pediu — o projetista nem vê a EAP (Q14).
     return base;
-  }, [tarefas, filtro, lookahead, hoje]);
+  }, [tarefas, filtro, lookahead, hoje, achadoFiltro]);
 
   const totalAtrasadas = tarefas.filter(
     (t) => (t.fimBaseline ?? t.fimPrevisto) < hoje && t.progresso < 100 && t.status !== "con",
@@ -559,138 +573,235 @@ export function EapWorkspace({
     });
   }
 
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          {!noProjeto && (
-            <>
-              <Link
-                href="/planejamento"
-                className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="size-3" /> Planejamento
-              </Link>
-              <h2 className="text-2xl font-extrabold tracking-tight">
-                <span className="font-mono text-primary">{projeto.codigo}</span> · {projeto.nome}
-              </h2>
-            </>
-          )}
-          <p className="text-sm text-muted-foreground">
-            EAP e cronograma. {temLinhaBase ? "Linha de base definida." : "Sem linha de base."}
-            {custoTotal && (
-              <>
-                {" "}
-                {custoTotal.custo != null ? (
-                  <span title="Horas previstas × custo/hora de cada pessoa (Recursos)">
-                    Custo previsto: <span className="font-mono text-foreground">{brl(custoTotal.custo)}</span>.
-                  </span>
-                ) : (
-                  <span className="text-warning" title="Linhas sem horas, com perfil (vaga) ou com pessoa sem custo/hora cadastrado em Recursos">
-                    Custo previsto incompleto — {semCusto} linha(s) sem custo.
-                  </span>
-                )}
-              </>
-            )}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {noProjeto && (
-            <Button size="sm" variant="outline" render={<Link href={`/planejamento/${projeto.id}`} />}>
-              <ExternalLink className="size-3.5" /> {noProjeto.editar ? "Editar no Planejamento" : "Abrir no Planejamento"}
-            </Button>
-          )}
-          {verDatas && tarefas.length > 0 && (
-            <>
-              <a href={`/api/planejamento/${projeto.id}/eap-export`} download>
-                <Button size="sm" variant="outline" type="button">
-                  <Download className="size-3.5" /> Exportar Excel
-                </Button>
-              </a>
-              <a href={`/api/planejamento/${projeto.id}/pdf`} download>
-                <Button size="sm" variant="outline" type="button">
-                  <FileText className="size-3.5" /> Exportar PDF
-                </Button>
-              </a>
-            </>
-          )}
-          {podeGerir && (
-            <>
-              <Button
-                size="sm"
-                onClick={() => abrir(null)}
-                disabled={travado}
-                title={travado ? MOTIVO_PLANO_TRAVADO : undefined}
-              >
-                <Plus className="size-3.5" /> Nova tarefa
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setColarAberto(true)}
-                disabled={travado}
-                title={travado ? MOTIVO_PLANO_TRAVADO : "Cole várias tarefas de uma vez (uma por linha)"}
-              >
-                <ListPlus className="size-3.5" /> Novas tarefas
-              </Button>
-              <DesfazerBotao projetoId={projeto.id} rotulo={ultimoPasso} travado={travado} />
-              {disciplinas.length > 0 && !travado && (
-                <GerarEapDisciplinasDialog
-                  key={opcoesDisciplinas.map((o) => o.disciplinaId).join()}
-                  projetoId={projeto.id}
-                  opcoes={opcoesDisciplinas}
-                />
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={reagendar}
-                disabled={pending || tarefas.length === 0}
-                title="Salvar já recalcula as datas. Use depois de mudar os feriados ou para conferir."
-              >
-                <CalendarClock className="size-3.5" /> Reagendar
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={herdar}
-                disabled={pending || tarefas.length === 0}
-                title="Preenche o responsável da disciplina em toda linha ainda sem ninguém"
-              >
-                <UsersRound className="size-3.5" /> Herdar responsáveis
-              </Button>
-              <Button size="sm" variant="outline" onClick={aplicar} disabled={pending || tarefas.length === 0}>
-                <CheckCheck className="size-3.5" /> Aplicar ao projeto
-              </Button>
-              {tarefas.length > 0 && (
-                <Button size="sm" variant="outline" onClick={() => setSalvarModeloAberto(true)} title="Guarda a EAP deste projeto como modelo para os próximos">
-                  <BookmarkPlus className="size-3.5" /> Salvar como modelo
-                </Button>
-              )}
-              {tarefas.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive hover:text-destructive"
-                  onClick={() => void apagarTudo()}
-                  disabled={pending || !!impedimentoApagar}
-                  title={impedimentoApagar ?? "Apaga todas as linhas da EAP para recomeçar com outro modelo"}
-                >
-                  <Trash2 className="size-3.5" /> Apagar EAP
-                </Button>
-              )}
-            </>
-          )}
-        </div>
+  const itensDoMenu = itensDoPlanejamento({
+    projetoId: projeto.id,
+    podeGerir,
+    verDatas,
+    temTarefas: tarefas.length > 0,
+    temDisciplinas: disciplinas.length > 0,
+    disciplinasSemEap: opcoesDisciplinas.length,
+    planoTravado: travado,
+    impedimentoApagar,
+  });
+
+  /** O `⋯` do cabeçalho (descritor `itensDoPlanejamento`). Os confirms ficam dentro de cada ação, antes de gravar. */
+  async function aoMenu(item: AcaoItemAcao) {
+    switch (item.id) {
+      case ACAO_NOVAS_TAREFAS:
+        setColarAberto(true);
+        return;
+      case ACAO_GERAR_DISCIPLINAS:
+        setGerarAberto(true);
+        return;
+      case ACAO_REAGENDAR:
+        reagendar();
+        return;
+      case ACAO_HERDAR:
+        herdar();
+        return;
+      case ACAO_APLICAR:
+        await aplicar();
+        return;
+      case ACAO_SALVAR_MODELO:
+        setSalvarModeloAberto(true);
+        return;
+      case ACAO_APAGAR_EAP:
+        await apagarTudo();
+        return;
+    }
+  }
+
+  // Custo previsto: vai para a ponta da faixa de status.
+  const resumoCusto = custoTotal ? (
+    custoTotal.custo != null ? (
+      <span className="text-muted-foreground" title="Horas previstas × custo/hora de cada pessoa (Recursos)">
+        Custo previsto <span className="font-mono text-foreground">{brl(custoTotal.custo)}</span>
+      </span>
+    ) : (
+      <span className="text-warning" title="Linhas sem horas, com perfil (vaga) ou com pessoa sem custo/hora cadastrado em Recursos">
+        Custo incompleto · {semCusto === 1 ? "1 linha" : `${semCusto} linhas`}
+      </span>
+    )
+  ) : null;
+
+  // Linha de base × hoje: vai para o painel de saúde (era um bloco fixo no topo).
+  const comparativo: ComparativoBase | null = (() => {
+    if (!verDatas || !temLinhaBase || !rotuloBase) return null;
+    const comBase = tarefasComBase.filter((t) => t.fimBaseline);
+    if (comBase.length === 0) return null;
+    const atrasadas = comBase.filter((t) => diasDesvio(t) > 0);
+    return {
+      rotulo: rotuloBase,
+      total: comBase.length,
+      noPrazo: comBase.filter((t) => diasDesvio(t) === 0).length,
+      adiantadas: comBase.filter((t) => diasDesvio(t) < 0).length,
+      atrasadas: atrasadas.length,
+      mediaAtraso: atrasadas.length ? Math.round(atrasadas.reduce((s, t) => s + diasDesvio(t), 0) / atrasadas.length) : 0,
+    };
+  })();
+
+  const comIndicadores = indicadores != null;
+  const visoes: [VisaoTela, string][] = [
+    ...(verDatas
+      ? ([
+          ["planejamento", "Gantt"],
+          ["controle", "Controle"],
+        ] as [VisaoTela, string][])
+      : []),
+    ...(comIndicadores ? ([["indicadores", "Indicadores"]] as [VisaoTela, string][]) : []),
+  ];
+  const seletorVisao =
+    visoes.length > 1 ? (
+      <div className="flex overflow-hidden rounded-sm border bg-background" role="group" aria-label="Visão do cronograma">
+        {visoes.map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            aria-pressed={modo === v}
+            onClick={() => setModo(v)}
+            className={`px-2 py-1 text-xs font-medium ${modo === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
+    ) : null;
+
+  // Barra única (mock de 2026-10-23): visão · comparar com · filtros · período, e depois as ferramentas do gráfico.
+  const barraInicio = (
+    <>
+      {seletorVisao}
+      {verDatas && modo === "controle" && versoes.length > 1 && (
+        // Reunião de 29/09/2026: escolher com qual versão da linha de base o plano de hoje é comparado.
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          Comparar com
+          <select
+            aria-label="Versão da linha de base usada na comparação"
+            value={baselineEscolhida ?? maisNova ?? ""}
+            onChange={(e) => setBaselineEscolhida(Number(e.target.value) === maisNova ? null : Number(e.target.value))}
+            className="h-7 max-w-56 rounded-sm border bg-background px-2 text-xs text-foreground outline-none focus-visible:border-primary"
+          >
+            {versoes.map((v, i) => (
+              <option key={v.numero} value={v.numero}>
+                {rotuloDaOpcao(v, i === 0)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Filtro das linhas">
+        {(
+          [
+            ["todas", "Todas", tarefas.length],
+            ["validar", "A validar", totalAValidar],
+            ["atrasadas", "Atrasadas", totalAtrasadas],
+            ["criticas", "Críticas", totalCriticas],
+            ["bloqueadas", "Bloqueadas", totalBloqueadas],
+          ] as [Filtro, string, number][]
+        )
+          .filter(([v]) => verDatas || v === "todas" || v === "bloqueadas" || v === "validar")
+          .map(([v, label, n]) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={filtro === v && !achadoFiltro}
+              onClick={() => {
+                setFiltro(v);
+                setAchadoFiltro(null);
+              }}
+              title={v === "atrasadas" && comparativo?.mediaAtraso ? `Contra a ${comparativo.rotulo} · média +${comparativo.mediaAtraso} dias` : undefined}
+              className={`rounded-full border px-2 py-0.5 text-xs font-medium transition-colors ${
+                filtro === v && !achadoFiltro
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-input bg-background text-muted-foreground hover:border-primary/50"
+              }`}
+            >
+              {label}{" "}
+              <span className={`tabular-nums ${v === "atrasadas" && n > 0 && !(filtro === v && !achadoFiltro) ? "font-semibold text-destructive" : "font-semibold"}`}>{n}</span>
+            </button>
+          ))}
+        {achadoFiltro && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-primary bg-primary px-2.5 py-0.5 text-xs font-medium text-primary-foreground">
+            Achado: {achadoFiltro.rotulo} ({achadoFiltro.ids.size})
+            <button type="button" aria-label="Tirar o filtro do achado" className="-mr-1 rounded-full p-0.5 hover:bg-primary-foreground/20" onClick={() => setAchadoFiltro(null)}>
+              <X className="size-3" />
+            </button>
+          </span>
+        )}
+      </div>
+      {verDatas && (
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="sr-only">Período</span>
+          <select
+            aria-label="Período"
+            value={String(lookahead)}
+            onChange={(e) => setLookahead(e.target.value === "todas" ? "todas" : (Number(e.target.value) as Lookahead))}
+            className="h-7 rounded-sm border bg-background px-2 text-xs text-foreground outline-none focus-visible:border-primary"
+          >
+            <option value="todas">Período: tudo</option>
+            <option value="7">Próx. 7 dias</option>
+            <option value="15">Próx. 15 dias</option>
+            <option value="30">Próx. 30 dias</option>
+          </select>
+        </label>
+      )}
+    </>
+  );
+  const barraFim = (
+    <>
+      {podeGerir && <DesfazerBotao projetoId={projeto.id} rotulo={ultimoPasso} travado={travado} compacto />}
+      {noProjeto && (
+        <>
+          <Button size="sm" variant="outline" render={<Link href={`/planejamento/${projeto.id}`} />}>
+            <ExternalLink className="size-3.5" /> {noProjeto.editar ? "Editar no Planejamento" : "Abrir no Planejamento"}
+          </Button>
+          <BotaoAcoes itens={itensDoMenu} onSelect={(item) => void aoMenu(item)} rotulo="Mais ações da EAP" className="size-7 border border-input bg-background text-foreground" />
+        </>
+      )}
+    </>
+  );
+
+  return (
+    <div className="space-y-3">
+      {!noProjeto && (
+        <CabecalhoPagina
+          titulo={
+            <>
+              <span className="font-mono">{projeto.codigo}</span> · {projeto.nome}
+            </>
+          }
+          descricao="EAP e cronograma"
+          trilha={[
+            { href: "/", label: "Início" },
+            { href: "/planejamento", label: "Planejamento" },
+            { label: projeto.codigo },
+          ]}
+          acoes={
+            <>
+              {podeGerir && (
+                <Button size="sm" onClick={() => abrir(null)} disabled={travado} title={travado ? MOTIVO_PLANO_TRAVADO : undefined}>
+                  <Plus className="size-3.5" /> Nova tarefa
+                </Button>
+              )}
+              <BotaoAcoes
+                itens={itensDoMenu}
+                onSelect={(item) => void aoMenu(item)}
+                rotulo="Mais ações do planejamento"
+                className="size-8 border border-input bg-background text-foreground"
+              />
+            </>
+          }
+        />
+      )}
 
       {qualidade && cronograma && tarefas.length > 0 && (
-        <SaudePainel
+        <FaixaCronograma
           projetoId={projeto.id}
+          hoje={hoje}
           podeAprovar={podeAprovar}
           podeGerir={podeGerir}
-          linhasComDataFixada={tarefas.filter((t) => t.restricaoTipo).length}
           podeExecutado={podeExecutado}
+          linhasComDataFixada={tarefas.filter((t) => t.restricaoTipo).length}
           aprovado={cronograma.aprovado}
           emRevisao={cronograma.emRevisao}
           revisaoAbertaEm={cronograma.revisaoAbertaEm}
@@ -708,40 +819,15 @@ export function EapWorkspace({
           nota={qualidade.saude?.nota ?? null}
           faixa={qualidade.saude?.faixa ?? null}
           provisoria={qualidade.saude?.provisoria ?? true}
+          custo={resumoCusto}
+          comparativo={comparativo}
+          onVerNaTabela={(rotulo, ids) => {
+            setAchadoFiltro({ rotulo, ids: new Set(ids) });
+            setFiltro("todas");
+            setLookahead("todas");
+          }}
         />
       )}
-
-      {/* N-47: resumo comparativo baseline vs atual */}
-      {verDatas && temLinhaBase && tarefasComBase.some((t) => t.inicioBaseline) && (() => {
-        const comBase = tarefasComBase.filter((t) => t.fimBaseline);
-        const atrasadas = comBase.filter((t) => diasDesvio(t) > 0);
-        const adiantadas = comBase.filter((t) => diasDesvio(t) < 0);
-        const noP = comBase.filter((t) => diasDesvio(t) === 0);
-        const avgAtraso = atrasadas.length
-          ? Math.round(atrasadas.reduce((s, t) => s + diasDesvio(t), 0) / atrasadas.length)
-          : 0;
-        return (
-          <div className="flex flex-wrap gap-4 rounded-sm border bg-muted/30 px-4 py-3 text-sm">
-            <div>
-              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Com baseline{rotuloBase ? ` ${rotuloBase}` : ""}</span>
-              <span className="font-bold tabular-nums">{comBase.length}</span> tarefas
-            </div>
-            <div>
-              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">No prazo</span>
-              <span className="font-bold tabular-nums text-success">{noP.length}</span>
-            </div>
-            <div>
-              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Adiantadas</span>
-              <span className="font-bold tabular-nums text-primary">{adiantadas.length}</span>
-            </div>
-            <div>
-              <span className="block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Atrasadas</span>
-              <span className={`font-bold tabular-nums ${atrasadas.length > 0 ? "text-destructive" : ""}`}>{atrasadas.length}</span>
-              {avgAtraso > 0 && <span className="ml-1 text-xs text-muted-foreground">· média +{avgAtraso}d</span>}
-            </div>
-          </div>
-        );
-      })()}
 
       {vazio ? (
         <div className="rounded-sm border border-dashed">
@@ -779,116 +865,40 @@ export function EapWorkspace({
         </div>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-1">
-            {verDatas && modo === "controle" && versoes.length > 1 && (
-              // Reunião de 29/09/2026: escolher com qual versão da linha de base o plano de hoje é comparado.
-              <label className="mr-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                Comparar com
-                <select
-                  aria-label="Versão da linha de base usada na comparação"
-                  value={baselineEscolhida ?? maisNova ?? ""}
-                  onChange={(e) => setBaselineEscolhida(Number(e.target.value) === maisNova ? null : Number(e.target.value))}
-                  className="h-7 max-w-64 rounded-sm border bg-background px-2 text-xs text-foreground outline-none focus-visible:border-primary"
-                >
-                  {versoes.map((v, i) => (
-                    <option key={v.numero} value={v.numero}>
-                      {rotuloDaOpcao(v, i === 0)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {verDatas && (
-              <div className="mr-2 flex overflow-hidden rounded-sm border" role="group" aria-label="Visão do cronograma">
-                {(
-                  [
-                    ["planejamento", "Gráfico de Gantt"],
-                    ["controle", "Gantt de Controle"],
-                  ] as [ModoGantt, string][]
-                ).map(([v, label]) => (
-                  <button
-                    key={v}
-                    type="button"
-                    aria-pressed={modo === v}
-                    onClick={() => setModo(v)}
-                    className={`px-3 py-1 text-xs font-medium ${
-                      modo === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+
+          {modo === "indicadores" ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {seletorVisao}
+                <span className="flex-1" />
+                {barraFim}
               </div>
-            )}
-            {(
-              [
-                ["todas", `Todas (${tarefas.length})`],
-                ["validar", `A validar (${totalAValidar})`],
-                ["atrasadas", `Atrasadas (${totalAtrasadas})`],
-                ["criticas", `Críticas (${totalCriticas})`],
-                ["bloqueadas", `Bloqueadas (${totalBloqueadas})`],
-              ] as [Filtro, string][]
-            )
-              .filter(([v]) => verDatas || v === "todas" || v === "bloqueadas" || v === "validar")
-              .map(([v, label]) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setFiltro(v)}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                    filtro === v
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-input bg-background text-muted-foreground hover:border-primary/50"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            {verDatas && <span className="mx-1 self-center text-muted-foreground">·</span>}
-            {verDatas &&
-              (
-                [
-                  ["todas", "Tudo"],
-                  [7, "7 dias"],
-                  [15, "15 dias"],
-                  [30, "30 dias"],
-                ] as [Lookahead, string][]
-              ).map(([v, label]) => (
-                <button
-                  key={String(v)}
-                  type="button"
-                  onClick={() => setLookahead(v)}
-                  title={typeof v === "number" ? `Só o que começa ou termina nos próximos ${v} dias` : undefined}
-                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                    lookahead === v
-                      ? "border-info bg-info text-info-foreground"
-                      : "border-input bg-background text-muted-foreground hover:border-info/50"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-          </div>
-
-          {podeGerir && (
-            <BarraEstrutura
-              itens={itensDaSelecao()}
-              total={selecionadas.length}
-              onAcao={(item) => void executarEstrutura(item, selecionadas)}
-              onLimpar={() => setSinalLimparSelecao((n) => n + 1)}
-              pendente={pending || gravandoEstrutura}
-            />
-          )}
-
+              {indicadores}
+            </div>
+          ) : (
           <PlanoGantt
+            barraInicio={barraInicio}
+            barraFim={barraFim}
+            sobreposicao={
+              podeGerir && selecionadas.length > 0 ? (
+                <BarraEstrutura
+                  itens={itensDaSelecao()}
+                  total={selecionadas.length}
+                  onAcao={(item) => void executarEstrutura(item, selecionadas)}
+                  onLimpar={() => setSinalLimparSelecao((n) => n + 1)}
+                  pendente={pending || gravandoEstrutura}
+                />
+              ) : undefined
+            }
+            alturaCheia
             tarefas={tarefasComBase}
             rotuloBase={rotuloBase}
-            modo={modo}
+            modo={modo === "controle" ? "controle" : "planejamento"}
             calendario={calendario}
             verDatas={verDatas}
             mostrarCusto={custoTotal != null}
             hoje={hoje}
-            filtroIds={filtro === "todas" && lookahead === "todas" ? null : new Set(visiveis.map((t) => t.id))}
+            filtroIds={filtro === "todas" && lookahead === "todas" && !achadoFiltro ? null : new Set(visiveis.map((t) => t.id))}
             onAbrir={podeGerir ? (t) => abrir(t) : undefined}
             celulaRecursos={
               podeGerir
@@ -947,6 +957,7 @@ export function EapWorkspace({
                 : undefined
             }
           />
+          )}
         </>
       )}
 
@@ -962,6 +973,16 @@ export function EapWorkspace({
           vinculosAtuais={predAberta.predecessoras}
           onAplicar={(vinculos) => editarPredecessoras(predAberta, vinculos)}
           onFechar={() => setPredAberta(null)}
+        />
+      )}
+
+      {podeGerir && disciplinas.length > 0 && (
+        <GerarEapDisciplinasDialog
+          key={opcoesDisciplinas.map((o) => o.disciplinaId).join()}
+          projetoId={projeto.id}
+          opcoes={opcoesDisciplinas}
+          aberto={gerarAberto}
+          onAbertoChange={setGerarAberto}
         />
       )}
 

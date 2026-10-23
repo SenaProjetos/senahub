@@ -35,6 +35,7 @@ import { criarCalendario, diasUteisEntre } from "@/lib/calendario-trabalho";
 import { dataCurta, diasEntre } from "@/lib/dias-iso";
 import { lerDataDigitada } from "@/modules/planejamento/datas-linha";
 import { brl, cn } from "@/lib/utils";
+import { useAlturaRestante } from "@/lib/use-altura-restante";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,16 @@ export type PlanoGanttProps = {
   celulaRecursos?: (t: EapTarefaDTO, conteudo: ReactNode) => ReactNode;
   /** Botões da coluna Ações, por linha (os de uso frequente; o resto está no `...`). */
   acoes?: (t: EapTarefaDTO) => ReactNode;
+  /**
+   * Barra única da tela (mock de 2026-10-23): o que vem antes das ferramentas do gráfico (visão, filtros, período) e o que
+   * entra entre elas e o "Compacta" (Desfazer, o link do Planejamento). Sem eles a barra só tem as ferramentas do gráfico.
+   */
+  barraInicio?: ReactNode;
+  barraFim?: ReactNode;
+  /** Flutua sobre o pé do quadro (a barra de estrutura da seleção), sem empurrar a tabela. */
+  sobreposicao?: ReactNode;
+  /** O quadro ocupa a altura que sobra na tela e rola por dentro (a partir de `md`); sem isto, até 72% da altura. */
+  alturaCheia?: boolean;
   className?: string;
 };
 
@@ -194,8 +205,14 @@ export function PlanoGantt({
   celulaRecursos,
   acoes,
   rotuloBase,
+  barraInicio,
+  barraFim,
+  sobreposicao,
+  alturaCheia = false,
   className,
 }: PlanoGanttProps) {
+  // Folga para a legenda abaixo do quadro.
+  const quadro = useAlturaRestante<HTMLDivElement>({ minimo: 320, folga: 44 });
   const [zoom, setZoom] = useState<ZoomGantt>(() => zoomInicial(tarefas));
   const [larguras, setLarguras] = useState<Larguras>(largurasIniciais ?? {});
   // Espelho do estado para gravar a preferência ao soltar a alça (o handler de soltar enxergaria o estado velho).
@@ -838,53 +855,71 @@ export function PlanoGantt({
 
   return (
     <div className={cn("min-w-0 space-y-2", className)}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+        {barraInicio}
+        {filtroIds && <span className="text-xs text-muted-foreground">Mostrando {linhas.length} linha(s), sem os níveis.</span>}
+        <span className="flex-1" />
         {verDatas && (
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Escala</span>
-            <div className="flex overflow-hidden rounded-sm border" role="group" aria-label="Escala de tempo">
+            <select
+              aria-label="Escala de tempo"
+              value={zoom}
+              onChange={(e) => setZoom(e.target.value as ZoomGantt)}
+              className="h-7 rounded-sm border bg-background px-2 text-xs text-foreground outline-none focus-visible:border-primary"
+            >
               {ZOOMS_GANTT.map((z) => (
-                <button
-                  key={z.id}
-                  type="button"
-                  aria-pressed={zoom === z.id}
-                  onClick={() => setZoom(z.id)}
-                  className={cn("px-2.5 py-1 text-xs", zoom === z.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-                >
+                <option key={z.id} value={z.id}>
                   {z.rotulo}
-                </button>
+                </option>
               ))}
-            </div>
-            <Button size="sm" variant="outline" type="button" onClick={irParaHoje} disabled={!escala?.contem(hoje)} title="Rolar o gráfico até a data de hoje">
+            </select>
+            <Button size="sm" variant="outline" type="button" className="h-7 px-2" onClick={irParaHoje} disabled={!escala?.contem(hoje)} title="Rolar o gráfico até a data de hoje">
               Hoje
             </Button>
           </div>
         )}
         {temNivel && (
           <div className="flex items-center gap-1">
-            <Button size="sm" variant="outline" type="button" disabled={!!filtroIds} onClick={() => setRecolhidos(new Set(todosIds))} title="Recolher todos os agrupamentos">
-              <ChevronsDownUp className="size-3.5" /> Recolher
+            <Button size="icon-sm" variant="outline" type="button" disabled={!!filtroIds} onClick={() => setRecolhidos(new Set(todosIds))} title="Recolher todos os agrupamentos" aria-label="Recolher todos os agrupamentos">
+              <ChevronsDownUp className="size-3.5" />
             </Button>
-            <Button size="sm" variant="outline" type="button" disabled={!!filtroIds} onClick={() => setRecolhidos(new Set())} title="Expandir todos os agrupamentos">
-              <ChevronsUpDown className="size-3.5" /> Expandir
+            <Button size="icon-sm" variant="outline" type="button" disabled={!!filtroIds} onClick={() => setRecolhidos(new Set())} title="Expandir todos os agrupamentos" aria-label="Expandir todos os agrupamentos">
+              <ChevronsUpDown className="size-3.5" />
             </Button>
           </div>
         )}
-        <Button size="sm" variant="outline" type="button" aria-pressed={compacto} onClick={() => setCompacto((c) => !c)} title="Esconde as colunas secundárias para dar mais espaço ao gráfico">
-          {compacto ? "Tabela completa" : "Tabela compacta"}
+        {barraFim}
+        <Button
+          size="sm"
+          variant="outline"
+          type="button"
+          aria-pressed={compacto}
+          className={cn("h-7 px-2", compacto && "border-primary bg-muted")}
+          onClick={() => setCompacto((c) => !c)}
+          title="Esconde as colunas secundárias para dar mais espaço ao gráfico"
+        >
+          Compacta
         </Button>
         {temLarguraEscolhida && (
           <Button size="sm" variant="ghost" type="button" onClick={restaurarLarguras} title="Devolve todas as colunas à largura padrão">
             Larguras padrão
           </Button>
         )}
-        {filtroIds && <span className="text-xs text-muted-foreground">Filtro ativo: mostrando só {linhas.length} linha(s), sem os níveis.</span>}
       </div>
 
       {linhas.length === 0 ? (
         <EmptyState icon={ListTree} title="Nenhuma tarefa para os filtros selecionados" className="py-10" />
       ) : (
-        <div ref={rolagemRef} className="relative max-h-[72vh] overflow-auto rounded-sm border bg-background" role="region" aria-label="Cronograma: tabela e gráfico">
+        <div
+          ref={(el) => {
+            rolagemRef.current = el;
+            if (alturaCheia) quadro.ref.current = el;
+          }}
+          style={alturaCheia ? quadro.style : undefined}
+          className={cn("relative overflow-auto rounded-sm border bg-background", alturaCheia ? "max-h-[72vh] md:max-h-none" : "max-h-[72vh]")}
+          role="region"
+          aria-label="Cronograma: tabela e gráfico"
+        >
           <div className="flex min-w-max">
             {/* ── Tabela ── */}
             <div className="sticky left-0 z-20 shrink-0 border-r bg-background" style={{ width: larguraTabela }} role="table" aria-label="Tarefas">
@@ -1121,6 +1156,12 @@ export function PlanoGantt({
               </div>
             )}
           </div>
+        </div>
+      )}
+      {sobreposicao && (
+        // Barra da seleção: flutua no pé do quadro (como a barra de seleção das listas), sem empurrar a tabela.
+        <div className="pointer-events-none sticky bottom-3 z-30 -mt-14 flex h-12 justify-center px-2">
+          <div className="pointer-events-auto flex max-w-full items-center overflow-x-auto rounded-md border bg-card px-2 py-1.5 shadow-md">{sobreposicao}</div>
         </div>
       )}
 

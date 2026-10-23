@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import {
   projetoVisivel,
@@ -79,7 +80,7 @@ export default async function PlanejamentoProjetoPage({
     : [];
 
   return (
-    <div className="space-y-6">
+    <div>
       <EapWorkspace
         projeto={projeto}
         tarefas={tarefas}
@@ -102,9 +103,13 @@ export default async function PlanejamentoProjetoPage({
         ultimoPasso={ultimoPasso}
         tiposEmpreendimento={tiposEmpreendimento}
         largurasColunas={lerLarguras(preferencias[CHAVE_PREF_LARGURAS_GANTT])}
+        indicadores={
+          <>
+            {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}
+            <PlanoVsReal dados={planoReal} />
+          </>
+        }
       />
-      {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}
-      <PlanoVsReal dados={planoReal} />
     </div>
   );
 }
