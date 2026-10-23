@@ -239,6 +239,12 @@ export function SaudePainel({
   }
 
   const [perguntaInicio, setPerguntaInicio] = useState(false);
+  // O início que veio do servidor mudou (gravou aqui, ou desfez com Ctrl+Z): o campo acompanha.
+  const [inicioVisto, setInicioVisto] = useState(inicioProjeto);
+  if (inicioProjeto !== inicioVisto) {
+    setInicioVisto(inicioProjeto);
+    if (inicioProjeto) setNovoInicio(inicioProjeto);
+  }
 
   /** Mudar o início com tarefas de data fixada pergunta antes (Mover junto / Manter); sem elas, grava direto. */
   function salvarInicioProjeto() {
@@ -252,8 +258,8 @@ export function SaudePainel({
   function gravarInicioProjeto(moverRestricoes: boolean) {
     start(async () => {
       const r = await definirInicioProjeto({ projetoId, inicio: novoInicio, moverRestricoes });
-      setPerguntaInicio(false);
       if (r.ok) {
+        setPerguntaInicio(false);
         toast.success(
           r.data.movidas > 0
             ? `Início do projeto definido; ${r.data.movidas === 1 ? "1 data fixada andou" : `${r.data.movidas} datas fixadas andaram`} junto.`
@@ -360,6 +366,16 @@ export function SaudePainel({
               <X className="size-3.5" /> Cancelar revisão
             </Button>
           )}
+        </div>
+      )}
+
+      {podeGerir && inicioProjeto && !planoTravado({ aprovado, emRevisao }) && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <label htmlFor="inicio-projeto">Início do projeto</label>
+          <Input id="inicio-projeto" type="date" value={novoInicio} onChange={(e) => setNovoInicio(e.target.value)} className="h-8 w-36 text-xs" />
+          <Button size="sm" variant="outline" onClick={salvarInicioProjeto} disabled={pending || !novoInicio || novoInicio === inicioProjeto}>
+            Alterar início
+          </Button>
         </div>
       )}
 

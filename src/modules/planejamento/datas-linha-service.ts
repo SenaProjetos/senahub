@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import type { Dia } from "@/lib/calendario-trabalho";
@@ -46,11 +47,16 @@ export async function definirTerminoDaLinha(p: { id: string; data: Dia }): Promi
  * "Mover junto": o início do projeto andou de `de` para `para`; cada `restricaoData` do projeto anda os mesmos dias úteis.
  * `de` nulo (projeto sem início anterior) não tem o que deslocar. Chame DEPOIS de gravar o novo início.
  */
-export async function moverRestricoesDoProjeto(projetoId: string, de: Dia | null, para: Dia): Promise<{ movidas: number }> {
+export async function moverRestricoesDoProjeto(
+  projetoId: string,
+  de: Dia | null,
+  para: Dia,
+  db: Prisma.TransactionClient | typeof prisma = prisma,
+): Promise<{ movidas: number }> {
   if (!de) return { movidas: 0 };
   const plano = await planoDoProjeto(projetoId);
   if (!plano) return { movidas: 0 };
-  const linhas = await prisma.eapTarefa.findMany({ where: { projetoId, restricaoData: { not: null } }, select: { id: true, restricaoData: true } });
+  const linhas = await db.eapTarefa.findMany({ where: { projetoId, restricaoData: { not: null } }, select: { id: true, restricaoData: true } });
   const novas = moverRestricoes(
     linhas.map((l) => ({ id: l.id, restricaoData: l.restricaoData ? paraDia(l.restricaoData) : null })),
     de,
@@ -58,8 +64,11 @@ export async function moverRestricoesDoProjeto(projetoId: string, de: Dia | null
     plano.calendario,
   );
   if (novas.length === 0) return { movidas: 0 };
-  await prisma.$transaction(async (tx) => {
+  // Com a transação do chamador (início do projeto + restrições juntos), segue nela; senão abre a sua.
+  const gravar = async (tx: Prisma.TransactionClient) => {
     for (const n of novas) await tx.eapTarefa.update({ where: { id: n.id }, data: { restricaoData: paraDataUtc(n.restricaoData) } });
-  });
+  };
+  if (db === prisma) await prisma.$transaction(gravar);
+  else await gravar(db as Prisma.TransactionClient);
   return { movidas: novas.length };
 }

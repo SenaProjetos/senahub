@@ -9,6 +9,7 @@ import { descartarPassos } from "../desfazer/service";
 import { estruturaModeloSchema } from "./estrutura";
 import { aplicarModeloNoProjeto, salvarEdicaoDoModelo, salvarModeloDeEap } from "./service";
 import { salvarEapDoProjetoComoModelo } from "./salvar-do-projeto-service";
+import { projetoVisivel } from "../queries";
 import { criarModelosDeDisciplina } from "./disciplina-service";
 
 /**
@@ -49,6 +50,8 @@ export const salvarEapComoModelo = defineAction(
     entidadeId: (d) => (d as { id?: string } | null)?.id,
   },
   async (i, { user }) => {
+    // O modelo fica visível a quem vê os modelos: a EAP lida tem de ser de um projeto que QUEM SALVA enxerga.
+    if (!(await projetoVisivel(user, i.projetoId))) throw new ActionError("Projeto não encontrado.");
     const r = await salvarEapDoProjetoComoModelo({
       projetoId: i.projetoId,
       nome: i.nome,

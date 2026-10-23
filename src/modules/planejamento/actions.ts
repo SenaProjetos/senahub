@@ -36,6 +36,7 @@ import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "@/modules/planejamento/desfazer/passo";
+import { lerDataDigitada } from "@/modules/planejamento/datas-linha";
 import { definirInicioDaLinha, definirTerminoDaLinha, moverRestricoesDoProjeto } from "@/modules/planejamento/datas-linha-service";
 import { desfazerUltimoPasso, descartarPassos } from "@/modules/planejamento/desfazer/service";
 import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
@@ -58,7 +59,6 @@ const revRecursos = () => revalidatePath("/recursos");
 
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
-const dia = z.string().min(1, "Informe a data.");
 
 /**
  * Fase da linha (F7.0): um id do catálogo de FASES (global ou deste projeto) — o mesmo que a
@@ -435,7 +435,10 @@ export const moverEapTarefaNoNivel = defineAction(
 );
 
 // ── Datas digitadas na tabela (Fase D) ──────────────────────────────────────────────────────────────────────
-const diaIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida. Use dd/mm/aaaa.");
+const diaIso = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida. Use dd/mm/aaaa.")
+  .refine((v) => lerDataDigitada(v, "2000-01-01").ok, "Data inválida. Use dd/mm/aaaa.");
 
 /** O início digitado na célula: vira a restrição "não iniciar antes de" (o alfinete); a duração se mantém. */
 export const definirInicioEapTarefa = defineAction(
@@ -831,26 +834,33 @@ export const definirInicioProjeto = defineAction(
     entidade: "CronogramaProjeto",
     schema: z.object({
       projetoId: z.string().min(1),
-      inicio: dia,
+      inicio: diaIso,
       /** As linhas de data fixada (o alfinete) andam junto, os mesmos dias úteis. Padrão: manter onde estão. */
       moverRestricoes: z.boolean().default(false),
     }),
+    entidadeId: (_d, i) => i.projetoId,
+    // O início de ANTES: a auditoria mostra de onde para onde o início andou.
+    capturarAntes: async (i) => {
+      const c = await prisma.cronogramaProjeto.findUnique({ where: { projetoId: i.projetoId }, select: { inicioProjeto: true } });
+      return { inicioProjeto: c?.inicioProjeto ? paraDia(c.inicioProjeto) : null };
+    },
   },
   comPassoDaAction(
     { projetoDe: async (i) => i.projetoId, rotulo: () => "Mudar o início do projeto" },
     async (i, { user }) => {
     await exigirPlanoEditavel(i.projetoId);
     const anterior = await prisma.cronogramaProjeto.findUnique({ where: { projetoId: i.projetoId }, select: { inicioProjeto: true } });
-    await prisma.cronogramaProjeto.upsert({
-      where: { projetoId: i.projetoId },
-      create: { projetoId: i.projetoId, inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
-      update: { inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
-    });
-    // "Mover junto": depois de gravar o novo início, as restrições andam os mesmos dias úteis; o reagendamento (abaixo) já lê tudo.
-    const movidas =
-      i.moverRestricoes && anterior?.inicioProjeto
-        ? (await moverRestricoesDoProjeto(i.projetoId, paraDia(anterior.inicioProjeto), i.inicio)).movidas
+    // O novo início e o "mover junto" das restrições numa transação só: se um falhar, nenhum fica pela metade.
+    const movidas = await prisma.$transaction(async (tx) => {
+      await tx.cronogramaProjeto.upsert({
+        where: { projetoId: i.projetoId },
+        create: { projetoId: i.projetoId, inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
+        update: { inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
+      });
+      return i.moverRestricoes && anterior?.inicioProjeto
+        ? (await moverRestricoesDoProjeto(i.projetoId, paraDia(anterior.inicioProjeto), i.inicio, tx)).movidas
         : 0;
+    });
     const r = await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return { ...r, movidas };

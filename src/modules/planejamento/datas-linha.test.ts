@@ -41,6 +41,10 @@ describe("duracaoPeloTermino", () => {
     expect(duracaoPeloTermino({ inicio: "2026-10-05", fim: "2026-10-09", cal: comFeriado })).toEqual({ ok: true, dias: 4 });
   });
 
+  it("término muito distante é recusado (a duração do módulo vai até 9999 dias úteis)", () => {
+    expect(duracaoPeloTermino({ inicio: "2026-10-05", fim: "2999-01-01", cal })).toEqual({ ok: false, motivo: "Duração grande demais — divida a atividade." });
+  });
+
   it("término antes do início é recusado com a data do início", () => {
     expect(duracaoPeloTermino({ inicio: "2026-10-05", fim: "2026-10-02", cal })).toEqual({
       ok: false,

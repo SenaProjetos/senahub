@@ -75,6 +75,7 @@ export async function salvarEapDoProjetoComoModelo(p: {
     descricao: p.descricao?.trim() || `Salvo do projeto ${projeto.codigo}`,
     tipoEmpreendimentoId: p.tipoEmpreendimentoId,
     arquivoNome: null,
+    origem: "projeto",
     estrutura: r.estrutura,
     autorId: p.autorId,
   });

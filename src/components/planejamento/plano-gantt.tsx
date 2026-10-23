@@ -392,14 +392,23 @@ export function PlanoGantt({
       onErro?.(erro);
       return false;
     }
-    setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
+    // Início e término NÃO mostram o texto digitado como se estivesse gravado: o motor pode dar outra data (predecessora, dia
+    // não útil) e o término vira duração — a célula espera o dado novo do servidor.
+    if (campo !== "inicio" && campo !== "termino") setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
     return true;
   }
 
   async function confirmar(l: Linha, campo: CampoEditavel, texto: string, destino: Destino): Promise<boolean> {
     setSalvando(true);
-    const ok = await executar(l, campo, texto);
-    setSalvando(false);
+    let ok = false;
+    try {
+      ok = await executar(l, campo, texto);
+    } catch {
+      // Rede ou servidor: a célula não pode ficar travada em "salvando".
+      onErro?.("Não foi possível gravar. Tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
     if (!ok) {
       setInvalida(true);
       return false;
@@ -1160,7 +1169,18 @@ function CelulaEditavel({
   if (!ativa) {
     return (
       <div
-        className="flex h-6 min-w-0 flex-1 cursor-text items-center rounded-sm px-1 hover:bg-primary/5 hover:ring-1 hover:ring-primary/30"
+        role="button"
+        tabIndex={0}
+        aria-label={`${rotulo} — editar`}
+        className="flex h-6 min-w-0 flex-1 cursor-text items-center rounded-sm px-1 hover:bg-primary/5 hover:ring-1 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-ring"
+        onKeyDown={(e) => {
+          // Pelo teclado: Enter, Espaço ou F2 abrem a edição da célula focada (as setas movem entre as linhas).
+          if (e.key === "Enter" || e.key === " " || e.key === "F2") {
+            e.preventDefault();
+            e.stopPropagation();
+            aoIniciar();
+          }
+        }}
         onClick={(e) => {
           // Ctrl/⌘ e Shift+clique são seleção de linhas: deixa a linha tratar, sem abrir a edição da célula.
           if (e.ctrlKey || e.metaKey || e.shiftKey) return;

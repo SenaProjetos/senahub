@@ -33,12 +33,20 @@ export function lerDataDigitada(texto: string, hoje: Dia): { ok: true; dia: Dia 
   return dia ? { ok: true, dia } : falha;
 }
 
+const MOTIVO_DURACAO_GRANDE = "Duração grande demais — divida a atividade.";
 const dataBr = (d: Dia) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
 /** O término digitado → a duração: dias úteis do `inicio` (o do motor) a `fim`, inclusive. */
 export function duracaoPeloTermino(p: { inicio: Dia; fim: Dia; cal: Calendario }): { ok: true; dias: number } | { ok: false; motivo: string } {
   if (p.fim < p.inicio) return { ok: false, motivo: `O término não pode ser antes do início (${dataBr(p.inicio)}).` };
-  const dias = diasUteisEntre(p.inicio, p.fim, p.cal);
+  // O resto do módulo limita a duração a 9999 dias úteis; um término muito distante (2999) gravaria centenas de milhares.
+  let dias: number;
+  try {
+    dias = diasUteisEntre(p.inicio, p.fim, p.cal);
+  } catch {
+    return { ok: false, motivo: MOTIVO_DURACAO_GRANDE };
+  }
+  if (dias > 9999) return { ok: false, motivo: MOTIVO_DURACAO_GRANDE };
   if (dias === 0) return { ok: false, motivo: "Esse término não tem dia útil depois do início. Para um marco, digite 0 na duração." };
   return { ok: true, dias };
 }
