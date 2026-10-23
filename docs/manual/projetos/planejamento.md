@@ -169,7 +169,9 @@ mostra o que será desfeito ("Desfazer: Excluir \"Modelagem\"").
 ### Várias linhas de uma vez
 
 - **Selecionar:** clique numa linha; **Ctrl (⌘) + clique** soma ou tira uma linha; **Shift + clique** pega o intervalo
-  desde a última clicada. **Esc** (com o foco numa linha) ou **Limpar** desfaz a seleção.
+  desde a última clicada. Só pelo teclado: **↑/↓** movem o foco entre as linhas, **Shift+↑/↓** estendem a seleção e
+  **Ctrl+Espaço** soma ou tira a linha. **Esc** (com o foco numa linha) ou **Limpar** desfaz a seleção. Só entram na
+  seleção as linhas que você está vendo: recolher um agrupamento ou filtrar tira da seleção o que ficou escondido.
 - **Barra de estrutura** (acima da tabela): as setas **Avançar** (←), **Recuar** (→), **Mover para cima** (↑) e
   **Mover para baixo** (↓) agem sobre **todas** as linhas selecionadas, mais **Copiar**, **Colar abaixo** e **Excluir**. O
   menu do botão direito sobre uma linha da seleção faz o mesmo, e os atalhos Alt+Shift+setas e Delete também valem para
@@ -186,8 +188,9 @@ mostra o que será desfeito ("Desfazer: Excluir \"Modelagem\"").
 - **Copiar e colar um bloco:** **Copiar** guarda as linhas selecionadas **e tudo o que está dentro delas**; **Colar abaixo**
   (Ctrl+V com o foco numa linha) cria as cópias abaixo da linha escolhida. Vão junto a estrutura, as durações, os marcos
   e as **predecessoras entre as linhas do bloco**; **não** vão pessoas, horas, % concluído, datas reais, restrições de
-  data nem vínculos com linhas de fora do bloco. As cópias tomam a disciplina do agrupamento de destino. O desfazer
-  apaga a cópia inteira.
+  data nem vínculos com linhas de fora do bloco. Colando **sob um agrupamento com disciplina**, as cópias tomam a disciplina dele; colando no topo ou sob um agrupamento sem
+  disciplina, cada linha **mantém a sua**. A cópia entra **abaixo** da linha escolhida, no mesmo nível (para pôr dentro de um
+  agrupamento, cole abaixo e recue). O desfazer apaga a cópia inteira.
 - **Escolher predecessoras numa árvore:** o ícone de árvore ao lado da célula **Predecessoras** abre a lista de todas
   as tarefas, com busca por código ou nome. As que não podem ser escolhidas (a própria, a tarefa-mãe, uma subtarefa e
   as que fechariam um ciclo) aparecem apagadas, com o motivo ao passar o mouse. Quem já era predecessora mantém o
