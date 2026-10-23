@@ -16,6 +16,7 @@ import {
 import { agruparPorRegra, contarPorSeveridade, type Achado } from "@/modules/planejamento/qualidade";
 import { motivoDaBaseline, rotuloBaseline, type VersaoBaseline } from "@/modules/planejamento/baselines";
 import { MOTIVO_PLANO_TRAVADO, planoTravado } from "@/modules/planejamento/trava-plano";
+import { InicioProjetoDialog } from "@/components/planejamento/inicio-projeto-dialog";
 import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,7 @@ export function SaudePainel({
   projetoId,
   podeAprovar,
   podeGerir,
+  linhasComDataFixada,
   podeExecutado,
   aprovado,
   emRevisao,
@@ -82,6 +84,8 @@ export function SaudePainel({
   podeAprovar: boolean;
   /** `planejamento:gerir` — o botão que corrige a disciplina das linhas. */
   podeGerir: boolean;
+  /** Linhas com restrição de data (o alfinete): mudar o início do projeto pergunta se elas andam junto. */
+  linhasComDataFixada: number;
   podeExecutado: boolean;
   aprovado: boolean;
   /** "Revisar planejamento" aberto: o plano aprovado está destravado até a nova linha de base (`trava-plano.ts`). */
@@ -234,11 +238,27 @@ export function SaudePainel({
     });
   }
 
+  const [perguntaInicio, setPerguntaInicio] = useState(false);
+
+  /** Mudar o início com tarefas de data fixada pergunta antes (Mover junto / Manter); sem elas, grava direto. */
   function salvarInicioProjeto() {
+    if (inicioProjeto && novoInicio !== inicioProjeto && linhasComDataFixada > 0) {
+      setPerguntaInicio(true);
+      return;
+    }
+    gravarInicioProjeto(false);
+  }
+
+  function gravarInicioProjeto(moverRestricoes: boolean) {
     start(async () => {
-      const r = await definirInicioProjeto({ projetoId, inicio: novoInicio });
+      const r = await definirInicioProjeto({ projetoId, inicio: novoInicio, moverRestricoes });
+      setPerguntaInicio(false);
       if (r.ok) {
-        toast.success("Data de início do projeto definida.");
+        toast.success(
+          r.data.movidas > 0
+            ? `Início do projeto definido; ${r.data.movidas === 1 ? "1 data fixada andou" : `${r.data.movidas} datas fixadas andaram`} junto.`
+            : "Data de início do projeto definida.",
+        );
         router.refresh();
       } else toast.error(r.error);
     });
@@ -248,6 +268,16 @@ export function SaudePainel({
 
   return (
     <div className="space-y-3 rounded-sm border p-4">
+      <InicioProjetoDialog
+        aberto={perguntaInicio}
+        linhasFixadas={linhasComDataFixada}
+        inicioAtual={inicioProjeto}
+        novoInicio={novoInicio}
+        pendente={pending}
+        onMover={() => gravarInicioProjeto(true)}
+        onManter={() => gravarInicioProjeto(false)}
+        onCancelar={() => setPerguntaInicio(false)}
+      />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <IconeFaixa className={`size-5 ${faixa ? FAIXA_COR[faixa]?.split(" ")[0] : "text-muted-foreground"}`} />

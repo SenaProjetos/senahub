@@ -32,6 +32,8 @@ import {
   apagarEap,
   avancarEapTarefas,
   colarEapBloco,
+  definirInicioEapTarefa,
+  definirTerminoEapTarefa,
   excluirEapTarefas,
   moverEapTarefasNoNivel,
   recuarEapTarefas,
@@ -297,6 +299,26 @@ export function EapWorkspace({
   /** Edição direto na tabela (Nome, Duração, % concluído). A action grava a linha inteira: o que não muda vai como está. */
   function editarCampo(t: EapTarefaDTO, e: EdicaoDeCampo): Promise<string | null> {
     return naFila(async () => {
+      const dataBr = (iso: string) => iso.split("-").reverse().join("/");
+      // Início digitado = o alfinete; término digitado = a duração. O motor pode não dar a data pedida: avisa a real.
+      if (e.campo === "inicio") {
+        const r = await definirInicioEapTarefa({ id: t.id, data: e.data });
+        if (!r.ok) return r.error;
+        if (r.data.inicio !== r.data.pedido) {
+          toast.warning(`A tarefa só pode começar em ${dataBr(r.data.inicio)}.`, {
+            description: "Depois das predecessoras e num dia útil — a data que você pediu ficou como \"não iniciar antes de\".",
+          });
+        }
+        router.refresh();
+        return null;
+      }
+      if (e.campo === "termino") {
+        const r = await definirTerminoEapTarefa({ id: t.id, data: e.data });
+        if (!r.ok) return r.error;
+        toast.success(`Duração: ${String(r.data.duracaoDias).replace(".", ",")} ${r.data.duracaoDias === 1 ? "dia útil" : "dias úteis"}.`);
+        router.refresh();
+        return null;
+      }
       const r = await editarEapTarefa({
         id: t.id,
         nome: e.campo === "nome" ? e.nome : t.nome,
@@ -656,6 +678,7 @@ export function EapWorkspace({
           projetoId={projeto.id}
           podeAprovar={podeAprovar}
           podeGerir={podeGerir}
+          linhasComDataFixada={tarefas.filter((t) => t.restricaoTipo).length}
           podeExecutado={podeExecutado}
           aprovado={cronograma.aprovado}
           emRevisao={cronograma.emRevisao}

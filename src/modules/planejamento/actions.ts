@@ -36,6 +36,7 @@ import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "@/modules/planejamento/desfazer/passo";
+import { definirInicioDaLinha, definirTerminoDaLinha, moverRestricoesDoProjeto } from "@/modules/planejamento/datas-linha-service";
 import { desfazerUltimoPasso, descartarPassos } from "@/modules/planejamento/desfazer/service";
 import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
 import { mudaCampoDoPlano } from "@/modules/planejamento/trava-plano";
@@ -433,6 +434,41 @@ export const moverEapTarefaNoNivel = defineAction(
   ),
 );
 
+// ── Datas digitadas na tabela (Fase D) ──────────────────────────────────────────────────────────────────────
+const diaIso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida. Use dd/mm/aaaa.");
+
+/** O início digitado na célula: vira a restrição "não iniciar antes de" (o alfinete); a duração se mantém. */
+export const definirInicioEapTarefa = defineAction(
+  { ...plan, acao: "definir-inicio-eap", entidade: "EapTarefa", schema: z.object({ id: z.string().min(1), data: diaIso }), entidadeId: (_d, i) => i.id },
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Início de") },
+    async (i, { user }) => {
+      await exigirPlanoEditavelDaLinha(i.id);
+      const r = await definirInicioDaLinha({ id: i.id, data: i.data });
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      // O motor pode não conseguir começar na data pedida (predecessora, dia não útil): a tela avisa a data real.
+      const t = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { inicioPrevisto: true } });
+      return { inicio: t ? paraDia(t.inicioPrevisto) : i.data, pedido: i.data };
+    },
+  ),
+);
+
+/** O término digitado na célula: vira a DURAÇÃO (dias úteis do início do motor até a data); não cria restrição. */
+export const definirTerminoEapTarefa = defineAction(
+  { ...plan, acao: "definir-termino-eap", entidade: "EapTarefa", schema: z.object({ id: z.string().min(1), data: diaIso }), entidadeId: (_d, i) => i.id },
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Término de") },
+    async (i, { user }) => {
+      await exigirPlanoEditavelDaLinha(i.id);
+      const r = await definirTerminoDaLinha({ id: i.id, data: i.data });
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { duracaoDias: r.duracaoDias };
+    },
+  ),
+);
+
 // ── Várias linhas de uma vez (Fase C) ────────────────────────────────────────────────────────────────────────
 // UMA chamada, UMA transação (tudo ou nada), UM reagendamento e UM passo de desfazer — a seleção do cronograma.
 
@@ -793,20 +829,31 @@ export const definirInicioProjeto = defineAction(
     ...plan,
     acao: "definir-inicio-projeto",
     entidade: "CronogramaProjeto",
-    schema: z.object({ projetoId: z.string().min(1), inicio: dia }),
+    schema: z.object({
+      projetoId: z.string().min(1),
+      inicio: dia,
+      /** As linhas de data fixada (o alfinete) andam junto, os mesmos dias úteis. Padrão: manter onde estão. */
+      moverRestricoes: z.boolean().default(false),
+    }),
   },
   comPassoDaAction(
     { projetoDe: async (i) => i.projetoId, rotulo: () => "Mudar o início do projeto" },
     async (i, { user }) => {
     await exigirPlanoEditavel(i.projetoId);
+    const anterior = await prisma.cronogramaProjeto.findUnique({ where: { projetoId: i.projetoId }, select: { inicioProjeto: true } });
     await prisma.cronogramaProjeto.upsert({
       where: { projetoId: i.projetoId },
       create: { projetoId: i.projetoId, inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
       update: { inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
     });
+    // "Mover junto": depois de gravar o novo início, as restrições andam os mesmos dias úteis; o reagendamento (abaixo) já lê tudo.
+    const movidas =
+      i.moverRestricoes && anterior?.inicioProjeto
+        ? (await moverRestricoesDoProjeto(i.projetoId, paraDia(anterior.inicioProjeto), i.inicio)).movidas
+        : 0;
     const r = await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
-    return r;
+    return { ...r, movidas };
     },
   ),
 );

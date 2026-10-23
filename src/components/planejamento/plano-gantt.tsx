@@ -33,6 +33,7 @@ import {
 import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
 import { criarCalendario, diasUteisEntre } from "@/lib/calendario-trabalho";
 import { dataCurta, diasEntre } from "@/lib/dias-iso";
+import { lerDataDigitada } from "@/modules/planejamento/datas-linha";
 import { brl, cn } from "@/lib/utils";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
@@ -66,12 +67,14 @@ import {
 export type { ModoGantt } from "@/components/planejamento/gantt-barra";
 
 /** O que se edita direto na célula. `pred` (Predecessoras) tem callback próprio: grava o conjunto inteiro. */
-export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred";
+export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred" | "inicio" | "termino";
 
 export type EdicaoDeCampo =
   | { campo: "nome"; nome: string }
   | { campo: "duracao"; marco: boolean; duracaoDias?: number }
-  | { campo: "progresso"; progresso: number };
+  | { campo: "progresso"; progresso: number }
+  /** Início/término digitados (`YYYY-MM-DD`): o início fixa a tarefa (alfinete), o término recalcula a duração. */
+  | { campo: "inicio" | "termino"; data: string };
 
 type Destino = "fica" | "proxima" | "anterior" | "abaixo";
 
@@ -287,16 +290,20 @@ export function PlanoGantt({
     if (campo === "nome") return podeEditar;
     if (l.temFilhos) return false;
     if (campo === "duracao") return podeEditar && !planoTravado;
+    if (campo === "inicio") return podeEditar && !planoTravado;
+    if (campo === "termino") return podeEditar && !planoTravado && !l.t.marco; // marco é uma data só: muda-se o início
     if (campo === "progresso") return podeEditar && !l.t.marco;
     return podeEditarPred;
   };
-  const camposDaVisao: CampoEditavel[] = !verDatas ? ["nome", "duracao", "progresso", "pred"] : modo === "planejamento" ? ["nome", "duracao", "pred"] : ["nome", "progresso"];
+  const camposDaVisao: CampoEditavel[] = !verDatas ? ["nome", "duracao", "progresso", "pred"] : modo === "planejamento" ? ["nome", "duracao", "inicio", "termino", "pred"] : ["nome", "progresso"];
 
   const textoInicial = (l: Linha, campo: CampoEditavel): string => {
     const t = l.t;
     if (campo === "nome") return t.nome;
     if (campo === "duracao") return t.marco ? "0" : String(t.duracaoDias).replace(".", ",");
     if (campo === "progresso") return String(t.progresso);
+    if (campo === "inicio") return dataCurta(t.inicioPrevisto) || "";
+    if (campo === "termino") return dataCurta(t.fimPrevisto) || "";
     return formatarPredecessoras(t.predecessoras, codigoPorId);
   };
 
@@ -361,6 +368,16 @@ export function PlanoGantt({
       if (r.valor === t.progresso) return true;
       exibir = `${r.valor}%`;
       erro = await onEditarCampo!(t, { campo: "progresso", progresso: r.valor });
+    } else if (campo === "inicio" || campo === "termino") {
+      const r = lerDataDigitada(texto, hoje);
+      if (!r.ok) {
+        onErro?.(r.erro);
+        return false;
+      }
+      const atual = campo === "inicio" ? t.inicioPrevisto : t.fimPrevisto;
+      if (r.dia === atual) return true;
+      exibir = dataCurta(r.dia);
+      erro = await onEditarCampo!(t, { campo, data: r.dia });
     } else {
       const r = lerPredecessoras(texto, idPorCodigo, t.id);
       if (!r.ok) {
@@ -568,13 +585,15 @@ export function PlanoGantt({
       id: "inicio",
       rotulo: "Início",
       w: 84,
-      render: (l) => <span className="font-mono text-xs">{dataCurta(l.t.inicioPrevisto) || "—"}</span>,
+      render: (l) =>
+        envolver(l, "inicio", "Início", <span className="font-mono text-xs" title="Digite a data (dd/mm/aaaa). Ela fixa o início da tarefa (alfinete).">{gravado(l.t.id, "inicio") ?? (dataCurta(l.t.inicioPrevisto) || "—")}</span>),
     };
     const termino: Coluna = {
       id: "termino",
       rotulo: "Término",
       w: 84,
-      render: (l) => <span className="font-mono text-xs">{dataCurta(l.t.fimPrevisto) || "—"}</span>,
+      render: (l) =>
+        envolver(l, "termino", "Término", <span className="font-mono text-xs" title="Digite a data (dd/mm/aaaa). O término recalcula a duração em dias úteis.">{gravado(l.t.id, "termino") ?? (dataCurta(l.t.fimPrevisto) || "—")}</span>),
     };
     const progresso: Coluna = {
       id: "progresso",
