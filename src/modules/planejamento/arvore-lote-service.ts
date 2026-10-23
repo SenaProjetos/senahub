@@ -5,6 +5,7 @@ import { ActionError } from "@/lib/action-error";
 import { avancarLinha, moverLinhaNoNivel, proximaOrdem, type Db } from "./arvore-service";
 import {
   MAX_LINHAS_LOTE,
+  MOTIVO_NENHUMA_LINHA,
   motivoDaLinha,
   motivoParaAvancarEmLote,
   motivoParaMoverEmLote,
@@ -18,7 +19,6 @@ import {
  * ("Modelagem: Esta tarefa já é a primeira do nível."). Separadas da action para o smoke alcançar a regra sem sessão.
  */
 
-export const MOTIVO_NENHUMA_LINHA = "Escolha ao menos uma linha.";
 export const MOTIVO_PROJETOS_DIFERENTES = "As linhas escolhidas são de projetos diferentes.";
 export const MOTIVO_LINHA_SUMIU = "Alguma das linhas escolhidas não existe mais. Atualize a tela e escolha de novo.";
 const MOTIVO_LOTE_GRANDE = `Escolha no máximo ${MAX_LINHAS_LOTE} linhas de uma vez.`;

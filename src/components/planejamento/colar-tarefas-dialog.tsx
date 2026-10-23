@@ -95,7 +95,7 @@ export function ColarTarefasDialog({
             Cancelar
           </Button>
           <Button type="button" onClick={criar} disabled={!leitura?.ok || pending}>
-            {leitura?.ok ? `Criar ${leitura.tarefas.length === 1 ? "1 tarefa" : `${leitura.tarefas.length} tarefas`}` : "Criar tarefas"}
+            {pending ? "Criando…" : leitura?.ok ? `Criar ${leitura.tarefas.length === 1 ? "1 tarefa" : `${leitura.tarefas.length} tarefas`}` : "Criar tarefas"}
           </Button>
         </DialogFooter>
       </DialogContent>

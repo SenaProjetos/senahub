@@ -227,12 +227,18 @@ export function PlanoGantt({
   // A linha se identifica pelo CÓDIGO da EAP (1.2.3): é o que a coluna EDT mostra e o que as predecessoras citam.
   const codigoPorId = useMemo(() => new Map(grade.map((l) => [l.t.id, l.codigo])), [grade]);
   const idPorCodigo = useMemo(() => new Map(grade.map((l) => [l.codigo, l.t.id])), [grade]);
-  // Só vale o que ainda existe na lista (depois de excluir, o id some da seleção sem efeito para limpar).
+  const contextos = useMemo(() => new Map(grade.map((l, i) => [l.t.id, contextoDaLinha(grade, i)])), [grade]);
+  const linhas: Linha[] = useMemo(
+    () => (filtroIds ? soAsDoFiltro(grade, filtroIds) : linhasVisiveis(grade, recolhidos)),
+    [grade, filtroIds, recolhidos],
+  );
+  // Só vale o que está VISÍVEL: depois de excluir, recolher um agrupamento ou filtrar, o id some da seleção — a ação (excluir,
+  // mover, recuar) não pode agir numa linha que a pessoa não está vendo.
   const selecao = useMemo(() => {
-    const existentes = new Set(grade.map((l) => l.t.id));
-    return new Set([...selecaoBruta].filter((id) => existentes.has(id)));
-  }, [selecaoBruta, grade]);
-  const selecaoEmOrdem = useMemo(() => grade.map((l) => l.t.id).filter((id) => selecao.has(id)), [grade, selecao]);
+    const visiveis = new Set(linhas.map((l) => l.t.id));
+    return new Set([...selecaoBruta].filter((id) => visiveis.has(id)));
+  }, [selecaoBruta, linhas]);
+  const selecaoEmOrdem = useMemo(() => linhas.map((l) => l.t.id).filter((id) => selecao.has(id)), [linhas, selecao]);
   const selecaoChave = selecaoEmOrdem.join("|");
   useEffect(() => {
     onSelecaoChange?.(selecaoEmOrdem);
@@ -264,11 +270,6 @@ export function PlanoGantt({
     ancoraRef.current = id;
   }
 
-  const contextos = useMemo(() => new Map(grade.map((l, i) => [l.t.id, contextoDaLinha(grade, i)])), [grade]);
-  const linhas: Linha[] = useMemo(
-    () => (filtroIds ? soAsDoFiltro(grade, filtroIds) : linhasVisiveis(grade, recolhidos)),
-    [grade, filtroIds, recolhidos],
-  );
   const cal = useMemo(() => criarCalendario({ diasSemana: calendario.diasUteis, feriados: calendario.feriados }), [calendario]);
 
   // A escala cobre TODAS as linhas (não só as visíveis): filtrar ou recolher não pode mexer o gráfico de lugar.
@@ -939,6 +940,7 @@ export function PlanoGantt({
                       <div
                         role="row"
                         tabIndex={0}
+                        data-linha-id={l.t.id}
                         aria-selected={selecao.has(l.t.id)}
                         onMouseDown={(e) => {
                           // Shift+clique seleciona linhas, não texto.
@@ -948,7 +950,22 @@ export function PlanoGantt({
                         onDoubleClick={() => onAbrir?.(l.t)}
                         onKeyDown={(e) => {
                           if (e.target !== e.currentTarget) return; // teclas de dentro de uma célula em edição não chegam aqui
-                          if (e.key === "Escape" && selecao.size > 0) {
+                          if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.altKey && !e.ctrlKey && !e.metaKey) {
+                            // Setas movem o foco entre as linhas; com Shift, estendem a seleção desde a âncora.
+                            const i = linhas.findIndex((x) => x.t.id === l.t.id);
+                            const alvo = linhas[i + (e.key === "ArrowDown" ? 1 : -1)];
+                            if (alvo) {
+                              e.preventDefault();
+                              if (e.shiftKey) {
+                                if (!ancoraRef.current) ancoraRef.current = l.t.id; // só pelo teclado: a âncora é a linha onde se começou
+                                selecionarLinha(alvo.t.id, { shiftKey: true });
+                              }
+                              (document.querySelector(`[data-linha-id="${alvo.t.id}"]`) as HTMLElement | null)?.focus();
+                            }
+                          } else if ((e.ctrlKey || e.metaKey) && e.key === " ") {
+                            e.preventDefault();
+                            selecionarLinha(l.t.id, { ctrlKey: true });
+                          } else if (e.key === "Escape" && selecao.size > 0) {
                             e.preventDefault();
                             setSelecaoBruta(new Set());
                           } else if (e.key === "F2" && ehEditavel(l, "nome")) {
@@ -993,7 +1010,8 @@ export function PlanoGantt({
                           // aos olhos. No hover ele escurece mais um degrau, senão não mudaria nada.
                           l.temFilhos && "bg-muted",
                           hoverId === l.t.id && (l.temFilhos ? "bg-border/60" : "bg-muted"),
-                          selecao.has(l.t.id) && "bg-primary/10",
+                          // Selecionada: fundo mais forte E uma faixa à esquerda (não depende só da cor do fundo).
+                          selecao.has(l.t.id) && "bg-primary/20 shadow-[inset_3px_0_0_0_var(--color-primary)]",
                           arrasto?.junto.has(l.t.id) && "opacity-50",
                           // Onde a linha vai cair: um traço em cima ou embaixo desta.
                           destino?.id === l.t.id &&

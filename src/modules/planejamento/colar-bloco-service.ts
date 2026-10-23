@@ -17,9 +17,9 @@ import { ehEtapaDeTerceiro } from "./recursos";
  *
  * Copia a ESTRUTURA: nomes, duração, tipo (marco continua marco), prioridade, classificadores, a marca "Externo" e os
  * vínculos INTERNOS ao bloco (remapeados). Não copia pessoas, horas, %, datas reais, restrições de data (são datas
- * absolutas), bloqueio nem vínculo com linha de fora do bloco. Disciplina: toda linha copiada toma a do agrupamento de
- * destino (A1) — um bloco colado sob a Elétrica vira Elétrica; a fase só fica se essa disciplina a tem cadastrada. Cada
- * linha ganha `idCorporativo` novo e o responsável da disciplina desce para ela.
+ * absolutas), bloqueio nem vínculo com linha de fora do bloco. Disciplina: no destino com disciplina (A1), toda linha copiada
+ * toma a dele — um bloco colado sob a Elétrica vira Elétrica; sem disciplina no destino, cada linha mantém a sua. A fase só
+ * fica se essa disciplina a tem cadastrada. Cada linha ganha `idCorporativo` novo e o responsável da disciplina desce.
  */
 export async function colarBloco(p: {
   projetoId: string;
@@ -88,17 +88,22 @@ export async function colarBloco(p: {
   const porId = new Map(origem.map((l) => [l.id, l]));
   const linhasOrigem = bloco.map((id) => porId.get(id)!).map((l) => ({ ...l, deTerceiro: ehEtapaDeTerceiro(l.atribuicoes) }));
 
-  // Toda disciplina de origem vira a do destino; sem disciplina no destino, as linhas ficam sem (e sem fase).
+  // Disciplina das linhas coladas (A1): com o destino numa disciplina, TODA linha colada toma a dela. Sem disciplina no destino
+  // (a raiz, ou um agrupamento como "Gestão"), cada linha FICA com a que tinha: colar o bloco "Elétrica" no topo, abaixo de
+  // "Hidro", tem de continuar sendo Elétrica — e a fase continua se a disciplina a tem cadastrada.
   const disciplinaNova = new Map<string, string>();
   const fasesDaDisciplina = new Map<string, ReadonlySet<string>>();
-  if (pai?.disciplinaId) {
-    for (const l of origem) if (l.disciplinaId) disciplinaNova.set(l.disciplinaId, pai.disciplinaId);
-    const fases = await prisma.disciplinaEtapa.findMany({ where: { disciplinaId: pai.disciplinaId }, select: { etapaId: true } });
-    fasesDaDisciplina.set(pai.disciplinaId, new Set(fases.map((f) => f.etapaId)));
+  const disciplinasEnvolvidas = pai?.disciplinaId ? [pai.disciplinaId] : [...new Set(origem.flatMap((l) => (l.disciplinaId ? [l.disciplinaId] : [])))];
+  if (!pai?.disciplinaId) for (const d of disciplinasEnvolvidas) disciplinaNova.set(d, d);
+  else for (const l of origem) if (l.disciplinaId) disciplinaNova.set(l.disciplinaId, pai.disciplinaId);
+  if (disciplinasEnvolvidas.length > 0) {
+    const fases = await prisma.disciplinaEtapa.findMany({ where: { disciplinaId: { in: disciplinasEnvolvidas } }, select: { disciplinaId: true, etapaId: true } });
+    for (const d of disciplinasEnvolvidas) fasesDaDisciplina.set(d, new Set(fases.filter((f) => f.disciplinaId === d).map((f) => f.etapaId)));
   }
+  // Os classificadores valem no projeto de origem E no global: a cópia é no MESMO projeto, então os do próprio projeto ficam.
   const classificadores = await prisma.eapCatalogo.findMany({
     where: {
-      projetoId: null,
+      OR: [{ projetoId: null }, { projetoId: p.projetoId }],
       id: { in: origem.flatMap((l) => [l.tipoAtividadeId, l.sistemaId, l.localizacaoId, l.origemId].filter((id): id is string => !!id)) },
     },
     select: { id: true },
@@ -121,15 +126,14 @@ export async function colarBloco(p: {
       const fasesDoDestino = pai?.disciplinaId ? fasesDaDisciplina.get(pai.disciplinaId) : undefined;
       const dados = linhas.map((l) => {
         const k = idsRaizes.indexOf(l.id as string);
-        // A1: TODA linha colada toma a disciplina do agrupamento de destino (a filha que não tinha disciplina na origem
-        // também: ela nasce sob uma linha nova que já a tem); a fase só fica se essa disciplina a tem cadastrada.
+        // Com disciplina no destino, TODA linha colada a toma (a filha que não tinha disciplina na origem também: ela nasce sob
+        // uma linha nova que já a tem); a fase só fica se essa disciplina a tem cadastrada. Sem disciplina no destino, vale o
+        // que `clonarEap` já devolveu (a disciplina e a fase da própria linha).
         const etapaOrigem = origemDaNova.get(l.id as string)?.etapaId ?? null;
-        const comDisciplina = {
-          ...l,
-          disciplinaId: pai?.disciplinaId ?? null,
-          etapaId: etapaOrigem && fasesDoDestino?.has(etapaOrigem) ? etapaOrigem : null,
-        };
-        return k >= 0 ? { ...comDisciplina, parentId: paiDestino, ordem: primeiraOrdem + k } : comDisciplina;
+        const ajustada = pai?.disciplinaId
+          ? { ...l, disciplinaId: pai.disciplinaId, etapaId: etapaOrigem && fasesDoDestino?.has(etapaOrigem) ? etapaOrigem : null }
+          : l;
+        return k >= 0 ? { ...ajustada, parentId: paiDestino, ordem: primeiraOrdem + k } : ajustada;
       });
       if (p.depoisDeId) {
         // Abre lugar: toda `ordem` maior passa para frente pelo número de raízes coladas.

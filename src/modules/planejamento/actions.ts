@@ -28,7 +28,7 @@ import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service
 import { MAX_LINHAS, alinharDisciplinasNoBanco } from "@/modules/planejamento/disciplina-linha-service";
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
 import { MAX_LINHAS_LOTE } from "@/modules/planejamento/arvore-lote";
-import { avancarEmLote, excluirEmLote, moverEmLote, recuarEmLote } from "@/modules/planejamento/arvore-lote-service";
+import { avancarEmLote, carregarLote, excluirEmLote, moverEmLote, recuarEmLote } from "@/modules/planejamento/arvore-lote-service";
 import { lerTarefasColadas } from "@/modules/planejamento/colar-tarefas";
 import { criarTarefasEmLote } from "@/modules/planejamento/colar-tarefas-service";
 import { colarBloco } from "@/modules/planejamento/colar-bloco-service";
@@ -445,60 +445,71 @@ const lote = z.object({
 const loteDirecao = lote.extend({ direcao: z.union([z.literal(-1), z.literal(1)]) });
 const linhasTxt = (n: number) => (n === 1 ? "1 linha" : `${n} linhas`);
 const projetoDoLote = <I extends { ids: string[] }>(i: I) => projetoDaLinha(i.ids[0]);
+/** Valida o lote (de UM projeto, linhas existentes) e SÓ ENTÃO trava/marca o plano: a guarda marca a revisão como alterada. */
+async function exigirLoteEditavel(ids: readonly string[]): Promise<string> {
+  const { projetoId } = await carregarLote(ids);
+  await exigirPlanoEditavel(projetoId);
+  return projetoId;
+}
+/** O projeto vai no resultado: a auditoria de um lote aponta o projeto, e uma linha excluída já não existe para apontar. */
+const entidadeDoLote = (d: unknown) => (d as { projetoId?: string } | null)?.projetoId;
+/** O antes de cada linha do lote (pai e posição): a auditoria de recuar/avançar/mover/excluir guarda o que mudou. */
+const antesDoLote = (i: { ids: string[] }) =>
+  prisma.eapTarefa.findMany({ where: { id: { in: i.ids } }, select: { id: true, nome: true, parentId: true, ordem: true } });
 
 export const recuarEapTarefas = defineAction(
-  { ...plan, acao: "recuar-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: (_d, i) => i.ids[0] },
+  { ...plan, acao: "recuar-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: entidadeDoLote, capturarAntes: antesDoLote },
   comPassoDaAction(
     { projetoDe: projetoDoLote, rotulo: (i) => `Recuar ${linhasTxt(i.ids.length)}` },
     async (i, { user }) => {
-      await exigirPlanoEditavelDaLinha(i.ids[0]);
+      await exigirLoteEditavel(i.ids);
       const r = await recuarEmLote(i.ids);
       await aposMudarEap(r.projetoId, user.id);
       revProjeto(r.projetoId);
-      return { linhas: r.linhas, paisComGente: r.paisComGente };
+      return { projetoId: r.projetoId, linhas: r.linhas, paisComGente: r.paisComGente };
     },
   ),
 );
 
 export const avancarEapTarefas = defineAction(
-  { ...plan, acao: "avancar-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: (_d, i) => i.ids[0] },
+  { ...plan, acao: "avancar-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: entidadeDoLote, capturarAntes: antesDoLote },
   comPassoDaAction(
     { projetoDe: projetoDoLote, rotulo: (i) => `Avançar ${linhasTxt(i.ids.length)}` },
     async (i, { user }) => {
-      await exigirPlanoEditavelDaLinha(i.ids[0]);
+      await exigirLoteEditavel(i.ids);
       const r = await avancarEmLote(i.ids);
       await aposMudarEap(r.projetoId, user.id);
       revProjeto(r.projetoId);
-      return { linhas: r.linhas };
+      return { projetoId: r.projetoId, linhas: r.linhas };
     },
   ),
 );
 
 export const moverEapTarefasNoNivel = defineAction(
-  { ...plan, acao: "mover-eap-lote", entidade: "EapTarefa", schema: loteDirecao, entidadeId: (_d, i) => i.ids[0] },
+  { ...plan, acao: "mover-eap-lote", entidade: "EapTarefa", schema: loteDirecao, entidadeId: entidadeDoLote, capturarAntes: antesDoLote },
   comPassoDaAction(
     { projetoDe: projetoDoLote, rotulo: (i) => `Mover ${linhasTxt(i.ids.length)}` },
     async (i, { user }) => {
-      await exigirPlanoEditavelDaLinha(i.ids[0]);
+      await exigirLoteEditavel(i.ids);
       const r = await moverEmLote(i.ids, i.direcao);
       await aposMudarEap(r.projetoId, user.id);
       revProjeto(r.projetoId);
-      return { linhas: r.linhas };
+      return { projetoId: r.projetoId, linhas: r.linhas };
     },
   ),
 );
 
 export const excluirEapTarefas = defineAction(
-  { ...plan, acao: "excluir-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: (_d, i) => i.ids[0] },
+  { ...plan, acao: "excluir-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: entidadeDoLote, capturarAntes: antesDoLote },
   comPassoDaAction(
     { projetoDe: projetoDoLote, rotulo: (i) => `Excluir ${linhasTxt(i.ids.length)}` },
     async (i, { user }) => {
-      await exigirPlanoEditavelDaLinha(i.ids[0]);
+      await exigirLoteEditavel(i.ids);
       const r = await excluirEmLote(i.ids);
       // Reagenda: sucessoras podem andar e o agrupamento-pai se refaz. (O card da linha excluída fica — nunca se apaga card.)
       await aposMudarEap(r.projetoId, user.id);
       revProjeto(r.projetoId);
-      return { linhas: r.linhas, excluidas: r.excluidas };
+      return { projetoId: r.projetoId, linhas: r.linhas, excluidas: r.excluidas };
     },
   ),
 );
@@ -519,7 +530,7 @@ export const criarEapTarefasEmLote = defineAction(
       texto: z.string().max(100_000, "O texto colado é grande demais."),
     }),
     entidadeId: (_d, i) => i.projetoId,
-    // O texto fica de fora da auditoria (pode ser enorme); o resultado diz quantas entraram.
+    // O texto fica de fora da auditoria (pode ser enorme): ela guarda o projeto e a linha de referência.
     redact: ["texto"],
   },
   comPassoDaAction(
@@ -565,7 +576,7 @@ export const colarEapBloco = defineAction(
   comPassoDaAction(
     {
       projetoDe: async (i) => i.projetoId,
-      rotulo: (i) => `Colar ${i.origemIds.length === 1 ? "1 linha" : `${i.origemIds.length} linhas`} copiadas`,
+      rotulo: (i) => `Colar ${i.origemIds.length === 1 ? "1 linha copiada" : `${i.origemIds.length} linhas copiadas`}`,
     },
     async (i, { user }) => {
       await exigirPlanoEditavel(i.projetoId);

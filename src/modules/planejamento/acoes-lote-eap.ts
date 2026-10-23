@@ -86,3 +86,28 @@ export function itensDeEstruturaEap(ctx: {
     },
   ];
 }
+
+/**
+ * SÓ Copiar e Colar, sem calcular o resto: o menu de uma linha só os acrescenta, e ele é montado para cada linha a cada
+ * render (inclusive a cada passada do mouse) — os motivos de recuar/avançar/mover não valem esse custo.
+ */
+export function itensDeCopiarColar(ctx: { temSelecao: boolean; planoTravado: boolean; podeColar: boolean }): AcaoItem[] {
+  return [
+    {
+      tipo: "acao",
+      id: ACAO_COPIAR,
+      rotulo: "Copiar",
+      icone: Copy,
+      atalho: "Ctrl+C",
+      desabilitado: ctx.temSelecao ? undefined : MOTIVO_SEM_SELECAO,
+    },
+    {
+      tipo: "acao",
+      id: ACAO_COLAR,
+      rotulo: "Colar abaixo",
+      icone: ClipboardPaste,
+      atalho: "Ctrl+V",
+      desabilitado: ctx.planoTravado ? MOTIVO_PLANO_TRAVADO : ctx.podeColar ? undefined : MOTIVO_SEM_COPIA,
+    },
+  ];
+}

@@ -96,11 +96,15 @@ function Interno({
 
   async function aplicar() {
     setSalvando(true);
-    const vinculos = aplicarEscolha(vinculosAtuais, escolhidas);
-    const erro = await onAplicar(vinculos);
-    setSalvando(false);
-    if (erro) return void toast.error(erro);
-    onFechar();
+    try {
+      const erro = await onAplicar(aplicarEscolha(vinculosAtuais, escolhidas));
+      if (erro) return void toast.error(erro);
+      onFechar();
+    } catch {
+      toast.error("Não foi possível gravar as predecessoras. Tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
   }
 
   const codigoPorId = new Map(linhas.map((l) => [l.id, l.codigo]));
@@ -112,12 +116,16 @@ function Interno({
         <DialogTitle>
           Predecessoras de {tarefa.codigo} · {tarefa.nome}
         </DialogTitle>
-        <DialogDescription>Marque as tarefas que precisam terminar antes desta começar. As que aparecem apagadas não podem ser escolhidas — passe o mouse para ver o motivo.</DialogDescription>
+        <DialogDescription>Marque as tarefas que precisam terminar antes desta começar. As que aparecem apagadas não podem ser escolhidas (o motivo aparece ao passar o mouse); um vínculo antigo com elas continua marcado e pode ser desmarcado.</DialogDescription>
       </DialogHeader>
       <DialogBody className="space-y-3">
         <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou nome" aria-label="Buscar tarefa por código ou nome" />
         <ul className="max-h-80 overflow-auto rounded-sm border text-sm" aria-label="Tarefas do cronograma">
-          {visiveis.length === 0 && <li className="px-3 py-3 text-muted-foreground">Nenhuma tarefa encontrada.</li>}
+          {visiveis.length === 0 && (
+            <li className="px-3 py-3 text-muted-foreground">
+              {termo ? "Nenhuma tarefa com esse código ou nome." : "Não há outras tarefas no cronograma para escolher."}
+            </li>
+          )}
           {visiveis.map((o) => (
             <li key={o.id} className="flex items-center gap-1 border-b px-2 py-1 last:border-b-0" style={{ paddingLeft: 8 + (termo ? 0 : o.nivel) * 18 }}>
               {!termo && comFilhas.has(o.id) ? (
@@ -139,8 +147,8 @@ function Interno({
               ) : (
                 <span className="size-5 shrink-0" aria-hidden />
               )}
-              <label className={`flex min-w-0 flex-1 items-center gap-2 ${o.desabilitada ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`} title={o.desabilitada ?? undefined}>
-                <Checkbox checked={escolhidas.has(o.id)} disabled={!!o.desabilitada} onCheckedChange={(v) => alternar(o.id, v === true)} aria-label={`${o.codigo} ${o.nome}`} />
+              <label className={`flex min-w-0 flex-1 items-center gap-2 ${o.desabilitada && !escolhidas.has(o.id) ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`} title={o.desabilitada ?? undefined}>
+                <Checkbox checked={escolhidas.has(o.id)} disabled={!!o.desabilitada && !escolhidas.has(o.id)} onCheckedChange={(v) => alternar(o.id, v === true)} aria-label={`${o.codigo} ${o.nome}`} />
                 <span className="shrink-0 font-mono text-xs text-muted-foreground">{o.codigo}</span>
                 <span className="min-w-0 truncate">{o.nome}</span>
               </label>
@@ -156,7 +164,7 @@ function Interno({
           Cancelar
         </Button>
         <Button type="button" onClick={() => void aplicar()} disabled={salvando}>
-          Aplicar
+          {salvando ? "Salvando…" : "Aplicar"}
         </Button>
       </DialogFooter>
     </>

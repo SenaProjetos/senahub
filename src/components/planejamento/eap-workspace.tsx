@@ -69,7 +69,7 @@ import {
   ACAO_RECUAR,
   itensDeLinhaEap,
 } from "@/modules/planejamento/acoes-eap";
-import { ACAO_COLAR, ACAO_COPIAR, itensDeEstruturaEap } from "@/modules/planejamento/acoes-lote-eap";
+import { ACAO_COLAR, ACAO_COPIAR, itensDeCopiarColar, itensDeEstruturaEap } from "@/modules/planejamento/acoes-lote-eap";
 import type { NoArvore } from "@/modules/planejamento/arvore-eap";
 import { MOTIVO_PLANO_TRAVADO, planoTravado } from "@/modules/planejamento/trava-plano";
 import type { Larguras } from "@/modules/planejamento/gantt-larguras";
@@ -180,6 +180,8 @@ export function EapWorkspace({
   const [sinalLimparSelecao, setSinalLimparSelecao] = useState(0);
   /** Janela "Novas tarefas" (colar várias de uma vez). */
   const [colarAberto, setColarAberto] = useState(false);
+  /** Uma ação de estrutura (setas, copiar/colar, excluir) está gravando: trava a barra contra duplo clique. */
+  const [gravandoEstrutura, setGravandoEstrutura] = useState(false);
   /** Janela da árvore de predecessoras: a linha em edição, ou `null`. */
   const [predAberta, setPredAberta] = useState<EapTarefaDTO | null>(null);
   /** Área de cópia: as linhas que o Copiar guardou (a estrutura é lida de novo na hora de colar). */
@@ -323,6 +325,16 @@ export function EapWorkspace({
   /** A árvore e os nomes que o descritor de estrutura precisa — tudo da lista que a tela já tem. */
   const nosDaArvore: NoArvore[] = tarefas.map((t) => ({ id: t.id, parentId: t.parentId, ordem: t.ordem, tipoEap: t.tipoEap }));
   const nomesDasLinhas = new Map(tarefas.map((t) => [t.id, t.nome]));
+  // Os dados da janela da árvore de predecessoras: só se recalculam quando a lista de tarefas muda.
+  const gradeDaArvore = useMemo(() => montarGrade(tarefas), [tarefas]);
+  const linhasDaArvore = useMemo(
+    () => gradeDaArvore.map((l) => ({ id: l.t.id, parentId: l.t.parentId, ordem: l.t.ordem, codigo: l.codigo, nome: l.t.nome, tipoEap: l.t.tipoEap })),
+    [gradeDaArvore],
+  );
+  const dependenciasDaArvore = useMemo(
+    () => tarefas.flatMap((t) => t.predecessoras.map((v) => ({ tarefaId: t.id, predecessoraId: v.predecessoraId }))),
+    [tarefas],
+  );
   const itensDaSelecao = (ids: string[] = selecionadas) =>
     itensDeEstruturaEap({ nos: nosDaArvore, nomes: nomesDasLinhas, selecionadas: ids, planoTravado: travado, podeColar: copiadas.length > 0 });
 
@@ -347,6 +359,7 @@ export function EapWorkspace({
       });
       if (!ok) return;
     }
+    setGravandoEstrutura(true);
     await naFila(async () => {
       if (item.id === ACAO_COLAR) {
         const r = await colarEapBloco({ projetoId: projeto.id, origemIds: copiadas, depoisDeId: ids[0] ?? null });
@@ -372,7 +385,7 @@ export function EapWorkspace({
         toast.success(r.data.excluidas === 1 ? "Linha excluída." : `${r.data.excluidas} linhas excluídas.`);
       }
       router.refresh();
-    });
+    }).finally(() => setGravandoEstrutura(false));
   }
 
   /**
@@ -829,7 +842,7 @@ export function EapWorkspace({
               total={selecionadas.length}
               onAcao={(item) => void executarEstrutura(item, selecionadas)}
               onLimpar={() => setSinalLimparSelecao((n) => n + 1)}
-              pendente={pending}
+              pendente={pending || gravandoEstrutura}
             />
           )}
 
@@ -870,7 +883,7 @@ export function EapWorkspace({
                   podeGerir
                     ? [
                         { tipo: "separador", id: "sep-copiar-linha" } as const,
-                        ...itensDaSelecao([t.id]).filter((i) => i.tipo === "acao" && (i.id === ACAO_COPIAR || i.id === ACAO_COLAR)),
+                        ...itensDeCopiarColar({ temSelecao: true, planoTravado: travado, podeColar: copiadas.length > 0 }),
                       ]
                     : [],
                 )
@@ -907,13 +920,13 @@ export function EapWorkspace({
         <ExecucaoDialog linha={execucao} onClose={() => setExecucao(null)} podeAprovarFase={podeAprovarFase} />
       )}
 
-      {podeGerir && (
+      {podeGerir && predAberta && (
         <PredecessorasDialog
-          tarefa={predAberta ? { id: predAberta.id, nome: predAberta.nome, codigo: montarGrade(tarefas).find((l) => l.t.id === predAberta.id)?.codigo ?? "" } : null}
-          linhas={montarGrade(tarefas).map((l) => ({ id: l.t.id, parentId: l.t.parentId, ordem: l.t.ordem, codigo: l.codigo, nome: l.t.nome, tipoEap: l.t.tipoEap }))}
-          dependencias={tarefas.flatMap((t) => t.predecessoras.map((v) => ({ tarefaId: t.id, predecessoraId: v.predecessoraId })))}
-          vinculosAtuais={predAberta?.predecessoras ?? []}
-          onAplicar={(vinculos) => (predAberta ? editarPredecessoras(predAberta, vinculos) : Promise.resolve(null))}
+          tarefa={{ id: predAberta.id, nome: predAberta.nome, codigo: gradeDaArvore.find((l) => l.t.id === predAberta.id)?.codigo ?? "" }}
+          linhas={linhasDaArvore}
+          dependencias={dependenciasDaArvore}
+          vinculosAtuais={predAberta.predecessoras}
+          onAplicar={(vinculos) => editarPredecessoras(predAberta, vinculos)}
           onFechar={() => setPredAberta(null)}
         />
       )}

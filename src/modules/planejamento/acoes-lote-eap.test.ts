@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { ACAO_AVANCAR, ACAO_EXCLUIR, ACAO_MOVER_BAIXO, ACAO_MOVER_CIMA, ACAO_RECUAR } from "./acoes-eap";
-import { ACAO_COLAR, ACAO_COPIAR, itensDeEstruturaEap, MOTIVO_SEM_COPIA, MOTIVO_SEM_SELECAO } from "./acoes-lote-eap";
+import { ACAO_COLAR, ACAO_COPIAR, itensDeCopiarColar, itensDeEstruturaEap, MOTIVO_SEM_COPIA, MOTIVO_SEM_SELECAO } from "./acoes-lote-eap";
 import { MOTIVO_NIVEL_MAIS_ALTO, MOTIVO_PRIMEIRA_DO_NIVEL, MOTIVO_SEM_IRMA_ACIMA, type NoArvore } from "./arvore-eap";
 import { MOTIVO_PLANO_TRAVADO } from "./trava-plano";
 
@@ -63,5 +63,16 @@ describe("itensDeEstruturaEap", () => {
     expect(comFilhas?.titulo).toBe("Excluir 1 linha?");
     expect(comFilhas?.descricao).toContain("1 subtarefa");
     expect(porId(itensDeEstruturaEap(ctx(["Y"])), ACAO_EXCLUIR).confirmar?.descricao).not.toContain("subtarefa");
+  });
+});
+
+describe("itensDeCopiarColar (o menu de uma linha só)", () => {
+  it("dá os mesmos dois itens e os mesmos motivos do descritor completo", () => {
+    for (const [travado, podeColar] of [[false, true], [false, false], [true, true]] as const) {
+      const completo = itensDeEstruturaEap({ nos, nomes, selecionadas: ["Y"], planoTravado: travado, podeColar });
+      const leve = itensDeCopiarColar({ temSelecao: true, planoTravado: travado, podeColar });
+      for (const id of [ACAO_COPIAR, ACAO_COLAR]) expect(porId(leve, id).desabilitado).toBe(porId(completo, id).desabilitado);
+      expect(acoes(leve).map((i) => i.id)).toEqual([ACAO_COPIAR, ACAO_COLAR]);
+    }
   });
 });

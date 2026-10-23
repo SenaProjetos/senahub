@@ -158,7 +158,10 @@ async function main() {
     check("a pessoa da origem não foi copiada, mas a marca Externo sim", !atribs.some((a) => a.userId === admin.id && a.tarefaId === c.get("B2")!.id) && atribs.some((a) => a.tarefaId === c.get("B1")!.id && a.papel === "ext"), atribs);
     const intactas = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B2.id }, select: { restricaoTipo: true, progresso: true, disciplinaId: true } });
     check("as originais continuam como estavam", intactas.restricaoTipo === "iniciar_nao_antes_de" && intactas.progresso === 50 && (await prisma.eapDependencia.count({ where: { tarefaId: { in: [B1.id, B2.id] } } })) === 2);
-    check("sem referência: a cópia vai para o fim da raiz, sem disciplina", (await colarBloco({ projetoId: projeto.id, origemIds: [B.id], depoisDeId: null })).criadas === 3);
+    const naRaiz = await colarBloco({ projetoId: projeto.id, origemIds: [B.id], depoisDeId: null });
+    const naRaizLinhas = await prisma.eapTarefa.findMany({ where: { id: { in: naRaiz.ids } }, select: { nome: true, parentId: true, disciplinaId: true } });
+    check("sem referência: a cópia vai para o fim da raiz", naRaiz.criadas === 3 && naRaizLinhas.find((l) => l.nome === "Bloco")?.parentId === null, naRaizLinhas);
+    check("sem disciplina no destino (a raiz), a cópia MANTÉM a disciplina da origem (Elétrica) na mãe", naRaizLinhas.find((l) => l.nome === "Bloco")?.disciplinaId === ele.id, naRaizLinhas.map((l) => l.disciplinaId));
     check("origem de outro projeto: recusa", !!(await erroDe(() => colarBloco({ projetoId: projeto.id, origemIds: [estranha.id], depoisDeId: null }))));
     check("referência de outro projeto: recusa", !!(await erroDe(() => colarBloco({ projetoId: projeto.id, origemIds: [B.id], depoisDeId: estranha.id }))));
   } finally {
