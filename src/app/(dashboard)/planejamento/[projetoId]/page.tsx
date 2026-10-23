@@ -18,6 +18,7 @@ import { valorAgregadoDoProjeto } from "@/modules/planejamento/valor-agregado-se
 import { previasDosModelos } from "@/modules/planejamento/modelos/service";
 import { opcoesParaGerarDisciplinas } from "@/modules/planejamento/modelos/disciplina-service";
 import { impedimentoParaApagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
+import { rotuloDoUltimoPasso } from "@/modules/planejamento/desfazer/service";
 import { paraDia } from "@/modules/planejamento/agenda";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { CHAVE_PREF_LARGURAS_GANTT, lerLarguras } from "@/modules/planejamento/gantt-larguras";
@@ -71,6 +72,7 @@ export default async function PlanejamentoProjetoPage({
   const previasModelos = podeGerir && tarefas.length === 0 ? await previasDosModelos(projetoId) : [];
   const opcoesDisciplinas = podeGerir ? await opcoesParaGerarDisciplinas(projetoId) : [];
   const impedimentoApagar = podeGerir && tarefas.length > 0 ? await impedimentoParaApagarEapDoProjeto(projetoId) : null;
+  const ultimoPasso = podeGerir ? await rotuloDoUltimoPasso(projetoId, user.id) : null;
 
   return (
     <div className="space-y-6">
@@ -93,6 +95,7 @@ export default async function PlanejamentoProjetoPage({
         previasModelos={previasModelos}
         opcoesDisciplinas={opcoesDisciplinas}
         impedimentoApagar={impedimentoApagar}
+        ultimoPasso={ultimoPasso}
         largurasColunas={lerLarguras(preferencias[CHAVE_PREF_LARGURAS_GANTT])}
       />
       {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}

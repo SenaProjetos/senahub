@@ -44,6 +44,7 @@ import { somarDias } from "@/lib/dias-iso";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AplicarModeloDialog, type PreviaDeModelo } from "@/components/planejamento/modelos/aplicar-modelo-dialog";
+import { DesfazerBotao } from "@/components/planejamento/desfazer-botao";
 import { GerarEapDisciplinasDialog } from "@/components/planejamento/modelos/gerar-eap-disciplinas-dialog";
 import type { OpcaoDeDisciplina } from "@/modules/planejamento/modelos/disciplina-service";
 import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
@@ -98,6 +99,7 @@ export function EapWorkspace({
   previasModelos = [],
   opcoesDisciplinas = [],
   impedimentoApagar = null,
+  ultimoPasso = null,
   largurasColunas,
   noProjeto,
 }: {
@@ -139,6 +141,8 @@ export function EapWorkspace({
   opcoesDisciplinas?: OpcaoDeDisciplina[];
   /** Por que "Apagar EAP" não pode (`null` = pode) — a mesma frase da action. */
   impedimentoApagar?: string | null;
+  /** O que o Ctrl+Z desfaria agora (rótulo da última ação desta pessoa neste projeto); `null` = nada. */
+  ultimoPasso?: string | null;
   /** Larguras de coluna do Gantt que o usuário ajustou (preferência dele). */
   largurasColunas?: Larguras;
   /**
@@ -500,6 +504,7 @@ export function EapWorkspace({
               >
                 <Plus className="size-3.5" /> Nova tarefa
               </Button>
+              <DesfazerBotao projetoId={projeto.id} rotulo={ultimoPasso} travado={travado} />
               {disciplinas.length > 0 && !travado && (
                 <GerarEapDisciplinasDialog
                   key={opcoesDisciplinas.map((o) => o.disciplinaId).join()}
