@@ -65,6 +65,8 @@ async function main() {
     await prisma.eapAtribuicao.create({ data: { tarefaId: A.id, userId: admin.id, papel: "pro", horasPrevistas: 8, principal: true } });
     const parcela = await prisma.contratoParcelaEntrega.create({ data: { contratoId: contrato.id, descricao: "Entrega K", percentual: 100, marcoId: K.id } });
 
+    await prisma.eapProgressoRegistro.create({ data: { tarefaId: A.id, progresso: 40, anterior: 0, origem: "informado" } });
+
     check("sem passo nenhum, não há o que desfazer", (await rotuloDoUltimoPasso(p.projetoId, p.userId)) === null && (await erroDe(() => desfazerUltimoPasso(p.projetoId, p.userId))) === MOTIVO_NADA_A_DESFAZER);
 
     // ── excluir a mãe e desfazer ─────────────────────────────────────────────
@@ -83,6 +85,7 @@ async function main() {
     check("a pessoa de A volta, como principal, com as horas", atr?.userId === admin.id && atr.principal && Number(atr.horasPrevistas) === 8, atr);
     check("a parcela do contrato é religada ao marco", (await prisma.contratoParcelaEntrega.findUniqueOrThrow({ where: { id: parcela.id } })).marcoId === K.id);
     check("o passo foi consumido", (await passos()) === 0);
+    check("o histórico de % da linha recriada volta (Valor Agregado de data passada)", (await prisma.eapProgressoRegistro.count({ where: { tarefaId: A.id } })) === 1);
 
     // ── ação que não muda nada não cria passo ────────────────────────────────
     await comPasso({ ...p, rotulo: "Nada" }, async () => undefined);
@@ -119,6 +122,15 @@ async function main() {
     const recusa = await erroDe(() => desfazerUltimoPasso(p.projetoId, p.userId));
     check("plano editado por outra pessoa: recusa com a frase", recusa === MOTIVO_PLANO_MUDOU, recusa);
     check("e descarta a pilha, sem sobrescrever nada", (await passos()) === 0 && (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id } })).nome === "Edição de outra pessoa");
+
+    // ── erro inesperado na restauração: frase clara e pilha descartada (não fica preso no topo) ──
+    const D = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Descartável" } });
+    const L1 = await nova("Única da disciplina", null);
+    await prisma.eapTarefa.update({ where: { id: L1.id }, data: { disciplinaId: D.id } });
+    await comPasso({ ...p, rotulo: "Excluir a única" }, () => prisma.eapTarefa.delete({ where: { id: L1.id } }));
+    await prisma.disciplina.delete({ where: { id: D.id } });
+    const preso = await erroDe(() => desfazerUltimoPasso(p.projetoId, p.userId));
+    check("FK que sumiu: frase clara e a pilha é descartada", !!preso && preso.startsWith("Não foi possível desfazer") && (await passos()) === 0, preso);
 
     // ── dois Ctrl+Z ao mesmo tempo: um desfaz, o outro responde "nada para desfazer" ──
     await comPasso({ ...p, rotulo: "Excluir a mãe de novo" }, () => prisma.eapTarefa.delete({ where: { id: M.id } }));

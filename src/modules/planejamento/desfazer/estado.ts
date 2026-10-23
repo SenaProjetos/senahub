@@ -41,6 +41,18 @@ export type AtribuicaoFoto = {
   principal: boolean;
 };
 
+/** `EapProgressoRegistro`: o histórico de % que o Valor Agregado de uma Data de Status passada lê (cascade com a linha). */
+export type ProgressoFoto = {
+  id: string;
+  tarefaId: string;
+  progresso: number;
+  anterior: number;
+  em: string;
+  dataStatusVigente: string | null;
+  origem: string;
+  autorId: string | null;
+};
+
 export type EstadoPlano = {
   /** `YYYY-MM-DD`. */
   inicioProjeto: string | null;
@@ -51,6 +63,8 @@ export type EstadoPlano = {
   parcelas: { id: string; marcoId: string | null }[];
   /** `EapBaselineLinha` que aponta para uma das linhas: apagar a linha solta o `tarefaId` (SetNull). */
   baselineLinhas: { id: string; tarefaId: string | null }[];
+  /** Ausente nas fotos gravadas antes de o histórico entrar na foto. */
+  progressos?: ProgressoFoto[];
 };
 
 const CAMPOS_NUMERICOS = new Set<string>(["duracaoDias"]);
@@ -88,6 +102,8 @@ export type PlanoRestauracao = {
   atualizarAtribuicoes: { id: string; campos: Partial<AtribuicaoFoto> }[];
   religarParcelas: { id: string; marcoId: string }[];
   religarBaselineLinhas: { id: string; tarefaId: string }[];
+  /** Histórico de % das linhas que serão RECRIADAS (o das que continuam não se mexe). */
+  criarProgressos: ProgressoFoto[];
 };
 
 export function semMudanca(p: PlanoRestauracao): boolean {
@@ -105,6 +121,7 @@ export function semMudanca(p: PlanoRestauracao): boolean {
       p.atualizarAtribuicoes,
       p.religarParcelas,
       p.religarBaselineLinhas,
+      p.criarProgressos,
     ].every((l) => l.length === 0)
   );
 }
@@ -127,9 +144,15 @@ export function planoDeRestauracao(atual: EstadoPlano, antes: EstadoPlano): Plan
 
   // Linhas: só no atual → apagar (a filha de uma linha apagada cai por cascade); só na foto → criar, pais antes.
   const sobrando = new Set(atual.linhas.filter((l) => !antesLinhas.has(l.id)).map((l) => l.id));
+  // A árvore DEPOIS das atualizações: quem continua volta ao pai da foto (as atualizações rodam antes do delete), então
+  // só cai por cascade o que ainda estiver sob uma linha que sai.
+  const paiDepois = (id: string): string | null => {
+    const naFoto = antesLinhas.get(id);
+    return ((naFoto ? naFoto.parentId : atualLinhas.get(id)?.parentId) as string | null | undefined) ?? null;
+  };
   const cascade = (id: string): boolean => {
     const vistos = new Set<string>([id]);
-    for (let pai = atualLinhas.get(id)?.parentId as string | null | undefined; pai && !vistos.has(pai); pai = atualLinhas.get(pai)?.parentId as string | null | undefined) {
+    for (let pai = paiDepois(id); pai && !vistos.has(pai); pai = paiDepois(pai)) {
       if (sobrando.has(pai)) return true;
       vistos.add(pai);
     }
@@ -191,6 +214,10 @@ export function planoDeRestauracao(atual: EstadoPlano, antes: EstadoPlano): Plan
   const baseLigadasHoje = new Set(atual.baselineLinhas.filter((b) => b.tarefaId !== null).map((b) => b.id));
   const religarBaselineLinhas = antes.baselineLinhas.flatMap((b) => (b.tarefaId && !baseLigadasHoje.has(b.id) ? [{ id: b.id, tarefaId: b.tarefaId }] : []));
 
+  const recriadas = new Set(criarLinhas.map((l) => l.id));
+  const jaExistem = new Set((atual.progressos ?? []).map((r) => r.id));
+  const criarProgressos = (antes.progressos ?? []).filter((r) => recriadas.has(r.tarefaId) && !jaExistem.has(r.id));
+
   return {
     inicioProjeto: atual.inicioProjeto !== antes.inicioProjeto ? { de: atual.inicioProjeto, para: antes.inicioProjeto } : null,
     apagarLinhas,
@@ -204,5 +231,6 @@ export function planoDeRestauracao(atual: EstadoPlano, antes: EstadoPlano): Plan
     atualizarAtribuicoes,
     religarParcelas,
     religarBaselineLinhas,
+    criarProgressos,
   };
 }

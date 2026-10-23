@@ -790,6 +790,8 @@ export const cancelarRevisaoPlanejamento = defineAction(
   },
   async (i) => {
     await cancelarRevisao(i.projetoId);
+    // Revisão cancelada: o que se fez nela não deve reaparecer como desfazível na próxima.
+    await descartarPassos(i.projetoId);
     revProjeto(i.projetoId);
     return { ok: true };
   },

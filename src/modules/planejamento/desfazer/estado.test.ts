@@ -153,6 +153,22 @@ describe("planoDeRestauracao", () => {
     expect(planoDeRestauracao(atual, antes).religarBaselineLinhas).toEqual([{ id: "b1", tarefaId: "A" }]);
   });
 
+  it("o histórico de % das linhas RECRIADAS volta; o das que continuam não é duplicado", () => {
+    const reg = (id: string, tarefaId: string) => ({ id, tarefaId, progresso: 40, anterior: 0, em: "2026-10-10T12:00:00.000Z", dataStatusVigente: null, origem: "informado", autorId: null });
+    const antes = estado({ linhas: [linha("A", null), linha("C", null)], progressos: [reg("r1", "A"), reg("r2", "C")] });
+    const atual = estado({ linhas: [linha("C", null)], progressos: [reg("r2", "C")] });
+    expect(planoDeRestauracao(atual, antes).criarProgressos.map((r) => r.id)).toEqual(["r1"]);
+    // foto antiga (sem `progressos`) não quebra
+    expect(planoDeRestauracao(atual, estado({ linhas: [linha("A", null), linha("C", null)] })).criarProgressos).toEqual([]);
+  });
+
+  it("o cascade é calculado sobre a árvore DEPOIS das atualizações: linha nova sob linha que sai de dentro da subárvore apagada", () => {
+    // antes: P › X.  hoje: S2 (nova) › X › S (nova).  Atualizar X de volta para P a tira de S2; S não cai junto.
+    const antes = estado({ linhas: [linha("P", null), linha("X", "P")] });
+    const atual = estado({ linhas: [linha("P", null), linha("S2", null), linha("X", "S2"), linha("S", "X")] });
+    expect([...planoDeRestauracao(atual, antes).apagarLinhas].sort()).toEqual(["S", "S2"]);
+  });
+
   it("início do projeto diferente entra no plano", () => {
     const p = planoDeRestauracao(estado({ inicioProjeto: "2026-10-12" }), estado({ inicioProjeto: "2026-10-05" }));
     expect(p.inicioProjeto).toEqual({ de: "2026-10-12", para: "2026-10-05" });

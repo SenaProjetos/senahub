@@ -157,8 +157,8 @@ mostra o que será desfeito ("Desfazer: Excluir \"Modelagem\"").
 - **O que não volta:** % concluído, datas reais, bloqueio, Data de Status, aprovar/replanejar, aplicar modelo, gerar
   EAP das disciplinas e **Apagar EAP** (estes continuam sem desfazer, e usá-los **zera a sua lista de passos**). Se
   você mudou o % depois de uma ação, desfazer a ação não mexe no %. Ao desfazer uma exclusão, a linha volta com o
-  % que tinha, mas o **histórico de % e de código** dela (o que alimenta o Valor Agregado de datas passadas) não é
-  recuperado.
+  % que tinha e com o **histórico de %** (o que alimenta o Valor Agregado de datas passadas); só o histórico de
+  **mudança de código** da EAP não é recuperado.
 - **Se outra pessoa editou o plano depois da sua ação**, o sistema **não desfaz** (não sobrescreve o trabalho dela)
   e descarta a sua lista de passos.
 - **Cronograma aprovado:** o desfazer só vale com o plano editável (rascunho ou **Revisar planejamento**). Ao

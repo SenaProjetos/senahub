@@ -4,7 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { exigirPlanoEditavel } from "../trava-plano-service";
-import { planoTravado } from "../trava-plano";
+import { MOTIVO_PLANO_TRAVADO, planoTravado } from "../trava-plano";
 import {
   impressaoDoPlano,
   planoDeRestauracao,
@@ -12,6 +12,7 @@ import {
   type DependenciaFoto,
   type EstadoPlano,
   type LinhaFoto,
+  type ProgressoFoto,
 } from "./estado";
 
 /**
@@ -39,6 +40,7 @@ export async function lerEstadoDoPlano(db: Db, projetoId: string): Promise<Estad
   const atribuicoes = await db.eapAtribuicao.findMany({ where: { tarefaId: { in: ids } } });
   const parcelas = await db.contratoParcelaEntrega.findMany({ where: { marcoId: { in: ids } }, select: { id: true, marcoId: true } });
   const baselineLinhas = await db.eapBaselineLinha.findMany({ where: { tarefaId: { in: ids } }, select: { id: true, tarefaId: true } });
+  const progressos = await db.eapProgressoRegistro.findMany({ where: { tarefaId: { in: ids } } });
   return {
     inicioProjeto: cronograma?.inicioProjeto ? cronograma.inicioProjeto.toISOString().slice(0, 10) : null,
     // JSON ida e volta: data vira ISO e Decimal vira texto — o formato que o passo guarda.
@@ -47,8 +49,15 @@ export async function lerEstadoDoPlano(db: Db, projetoId: string): Promise<Estad
     atribuicoes: atribuicoes.map((a): AtribuicaoFoto => ({ id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel, horasPrevistas: a.horasPrevistas.toString(), principal: a.principal })),
     parcelas,
     baselineLinhas,
+    // O histórico de % cai em cascade com a linha: vai na foto para voltar com ela (o Valor Agregado de uma Data de
+    // Status passada o lê). O histórico de CÓDIGO da EAP não vai: cresce a cada mudança de posição e não alimenta nada.
+    progressos: JSON.parse(JSON.stringify(progressos)) as ProgressoFoto[],
   };
 }
+
+/** A foto lida numa transação de leitura repetível: as leituras separadas enxergam o mesmo instante do banco. */
+const fotoConsistente = (projetoId: string) =>
+  prisma.$transaction((tx) => lerEstadoDoPlano(tx, projetoId), { isolationLevel: "RepeatableRead", timeout: 30_000 });
 
 /**
  * Roda `fn` (a mutação) e guarda o passo de desfazer se o plano mudou. Se `fn` lança, relança sem passo. Falha ao
@@ -60,7 +69,7 @@ export async function comPasso<R>(p: { projetoId: string; userId: string; rotulo
     // Plano aprovado e fechado: o desfazer não vale lá (o plano está travado), então nem se guarda passo — pessoas e
     // horas seguem editáveis depois da aprovação e acumulariam passos que ninguém poderia desfazer.
     const cronograma = await prisma.cronogramaProjeto.findUnique({ where: { projetoId: p.projetoId }, select: { aprovado: true, emRevisao: true } });
-    if (!planoTravado(cronograma)) antes = await lerEstadoDoPlano(prisma, p.projetoId);
+    if (!planoTravado(cronograma)) antes = await fotoConsistente(p.projetoId);
   } catch (e) {
     console.error("[desfazer] falha ao ler o plano antes da ação:", e);
   }
@@ -68,7 +77,7 @@ export async function comPasso<R>(p: { projetoId: string; userId: string; rotulo
   if (!antes) return resultado;
   try {
     const impressaoAntes = impressaoDoPlano(antes);
-    const depoisImpressao = impressaoDoPlano(await lerEstadoDoPlano(prisma, p.projetoId));
+    const depoisImpressao = impressaoDoPlano(await fotoConsistente(p.projetoId));
     if (depoisImpressao === impressaoAntes) return resultado;
     await prisma.eapPassoDesfazer.create({
       data: { projetoId: p.projetoId, userId: p.userId, rotulo: p.rotulo.slice(0, 200), antes: antes as unknown as Prisma.InputJsonValue, depoisImpressao },
@@ -103,60 +112,102 @@ export async function limparPassos(projetoId: string): Promise<void> {
 /**
  * Restaura o plano para a foto do último passo da pessoa. Recusa com o plano travado, sem passo, ou se o plano de hoje
  * não é o que o passo deixou — e nesse caso descarta a pilha (todo passo anterior ficou para trás da edição alheia).
+ *
+ * Tudo dentro de UMA transação com um lock consultivo do projeto: ler o passo, conferir a impressão e restaurar não
+ * podem ser separados (dois Ctrl+Z de duas abas, ou uma edição entre a conferência e a escrita, passariam pela conferência
+ * e sobrescreveriam). O lock serializa os desfazeres; não impede uma ação comum — para essa vale a impressão.
+ * Erro inesperado na restauração (uma disciplina que saiu do projeto, por exemplo) descarta a pilha com uma frase clara:
+ * o rollback desfaz também a reserva do passo, e o passo preso no topo travaria todo Ctrl+Z seguinte.
  */
 export async function desfazerUltimoPasso(projetoId: string, userId: string): Promise<{ rotulo: string }> {
-  await exigirPlanoEditavel(projetoId);
-  const passo = await ultimoPasso(projetoId, userId);
-  if (!passo) throw new ActionError(MOTIVO_NADA_A_DESFAZER);
-  const antes = passo.antes as unknown as EstadoPlano;
-  const atual = await lerEstadoDoPlano(prisma, projetoId);
-  if (impressaoDoPlano(atual) !== passo.depoisImpressao) {
+  const cronograma = await prisma.cronogramaProjeto.findUnique({ where: { projetoId }, select: { aprovado: true, emRevisao: true } });
+  if (planoTravado(cronograma)) throw new ActionError(MOTIVO_PLANO_TRAVADO);
+
+  type Resultado = { ok: true; rotulo: string } | { ok: false; motivo: string };
+  let resultado: Resultado;
+  try {
+    resultado = await prisma.$transaction(
+      async (tx): Promise<Resultado> => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`eap-desfazer:${projetoId}`}))`;
+        const passo = await tx.eapPassoDesfazer.findFirst({ where: { projetoId, userId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+        if (!passo) return { ok: false, motivo: MOTIVO_NADA_A_DESFAZER };
+        const antes = passo.antes as unknown as EstadoPlano;
+        const atual = await lerEstadoDoPlano(tx, projetoId);
+        if (impressaoDoPlano(atual) !== passo.depoisImpressao) {
+          await tx.eapPassoDesfazer.deleteMany({ where: { projetoId, userId } });
+          return { ok: false, motivo: MOTIVO_PLANO_MUDOU };
+        }
+        // Em revisão, marca o plano como alterado (e recusa se travou entre a leitura de cima e aqui): só quando vai gravar.
+        await exigirPlanoEditavel(projetoId);
+        await restaurar(tx, projetoId, planoDeRestauracao(atual, antes));
+        await tx.eapPassoDesfazer.delete({ where: { id: passo.id } });
+        return { ok: true, rotulo: passo.rotulo };
+      },
+      // Uma EAP de centenas de linhas são centenas de escritas em sequência: o padrão de 5 s não basta.
+      { timeout: 60_000, maxWait: 30_000 },
+    );
+  } catch (e) {
+    if (e instanceof ActionError) throw e;
+    console.error("[desfazer] falha ao restaurar:", e);
     await prisma.eapPassoDesfazer.deleteMany({ where: { projetoId, userId } });
-    throw new ActionError(MOTIVO_PLANO_MUDOU);
+    throw new ActionError(
+      "Não foi possível desfazer: a EAP mudou de um jeito que esse passo não alcança (por exemplo, uma disciplina foi removida). A lista de passos foi descartada.",
+    );
   }
-  const plano = planoDeRestauracao(atual, antes);
+  if (!resultado.ok) throw new ActionError(resultado.motivo);
+  return { rotulo: resultado.rotulo };
+}
 
-  await prisma.$transaction(
-    async (tx) => {
-      // Reserva o passo ANTES de mexer: dois Ctrl+Z simultâneos leem o mesmo passo, e o segundo deve ouvir "nada a
-      // desfazer" em vez de um erro de banco no meio da restauração.
-      const reservado = await tx.eapPassoDesfazer.deleteMany({ where: { id: passo.id } });
-      if (reservado.count !== 1) throw new ActionError(MOTIVO_NADA_A_DESFAZER);
-      if (plano.inicioProjeto) {
-        const inicio = plano.inicioProjeto.para ? new Date(`${plano.inicioProjeto.para}T00:00:00.000Z`) : null;
-        await tx.cronogramaProjeto.updateMany({ where: { projetoId }, data: { inicioProjeto: inicio } });
-      }
-      // Linhas: criar (pais primeiro) → atualizar (reparenta quem estava sob uma linha que vai sair) → apagar.
-      for (const l of plano.criarLinhas) {
-        const dados = Object.fromEntries(Object.entries(l).map(([k, v]) => [k, DATAS_DA_LINHA.includes(k) ? dataDoBanco(v) : v]));
-        await tx.eapTarefa.create({ data: dados as Prisma.EapTarefaUncheckedCreateInput });
-      }
-      for (const u of plano.atualizarLinhas) {
-        const campos = Object.fromEntries(Object.entries(u.campos).map(([k, v]) => [k, DATAS_DA_LINHA.includes(k) ? dataDoBanco(v) : v]));
-        await tx.eapTarefa.update({ where: { id: u.id }, data: campos as Prisma.EapTarefaUncheckedUpdateInput });
-      }
-      if (plano.apagarLinhas.length > 0) await tx.eapTarefa.deleteMany({ where: { id: { in: plano.apagarLinhas } } });
+/** Aplica o plano de restauração. Ordem: início → linhas (criar, atualizar, apagar) → vínculos → pessoas → ganchos. */
+async function restaurar(tx: Prisma.TransactionClient, projetoId: string, plano: ReturnType<typeof planoDeRestauracao>): Promise<void> {
+  if (plano.inicioProjeto) {
+    const inicio = plano.inicioProjeto.para ? new Date(`${plano.inicioProjeto.para}T00:00:00.000Z`) : null;
+    await tx.cronogramaProjeto.updateMany({ where: { projetoId }, data: { inicioProjeto: inicio } });
+  }
+  // Linhas: criar (pais primeiro) → atualizar (reparenta quem estava sob uma linha que vai sair) → apagar.
+  for (const l of plano.criarLinhas) {
+    const dados = Object.fromEntries(Object.entries(l).map(([k, v]) => [k, DATAS_DA_LINHA.includes(k) ? dataDoBanco(v) : v]));
+    await tx.eapTarefa.create({ data: dados as Prisma.EapTarefaUncheckedCreateInput });
+  }
+  for (const r of plano.criarProgressos) {
+    await tx.eapProgressoRegistro.create({
+      data: {
+        id: r.id,
+        tarefaId: r.tarefaId,
+        progresso: r.progresso,
+        anterior: r.anterior,
+        em: new Date(r.em),
+        dataStatusVigente: r.dataStatusVigente ? new Date(r.dataStatusVigente) : null,
+        origem: r.origem as never,
+        autorId: r.autorId,
+      },
+    });
+  }
+  for (const u of plano.atualizarLinhas) {
+    const campos = Object.fromEntries(Object.entries(u.campos).map(([k, v]) => [k, DATAS_DA_LINHA.includes(k) ? dataDoBanco(v) : v]));
+    await tx.eapTarefa.update({ where: { id: u.id }, data: campos as Prisma.EapTarefaUncheckedUpdateInput });
+  }
+  if (plano.apagarLinhas.length > 0) await tx.eapTarefa.deleteMany({ where: { id: { in: plano.apagarLinhas } } });
 
-      // Vínculos: apagar → atualizar → criar (a chave única é tarefa + predecessora).
-      if (plano.apagarDependencias.length > 0) await tx.eapDependencia.deleteMany({ where: { id: { in: plano.apagarDependencias } } });
-      for (const u of plano.atualizarDependencias) await tx.eapDependencia.update({ where: { id: u.id }, data: { tipo: u.tipo as never, lagDias: u.lagDias } });
-      for (const d of plano.criarDependencias) await tx.eapDependencia.create({ data: { id: d.id, tarefaId: d.tarefaId, predecessoraId: d.predecessoraId, tipo: d.tipo as never, lagDias: d.lagDias } });
+  // Vínculos: apagar → atualizar → criar (a chave única é tarefa + predecessora).
+  if (plano.apagarDependencias.length > 0) await tx.eapDependencia.deleteMany({ where: { id: { in: plano.apagarDependencias } } });
+  for (const u of plano.atualizarDependencias) await tx.eapDependencia.update({ where: { id: u.id }, data: { tipo: u.tipo as never, lagDias: u.lagDias } });
+  for (const d of plano.criarDependencias) {
+    await tx.eapDependencia.create({ data: { id: d.id, tarefaId: d.tarefaId, predecessoraId: d.predecessoraId, tipo: d.tipo as never, lagDias: d.lagDias } });
+  }
 
-      // Pessoas: apagar → atualizar (principal=false primeiro: o índice parcial só admite um por linha) → criar.
-      if (plano.apagarAtribuicoes.length > 0) await tx.eapAtribuicao.deleteMany({ where: { id: { in: plano.apagarAtribuicoes } } });
-      const atualizacoes = [...plano.atualizarAtribuicoes].sort((a, b) => Number(a.campos.principal === true) - Number(b.campos.principal === true));
-      for (const u of atualizacoes) await tx.eapAtribuicao.update({ where: { id: u.id }, data: u.campos as Prisma.EapAtribuicaoUncheckedUpdateInput });
-      const criacoes = [...plano.criarAtribuicoes].sort((a, b) => Number(a.principal) - Number(b.principal));
-      for (const a of criacoes) await tx.eapAtribuicao.create({ data: { id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel as never, horasPrevistas: a.horasPrevistas, principal: a.principal } });
+  // Pessoas: apagar → atualizar (principal=false primeiro: o índice parcial só admite um por linha) → criar.
+  if (plano.apagarAtribuicoes.length > 0) await tx.eapAtribuicao.deleteMany({ where: { id: { in: plano.apagarAtribuicoes } } });
+  const atualizacoes = [...plano.atualizarAtribuicoes].sort((a, b) => Number(a.campos.principal === true) - Number(b.campos.principal === true));
+  for (const u of atualizacoes) await tx.eapAtribuicao.update({ where: { id: u.id }, data: u.campos as Prisma.EapAtribuicaoUncheckedUpdateInput });
+  const criacoes = [...plano.criarAtribuicoes].sort((a, b) => Number(a.principal) - Number(b.principal));
+  for (const a of criacoes) {
+    await tx.eapAtribuicao.create({ data: { id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel as never, horasPrevistas: a.horasPrevistas, principal: a.principal } });
+  }
 
-      // `updateMany` com `marcoId: null`: só religa o que continua solto, e não falha se o contrato foi apagado.
-      for (const r of plano.religarParcelas) await tx.contratoParcelaEntrega.updateMany({ where: { id: r.id, marcoId: null }, data: { marcoId: r.marcoId } });
-      for (const r of plano.religarBaselineLinhas) await tx.eapBaselineLinha.updateMany({ where: { id: r.id, tarefaId: null }, data: { tarefaId: r.tarefaId } });
-    },
-    // Uma EAP de centenas de linhas são centenas de escritas em sequência: o padrão de 5 s não basta.
-    { timeout: 60_000 },
-  );
-  return { rotulo: passo.rotulo };
+  // `updateMany` com `null`: só religa o que continua solto, e não falha se o contrato foi apagado.
+  for (const r of plano.religarParcelas) await tx.contratoParcelaEntrega.updateMany({ where: { id: r.id, marcoId: null }, data: { marcoId: r.marcoId } });
+  for (const r of plano.religarBaselineLinhas) await tx.eapBaselineLinha.updateMany({ where: { id: r.id, tarefaId: null }, data: { tarefaId: r.tarefaId } });
 }
 
 /** `limparPassos` para depois de uma ação que já aconteceu: falha ao limpar nunca vira erro da ação. */
