@@ -27,6 +27,8 @@ import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
 import { MAX_LINHAS, alinharDisciplinasNoBanco } from "@/modules/planejamento/disciplina-linha-service";
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
+import { MAX_LINHAS_LOTE } from "@/modules/planejamento/arvore-lote";
+import { avancarEmLote, excluirEmLote, moverEmLote, recuarEmLote } from "@/modules/planejamento/arvore-lote-service";
 import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
@@ -424,6 +426,76 @@ export const moverEapTarefaNoNivel = defineAction(
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { ok: true };
+    },
+  ),
+);
+
+// ── Várias linhas de uma vez (Fase C) ────────────────────────────────────────────────────────────────────────
+// UMA chamada, UMA transação (tudo ou nada), UM reagendamento e UM passo de desfazer — a seleção do cronograma.
+
+const lote = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1, "Escolha ao menos uma linha.")
+    .max(MAX_LINHAS_LOTE, `Escolha no máximo ${MAX_LINHAS_LOTE} linhas de uma vez.`),
+});
+const loteDirecao = lote.extend({ direcao: z.union([z.literal(-1), z.literal(1)]) });
+const linhasTxt = (n: number) => (n === 1 ? "1 linha" : `${n} linhas`);
+const projetoDoLote = <I extends { ids: string[] }>(i: I) => projetoDaLinha(i.ids[0]);
+
+export const recuarEapTarefas = defineAction(
+  { ...plan, acao: "recuar-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: (_d, i) => i.ids[0] },
+  comPassoDaAction(
+    { projetoDe: projetoDoLote, rotulo: (i) => `Recuar ${linhasTxt(i.ids.length)}` },
+    async (i, { user }) => {
+      await exigirPlanoEditavelDaLinha(i.ids[0]);
+      const r = await recuarEmLote(i.ids);
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { linhas: r.linhas, paisComGente: r.paisComGente };
+    },
+  ),
+);
+
+export const avancarEapTarefas = defineAction(
+  { ...plan, acao: "avancar-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: (_d, i) => i.ids[0] },
+  comPassoDaAction(
+    { projetoDe: projetoDoLote, rotulo: (i) => `Avançar ${linhasTxt(i.ids.length)}` },
+    async (i, { user }) => {
+      await exigirPlanoEditavelDaLinha(i.ids[0]);
+      const r = await avancarEmLote(i.ids);
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { linhas: r.linhas };
+    },
+  ),
+);
+
+export const moverEapTarefasNoNivel = defineAction(
+  { ...plan, acao: "mover-eap-lote", entidade: "EapTarefa", schema: loteDirecao, entidadeId: (_d, i) => i.ids[0] },
+  comPassoDaAction(
+    { projetoDe: projetoDoLote, rotulo: (i) => `Mover ${linhasTxt(i.ids.length)}` },
+    async (i, { user }) => {
+      await exigirPlanoEditavelDaLinha(i.ids[0]);
+      const r = await moverEmLote(i.ids, i.direcao);
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { linhas: r.linhas };
+    },
+  ),
+);
+
+export const excluirEapTarefas = defineAction(
+  { ...plan, acao: "excluir-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: (_d, i) => i.ids[0] },
+  comPassoDaAction(
+    { projetoDe: projetoDoLote, rotulo: (i) => `Excluir ${linhasTxt(i.ids.length)}` },
+    async (i, { user }) => {
+      await exigirPlanoEditavelDaLinha(i.ids[0]);
+      const r = await excluirEmLote(i.ids);
+      // Reagenda: sucessoras podem andar e o agrupamento-pai se refaz. (O card da linha excluída fica — nunca se apaga card.)
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { linhas: r.linhas, excluidas: r.excluidas };
     },
   ),
 );

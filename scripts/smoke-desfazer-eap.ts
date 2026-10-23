@@ -8,6 +8,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativo";
+import { recuarEmLote } from "../src/modules/planejamento/arvore-lote-service";
 import { MAX_PASSOS, MOTIVO_NADA_A_DESFAZER, MOTIVO_PLANO_MUDOU, comPasso, desfazerUltimoPasso, limparPassos, rotuloDoUltimoPasso } from "../src/modules/planejamento/desfazer/service";
 import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "../src/modules/planejamento/desfazer/passo";
 import { MOTIVO_PLANO_TRAVADO } from "../src/modules/planejamento/trava-plano";
@@ -122,6 +123,18 @@ async function main() {
     const recusa = await erroDe(() => desfazerUltimoPasso(p.projetoId, p.userId));
     check("plano editado por outra pessoa: recusa com a frase", recusa === MOTIVO_PLANO_MUDOU, recusa);
     check("e descarta a pilha, sem sobrescrever nada", (await passos()) === 0 && (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id } })).nome === "Edição de outra pessoa");
+
+    // ── um LOTE (recuar várias linhas) é UM passo, e um Ctrl+Z devolve tudo ──
+    const LA = await nova("Lote 1", null);
+    const LB = await nova("Lote 2", null);
+    const LC = await nova("Lote 3", null);
+    await comPasso({ ...p, rotulo: "Recuar 2 linhas" }, () => recuarEmLote([LB.id, LC.id]));
+    check("o lote recuou as duas linhas sob a de cima", (await prisma.eapTarefa.count({ where: { parentId: LA.id } })) === 2);
+    check("e gravou UM passo só", (await rotuloDoUltimoPasso(p.projetoId, p.userId)) === "Recuar 2 linhas" && (await passos()) === 1);
+    await desfazerUltimoPasso(p.projetoId, p.userId);
+    const voltou = await prisma.eapTarefa.findMany({ where: { id: { in: [LB.id, LC.id] } }, select: { parentId: true } });
+    check("um desfazer devolve as duas linhas ao nível de antes", voltou.every((l) => l.parentId === null) && (await passos()) === 0, voltou);
+    await prisma.eapTarefa.deleteMany({ where: { id: { in: [LA.id, LB.id, LC.id] } } });
 
     // ── erro inesperado na restauração: frase clara e pilha descartada (não fica preso no topo) ──
     const D = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Descartável" } });
