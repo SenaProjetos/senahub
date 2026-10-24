@@ -2,6 +2,50 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.29.0](https://github.com/SenaProjetos/senahub/compare/v1.28.0...v1.29.0) (2026-10-24)
+
+
+### ✨ Funcionalidades
+
+* **coordenacao:** tirar modelo da compatibilização ([639dadb](https://github.com/SenaProjetos/senahub/commit/639dadbe3985d81644640d918ac4e0a646c198cf))
+* **planejamento:** ações em lote da EAP com um passo de desfazer por lote ([af4930e](https://github.com/SenaProjetos/senahub/commit/af4930ec4f37329d670b15c90216a189a59e63da))
+* **planejamento:** card gerado da EAP mostra a fase no título ([c811ac1](https://github.com/SenaProjetos/senahub/commit/c811ac11c8a089670be07c34a059703da3adb0a9))
+* **planejamento:** colar várias tarefas de uma vez na EAP ([ac36e0e](https://github.com/SenaProjetos/senahub/commit/ac36e0e0216ff2e8e32304962a34eb19f8a0d88b))
+* **planejamento:** converter a EAP de um projeto na estrutura de um modelo ([9b037c9](https://github.com/SenaProjetos/senahub/commit/9b037c9aa9ae82f0829f3731709db39253c39d80))
+* **planejamento:** copiar um bloco da EAP e colar em outro lugar ([3f7dc6f](https://github.com/SenaProjetos/senahub/commit/3f7dc6f7734cbc526feb76b2ef615ae6c5df4ac7))
+* **planejamento:** corrigir a disciplina da linha para a do agrupamento ([b686785](https://github.com/SenaProjetos/senahub/commit/b686785aa015ec4f281202fa5c85e7f18c2ccc9e))
+* **planejamento:** Ctrl+Z e botão Desfazer na EAP ([8e310bf](https://github.com/SenaProjetos/senahub/commit/8e310bf0db5bd936a286de496ffcc394e4052832))
+* **planejamento:** editar início e término na tabela e escolher "mover junto" ao mudar o início do projeto ([d07d2ae](https://github.com/SenaProjetos/senahub/commit/d07d2ae8666ac85d13e9aea10e02fd8e85a5167d))
+* **planejamento:** escolher predecessoras numa árvore de tarefas ([7860c30](https://github.com/SenaProjetos/senahub/commit/7860c3017abaa00732f3109e9eb249c7f7c76deb))
+* **planejamento:** estado do plano, impressão digital e plano de restauração do desfazer ([0ca6dfe](https://github.com/SenaProjetos/senahub/commit/0ca6dfea74d4249ac1bd225e582c3e6321cce754))
+* **planejamento:** início e término da linha pela data e "mover junto" no início do projeto ([8a7849b](https://github.com/SenaProjetos/senahub/commit/8a7849b654705fc38101cef2eb77afa13d43812d))
+* **planejamento:** ligar o desfazer às ações do plano e criar a ação desfazerEap ([fdf9186](https://github.com/SenaProjetos/senahub/commit/fdf9186a66ed7241ce88517270bc37867d2dfbf3))
+* **planejamento:** painel da linha no lugar do modal de editar tarefa ([633b376](https://github.com/SenaProjetos/senahub/commit/633b3763d94a00d70190b57793e5a3f736e3a6ec))
+* **planejamento:** recuar, avançar, mover e excluir várias linhas da EAP de uma vez ([84401d4](https://github.com/SenaProjetos/senahub/commit/84401d4d05fa2e4248081cad707f09a8b4f53454))
+* **planejamento:** regra da disciplina da linha nova e da divergência com o agrupamento ([e621f6f](https://github.com/SenaProjetos/senahub/commit/e621f6fd18df52028b16cb939f9d303cb4a450e8))
+* **planejamento:** regras puras da árvore da EAP em lote ([b272848](https://github.com/SenaProjetos/senahub/commit/b27284815c7782019bbc93b7a565ff773b3bc8f9))
+* **planejamento:** regras puras de data da linha da EAP ([622cdcd](https://github.com/SenaProjetos/senahub/commit/622cdcd9cf41e2a2354c2ce97b0bc562ab9e0124))
+* **planejamento:** salvar a EAP de um projeto como modelo ([4b4e214](https://github.com/SenaProjetos/senahub/commit/4b4e214e8486253be18736849622c5363f43ec42))
+* **planejamento:** selecionar várias linhas da EAP e agir sobre elas pela barra de estrutura e pelo menu ([3b699c3](https://github.com/SenaProjetos/senahub/commit/3b699c360da56b015e9cfd0cfed8e65343eecb01))
+* **planejamento:** serviço do desfazer da EAP com foto do plano e recusa se outra pessoa editou ([a0d7246](https://github.com/SenaProjetos/senahub/commit/a0d724639abb45806538622bf7c5a77ab0ce7754))
+* **planejamento:** tabela dos passos do desfazer da EAP ([15a024a](https://github.com/SenaProjetos/senahub/commit/15a024aa294333a6dbd320f962cac8309e428695))
+* **planejamento:** tela limpa — cabeçalho na barra do topo, faixa de status, painel de saúde e barra única ([3aba8d0](https://github.com/SenaProjetos/senahub/commit/3aba8d0cb4d40749437fdc2c2d15a3cd6b50a366))
+* **planejamento:** verificador aponta disciplina diferente do agrupamento ([78c5e18](https://github.com/SenaProjetos/senahub/commit/78c5e185a6294248527f5c820da73f32e63ed627))
+
+
+### 🐛 Correções
+
+* **planejamento:** botão de corrigir disciplina em linha própria no celular ([e003bfc](https://github.com/SenaProjetos/senahub/commit/e003bfc4fdc3e675d18f834569f4228f7105962d))
+* **planejamento:** correção de disciplina não troca agrupamento e preserva a fase da linha ([194d6d1](https://github.com/SenaProjetos/senahub/commit/194d6d1b84b1c31653493832a82edbb5c6729025))
+* **planejamento:** correção de disciplina relê dentro da transação, grava condicionada e audita o antes ([8d9190b](https://github.com/SenaProjetos/senahub/commit/8d9190b35e6a753964b7ac4fb298ab12138d98c4))
+* **planejamento:** correções da revisão da edição em lote da EAP ([be77174](https://github.com/SenaProjetos/senahub/commit/be771742964287f684664ec8823840a97e60a6ef))
+* **planejamento:** correções da revisão da tela limpa e do painel da linha ([728b772](https://github.com/SenaProjetos/senahub/commit/728b7727b0469258564a4249fca506960a34c0a8))
+* **planejamento:** desfazer reserva o passo, descarta a pilha em ações sem volta e cobre mais ações do plano ([ba1b035](https://github.com/SenaProjetos/senahub/commit/ba1b035c27042de9919d06780e213250e4295ffd))
+* **planejamento:** desfazer sob lock do projeto, com histórico de % e recusa clara em erro inesperado ([dfc7b3d](https://github.com/SenaProjetos/senahub/commit/dfc7b3d9f9963fd2b05ec4ef3f994c08d0df9ffc))
+* **planejamento:** início do projeto editável, escopo do salvar como modelo e correções da revisão das Fases D e E ([1d55cdd](https://github.com/SenaProjetos/senahub/commit/1d55cddf62ac8691cb2d1976ffc21d61e2b59748))
+* **planejamento:** linha nova recebe a disciplina do agrupamento, não da vizinha ([8c38334](https://github.com/SenaProjetos/senahub/commit/8c383346ac21932499d0530f3165dfe39f2116c9))
+* **planejamento:** mover junto respeita a direção do motor, célula não regrava valor velho e término fixado por restrição é recusado ([cc3e669](https://github.com/SenaProjetos/senahub/commit/cc3e6695ef7f8640d4e556508a430a73834de7cf))
+
 ## [1.28.0](https://github.com/SenaProjetos/senahub/compare/v1.27.0...v1.28.0) (2026-10-22)
 
 
