@@ -2,6 +2,13 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.29.1](https://github.com/SenaProjetos/senahub/compare/v1.29.0...v1.29.1) (2026-10-24)
+
+
+### 🐛 Correções
+
+* **deps:** corrige vulnerabilidades do npm audit ([8abc8e5](https://github.com/SenaProjetos/senahub/commit/8abc8e56bcb38e999dce0d235eff77da9a731646))
+
 ## [1.29.0](https://github.com/SenaProjetos/senahub/compare/v1.28.0...v1.29.0) (2026-10-24)
 
 
