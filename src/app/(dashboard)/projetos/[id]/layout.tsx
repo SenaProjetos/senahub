@@ -52,6 +52,7 @@ export default async function ProjetoLayout({
     podeDiario,
     podeResultados,
     podeEap,
+    podeProblemas,
     canalChat,
     modelosDoc,
     conteudoPorAba,
@@ -76,6 +77,8 @@ export default async function ProjetoLayout({
     podeVerDatasDoPlanejamento(user),
     // EAP (só consulta): o mesmo público da tela do Planejamento; editar continua lá.
     can(user, "planejamento", "ver"),
+    // Problemas (pendências do projeto): quem enxerga arquivos; só interno (cliente do portal não vê).
+    can(user, "arquivos", "ver"),
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
     abasComConteudo(id),
@@ -229,6 +232,7 @@ export default async function ProjetoLayout({
               ...(podeResultados ? ["/resultados"] : []),
               ...(podeServicos ? ["/servicos"] : []),
               "/arquivos",
+              ...(podeProblemas && user.tipo === "interno" ? ["/problemas"] : []),
               ...(podeArts ? ["/arts"] : []),
               ...(podeCoordenacao ? ["/coordenacao"] : []),
               ...(podeCustos ? ["/custos"] : []),
