@@ -276,14 +276,18 @@ abrir prancha por prancha. **Rascunhos** (apontamentos que quem escreveu ainda n
 - **Filtros:** **Em aberto** (padrão), **Aguardando verificação** e **Encerrados** — com a contagem de cada um —,
   mais severidade e tipo.
 - **Menu da linha:** botão direito (ou toque longo no celular) e o **⋯** mostram as mesmas ações. Quem é
-  responsável pela disciplina pode **Assumir** e **Resolver**; quem valida pode **Fechar**, **Reabrir** ou
-  marcar **Não procede** (pede uma justificativa de pelo menos 3 letras, que fica registrada). A ação que você
-  não pode fazer não aparece; a que não vale naquele momento aparece apagada, com o motivo.
+  responsável pela disciplina pode **Assumir**, **Resolver** e **Reabrir** (devolver para a fila); quem valida
+  pode **Fechar** ou marcar **Não procede** (pede uma justificativa de pelo menos 3 letras, que fica
+  registrada). Num apontamento trazido de revisão anterior, **Resolver na R02** (por exemplo) registra que ele
+  foi corrigido na revisão vigente, como no visualizador. A ação que você não pode fazer não aparece; a que não
+  vale naquele momento aparece apagada, com o motivo.
+- **Quais linhas aparecem:** as das pranchas que você consegue abrir — quem é da equipe do projeto vê todas;
+  quem só responde por uma disciplina vê as dela.
 - **Conversa:** clique na linha para abrir o texto inteiro e as respostas. Quem apontou, os responsáveis pela
   disciplina e a gestão respondem; para as demais pessoas o campo fica desabilitado com o aviso "Só um
   responsável da disciplina pode alterar esta pendência."
 - **Abrir na prancha:** o nome do arquivo na linha leva ao visualizador, na **versão vigente** do documento, com
-  o apontamento já selecionado. Se o arquivo sumiu do disco, o link fica desabilitado ("Arquivo indisponível").
+  o apontamento já selecionado. Se o arquivo foi para a lixeira, o link fica desabilitado ("Arquivo indisponível").
 - Criar, editar, excluir, classificar e replicar apontamentos continua sendo feito no visualizador, com a
   prancha aberta.
 
