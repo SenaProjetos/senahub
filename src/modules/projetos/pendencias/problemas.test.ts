@@ -4,6 +4,7 @@ import {
   agruparPorDisciplina,
   contarPorSituacao,
   diasEmAberto,
+  ehPublicada,
   filtrarProblemas,
   hrefDaPrancha,
   podeParticiparDaConversa,
@@ -161,5 +162,18 @@ describe("hrefDaPrancha", () => {
   });
   it("arquivo indisponível → null", () => {
     expect(hrefDaPrancha({ arquivoDisponivel: false, uploadIdVigente: "uv", uploadIdOrigem: "uo", numero: 1 }, "proj")).toBeNull();
+  });
+});
+
+describe("ehPublicada", () => {
+  it("rascunho (publicadoEm nulo) não é publicada", () => {
+    expect(ehPublicada({ publicadoEm: null, excluidoEm: null })).toBe(false);
+  });
+  it("excluída não é publicada, mesmo com data de publicação", () => {
+    expect(ehPublicada({ publicadoEm: new Date("2026-10-01T00:00:00.000Z"), excluidoEm: new Date("2026-10-02T00:00:00.000Z") })).toBe(false);
+  });
+  it("publicada e não excluída é publicada", () => {
+    expect(ehPublicada({ publicadoEm: new Date("2026-10-01T00:00:00.000Z"), excluidoEm: null })).toBe(true);
+    expect(ehPublicada({ publicadoEm: "2026-10-01T00:00:00.000Z", excluidoEm: null })).toBe(true);
   });
 });

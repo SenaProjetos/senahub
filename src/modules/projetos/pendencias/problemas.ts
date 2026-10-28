@@ -22,6 +22,14 @@ export function podeParticiparDaConversa(a: {
   return a.autorId === a.usuarioId || a.ehResponsavel || a.ehGlobal;
 }
 
+/**
+ * A aba Problemas mostra só o que foi publicado e não está na lixeira: rascunho (`publicadoEm`
+ * nulo) é de quem escreveu e ainda não chegou ao projetista, de QUALQUER autor.
+ */
+export function ehPublicada(p: { publicadoEm: Date | string | null; excluidoEm: Date | string | null }): boolean {
+  return p.publicadoEm != null && p.excluidoEm == null;
+}
+
 export type SituacaoProblema = "em_aberto" | "aguardando" | "encerrados";
 
 /** Em qual das três abas da tela "Problemas" cai um status (`null` = status que a tela não conhece). */
