@@ -61,7 +61,7 @@ export function itensDoProblema(
   const href = hrefDaPrancha(l, ctx.projetoId);
   const abrir: AcaoItem = href
     ? { tipo: "link", id: ACAO_ABRIR_PRANCHA, rotulo: "Abrir na prancha", icone: ExternalLink, href }
-    : { tipo: "acao", id: ACAO_ABRIR_PRANCHA, rotulo: "Arquivo indisponível", icone: ExternalLink, desabilitado: "Arquivo indisponível" };
+    : { tipo: "acao", id: ACAO_ABRIR_PRANCHA, rotulo: "Abrir na prancha", icone: ExternalLink, desabilitado: "Arquivo indisponível" };
 
   return limparSeparadores([abrir, ...base]);
 }
