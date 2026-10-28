@@ -64,4 +64,14 @@ describe("papeisPorDisciplina", () => {
     expect(m.get("a")).toEqual(await papeisSobre({ disciplinaId: "a" }, user));
     expect(m.get("b")).toEqual(await papeisSobre({ disciplinaId: "b" }, user));
   });
+
+  it("equivalência também para perfil global sem uploads:validar", async () => {
+    mocks.alheia.mockResolvedValue(true);
+    mocks.can.mockResolvedValue(false);
+    mocks.findFirst.mockResolvedValue(null);
+    const m = await papeisPorDisciplina(["a", "b"], user);
+    expect(m.get("a")).toEqual({ ehValidador: false, ehResponsavel: true, ehGlobal: true });
+    expect(m.get("a")).toEqual(await papeisSobre({ disciplinaId: "a" }, user));
+    expect(m.get("b")).toEqual(await papeisSobre({ disciplinaId: "b" }, user));
+  });
 });

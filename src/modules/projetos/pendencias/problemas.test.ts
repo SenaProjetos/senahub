@@ -4,6 +4,8 @@ import {
   agruparPorDisciplina,
   contarPorSituacao,
   diasEmAberto,
+  escolherVigente,
+  extensaoDoArquivo,
   ehPublicada,
   filtrarProblemas,
   hrefDaPrancha,
@@ -175,5 +177,53 @@ describe("ehPublicada", () => {
   it("publicada e não excluída é publicada", () => {
     expect(ehPublicada({ publicadoEm: new Date("2026-10-01T00:00:00.000Z"), excluidoEm: null })).toBe(true);
     expect(ehPublicada({ publicadoEm: "2026-10-01T00:00:00.000Z", excluidoEm: null })).toBe(true);
+  });
+});
+
+describe("escolherVigente", () => {
+  const u = (id: string, nomeArquivo: string, versao: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    nomeArquivo,
+    versao,
+    ...extra,
+  });
+
+  it("PDF e DWG no mesmo documento: o DWG com versão maior não vence o PDF", () => {
+    const v = escolherVigente([u("dwg", "A-01.dwg", 5), u("pdf", "A-01.pdf", 2)], "pdf");
+    expect(v?.id).toBe("pdf");
+  });
+  it("todos os PDFs na lixeira: nenhum (mesmo havendo DWG)", () => {
+    const v = escolherVigente(
+      [u("dwg", "A-01.dwg", 5), u("pdf", "A-01.pdf", 2, { excluidoEm: new Date("2026-10-01T00:00:00.000Z") })],
+      "pdf",
+    );
+    expect(v).toBeNull();
+  });
+  it("vence a maior versão entre os da mesma extensão", () => {
+    const v = escolherVigente([u("a", "A-01.pdf", 1), u("c", "A-01.pdf", 3), u("b", "A-01.pdf", 2)], "pdf");
+    expect(v?.id).toBe("c");
+  });
+  it("linha substituída nunca é escolhida", () => {
+    const v = escolherVigente([u("novo", "A-01.pdf", 2, { substituidoPorId: "x" }), u("velho", "A-01.pdf", 1)], "pdf");
+    expect(v?.id).toBe("velho");
+  });
+  it("a versão mais nova na lixeira é pulada", () => {
+    const v = escolherVigente(
+      [u("lixo", "A-01.pdf", 3, { excluidoEm: "2026-10-01T00:00:00.000Z" }), u("ok", "A-01.pdf", 2)],
+      "pdf",
+    );
+    expect(v?.id).toBe("ok");
+  });
+  it("extensão compara sem diferenciar caixa; lista vazia → nenhum", () => {
+    expect(escolherVigente([u("a", "A-01.PDF", 1)], "pdf")?.id).toBe("a");
+    expect(escolherVigente([], "pdf")).toBeNull();
+  });
+});
+
+describe("extensaoDoArquivo", () => {
+  it("minúscula, sem ponto; sem extensão → vazio", () => {
+    expect(extensaoDoArquivo("Planta.PDF")).toBe("pdf");
+    expect(extensaoDoArquivo("semextensao")).toBe("");
+    expect(extensaoDoArquivo(".gitignore")).toBe("");
   });
 });

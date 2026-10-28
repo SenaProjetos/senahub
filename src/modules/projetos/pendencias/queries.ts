@@ -16,7 +16,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { calcularAging, type FaixaAging } from "@/lib/aging";
 import type { Novidades } from "@/modules/projetos/pendencias/novidades";
 import type { SessionUser } from "@/lib/session";
-import type { ProblemaLinha } from "@/modules/projetos/pendencias/problemas";
+import { escolherVigente, extensaoDoArquivo, type ProblemaLinha } from "@/modules/projetos/pendencias/problemas";
 import { papeisPorDisciplina } from "@/modules/projetos/pendencias/papeis-pendencia";
 import { candidatosReincidencia, tokenizar, MIN_TOKENS_COMPARAVEL } from "@/modules/projetos/pendencias/similaridade";
 
@@ -550,7 +550,7 @@ export async function visaoConsolidadaPendencias(viewer: { id: string; ehSocio?:
 /**
  * Aba "Problemas" do projeto: todos os apontamentos PUBLICADOS (rascunho de qualquer autor fica de
  * fora), com a conversa, o arquivo vigente do documento e os papéis de quem lê. Sem N+1: uma leitura
- * das pendências e uma consulta em lote para autores, disciplinas, arquivos vigentes e revisões.
+ * das pendências e uma consulta em lote para autores, disciplinas e arquivos (com a revisão de cada um).
  */
 export async function problemasDoProjeto(projetoId: string, viewer: SessionUser): Promise<ProblemaLinha[]> {
   const rows = await prisma.pendencia.findMany({
@@ -575,35 +575,41 @@ export async function problemasDoProjeto(projetoId: string, viewer: SessionUser)
     where: { id: { in: disciplinaIds } },
     select: { id: true, disciplinaTextoLegado: true },
   });
-  // Leituras de topo passam pelas extensões; os filtros ficam explícitos mesmo assim.
+  // Leituras de topo passam pelas extensões; os filtros ficam explícitos mesmo assim. Um documento
+  // guarda PDF e DWG juntos: o vigente é escolhido por pendência, só entre a MESMA extensão da origem.
   const uploads = documentoIds.length
     ? await prisma.upload.findMany({
         where: { documentoId: { in: documentoIds }, excluidoEm: null, substituidoPorId: null },
         orderBy: [{ versao: "desc" }, { createdAt: "desc" }],
-        select: { id: true, documentoId: true, nomeArquivo: true },
-      })
-    : [];
-  const revisoes = documentoIds.length
-    ? await prisma.documentoRevisao.findMany({
-        where: { documentoId: { in: documentoIds } },
-        orderBy: { numero: "desc" },
-        select: { id: true, documentoId: true, numero: true },
+        select: {
+          id: true,
+          documentoId: true,
+          nomeArquivo: true,
+          versao: true,
+          excluidoEm: true,
+          substituidoPorId: true,
+          revisaoId: true,
+          revisao: { select: { numero: true } },
+        },
       })
     : [];
   const papeis = await papeisPorDisciplina(disciplinaIds, viewer);
 
   const nomeUsuario = new Map(users.map((u) => [u.id, u.name]));
   const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
-  // Ordenados do mais novo para o mais antigo: o primeiro de cada documento é o vigente.
-  const uploadVigente = new Map<string, { id: string; nomeArquivo: string }>();
-  for (const u of uploads) if (u.documentoId && !uploadVigente.has(u.documentoId)) uploadVigente.set(u.documentoId, u);
-  const revisaoVigente = new Map<string, { id: string; numero: number }>();
-  for (const r of revisoes) if (!revisaoVigente.has(r.documentoId)) revisaoVigente.set(r.documentoId, r);
+  const uploadsPorDocumento = new Map<string, typeof uploads>();
+  for (const u of uploads) {
+    if (!u.documentoId) continue;
+    const lista = uploadsPorDocumento.get(u.documentoId);
+    if (lista) lista.push(u);
+    else uploadsPorDocumento.set(u.documentoId, [u]);
+  }
   const semPapeis = { ehValidador: false, ehResponsavel: false, ehGlobal: false };
 
   return rows.map((r) => {
-    const vigente = r.documentoId ? uploadVigente.get(r.documentoId) : undefined;
-    const revVigente = r.documentoId ? revisaoVigente.get(r.documentoId) : undefined;
+    const vigente = r.documentoId
+      ? escolherVigente(uploadsPorDocumento.get(r.documentoId) ?? [], extensaoDoArquivo(r.upload.nomeArquivo))
+      : null;
     const origemNaLixeira = r.upload.excluidoEm != null;
     return {
       id: r.id,
@@ -626,11 +632,12 @@ export async function problemasDoProjeto(projetoId: string, viewer: SessionUser)
       uploadIdVigente: vigente?.id ?? null,
       // Com documento: existe versão vigente fora da lixeira. Sem documento (legado): a de origem.
       arquivoDisponivel: r.documentoId ? vigente != null : !origemNaLixeira,
-      deOutraRevisao: r.revisaoOrigemId != null && revVigente != null && r.revisaoOrigemId !== revVigente.id,
+      deOutraRevisao: r.revisaoOrigemId != null && vigente?.revisaoId != null && r.revisaoOrigemId !== vigente.revisaoId,
       revisaoOrigemId: r.revisaoOrigemId,
-      revisaoVigenteId: revVigente?.id ?? null,
-      // Sem documento/revisão (legado órfão) não há número a mostrar: 0 = desconhecida.
-      revisaoVigenteNumero: revVigente?.numero ?? r.revisaoOrigem?.numero ?? 0,
+      revisaoVigenteId: vigente?.revisaoId ?? null,
+      // A revisão vem do arquivo vigente escolhido (o mesmo do link do alfinete). Sem ele, cai na revisão
+      // de origem; sem nenhuma (legado órfão) não há número a mostrar: 0 = desconhecida.
+      revisaoVigenteNumero: vigente?.revisao?.numero ?? r.revisaoOrigem?.numero ?? 0,
       respostas: r.respostas.map((x) => ({
         id: x.id,
         autor: nomeUsuario.get(x.autorId) ?? "—",

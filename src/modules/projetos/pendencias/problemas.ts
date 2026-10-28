@@ -30,6 +30,30 @@ export function ehPublicada(p: { publicadoEm: Date | string | null; excluidoEm: 
   return p.publicadoEm != null && p.excluidoEm == null;
 }
 
+/** Extensão em minúsculas, sem ponto (`""` quando o nome não tem extensão). */
+export function extensaoDoArquivo(nome: string): string {
+  const i = nome.lastIndexOf(".");
+  return i > 0 ? nome.slice(i + 1).toLowerCase() : "";
+}
+
+/**
+ * Arquivo vigente de um documento PARA UM PINO: o mais novo (maior `versao`) dentre os que têm a
+ * MESMA extensão do arquivo de origem do apontamento, fora da lixeira e não substituídos.
+ * Um documento guarda PDF e DWG da mesma prancha e `versao` é contador por arquivo — sem este
+ * filtro o vigente poderia ser o .dwg, que não tem pinos. `null` = nenhum arquivo disponível.
+ */
+export function escolherVigente<
+  T extends { nomeArquivo: string; versao: number; excluidoEm?: Date | string | null; substituidoPorId?: string | null },
+>(uploads: T[], extensaoOrigem: string): T | null {
+  let melhor: T | null = null;
+  for (const u of uploads) {
+    if (u.excluidoEm != null || u.substituidoPorId != null) continue;
+    if (extensaoDoArquivo(u.nomeArquivo) !== extensaoOrigem) continue;
+    if (melhor === null || u.versao > melhor.versao) melhor = u;
+  }
+  return melhor;
+}
+
 export type SituacaoProblema = "em_aberto" | "aguardando" | "encerrados";
 
 /** Em qual das três abas da tela "Problemas" cai um status (`null` = status que a tela não conhece). */
