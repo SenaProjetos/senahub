@@ -281,8 +281,9 @@ abrir prancha por prancha. **Rascunhos** (apontamentos que quem escreveu ainda n
   registrada). Num apontamento trazido de revisão anterior, **Resolver na R02** (por exemplo) registra que ele
   foi corrigido na revisão vigente, como no visualizador. A ação que você não pode fazer não aparece; a que não
   vale naquele momento aparece apagada, com o motivo.
-- **Quais linhas aparecem:** as das pranchas que você consegue abrir — quem é da equipe do projeto vê todas;
-  quem só responde por uma disciplina vê as dela.
+- **Quais linhas aparecem:** as das disciplinas cujos arquivos você pode ver na aba Arquivos (mesma regra do
+  download). Quem tem a permissão de ver todas as disciplinas e participa do projeto vê todas; quem só responde
+  por uma disciplina vê as dela, mesmo sendo da equipe.
 - **Conversa:** clique na linha para abrir o texto inteiro e as respostas. Quem apontou, os responsáveis pela
   disciplina e a gestão respondem; para as demais pessoas o campo fica desabilitado com o aviso "Só um
   responsável da disciplina pode alterar esta pendência."

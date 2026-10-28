@@ -18,6 +18,7 @@ import type { Novidades } from "@/modules/projetos/pendencias/novidades";
 import type { SessionUser } from "@/lib/session";
 import { escolherVigente, extensaoDoArquivo, podeVerProblema, type ProblemaLinha } from "@/modules/projetos/pendencias/problemas";
 import { papeisPorDisciplina } from "@/modules/projetos/pendencias/papeis-pendencia";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { candidatosReincidencia, tokenizar, MIN_TOKENS_COMPARAVEL } from "@/modules/projetos/pendencias/similaridade";
 
 /** Um anexo do apontamento (item 12) — arquivo (print/foto/áudio/PDF) ou link externo. */
@@ -552,8 +553,8 @@ export async function visaoConsolidadaPendencias(viewer: { id: string; ehSocio?:
  * fora), com a conversa, o arquivo vigente do documento e os papéis de quem lê. Sem N+1: uma leitura
  * das pendências e uma consulta em lote para autores, disciplinas e arquivos (com a revisão de cada um).
  *
- * Cada linha só sai para quem consegue abrir a prancha dela (`podeVerProblema`, mesma regra do
- * visualizador). Os portões da página (interno, `arquivos:ver`, projeto visível) continuam obrigatórios.
+ * Cada linha só sai para quem baixaria o arquivo da disciplina dela (`podeVerProblema`, mesma
+ * muralha da rota de download). Os portões da página (interno, `arquivos:ver`, projeto visível) continuam obrigatórios.
  */
 export async function problemasDoProjeto(projetoId: string, viewer: SessionUser): Promise<ProblemaLinha[]> {
   const rows = await prisma.pendencia.findMany({
@@ -573,12 +574,13 @@ export async function problemasDoProjeto(projetoId: string, viewer: SessionUser)
   const disciplinaIds = [...new Set(rows.map((r) => r.disciplinaId))];
   const documentoIds = [...new Set(rows.flatMap((r) => (r.documentoId ? [r.documentoId] : [])))];
 
-  // Mesma regra de acesso do visualizador da prancha (visualizar/page.tsx): global, membro do
-  // projeto ou responsável pela disciplina do arquivo. Fora do global, o vínculo de responsável vem
-  // na leitura das disciplinas (só o do próprio usuário) e a equipe numa consulta só.
+  // Mesma muralha por disciplina da rota de download (api/uploads/[id]/download): global, responsável
+  // pela disciplina da linha, ou `arquivos:ver_todas_disciplinas` + participar do projeto (membro OU
+  // responsável de qualquer disciplina dele). Fora do global, o vínculo de responsável vem na leitura
+  // das disciplinas (só o do próprio usuário) e a participação numa consulta só.
   const global = acessoGlobal(viewer);
   // Leituras independentes, fora de transação: podem ir juntas.
-  const [users, disciplinas, uploads, papeis, membro] = await Promise.all([
+  const [users, disciplinas, uploads, papeis, participa, veTodas] = await Promise.all([
     prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } }),
     prisma.disciplina.findMany({
       where: { id: { in: disciplinaIds } },
@@ -608,17 +610,21 @@ export async function problemasDoProjeto(projetoId: string, viewer: SessionUser)
       : [],
     papeisPorDisciplina(disciplinaIds, viewer),
     global
-      ? Promise.resolve(false)
+      ? Promise.resolve(true)
       : prisma.projetoMembro
           .findFirst({ where: { projetoId, userId: viewer.id }, select: { id: true } })
-          .then((m) => m !== null),
+          .then(async (m) =>
+            m !== null ||
+            (await prisma.disciplina.count({ where: { projetoId, responsaveis: { some: { userId: viewer.id } } } })) > 0,
+          ),
+    podeVerTodasDisciplinas(viewer),
   ]);
 
   const nomeUsuario = new Map(users.map((u) => [u.id, u.name]));
   const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
   const responsavelDe = new Set(disciplinas.filter((d) => d.responsaveis.length > 0).map((d) => d.id));
   const visiveis = rows.filter((r) =>
-    podeVerProblema({ global, membro, responsavelDaDisciplina: responsavelDe.has(r.disciplinaId) }),
+    podeVerProblema({ global, veTodas, participa, responsavelDaDisciplina: responsavelDe.has(r.disciplinaId) }),
   );
   const uploadsPorDocumento = new Map<string, (typeof uploads)[number][]>();
   for (const u of uploads) {

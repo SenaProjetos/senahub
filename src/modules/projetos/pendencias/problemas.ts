@@ -94,13 +94,19 @@ export type ProblemaLinha = {
 };
 
 /**
- * Quem enxerga uma linha da aba: a MESMA regra que abre a prancha no visualizador
- * (`projetos/[id]/arquivos/[uploadId]/visualizar/page.tsx`) — escopo global, membro do projeto ou
- * responsável pela disciplina daquele arquivo. Mostrar o problema a quem não abre a prancha
- * entregaria o texto e a conversa de uma disciplina alheia (e o "Abrir na prancha" daria 404).
+ * Quem enxerga uma linha da aba: a MESMA muralha por disciplina da rota de download
+ * (`api/uploads/[id]/download`) — escopo global, responsável pela disciplina da linha, ou
+ * `arquivos:ver_todas_disciplinas` + participar do projeto (membro ou responsável de qualquer
+ * disciplina dele). Mostrar o problema a quem não baixaria a prancha entregaria o texto e a
+ * conversa de uma disciplina alheia.
  */
-export function podeVerProblema(a: { global: boolean; membro: boolean; responsavelDaDisciplina: boolean }): boolean {
-  return a.global || a.membro || a.responsavelDaDisciplina;
+export function podeVerProblema(a: {
+  global: boolean;
+  veTodas: boolean;
+  participa: boolean;
+  responsavelDaDisciplina: boolean;
+}): boolean {
+  return a.global || a.responsavelDaDisciplina || (a.veTodas && a.participa);
 }
 
 export const SITUACAO_LABEL: Record<SituacaoProblema, string> = {

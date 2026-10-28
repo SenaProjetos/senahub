@@ -147,15 +147,21 @@ describe("agruparPorDisciplina", () => {
   });
 });
 
-describe("podeVerProblema (mesma regra do visualizador)", () => {
-  const ninguem = { global: false, membro: false, responsavelDaDisciplina: false };
+describe("podeVerProblema (mesma muralha do download)", () => {
+  const ninguem = { global: false, veTodas: false, participa: false, responsavelDaDisciplina: false };
   it("global vê tudo", () => {
     expect(podeVerProblema({ ...ninguem, global: true })).toBe(true);
   });
-  it("membro do projeto vê tudo", () => {
-    expect(podeVerProblema({ ...ninguem, membro: true })).toBe(true);
+  it("ver_todas_disciplinas + participar do projeto vê tudo", () => {
+    expect(podeVerProblema({ ...ninguem, veTodas: true, participa: true })).toBe(true);
   });
-  it("fora da equipe, responsável vê só a própria disciplina", () => {
+  it("membro sem ver_todas_disciplinas não vê disciplina alheia", () => {
+    expect(podeVerProblema({ ...ninguem, participa: true })).toBe(false);
+  });
+  it("ver_todas_disciplinas sem participar do projeto não vê nada", () => {
+    expect(podeVerProblema({ ...ninguem, veTodas: true })).toBe(false);
+  });
+  it("responsável vê só a própria disciplina, mesmo sem ver_todas_disciplinas", () => {
     // A flag é da disciplina DA LINHA: responsável de outra disciplina chega aqui com `false`.
     expect(podeVerProblema({ ...ninguem, responsavelDaDisciplina: true })).toBe(true);
   });
