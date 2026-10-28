@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { avisoRecenteNaoVisto } from "./recentes";
+import { avisoRecenteNaoVisto, marcaDaVisita } from "./recentes";
 
 const AGORA = new Date("2026-10-28T12:00:00.000Z");
 const DIA = 24 * 60 * 60 * 1000;
@@ -42,5 +42,24 @@ describe("avisoRecenteNaoVisto", () => {
   it("aviso no futuro distante → false", () => {
     const futuro = new Date(AGORA.getTime() + 2 * DIA);
     expect(avisoRecenteNaoVisto(futuro, null, AGORA)).toBe(false);
+  });
+});
+
+describe("marcaDaVisita", () => {
+  it("relógio certo: grava o agora", () => {
+    const aviso = new Date(AGORA.getTime() - DIA).toISOString();
+    expect(marcaDaVisita(AGORA.getTime(), aviso)).toBe(AGORA.getTime());
+  });
+  it("relógio do navegador atrasado: grava o instante do aviso, e o ponto não reacende", () => {
+    const aviso = new Date(AGORA.getTime() + 10 * 60 * 1000);
+    const atrasado = AGORA.getTime() - 60 * 60 * 1000;
+    const marca = marcaDaVisita(atrasado, aviso);
+    expect(marca).toBe(aviso.getTime());
+    expect(avisoRecenteNaoVisto(aviso, marca, new Date(atrasado))).toBe(false);
+  });
+  it("sem aviso conhecido ou data inválida: grava o agora", () => {
+    expect(marcaDaVisita(AGORA.getTime(), null)).toBe(AGORA.getTime());
+    expect(marcaDaVisita(AGORA.getTime(), undefined)).toBe(AGORA.getTime());
+    expect(marcaDaVisita(AGORA.getTime(), "x")).toBe(AGORA.getTime());
   });
 });

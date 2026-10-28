@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Megaphone } from "lucide-react";
 import { ultimoAvisoRecebidoEm } from "@/modules/notificacoes/avisos/actions";
-import { avisoRecenteNaoVisto } from "@/modules/notificacoes/avisos/recentes";
+import { avisoRecenteNaoVisto, marcaDaVisita } from "@/modules/notificacoes/avisos/recentes";
 
 const chaveVisita = (chaveUsuario: string) => `senahub.avisos-visto.${chaveUsuario}`;
 
@@ -24,30 +24,37 @@ function lerUltimaVisita(chaveUsuario: string): number | null {
 export function AvisosAtalho({ chaveUsuario }: { chaveUsuario: string }) {
   const pathname = usePathname();
   const ativo = pathname.startsWith("/avisos");
-  const [recebidoEm, setRecebidoEm] = useState<string | null>(null);
+  // `undefined` = ainda não consultado; `null` = nenhum aviso (ou a consulta falhou).
+  const [recebidoEm, setRecebidoEm] = useState<string | null | undefined>(undefined);
   const [ultimaVisitaMs, setUltimaVisitaMs] = useState<number | null>(null);
+  const consultado = useRef(false);
 
-  // Estando na tela de Avisos a pessoa está vendo: registra a visita (apaga o ponto).
+  // Estando na tela de Avisos a pessoa está vendo: registra a visita (apaga o ponto). A marca nunca
+  // fica antes do último aviso, senão um relógio atrasado no computador reacenderia o ponto.
   useEffect(() => {
     if (ativo) {
-      const agora = Date.now();
+      const marca = marcaDaVisita(Date.now(), recebidoEm);
       try {
-        window.localStorage.setItem(chaveVisita(chaveUsuario), String(agora));
+        window.localStorage.setItem(chaveVisita(chaveUsuario), String(marca));
       } catch {
         // storage indisponível (janela privada…): vale só nesta sessão da tela.
       }
-      setUltimaVisitaMs(agora);
+      setUltimaVisitaMs(marca);
     } else {
       setUltimaVisitaMs(lerUltimaVisita(chaveUsuario));
     }
-  }, [ativo, chaveUsuario, pathname]);
+  }, [ativo, chaveUsuario, pathname, recebidoEm]);
 
-  // Reconsulta ao montar e a cada troca de página.
+  // Reconsulta ao montar e a cada troca de página. Na tela de Avisos o ponto não aparece: só
+  // consulta lá se ainda não se sabe o último aviso (a marca da visita depende dele).
   useEffect(() => {
+    if (ativo && consultado.current) return;
     let cancelado = false;
     ultimoAvisoRecebidoEm()
       .then((r) => {
-        if (!cancelado) setRecebidoEm(r);
+        if (cancelado) return;
+        consultado.current = true;
+        setRecebidoEm(r);
       })
       .catch(() => {
         if (!cancelado) setRecebidoEm(null);
@@ -55,15 +62,16 @@ export function AvisosAtalho({ chaveUsuario }: { chaveUsuario: string }) {
     return () => {
       cancelado = true;
     };
-  }, [pathname]);
+  }, [ativo, pathname]);
 
-  const mostrarPonto = !ativo && avisoRecenteNaoVisto(recebidoEm, ultimaVisitaMs, new Date());
+  const mostrarPonto = !ativo && avisoRecenteNaoVisto(recebidoEm ?? null, ultimaVisitaMs, new Date());
+  const rotulo = mostrarPonto ? "Avisos, há aviso novo" : "Avisos";
 
   return (
     <Link
       href="/avisos"
-      aria-label="Avisos"
-      title="Avisos"
+      aria-label={rotulo}
+      title={rotulo}
       className={
         ativo
           ? "relative hidden size-8 place-items-center rounded-sm bg-muted text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid"
