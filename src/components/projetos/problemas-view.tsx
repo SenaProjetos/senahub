@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
-import { cn, formatarData, formatarDataHora } from "@/lib/utils";
+import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import type { ActionResult } from "@/lib/with-action";
 import {
   ACAO_RESOLVER_NA_REVISAO,
@@ -30,6 +30,7 @@ import {
   assumirCorrecaoPendencia,
   descartarPendencia,
   fecharPendencia,
+  marcarPendenciaResolvidaEmRevisao,
   reabrirPendencia,
   resolverPendencia,
 } from "@/modules/projetos/pendencias/actions";
@@ -44,8 +45,11 @@ import {
   type TipoPendencia,
 } from "@/modules/projetos/pendencias/helpers";
 import {
+  SITUACAO_LABEL,
+  SITUACOES,
   agruparPorDisciplina,
   contarPorSituacao,
+  dicaDeOutrasSituacoes,
   diasEmAberto,
   filtrarProblemas,
   hrefDaPrancha,
@@ -78,13 +82,14 @@ const TRANSICAO: Record<StatusPendencia, Transicao> = {
   adiado: { sucesso: "Apontamento adiado.", acao: adiarPendencia },
 };
 
-const SITUACAO_LABEL: Record<SituacaoProblema, string> = {
-  em_aberto: "Em aberto",
-  aguardando: "Aguardando verificação",
-  encerrados: "Encerrados",
-};
+/** Falha de rede/servidor (a action lançou em vez de devolver `{ ok: false }`). */
+const ERRO_DE_CONEXAO = "Não foi possível concluir. Verifique a conexão e tente de novo.";
 
-const SITUACOES: SituacaoProblema[] = ["em_aberto", "aguardando", "encerrados"];
+const FILTROS_PADRAO: { situacao: SituacaoProblema; severidade: string; tipo: string } = {
+  situacao: "em_aberto",
+  severidade: "todas",
+  tipo: "todos",
+};
 
 /** Itens da linha; vazio quando a única ação ativa já é um botão da própria linha (regra 4 da ADR-0002). */
 function menuDaLinha(l: ProblemaLinha, ctx: Parameters<typeof itensDoProblema>[1]): AcaoItem[] {
@@ -98,64 +103,74 @@ type PropsLinha = {
   usuarioId: string;
   itens: AcaoItem[];
   expandido: boolean;
+  /** Uma ação desta linha está em andamento. */
+  ocupado: boolean;
   agora: Date;
   onAlternar: (id: string) => void;
   onSelect: (linha: ProblemaLinha, item: AcaoItemAcao) => void;
 };
 
 /** Linha de topo (não definida dentro do pai): senão remonta a cada render e fecha o menu aberto. */
-function LinhaProblema({ linha, projetoId, usuarioId, itens, expandido, agora, onAlternar, onSelect }: PropsLinha) {
+function LinhaProblema({ linha, projetoId, usuarioId, itens, expandido, ocupado, agora, onAlternar, onSelect }: PropsLinha) {
   const href = hrefDaPrancha(linha, projetoId);
   const dias = diasEmAberto(linha.createdAt, linha.fechadoEm, agora);
   const statusLabel = STATUS_LABEL[linha.status as StatusPendencia] ?? linha.status;
+  const idDetalhe = `detalhe-problema-${linha.id}`;
 
+  // O menu da linha fica só no cabeçalho e nos dados: o texto inteiro, as respostas e o campo de
+  // resposta (o detalhe) ficam FORA do gatilho e mantêm o menu nativo — colar, corretor, copiar (ADR-0002).
   return (
-    <LinhaComMenu itens={itens} onSelect={(item) => onSelect(linha, item)} render={<li className="px-3 py-2 text-sm" />}>
-      <div className="flex items-start gap-2">
-        <button
-          type="button"
-          onClick={() => onAlternar(linha.id)}
-          aria-expanded={expandido}
-          title={linha.texto}
-          className="flex min-w-0 flex-1 items-start gap-2 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ChevronRight
-            aria-hidden
-            className={cn("mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform", expandido && "rotate-90")}
-          />
-          <span className="font-medium">#{linha.numero}</span>
-          <span className="line-clamp-2 min-w-0 flex-1 break-words">{linha.texto}</span>
-        </button>
-        <BotaoAcoes itens={itens} onSelect={(item) => onSelect(linha, item)} rotulo={`Ações do problema #${linha.numero}`} />
-      </div>
+    <li className={cn("px-3 py-2 text-sm transition-opacity", ocupado && "opacity-60")} aria-busy={ocupado || undefined}>
+      <LinhaComMenu itens={itens} onSelect={(item) => onSelect(linha, item)} render={<div />}>
+        <div className="flex items-start gap-2">
+          <button
+            type="button"
+            onClick={() => onAlternar(linha.id)}
+            aria-expanded={expandido}
+            aria-controls={idDetalhe}
+            title={linha.texto}
+            className="flex min-w-0 flex-1 items-start gap-2 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronRight
+              aria-hidden
+              className={cn("mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform", expandido && "rotate-90")}
+            />
+            <span className="font-medium">#{linha.numero}</span>
+            <span className="line-clamp-2 min-w-0 flex-1 break-words">{linha.texto}</span>
+          </button>
+          <BotaoAcoes itens={itens} onSelect={(item) => onSelect(linha, item)} rotulo={`Ações do problema #${linha.numero}`} />
+        </div>
 
-      <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-6 text-xs text-muted-foreground">
-        {href ? (
-          <Link href={href} className="min-w-0 break-all hover:text-foreground hover:underline" title="Abrir na prancha">
-            {linha.arquivo} · pág. {linha.pagina}
-          </Link>
-        ) : (
-          <span className="min-w-0 break-all" title="Arquivo indisponível">
-            {linha.arquivo} · pág. {linha.pagina}
-          </span>
-        )}
-        {linha.severidade && (
-          <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", SEVERIDADE_CLS[linha.severidade as Severidade])}>
-            {SEVERIDADE_LABEL[linha.severidade as Severidade] ?? linha.severidade}
-          </Badge>
-        )}
-        {linha.tipo && (
-          <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
-            {TIPO_PENDENCIA_LABEL[linha.tipo as TipoPendencia] ?? linha.tipo}
-          </Badge>
-        )}
-        <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{statusLabel}</Badge>
-        {linha.prazo && <span>Prazo {formatarData(linha.prazo)}</span>}
-        <span>{linha.fechadoEm ? `${dias}d até encerrar` : `${dias}d em aberto`}</span>
-      </div>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-6 text-xs text-muted-foreground">
+          {href ? (
+            <Link href={href} className="min-w-0 break-all hover:text-foreground hover:underline" title="Abrir na prancha">
+              {linha.arquivo} · pág. {linha.pagina}
+            </Link>
+          ) : (
+            <span className="min-w-0 break-all" title="Arquivo indisponível">
+              {linha.arquivo} · pág. {linha.pagina}
+            </span>
+          )}
+          {linha.severidade && (
+            <Badge variant="outline" className={cn("h-5 px-1.5 text-[10px]", SEVERIDADE_CLS[linha.severidade as Severidade])}>
+              {SEVERIDADE_LABEL[linha.severidade as Severidade] ?? linha.severidade}
+            </Badge>
+          )}
+          {linha.tipo && (
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">
+              {TIPO_PENDENCIA_LABEL[linha.tipo as TipoPendencia] ?? linha.tipo}
+            </Badge>
+          )}
+          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{statusLabel}</Badge>
+          {linha.prazo && <span>Prazo {formatarData(linha.prazo)}</span>}
+          <span>{linha.fechadoEm ? `${dias}d até encerrar` : `${dias}d em aberto`}</span>
+        </div>
+      </LinhaComMenu>
 
-      {expandido && <DetalheDoProblema linha={linha} usuarioId={usuarioId} />}
-    </LinhaComMenu>
+      <div id={idDetalhe} hidden={!expandido}>
+        {expandido && <DetalheDoProblema linha={linha} usuarioId={usuarioId} />}
+      </div>
+    </li>
   );
 }
 
@@ -197,9 +212,10 @@ export function ProblemasView({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [agora] = useState(() => new Date());
-  const [situacao, setSituacao] = useState<SituacaoProblema>("em_aberto");
-  const [severidade, setSeveridade] = useState<string>("todas");
-  const [tipo, setTipo] = useState<string>("todos");
+  const [situacao, setSituacao] = useState<SituacaoProblema>(FILTROS_PADRAO.situacao);
+  const [severidade, setSeveridade] = useState<string>(FILTROS_PADRAO.severidade);
+  const [tipo, setTipo] = useState<string>(FILTROS_PADRAO.tipo);
+  const [ocupadoId, setOcupadoId] = useState<string | null>(null);
   const [expandidos, setExpandidos] = useState<Set<string>>(() => new Set());
   const [descartarId, setDescartarId] = useState<string | null>(null);
   const [justificativa, setJustificativa] = useState("");
@@ -210,6 +226,35 @@ export function ProblemasView({
     [linhas, situacao, severidade, tipo],
   );
   const ctx = { usuarioId, ehAdmin, podeValidar, projetoId };
+  const filtrosPadrao =
+    situacao === FILTROS_PADRAO.situacao && severidade === FILTROS_PADRAO.severidade && tipo === FILTROS_PADRAO.tipo;
+  const dicaVazio = useMemo(
+    () => dicaDeOutrasSituacoes(contarPorSituacao(linhas, { severidade, tipo }), situacao),
+    [linhas, severidade, tipo, situacao],
+  );
+
+  function limparFiltros() {
+    setSituacao(FILTROS_PADRAO.situacao);
+    setSeveridade(FILTROS_PADRAO.severidade);
+    setTipo(FILTROS_PADRAO.tipo);
+  }
+
+  /**
+   * Roda a action de UMA linha: marca a linha como ocupada (a tela mostra que algo está andando em
+   * vez de ignorar o clique) e trata a falha de rede, que chega como exceção e não como `{ ok: false }`.
+   * A linha só aparece ocupada enquanto a transição está pendente (inclui o `router.refresh()`), então
+   * `ocupadoId` não precisa ser limpo: a próxima ação o sobrescreve.
+   */
+  function rodarNaLinha(id: string, acao: () => Promise<void>) {
+    setOcupadoId(id);
+    start(async () => {
+      try {
+        await acao();
+      } catch {
+        toast.error(ERRO_DE_CONEXAO);
+      }
+    });
+  }
 
   function alternar(id: string) {
     setExpandidos((atual) => {
@@ -231,10 +276,19 @@ export function ProblemasView({
       return;
     }
     if (item.id === ACAO_RESOLVER_NA_REVISAO) {
-      // A revisão em que o problema foi resolvido é escolhida no visualizador, com a prancha aberta.
-      const href = hrefDaPrancha(linha, projetoId);
-      if (href) router.push(href);
-      else toast.error("Arquivo indisponível.");
+      // Igual ao visualizador (`resolverEmRevisao`): registra a resolução na revisão vigente do documento.
+      const revisaoResolucaoId = linha.revisaoVigenteId;
+      if (revisaoResolucaoId == null) {
+        toast.error("Não há revisão vigente para registrar a resolução. Abra a prancha para resolver.");
+        return;
+      }
+      rodarNaLinha(linha.id, async () => {
+        const r = await marcarPendenciaResolvidaEmRevisao({ id: linha.id, revisaoResolucaoId });
+        if (r.ok) {
+          toast.success(`Marcada como resolvida na ${rotuloRevisao(linha.revisaoVigenteNumero)}.`);
+          router.refresh();
+        } else toast.error(r.error);
+      });
       return;
     }
     const destino = destinoDoItem(item.id);
@@ -247,7 +301,7 @@ export function ProblemasView({
       return;
     }
     const acao = meta.acao;
-    start(async () => {
+    rodarNaLinha(linha.id, async () => {
       const r = await acao({ id: linha.id });
       if (r.ok) {
         toast.success(meta.sucesso);
@@ -261,7 +315,7 @@ export function ProblemasView({
     const id = descartarId;
     const texto = justificativa.trim();
     if (texto.length < 3) return;
-    start(async () => {
+    rodarNaLinha(id, async () => {
       const r = await descartarPendencia({ id, justificativa: texto });
       if (r.ok) {
         setDescartarId(null);
@@ -316,7 +370,18 @@ export function ProblemasView({
 
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
         {grupos.length === 0 ? (
-          <EmptyState icon={ClipboardList} title="Nenhum problema com esses filtros." />
+          <EmptyState
+            icon={ClipboardList}
+            title="Nenhum problema com esses filtros."
+            description={["Ajuste a situação, a severidade ou o tipo.", dicaVazio].filter(Boolean).join(" ")}
+            action={
+              filtrosPadrao ? undefined : (
+                <Button variant="outline" size="sm" onClick={limparFiltros}>
+                  Limpar filtros
+                </Button>
+              )
+            }
+          />
         ) : (
           grupos.map((g) => (
             <CollapsibleSection
@@ -334,6 +399,7 @@ export function ProblemasView({
                     usuarioId={usuarioId}
                     itens={menuDaLinha(l, ctx)}
                     expandido={expandidos.has(l.id)}
+                    ocupado={pending && ocupadoId === l.id}
                     agora={agora}
                     onAlternar={alternar}
                     onSelect={executar}
@@ -371,7 +437,7 @@ export function ProblemasView({
               rows={3}
               maxLength={1000}
               autoFocus
-              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
           <DialogFooter>
@@ -386,7 +452,7 @@ export function ProblemasView({
               Cancelar
             </Button>
             <Button onClick={confirmarDescarte} disabled={pending || justificativa.trim().length < 3}>
-              Confirmar
+              {pending ? "Salvando…" : "Confirmar"}
             </Button>
           </DialogFooter>
         </DialogContent>

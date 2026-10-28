@@ -29,12 +29,17 @@ export function ProblemaConversa({ linha, podeResponder }: { linha: ProblemaLinh
     if (!podeResponder || pending || vazio) return;
     const conteudo = texto.trim();
     start(async () => {
-      const r = await responderPendencia({ id: linha.id, texto: conteudo });
-      if (r.ok) {
-        setTexto("");
-        toast.success("Resposta enviada.");
-        router.refresh();
-      } else toast.error(r.error);
+      try {
+        const r = await responderPendencia({ id: linha.id, texto: conteudo });
+        if (r.ok) {
+          setTexto("");
+          toast.success("Resposta enviada.");
+          router.refresh();
+        } else toast.error(r.error);
+      } catch {
+        // Falha de rede/servidor chega como exceção: o texto fica no campo para tentar de novo.
+        toast.error("Não foi possível concluir. Verifique a conexão e tente de novo.");
+      }
     });
   }
 
@@ -68,7 +73,7 @@ export function ProblemaConversa({ linha, podeResponder }: { linha: ProblemaLinh
           placeholder="Escreva uma resposta"
           disabled={!podeResponder || pending}
           title={podeResponder ? undefined : MOTIVO_NAO_PARTICIPA}
-          className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           {podeResponder ? (
