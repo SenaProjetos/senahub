@@ -93,25 +93,62 @@ export type ProblemaLinha = {
   papeis: PapeisPendencia;
 };
 
-export function filtrarProblemas(
-  linhas: ProblemaLinha[],
-  f: { situacao: SituacaoProblema; severidade: string | "todas" | "sem"; tipo: string | "todos" },
-): ProblemaLinha[] {
-  return linhas.filter((l) => {
-    if (situacaoDoStatus(l.status) !== f.situacao) return false;
-    if (f.severidade === "sem" ? l.severidade != null : f.severidade !== "todas" && l.severidade !== f.severidade) return false;
-    if (f.tipo !== "todos" && l.tipo !== f.tipo) return false;
-    return true;
-  });
+/**
+ * Quem enxerga uma linha da aba: a MESMA regra que abre a prancha no visualizador
+ * (`projetos/[id]/arquivos/[uploadId]/visualizar/page.tsx`) — escopo global, membro do projeto ou
+ * responsável pela disciplina daquele arquivo. Mostrar o problema a quem não abre a prancha
+ * entregaria o texto e a conversa de uma disciplina alheia (e o "Abrir na prancha" daria 404).
+ */
+export function podeVerProblema(a: { global: boolean; membro: boolean; responsavelDaDisciplina: boolean }): boolean {
+  return a.global || a.membro || a.responsavelDaDisciplina;
 }
 
-export function contarPorSituacao(linhas: ProblemaLinha[]): Record<SituacaoProblema, number> {
+export const SITUACAO_LABEL: Record<SituacaoProblema, string> = {
+  em_aberto: "Em aberto",
+  aguardando: "Aguardando verificação",
+  encerrados: "Encerrados",
+};
+
+export const SITUACOES: readonly SituacaoProblema[] = ["em_aberto", "aguardando", "encerrados"];
+
+type FiltrosDeClassificacao = { severidade: string | "todas" | "sem"; tipo: string | "todos" };
+
+function casaComClassificacao(l: ProblemaLinha, f: FiltrosDeClassificacao): boolean {
+  if (f.severidade === "sem" ? l.severidade != null : f.severidade !== "todas" && l.severidade !== f.severidade) return false;
+  if (f.tipo !== "todos" && l.tipo !== f.tipo) return false;
+  return true;
+}
+
+export function filtrarProblemas(
+  linhas: ProblemaLinha[],
+  f: { situacao: SituacaoProblema } & FiltrosDeClassificacao,
+): ProblemaLinha[] {
+  return linhas.filter((l) => situacaoDoStatus(l.status) === f.situacao && casaComClassificacao(l, f));
+}
+
+/** Contagem por situação; com `filtros`, só das linhas que casam com a severidade e o tipo escolhidos. */
+export function contarPorSituacao(linhas: ProblemaLinha[], filtros?: FiltrosDeClassificacao): Record<SituacaoProblema, number> {
   const c: Record<SituacaoProblema, number> = { em_aberto: 0, aguardando: 0, encerrados: 0 };
   for (const l of linhas) {
+    if (filtros && !casaComClassificacao(l, filtros)) continue;
     const s = situacaoDoStatus(l.status);
     if (s) c[s]++;
   }
   return c;
+}
+
+/**
+ * Dica do estado vazio dos filtros: onde há problemas nas OUTRAS situações (com a mesma severidade
+ * e tipo). Ex.: "Há 3 em Encerrados." · "Há 1 em Aguardando verificação e 2 em Encerrados."
+ * `null` quando nenhuma outra situação tem itens.
+ */
+export function dicaDeOutrasSituacoes(
+  contagem: Record<SituacaoProblema, number>,
+  atual: SituacaoProblema,
+): string | null {
+  const partes = SITUACOES.filter((s) => s !== atual && contagem[s] > 0).map((s) => `${contagem[s]} em ${SITUACAO_LABEL[s]}`);
+  if (partes.length === 0) return null;
+  return `Há ${partes.join(" e ")}.`;
 }
 
 export function agruparPorDisciplina(
@@ -124,7 +161,11 @@ export function agruparPorDisciplina(
     grupos.set(l.disciplinaId, g);
   }
   const lista = [...grupos.values()];
-  for (const g of lista) g.linhas.sort((a, b) => a.numero - b.numero);
+  // O número é por documento: numa disciplina com várias pranchas haveria um #1 de cada. Agrupa
+  // pela prancha (nome do arquivo) e só depois pelo número.
+  for (const g of lista) {
+    g.linhas.sort((a, b) => a.arquivo.localeCompare(b.arquivo, "pt-BR", { numeric: true }) || a.numero - b.numero);
+  }
   return lista.sort((a, b) => a.disciplinaNome.localeCompare(b.disciplinaNome, "pt-BR"));
 }
 
@@ -137,7 +178,7 @@ export function diasEmAberto(createdAt: string | Date, fechadoEm: string | Date 
   return Math.max(0, Math.floor((fim - ini) / MS_DIA));
 }
 
-/** Endereço do visualizador já com o alfinete aberto; `null` quando o arquivo sumiu do disco. */
+/** Endereço do visualizador já com o alfinete aberto; `null` quando o arquivo está na lixeira. */
 export function hrefDaPrancha(
   l: { arquivoDisponivel: boolean; uploadIdVigente: string | null; uploadIdOrigem: string; numero: number },
   projetoId: string,

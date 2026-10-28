@@ -3,6 +3,7 @@ import {
   MOTIVO_NAO_PARTICIPA,
   agruparPorDisciplina,
   contarPorSituacao,
+  dicaDeOutrasSituacoes,
   diasEmAberto,
   escolherVigente,
   extensaoDoArquivo,
@@ -10,6 +11,7 @@ import {
   filtrarProblemas,
   hrefDaPrancha,
   podeParticiparDaConversa,
+  podeVerProblema,
   situacaoDoStatus,
   type ProblemaLinha,
 } from "@/modules/projetos/pendencias/problemas";
@@ -132,6 +134,55 @@ describe("agruparPorDisciplina", () => {
     ]);
     expect(g.map((x) => x.disciplinaNome)).toEqual(["Arquitetura", "Elétrica"]);
     expect(g[1].linhas.map((l) => l.id)).toEqual(["c", "a"]);
+  });
+  it("numeração é por documento: agrupa pela prancha antes do número (sem #1 intercalado)", () => {
+    const g = agruparPorDisciplina([
+      linha({ id: "b1", numero: 1, arquivo: "EST-10.pdf" }),
+      linha({ id: "a2", numero: 2, arquivo: "EST-02.pdf" }),
+      linha({ id: "b2", numero: 2, arquivo: "EST-10.pdf" }),
+      linha({ id: "a1", numero: 1, arquivo: "EST-02.pdf" }),
+    ]);
+    // `numeric`: EST-02 antes de EST-10.
+    expect(g[0].linhas.map((l) => l.id)).toEqual(["a1", "a2", "b1", "b2"]);
+  });
+});
+
+describe("podeVerProblema (mesma regra do visualizador)", () => {
+  const ninguem = { global: false, membro: false, responsavelDaDisciplina: false };
+  it("global vê tudo", () => {
+    expect(podeVerProblema({ ...ninguem, global: true })).toBe(true);
+  });
+  it("membro do projeto vê tudo", () => {
+    expect(podeVerProblema({ ...ninguem, membro: true })).toBe(true);
+  });
+  it("fora da equipe, responsável vê só a própria disciplina", () => {
+    // A flag é da disciplina DA LINHA: responsável de outra disciplina chega aqui com `false`.
+    expect(podeVerProblema({ ...ninguem, responsavelDaDisciplina: true })).toBe(true);
+  });
+  it("fora da equipe e sem ser responsável não vê nada", () => {
+    expect(podeVerProblema(ninguem)).toBe(false);
+  });
+});
+
+describe("contarPorSituacao com filtros e dicaDeOutrasSituacoes", () => {
+  const linhas = [
+    linha({ status: "aberta", severidade: "alta" }),
+    linha({ status: "fechada", severidade: "alta" }),
+    linha({ status: "fechada", severidade: "baixa" }),
+    linha({ status: "resolvida", severidade: "baixa" }),
+  ];
+  it("conta só o que casa com severidade e tipo", () => {
+    expect(contarPorSituacao(linhas, { severidade: "alta", tipo: "todos" })).toEqual({ em_aberto: 1, aguardando: 0, encerrados: 1 });
+    expect(contarPorSituacao(linhas, { severidade: "todas", tipo: "todos" })).toEqual({ em_aberto: 1, aguardando: 1, encerrados: 2 });
+  });
+  it("dica cita as outras situações com itens", () => {
+    expect(dicaDeOutrasSituacoes({ em_aberto: 0, aguardando: 0, encerrados: 3 }, "em_aberto")).toBe("Há 3 em Encerrados.");
+    expect(dicaDeOutrasSituacoes({ em_aberto: 0, aguardando: 1, encerrados: 2 }, "em_aberto")).toBe(
+      "Há 1 em Aguardando verificação e 2 em Encerrados.",
+    );
+  });
+  it("sem itens fora da situação atual → null", () => {
+    expect(dicaDeOutrasSituacoes({ em_aberto: 5, aguardando: 0, encerrados: 0 }, "em_aberto")).toBeNull();
   });
 });
 

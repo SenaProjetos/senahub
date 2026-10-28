@@ -16,7 +16,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { calcularAging, type FaixaAging } from "@/lib/aging";
 import type { Novidades } from "@/modules/projetos/pendencias/novidades";
 import type { SessionUser } from "@/lib/session";
-import { escolherVigente, extensaoDoArquivo, type ProblemaLinha } from "@/modules/projetos/pendencias/problemas";
+import { escolherVigente, extensaoDoArquivo, podeVerProblema, type ProblemaLinha } from "@/modules/projetos/pendencias/problemas";
 import { papeisPorDisciplina } from "@/modules/projetos/pendencias/papeis-pendencia";
 import { candidatosReincidencia, tokenizar, MIN_TOKENS_COMPARAVEL } from "@/modules/projetos/pendencias/similaridade";
 
@@ -551,6 +551,9 @@ export async function visaoConsolidadaPendencias(viewer: { id: string; ehSocio?:
  * Aba "Problemas" do projeto: todos os apontamentos PUBLICADOS (rascunho de qualquer autor fica de
  * fora), com a conversa, o arquivo vigente do documento e os papéis de quem lê. Sem N+1: uma leitura
  * das pendências e uma consulta em lote para autores, disciplinas e arquivos (com a revisão de cada um).
+ *
+ * Cada linha só sai para quem consegue abrir a prancha dela (`podeVerProblema`, mesma regra do
+ * visualizador). Os portões da página (interno, `arquivos:ver`, projeto visível) continuam obrigatórios.
  */
 export async function problemasDoProjeto(projetoId: string, viewer: SessionUser): Promise<ProblemaLinha[]> {
   const rows = await prisma.pendencia.findMany({
@@ -570,34 +573,54 @@ export async function problemasDoProjeto(projetoId: string, viewer: SessionUser)
   const disciplinaIds = [...new Set(rows.map((r) => r.disciplinaId))];
   const documentoIds = [...new Set(rows.flatMap((r) => (r.documentoId ? [r.documentoId] : [])))];
 
-  const users = await prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } });
-  const disciplinas = await prisma.disciplina.findMany({
-    where: { id: { in: disciplinaIds } },
-    select: { id: true, disciplinaTextoLegado: true },
-  });
-  // Leituras de topo passam pelas extensões; os filtros ficam explícitos mesmo assim. Um documento
-  // guarda PDF e DWG juntos: o vigente é escolhido por pendência, só entre a MESMA extensão da origem.
-  const uploads = documentoIds.length
-    ? await prisma.upload.findMany({
-        where: { documentoId: { in: documentoIds }, excluidoEm: null, substituidoPorId: null },
-        orderBy: [{ versao: "desc" }, { createdAt: "desc" }],
-        select: {
-          id: true,
-          documentoId: true,
-          nomeArquivo: true,
-          versao: true,
-          excluidoEm: true,
-          substituidoPorId: true,
-          revisaoId: true,
-          revisao: { select: { numero: true } },
-        },
-      })
-    : [];
-  const papeis = await papeisPorDisciplina(disciplinaIds, viewer);
+  // Mesma regra de acesso do visualizador da prancha (visualizar/page.tsx): global, membro do
+  // projeto ou responsável pela disciplina do arquivo. Fora do global, o vínculo de responsável vem
+  // na leitura das disciplinas (só o do próprio usuário) e a equipe numa consulta só.
+  const global = acessoGlobal(viewer);
+  // Leituras independentes, fora de transação: podem ir juntas.
+  const [users, disciplinas, uploads, papeis, membro] = await Promise.all([
+    prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } }),
+    prisma.disciplina.findMany({
+      where: { id: { in: disciplinaIds } },
+      select: {
+        id: true,
+        disciplinaTextoLegado: true,
+        responsaveis: { where: { userId: viewer.id }, select: { userId: true } },
+      },
+    }),
+    // Leituras de topo passam pelas extensões; os filtros ficam explícitos mesmo assim. Um documento
+    // guarda PDF e DWG juntos: o vigente é escolhido por pendência, só entre a MESMA extensão da origem.
+    documentoIds.length
+      ? prisma.upload.findMany({
+          where: { documentoId: { in: documentoIds }, excluidoEm: null, substituidoPorId: null },
+          orderBy: [{ versao: "desc" }, { createdAt: "desc" }],
+          select: {
+            id: true,
+            documentoId: true,
+            nomeArquivo: true,
+            versao: true,
+            excluidoEm: true,
+            substituidoPorId: true,
+            revisaoId: true,
+            revisao: { select: { numero: true } },
+          },
+        })
+      : [],
+    papeisPorDisciplina(disciplinaIds, viewer),
+    global
+      ? Promise.resolve(false)
+      : prisma.projetoMembro
+          .findFirst({ where: { projetoId, userId: viewer.id }, select: { id: true } })
+          .then((m) => m !== null),
+  ]);
 
   const nomeUsuario = new Map(users.map((u) => [u.id, u.name]));
   const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
-  const uploadsPorDocumento = new Map<string, typeof uploads>();
+  const responsavelDe = new Set(disciplinas.filter((d) => d.responsaveis.length > 0).map((d) => d.id));
+  const visiveis = rows.filter((r) =>
+    podeVerProblema({ global, membro, responsavelDaDisciplina: responsavelDe.has(r.disciplinaId) }),
+  );
+  const uploadsPorDocumento = new Map<string, (typeof uploads)[number][]>();
   for (const u of uploads) {
     if (!u.documentoId) continue;
     const lista = uploadsPorDocumento.get(u.documentoId);
@@ -606,7 +629,7 @@ export async function problemasDoProjeto(projetoId: string, viewer: SessionUser)
   }
   const semPapeis = { ehValidador: false, ehResponsavel: false, ehGlobal: false };
 
-  return rows.map((r) => {
+  return visiveis.map((r) => {
     const vigente = r.documentoId
       ? escolherVigente(uploadsPorDocumento.get(r.documentoId) ?? [], extensaoDoArquivo(r.upload.nomeArquivo))
       : null;

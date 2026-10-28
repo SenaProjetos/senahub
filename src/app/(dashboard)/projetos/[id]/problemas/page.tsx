@@ -9,8 +9,9 @@ import { ProblemasView } from "@/components/projetos/problemas-view";
 export const metadata: Metadata = { title: "Problemas — projeto" };
 
 export default async function ProblemasProjetoPage({ params }: { params: Promise<{ id: string }> }) {
-  // `problemasDoProjeto` não filtra acesso por conta própria: estes portões são obrigatórios.
-  // Cliente do portal não vê (404); interno precisa enxergar arquivos e o projeto.
+  // `problemasDoProjeto` só filtra as LINHAS (quem abre a prancha de cada uma); o acesso à página
+  // fica nestes portões, obrigatórios. Cliente do portal não vê (404); interno precisa enxergar
+  // arquivos e o projeto.
   const user = await requireInterno();
   await requirePermission("arquivos", "ver");
   const { id } = await params;
