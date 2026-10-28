@@ -3,7 +3,14 @@ import { ehCoordenador, PAPEIS_PROJETO, rotuloPapel } from "./papeis";
 
 describe("papel do membro do projeto (decisão 25)", () => {
   it("lista fixa", () => {
-    expect(PAPEIS_PROJETO).toEqual(["coordenador", "projetista", "apoio", "estagiario", "consultor_externo"]);
+    expect(PAPEIS_PROJETO).toEqual(["coordenador", "gerente", "analista", "projetista", "apoio", "estagiario", "consultor_externo"]);
+  });
+  it("Gerente e Analista têm rótulo e não ganham poderes de coordenador", () => {
+    expect(rotuloPapel("gerente")).toBe("Gerente");
+    expect(rotuloPapel("analista")).toBe("Analista");
+    expect(rotuloPapel("x")).toBe("Sem papel");
+    expect(ehCoordenador({ papelNoProjeto: "gerente", perfilChave: null })).toBe(false);
+    expect(ehCoordenador({ papelNoProjeto: "analista", perfilChave: null })).toBe(false);
   });
   it("rótulos em português; nulo ou fora da lista vira 'Sem papel'", () => {
     expect(rotuloPapel("consultor_externo")).toBe("Consultor externo");

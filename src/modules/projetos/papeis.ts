@@ -1,9 +1,11 @@
 /** Papel do membro do projeto em lista fixa (R5 do rateio, decisão 25 do spec 2026-09-15). PURO. */
-export const PAPEIS_PROJETO = ["coordenador", "projetista", "apoio", "estagiario", "consultor_externo"] as const;
+export const PAPEIS_PROJETO = ["coordenador", "gerente", "analista", "projetista", "apoio", "estagiario", "consultor_externo"] as const;
 export type PapelProjeto = (typeof PAPEIS_PROJETO)[number];
 
 export const ROTULO_PAPEL: Record<PapelProjeto, string> = {
   coordenador: "Coordenador",
+  gerente: "Gerente",
+  analista: "Analista",
   projetista: "Projetista",
   apoio: "Apoio",
   estagiario: "Estagiário",
