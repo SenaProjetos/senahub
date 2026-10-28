@@ -20,6 +20,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Papéis Gerente e Analista, aba Problemas e atalho de Avisos (outubro/2026)
+
+- **Equipe do projeto:** os papéis agora incluem **Gerente** e **Analista**, além de Coordenador, Projetista, Apoio,
+  Estagiário e Consultor externo. O papel aparece ao lado do nome na **Visão Geral**.
+- **Aba Problemas em cada projeto:** lista, por disciplina, os apontamentos já enviados nas pranchas, com filtros
+  (**Em aberto**, **Aguardando verificação**, **Encerrados**, severidade e tipo). Dá para **assumir**, **resolver**,
+  **fechar** ou marcar **não procede** direto na linha (botão direito ou **⋯**), responder à conversa e abrir a prancha
+  na versão vigente. Rascunhos de outras pessoas não aparecem.
+  Projetos com as abas em ordem personalizada veem **Problemas** no fim da lista até reorganizarem.
+- **Atalho de Avisos no topo** (computador): um ícone de megafone ao lado do sino leva direto à tela **Avisos**. Um
+  pontinho vermelho acende quando chegou um aviso nos últimos 3 dias que você ainda não viu, e some ao abrir a tela.
+
 ## Planejamento mais limpo e painel da linha (outubro/2026)
 
 - **Mais espaço para o cronograma:** o título do projeto subiu para a barra do topo, com **Nova tarefa** e o **⋯** (onde ficam

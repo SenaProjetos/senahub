@@ -96,9 +96,11 @@ Cada disciplina passa por um ciclo de status:
 
 - **Responsáveis** por disciplina: definidos por quem tem `projetos:gerir`; ao atribuir,
   a pessoa é notificada.
-- **Membros** do projeto: equipe com papel, escolhido numa lista fixa — **Coordenador**, **Projetista**,
-  **Apoio**, **Estagiário** ou **Consultor externo** (ou **Sem papel**); sincroniza os canais de chat do
-  projeto. O papel Coordenador dá acesso às horas de cada pessoa por disciplina.
+- **Membros** do projeto: equipe com papel, escolhido numa lista fixa — **Coordenador**, **Gerente**,
+  **Analista**, **Projetista**, **Apoio**, **Estagiário** ou **Consultor externo** (ou **Sem papel**);
+  sincroniza os canais de chat do projeto. O papel aparece ao lado do nome na **Visão Geral**. Só o papel
+  Coordenador dá acesso às horas de cada pessoa por disciplina; **Gerente** e **Analista** identificam a
+  função da pessoa na equipe, sem dar acesso extra.
 - O **histórico de responsáveis** de cada disciplina é guardado (quem entrou, quem saiu e quando): corrigir o
   ponto de um dia antigo usa quem era responsável naquele dia.
 - **Revisões (R0, R1, …):** qualquer **responsável** ou gestor registra uma revisão com
@@ -260,6 +262,33 @@ os valores previstos e a análise completa.
 
 Além disso, há abas para: **Serviços**, **Arquivos**, **Financeiro** (veja abaixo) e
 **Inputs** (formulários de start). As demais serão detalhadas em suas próprias páginas do manual.
+
+### Aba Problemas (apontamentos do projeto)
+
+A aba **Problemas** reúne, num só lugar, os **apontamentos publicados** nas pranchas do projeto — o que a
+coordenação apontou e ainda precisa de correção. É a mesma lista que você vê no visualizador, sem precisar
+abrir prancha por prancha. **Rascunhos** (apontamentos que quem escreveu ainda não enviou) não aparecem.
+
+- **Quem vê:** só pessoas da equipe interna que enxergam os arquivos do projeto. Cliente do portal não tem a
+  aba.
+- **Agrupada por disciplina**, cada linha mostra o número, o texto, o arquivo e a página, a severidade, o tipo,
+  a situação, o prazo e há quantos dias está em aberto.
+- **Filtros:** **Em aberto** (padrão), **Aguardando verificação** e **Encerrados** — com a contagem de cada um —,
+  mais severidade e tipo.
+- **Menu da linha:** botão direito (ou toque longo no celular) e o **⋯** mostram as mesmas ações. Quem é
+  responsável pela disciplina pode **Assumir** e **Resolver**; quem valida pode **Fechar**, **Reabrir** ou
+  marcar **Não procede** (pede uma justificativa de pelo menos 3 letras, que fica registrada). A ação que você
+  não pode fazer não aparece; a que não vale naquele momento aparece apagada, com o motivo.
+- **Conversa:** clique na linha para abrir o texto inteiro e as respostas. Quem apontou, os responsáveis pela
+  disciplina e a gestão respondem; para as demais pessoas o campo fica desabilitado com o aviso "Só um
+  responsável da disciplina pode alterar esta pendência."
+- **Abrir na prancha:** o nome do arquivo na linha leva ao visualizador, na **versão vigente** do documento, com
+  o apontamento já selecionado. Se o arquivo sumiu do disco, o link fica desabilitado ("Arquivo indisponível").
+- Criar, editar, excluir, classificar e replicar apontamentos continua sendo feito no visualizador, com a
+  prancha aberta.
+
+> Projetos que já tinham a **ordem das abas personalizada** veem a aba **Problemas** no **fim** da lista de
+> abas, até que alguém reorganize. Quem gerencia o projeto ajusta a ordem e pode ocultar a aba.
 
 ### Aba Financeiro: receita e contrato
 

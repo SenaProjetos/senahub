@@ -18,6 +18,9 @@ sem depender de e-mail.
 
 - **Sino** no canto superior direito (barra do topo), em qualquer tela. O sino mostra os
   avisos e marca os não lidos.
+- **Atalho de Avisos** (ícone de megafone, ao lado do sino, só no computador): abre a tela **Avisos** com os
+  comunicados gerais. Um pontinho vermelho indica um aviso recebido nos últimos 3 dias que você ainda não viu;
+  ele some quando você abre a tela.
 
 ## Tipos de aviso
 
