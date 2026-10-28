@@ -6,6 +6,7 @@ import { rotuloRevisao } from "@/lib/utils";
 import { gravarEventoNoTx } from "@/modules/uploads/historico/service";
 import { participaDoCiclo } from "./escopo";
 import { CONTROLES_DE_PASTA, type EscopoBloqueio, type EstadoRevisao, type TipoControle } from "./estados";
+import { normalizarFormatosExigidos } from "./formatos-exigidos";
 import {
   decidirEnvioAoCliente,
   decidirLiberacaoAutomatica,
@@ -52,8 +53,8 @@ const selectRevisao = {
       nomeArquivo: true,
       titulo: true,
       disciplinaId: true,
-      // O tipo diz se a publicação exige o DWG (Configurações → Nomenclatura → Tipos).
-      tipo: { select: { sigla: true, exigeDwg: true } },
+      // O tipo diz quais arquivos a publicação exige (Configurações → Nomenclatura → Tipos).
+      tipo: { select: { sigla: true, formatosExigidos: true } },
       disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
     },
   },
@@ -376,9 +377,9 @@ export async function publicarNoBanco(p: {
       arquivos: arquivosDaRevisao(r),
       pendencias,
       permitirComPendencias: config.permitirPublicarComPendencias,
-      // Com tipo, vale o "Exige DWG" do catálogo. Sem tipo (nomenclatura do cliente, por exemplo), não dá
-      // para saber se é desenho: sem DWG, publica com a confirmação da pessoa (decisão do dono, 2026-10-21).
-      exigirDwg: r.documento.tipo ? r.documento.tipo.exigeDwg : "confirmar",
+      // Com tipo, valem os arquivos exigidos no catálogo. Sem tipo (nomenclatura do cliente, por exemplo), não
+      // dá para saber se é desenho: sem DWG, publica com a confirmação da pessoa (decisão do dono, 2026-10-21).
+      exigidos: r.documento.tipo ? normalizarFormatosExigidos(r.documento.tipo.formatosExigidos) : "confirmar",
       confirmarSemDwg: p.confirmarSemDwg,
       siglaTipo: r.documento.tipo?.sigla ?? null,
       justificativa: p.justificativa,

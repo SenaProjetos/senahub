@@ -6565,9 +6565,13 @@ model PranchaCatalogo {
   /// Validade por versão do padrão de nomenclatura (D11) — mesma regra de `DisciplinaCatalogo`.
   versaoDesde Int                      @default(1)
   versaoAte   Int?
-  /// Só em `categoria = tipo`: a revisão de um documento deste tipo só publica com o DWG (ciclo
-  /// documental). Padrão ligado; desliga-se nos tipos sem desenho. Modelo IFC é sempre isento.
+  /// LEGADO — sem leitura nem escrita desde `formatosExigidos` (2026-10-28). O DROP COLUMN sai num
+  /// deploy posterior, junto com a confirmação de que o servidor já aplicou a migração nova.
   exigeDwg    Boolean                  @default(true)
+  /// Só em `categoria = tipo`: os arquivos que a publicação exige (`dwg | pdf | excel | word |
+  /// word_ou_excel`, ver `uploads/ciclo/formatos-exigidos.ts`). Padrão só PDF; vazio = sem exigência.
+  /// Modelo IFC é sempre isento.
+  formatosExigidos String[]             @default(["pdf"])
   siglas      SiglaNomenclatura[]
 
   /// 3 relações NOMEADAS para o mesmo model (fase/tipo/tamanho do papel do documento) — sem

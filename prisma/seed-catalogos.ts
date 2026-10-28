@@ -70,7 +70,14 @@ export const DISCIPLINAS_CATALOGO: {
   { nome: "Orçamento", codigo: "ORC", categoria: null, numeracao: 9000 },
 ];
 
-export const LM_CATALOGO: { categoria: "folha" | "tipo" | "fase"; sigla: string; nome: string; sinonimos?: string[] }[] = [
+export const LM_CATALOGO: {
+  categoria: "folha" | "tipo" | "fase";
+  sigla: string;
+  nome: string;
+  sinonimos?: string[];
+  /** Só tipo: arquivos que a publicação exige (padrão do banco: só PDF). */
+  formatosExigidos?: string[];
+}[] = [
   { categoria: "folha", sigla: "A0", nome: "A0 (841×1189)" },
   { categoria: "folha", sigla: "A1", nome: "A1 (594×841)" },
   { categoria: "folha", sigla: "A2", nome: "A2 (420×594)" },
@@ -88,9 +95,9 @@ export const LM_CATALOGO: { categoria: "folha" | "tipo" | "fase"; sigla: string;
   { categoria: "tipo", sigla: "M3D", nome: "Modelo Tridimensional" },
   // Planta/corte/vista/detalhe/esquema/diagrama/locação são todos desenho técnico. "PL" fica
   // de fora por ser a sigla de uma fase.
-  { categoria: "tipo", sigla: "DET", nome: "Desenho Técnico", sinonimos: ["DTC", "DE", "CO", "VI", "ES", "DI", "LC"] },
-  { categoria: "tipo", sigla: "MEM", nome: "Memorial Descritivo", sinonimos: ["MED", "MD"] },
-  { categoria: "tipo", sigla: "MEC", nome: "Memorial de Cálculo", sinonimos: ["MC"] },
+  { categoria: "tipo", sigla: "DET", nome: "Desenho Técnico", sinonimos: ["DTC", "DE", "CO", "VI", "ES", "DI", "LC"], formatosExigidos: ["dwg", "pdf"] },
+  { categoria: "tipo", sigla: "MEM", nome: "Memorial Descritivo", sinonimos: ["MED", "MD"], formatosExigidos: ["word_ou_excel", "pdf"] },
+  { categoria: "tipo", sigla: "MEC", nome: "Memorial de Cálculo", sinonimos: ["MC"], formatosExigidos: ["word_ou_excel", "pdf"] },
   { categoria: "tipo", sigla: "PQT", nome: "Lista de Materiais", sinonimos: ["PLQ"] },
   { categoria: "tipo", sigla: "PMT", nome: "Plano de Manutenção" },
   { categoria: "tipo", sigla: "DOC", nome: "Anexos" },
@@ -135,6 +142,7 @@ export async function semearListaMestre(
         nome: c.nome,
         ordem: i,
         sinonimos: c.sinonimos ?? [],
+        ...(c.formatosExigidos ? { formatosExigidos: c.formatosExigidos } : {}),
       })),
     });
     resultado.push({ categoria, criadas: count, existentes: 0 });

@@ -592,8 +592,10 @@ coordenação devolver ou publicar.
 - **Pagamento do projetista** — sai quando a gestão **aprova a disciplina** (ou a fase), e isso só é
   possível com todos os documentos **publicados**.
 - **Devolver para ajustes** — com motivo; o projetista é avisado.
-- **Publicar** — só com todos os arquivos **validados**, com o **DWG** junto do PDF quando o tipo de
-  documento exige (Configurações → Nomenclatura → Tipos). Documento **sem tipo** (comum na nomenclatura
+- **Publicar** — só com todos os arquivos **validados** e com os **arquivos que o tipo do documento exige**
+  (Configurações → Nomenclatura → Tipos → ⋯ → *Arquivos exigidos para publicar*): por padrão o PDF; planta
+  costuma exigir DWG e PDF; memorial, Word ou Excel e PDF; lista de quantitativo, só o Excel. Faltando algum, a
+  mensagem diz qual. Documento **sem tipo** (comum na nomenclatura
   do cliente) e sem DWG pede uma confirmação — "este documento não precisa de DWG" (memorial, planilha) —
   que fica registrada no histórico; na publicação em lote, a confirmação aparece no relatório. E sem
   apontamento **impeditivo** em aberto. A validação do arquivo também só é barrada

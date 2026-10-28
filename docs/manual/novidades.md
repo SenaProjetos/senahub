@@ -32,6 +32,14 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - **Atalho de Avisos no topo** (computador): um ícone de megafone ao lado do sino leva direto à tela **Avisos**. Um
   pontinho vermelho acende quando chegou um aviso nos últimos 3 dias que você ainda não viu, e some ao abrir a tela.
 
+## Arquivos exigidos por tipo de documento (outubro/2026)
+
+- Em **Configurações → Nomenclatura → Tipos**, cada tipo diz **quais arquivos a publicação exige**: DWG, PDF, Excel, Word ou
+  "Word ou Excel" (qualquer um dos dois). Antes só dava para exigir ou não o DWG.
+- **Ponto de partida:** todo tipo exige o PDF; os que já exigiam DWG passam a exigir DWG e PDF; a lista de quantitativo exige só
+  o Excel; os memoriais, Word ou Excel e PDF. Ajuste no **⋯** da linha do tipo.
+- Se faltar arquivo, a publicação é recusada dizendo exatamente o que falta. O modelo IFC continua dispensado.
+
 ## Planejamento mais limpo e painel da linha (outubro/2026)
 
 - **Mais espaço para o cronograma:** o título do projeto subiu para a barra do topo, com **Nova tarefa** e o **⋯** (onde ficam

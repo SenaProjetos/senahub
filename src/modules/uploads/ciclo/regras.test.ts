@@ -21,20 +21,42 @@ describe("decidirPublicacao", () => {
     });
   });
 
-  it("DWG obrigatório: sem DWG recusa; com DWG, ou modelo IFC, passa", () => {
-    expect(decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: true, siglaTipo: "PLB" })).toMatchObject({
+  it("arquivos exigidos pelo tipo: falta recusa dizendo o que falta; completo, ou modelo IFC, passa", () => {
+    const sem = { pendencias: [], permitirComPendencias: false };
+    expect(decidirPublicacao({ ...sem, arquivos: [arq()], exigidos: ["dwg", "pdf"], siglaTipo: "PLB" })).toEqual({
       ok: false,
-      motivo: expect.stringMatching(/tipo PLB só publicam com o DWG/),
+      motivo: "Documentos do tipo PLB só publicam com DWG + PDF. Falta enviar: DWG.",
     });
     const dwg = { ...arq(), id: "u2", nome: "A-01.dwg", ext: "dwg" };
-    expect(decidirPublicacao({ arquivos: [arq(), dwg], pendencias: [], permitirComPendencias: false, exigirDwg: true })).toEqual({ ok: true, restricao: null });
+    expect(decidirPublicacao({ ...sem, arquivos: [arq(), dwg], exigidos: ["dwg", "pdf"] })).toEqual({ ok: true, restricao: null });
     const ifc = { ...arq(), id: "u3", nome: "modelo.ifc", ext: "ifc" };
-    expect(decidirPublicacao({ arquivos: [ifc], pendencias: [], permitirComPendencias: false, exigirDwg: true })).toEqual({ ok: true, restricao: null });
-    expect(decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: false })).toEqual({ ok: true, restricao: null });
+    expect(decidirPublicacao({ ...sem, arquivos: [ifc], exigidos: ["dwg", "pdf"] })).toEqual({ ok: true, restricao: null });
+    // Sem exigência (lista vazia ou ausente), qualquer arquivo publica.
+    expect(decidirPublicacao({ ...sem, arquivos: [arq()], exigidos: [] })).toEqual({ ok: true, restricao: null });
+    expect(decidirPublicacao({ ...sem, arquivos: [arq()] })).toEqual({ ok: true, restricao: null });
+  });
+
+  it("quantitativo só em Excel (PDF opcional); memorial em PDF + Word ou Excel", () => {
+    const sem = { pendencias: [], permitirComPendencias: false };
+    const xlsx = { ...arq(), id: "u4", nome: "Q-01.xlsx", ext: "xlsx" };
+    const docx = { ...arq(), id: "u5", nome: "M-01.docx", ext: "docx" };
+    expect(decidirPublicacao({ ...sem, arquivos: [xlsx], exigidos: ["excel"], siglaTipo: "QTO" })).toEqual({ ok: true, restricao: null });
+    expect(decidirPublicacao({ ...sem, arquivos: [xlsx, arq()], exigidos: ["excel"] })).toEqual({ ok: true, restricao: null });
+    expect(decidirPublicacao({ ...sem, arquivos: [arq()], exigidos: ["excel"], siglaTipo: "QTO" })).toEqual({
+      ok: false,
+      motivo: "Documentos do tipo QTO só publicam com Excel. Falta enviar: Excel.",
+    });
+    const memorial = ["word_ou_excel", "pdf"] as const;
+    expect(decidirPublicacao({ ...sem, arquivos: [docx, arq()], exigidos: memorial })).toEqual({ ok: true, restricao: null });
+    expect(decidirPublicacao({ ...sem, arquivos: [xlsx, arq()], exigidos: memorial })).toEqual({ ok: true, restricao: null });
+    expect(decidirPublicacao({ ...sem, arquivos: [docx], exigidos: memorial, siglaTipo: "MEC" })).toMatchObject({
+      ok: false,
+      motivo: "Documentos do tipo MEC só publicam com PDF + Word ou Excel. Falta enviar: PDF.",
+    });
   });
 
   it("documento sem tipo e sem DWG: pede confirmação, e só depois do resto estar certo", () => {
-    const base = { pendencias: [], permitirComPendencias: false, exigirDwg: "confirmar" as const };
+    const base = { pendencias: [], permitirComPendencias: false, exigidos: "confirmar" as const };
     expect(decidirPublicacao({ ...base, arquivos: [arq()] })).toEqual({ ok: false, motivo: MOTIVO_SEM_DWG_SEM_TIPO });
     expect(decidirPublicacao({ ...base, arquivos: [arq()], confirmarSemDwg: true })).toEqual({ ok: true, restricao: null, semDwgConfirmado: true });
     // Arquivo sem validação vem primeiro: a confirmação não é pedida antes da hora.
@@ -50,13 +72,13 @@ describe("decidirPublicacao", () => {
     const dwg = { ...arq(), id: "u2", nome: "A-01.dwg", ext: "dwg" };
     const ifc = { ...arq(), id: "u3", nome: "modelo.ifc", ext: "ifc" };
     for (const arquivos of [[arq(), dwg], [ifc]]) {
-      expect(decidirPublicacao({ arquivos, pendencias: [], permitirComPendencias: false, exigirDwg: "confirmar" })).toEqual({ ok: true, restricao: null });
+      expect(decidirPublicacao({ arquivos, pendencias: [], permitirComPendencias: false, exigidos: "confirmar" })).toEqual({ ok: true, restricao: null });
     }
   });
 
-  it("tipo que exige DWG não aceita a confirmação", () => {
+  it("tipo que exige arquivo não aceita a confirmação", () => {
     expect(
-      decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigirDwg: true, siglaTipo: "PLB", confirmarSemDwg: true }),
+      decidirPublicacao({ arquivos: [arq()], pendencias: [], permitirComPendencias: false, exigidos: ["dwg", "pdf"], siglaTipo: "PLB", confirmarSemDwg: true }),
     ).toMatchObject({ ok: false, motivo: expect.stringMatching(/tipo PLB/) });
   });
 

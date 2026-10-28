@@ -3,6 +3,7 @@ import {
   ACAO_ABRIR_NA_VERSAO,
   ACAO_ADICIONAR_SUB,
   ACAO_EDITAR,
+  ACAO_FORMATOS_EXIGIDOS,
   ACAO_SIGLAS,
   ACAO_TIRAR,
   acaoUnica,
@@ -10,6 +11,7 @@ import {
   itensDaLinhaTodas,
   itensDoLoteTodas,
 } from "./acoes";
+import type { FormatoExigido } from "@/modules/uploads/ciclo/formatos-exigidos";
 
 const card = { alvo: { tipo: "disciplina" as const, id: "hid" } };
 const sub = { alvo: { tipo: "subdisciplina" as const, id: "agf" } };
@@ -18,19 +20,19 @@ const tudo = { podeGerir: true, podeEditarCard: true, versao: 2 };
 
 const ids = (itens: ReturnType<typeof itensDaLinhaCatalogo>) => itens.map((i) => i.id);
 
-describe("itensDaLinhaCatalogo — DWG do tipo de documento", () => {
-  const tipo = (exigeDwg: boolean) => ({ alvo: { tipo: "prancha" as const, id: "t1" }, exigeDwg });
+describe("itensDaLinhaCatalogo — arquivos exigidos do tipo de documento", () => {
+  const tipo = (formatosExigidos: FormatoExigido[]) => ({ alvo: { tipo: "prancha" as const, id: "t1" }, formatosExigidos });
   const ctx = { podeGerir: true, podeEditarCard: false, versao: 2 };
 
-  it("oferece o contrário do que está valendo, e só para quem gerencia", () => {
-    expect(itensDaLinhaCatalogo(tipo(true), ctx).some((i) => i.id === "dispensar-dwg")).toBe(true);
-    expect(itensDaLinhaCatalogo(tipo(false), ctx).some((i) => i.id === "exigir-dwg")).toBe(true);
-    expect(itensDaLinhaCatalogo(tipo(true), { ...ctx, podeGerir: false })).toEqual([]);
+  it("oferece escolher os arquivos exigidos, só para quem gerencia — mesmo com lista vazia", () => {
+    expect(itensDaLinhaCatalogo(tipo(["pdf"]), ctx).some((i) => i.id === ACAO_FORMATOS_EXIGIDOS)).toBe(true);
+    expect(itensDaLinhaCatalogo(tipo([]), ctx).some((i) => i.id === ACAO_FORMATOS_EXIGIDOS)).toBe(true);
+    expect(itensDaLinhaCatalogo(tipo(["pdf"]), { ...ctx, podeGerir: false })).toEqual([]);
   });
 
-  it("fase (sem exigeDwg) não ganha o item", () => {
+  it("fase (sem formatosExigidos) não ganha o item", () => {
     const itens = itensDaLinhaCatalogo({ alvo: { tipo: "prancha", id: "f1" } }, ctx);
-    expect(itens.some((i) => i.id === "dispensar-dwg" || i.id === "exigir-dwg")).toBe(false);
+    expect(itens.some((i) => i.id === ACAO_FORMATOS_EXIGIDOS)).toBe(false);
   });
 });
 

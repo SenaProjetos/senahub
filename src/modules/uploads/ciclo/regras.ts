@@ -5,6 +5,7 @@
 import { contaComoTrabalho } from "@/modules/projetos/pendencias/helpers";
 import { ehDocumentoDeModelo } from "./escopo";
 import type { EstadoRevisao } from "./estados";
+import { formatosQueFaltam, resumoDosFormatos, rotuloDoFormato, type FormatoExigido } from "./formatos-exigidos";
 
 /** Arquivo que VALE na revisão: fora da lixeira e não substituído por versão mais nova. */
 export type ArquivoDaRevisao = { id: string; nome: string; ext: string; validado: boolean };
@@ -41,11 +42,12 @@ export function decidirPublicacao(p: {
   pendencias: readonly PendenciaParaGate[];
   permitirComPendencias: boolean;
   /**
-   * O tipo do documento exige o DWG para publicar (`exigeDwg` do catálogo). Modelo IFC é isento.
+   * Arquivos que o tipo do documento exige para publicar (`formatosExigidos` do catálogo). Modelo IFC é
+   * isento. Ausente ou vazio = nada a exigir.
    * `"confirmar"` = documento SEM tipo (nomenclatura do cliente, por exemplo): sem DWG, publica só com a
    * confirmação da pessoa (`confirmarSemDwg`) — decisão do dono, 2026-10-21.
    */
-  exigirDwg?: boolean | "confirmar";
+  exigidos?: readonly FormatoExigido[] | "confirmar";
   confirmarSemDwg?: boolean;
   /** Sigla do tipo, só para a mensagem. */
   siglaTipo?: string | null;
@@ -53,15 +55,21 @@ export function decidirPublicacao(p: {
 }): DecisaoPublicacao {
   if (p.arquivos.length === 0) return { ok: false, motivo: "A revisão não tem arquivo para publicar." };
   const exts = p.arquivos.map((a) => a.ext);
-  const faltaDwg = !!p.exigirDwg && !ehDocumentoDeModelo(exts) && !exts.includes("dwg");
-  if (faltaDwg && p.exigirDwg === true) {
-    return {
-      ok: false,
-      motivo: p.siglaTipo
-        ? `Documentos do tipo ${p.siglaTipo} só publicam com o DWG: envie o DWG desta revisão.`
-        : "Esta revisão só publica com o DWG: envie o DWG desta revisão.",
-    };
+  const modelo = ehDocumentoDeModelo(exts);
+  if (Array.isArray(p.exigidos) && !modelo) {
+    const faltam = formatosQueFaltam(p.exigidos, exts);
+    if (faltam.length > 0) {
+      const todos = resumoDosFormatos(p.exigidos);
+      const quais = faltam.map(rotuloDoFormato).join(" e ");
+      return {
+        ok: false,
+        motivo: p.siglaTipo
+          ? `Documentos do tipo ${p.siglaTipo} só publicam com ${todos}. Falta enviar: ${quais}.`
+          : `Esta revisão só publica com ${todos}. Falta enviar: ${quais}.`,
+      };
+    }
   }
+  const faltaDwg = p.exigidos === "confirmar" && !modelo && !exts.map((e) => e.toLowerCase()).includes("dwg");
   // Sem tipo, a confirmação só é pedida depois de todo o resto estar certo (como a do carimbo):
   // confirmar e cair noutro erro em seguida faria a pessoa confirmar duas vezes.
   const concluir = (restricao: { motivo: string; abertos: number } | null): DecisaoPublicacao => {

@@ -83,10 +83,10 @@ async function main() {
   // O DWG obrigatório é do TIPO do documento. Os documentos do smoke publicam só com PDF, então nascem num
   // tipo que não exige; o caso do DWG usa um tipo que exige. Tipos do próprio projeto (somem com ele).
   const tipoSemDwg = await prisma.pranchaCatalogo.create({
-    data: { categoria: "tipo", sigla: "SMKN", nome: `${tag} sem DWG`, projetoId: projeto.id, exigeDwg: false },
+    data: { categoria: "tipo", sigla: "SMKN", nome: `${tag} sem DWG`, projetoId: projeto.id, formatosExigidos: ["pdf"] },
   });
   const tipoComDwg = await prisma.pranchaCatalogo.create({
-    data: { categoria: "tipo", sigla: "SMKD", nome: `${tag} com DWG`, projetoId: projeto.id, exigeDwg: true },
+    data: { categoria: "tipo", sigla: "SMKD", nome: `${tag} com DWG`, projetoId: projeto.id, formatosExigidos: ["dwg", "pdf"] },
   });
 
   let n = 0;

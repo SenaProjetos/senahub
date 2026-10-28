@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { projetosPorCard } from "@/modules/projetos/cadastro-disciplina";
+import { normalizarFormatosExigidos } from "@/modules/uploads/ciclo/formatos-exigidos";
 import type { UsoItem } from "./todas";
 import type { AlvoCatalogo, CatalogoSnap } from "./versao";
 
@@ -55,14 +56,18 @@ export async function carregarCatalogoSnap(db: Db = prisma): Promise<CatalogoSna
       ordem: true,
       versaoDesde: true,
       versaoAte: true,
-      exigeDwg: true,
+      formatosExigidos: true,
       siglas: LINHAS,
     },
   });
   return {
     cards,
     subs: subs.map(({ disciplinaCatalogoId, ...s }) => ({ ...s, cardId: disciplinaCatalogoId })),
-    itens: itens.map((i) => ({ ...i, categoria: i.categoria as "fase" | "tipo" })),
+    itens: itens.map((i) => ({
+      ...i,
+      categoria: i.categoria as "fase" | "tipo",
+      formatosExigidos: normalizarFormatosExigidos(i.formatosExigidos),
+    })),
   };
 }
 
