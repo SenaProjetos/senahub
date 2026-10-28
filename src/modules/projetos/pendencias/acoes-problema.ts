@@ -65,3 +65,14 @@ export function itensDoProblema(
 
   return limparSeparadores([abrir, ...base]);
 }
+
+/**
+ * Regra 4 da ADR-0002: o menu (e o `...`) só some quando sobra no máximo uma ação ativa E ela já é
+ * um botão da própria linha — a linha expande a conversa (Responder) e o nome da prancha é link
+ * (Abrir na prancha). Qualquer outra ação sozinha (ex.: "Não procede") mantém o menu.
+ */
+export function deveOcultarMenu(itens: readonly AcaoItem[]): boolean {
+  const ativos = itens.filter((i) => (i.tipo === "acao" && !i.desabilitado) || i.tipo === "link");
+  if (ativos.length === 0) return true;
+  return ativos.length === 1 && (ativos[0].id === ACAO_ABRIR_PRANCHA || ativos[0].id === ACAO_RESPONDER);
+}

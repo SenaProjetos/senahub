@@ -4,7 +4,7 @@ import {
   ACAO_RESPONDER,
   PREFIXO_ESTADO,
 } from "@/modules/projetos/pendencias/acoes-apontamento";
-import { ACAO_ABRIR_PRANCHA, itensDoProblema } from "@/modules/projetos/pendencias/acoes-problema";
+import { ACAO_ABRIR_PRANCHA, deveOcultarMenu, itensDoProblema } from "@/modules/projetos/pendencias/acoes-problema";
 import { MOTIVO_NAO_PARTICIPA, type ProblemaLinha } from "@/modules/projetos/pendencias/problemas";
 
 function linha(p: Partial<ProblemaLinha> = {}): ProblemaLinha {
@@ -116,6 +116,30 @@ describe("itensDoProblema", () => {
   it("arquivo indisponível: item desabilitado e nenhum link", () => {
     const itens = itensDoProblema(linha({ arquivoDisponivel: false }), ctx);
     expect(itens.some((i) => i.tipo === "link")).toBe(false);
-    expect(itens[0]).toMatchObject({ tipo: "acao", id: ACAO_ABRIR_PRANCHA, desabilitado: "Arquivo indisponível" });
+    expect(itens[0]).toMatchObject({ tipo: "acao", id: ACAO_ABRIR_PRANCHA, rotulo: "Abrir na prancha", desabilitado: "Arquivo indisponível" });
+  });
+});
+
+describe("deveOcultarMenu", () => {
+  const abrir = { tipo: "link", id: ACAO_ABRIR_PRANCHA, rotulo: "Abrir na prancha", href: "/x" } as const;
+  const responder = { tipo: "acao", id: ACAO_RESPONDER, rotulo: "Responder" } as const;
+  const naoProcede = { tipo: "acao", id: `${PREFIXO_ESTADO}descartada`, rotulo: "Não procede" } as const;
+  const inerte = (id: string) => ({ tipo: "acao", id, rotulo: id, desabilitado: "motivo" }) as const;
+
+  it("uma ação só, e é Abrir na prancha → oculta", () => {
+    expect(deveOcultarMenu([abrir, inerte(ACAO_RESPONDER)])).toBe(true);
+  });
+  it("uma ação só, e é Responder → oculta", () => {
+    expect(deveOcultarMenu([inerte(ACAO_ABRIR_PRANCHA), responder])).toBe(true);
+  });
+  it("uma ação só, e é Não procede → mantém o menu", () => {
+    expect(deveOcultarMenu([inerte(ACAO_ABRIR_PRANCHA), inerte(ACAO_RESPONDER), naoProcede])).toBe(false);
+  });
+  it("nenhuma ação ativa → oculta", () => {
+    expect(deveOcultarMenu([inerte(ACAO_ABRIR_PRANCHA), inerte(ACAO_RESPONDER)])).toBe(true);
+    expect(deveOcultarMenu([])).toBe(true);
+  });
+  it("várias ativas → mantém", () => {
+    expect(deveOcultarMenu([abrir, responder])).toBe(false);
   });
 });

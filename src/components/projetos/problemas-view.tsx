@@ -23,7 +23,7 @@ import {
   ACAO_RESPONDER,
   destinoDoItem,
 } from "@/modules/projetos/pendencias/acoes-apontamento";
-import { itensDoProblema } from "@/modules/projetos/pendencias/acoes-problema";
+import { deveOcultarMenu, itensDoProblema } from "@/modules/projetos/pendencias/acoes-problema";
 import {
   adiarPendencia,
   assumirCorrecaoPendencia,
@@ -84,11 +84,10 @@ const SITUACAO_LABEL: Record<SituacaoProblema, string> = {
 
 const SITUACOES: SituacaoProblema[] = ["em_aberto", "aguardando", "encerrados"];
 
-/** Regra 4 da ADR-0002: uma ação só ativa (o clique da linha já a faz) → sem menu e sem `...`. */
-function itensDaLinha(itens: AcaoItem[]): AcaoItem[] {
-  return itens.filter((i) => (i.tipo === "acao" || i.tipo === "link") && !(i.tipo === "acao" && i.desabilitado)).length > 1
-    ? itens
-    : [];
+/** Itens da linha; vazio quando a única ação ativa já é um botão da própria linha (regra 4 da ADR-0002). */
+function menuDaLinha(l: ProblemaLinha, ctx: Parameters<typeof itensDoProblema>[1]): AcaoItem[] {
+  const itens = itensDoProblema(l, ctx);
+  return deveOcultarMenu(itens) ? [] : itens;
 }
 
 type PropsLinha = {
@@ -129,11 +128,11 @@ function LinhaProblema({ linha, projetoId, itens, expandido, agora, onAlternar, 
 
       <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-6 text-xs text-muted-foreground">
         {href ? (
-          <Link href={href} className="hover:text-foreground hover:underline" title="Abrir na prancha">
+          <Link href={href} className="min-w-0 break-all hover:text-foreground hover:underline" title="Abrir na prancha">
             {linha.arquivo} · pág. {linha.pagina}
           </Link>
         ) : (
-          <span title="Arquivo indisponível">
+          <span className="min-w-0 break-all" title="Arquivo indisponível">
             {linha.arquivo} · pág. {linha.pagina}
           </span>
         )}
@@ -215,7 +214,7 @@ export function ProblemasView({
   }
 
   function executar(linha: ProblemaLinha, item: AcaoItemAcao) {
-    if (item.desabilitado) return;
+    if (item.desabilitado || pending) return;
     if (item.id === ACAO_RESPONDER) {
       expandir(linha.id);
       return;
@@ -321,7 +320,7 @@ export function ProblemasView({
                     key={l.id}
                     linha={l}
                     projetoId={projetoId}
-                    itens={itensDaLinha(itensDoProblema(l, ctx))}
+                    itens={menuDaLinha(l, ctx)}
                     expandido={expandidos.has(l.id)}
                     agora={agora}
                     onAlternar={alternar}
