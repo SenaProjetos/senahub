@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 
+import { ProblemaConversa } from "@/components/projetos/problema-conversa";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CollapsibleSection } from "@/components/ui/collapsible";
@@ -48,6 +49,7 @@ import {
   diasEmAberto,
   filtrarProblemas,
   hrefDaPrancha,
+  podeParticiparDaConversa,
   type ProblemaLinha,
   type SituacaoProblema,
 } from "@/modules/projetos/pendencias/problemas";
@@ -93,6 +95,7 @@ function menuDaLinha(l: ProblemaLinha, ctx: Parameters<typeof itensDoProblema>[1
 type PropsLinha = {
   linha: ProblemaLinha;
   projetoId: string;
+  usuarioId: string;
   itens: AcaoItem[];
   expandido: boolean;
   agora: Date;
@@ -101,7 +104,7 @@ type PropsLinha = {
 };
 
 /** Linha de topo (não definida dentro do pai): senão remonta a cada render e fecha o menu aberto. */
-function LinhaProblema({ linha, projetoId, itens, expandido, agora, onAlternar, onSelect }: PropsLinha) {
+function LinhaProblema({ linha, projetoId, usuarioId, itens, expandido, agora, onAlternar, onSelect }: PropsLinha) {
   const href = hrefDaPrancha(linha, projetoId);
   const dias = diasEmAberto(linha.createdAt, linha.fechadoEm, agora);
   const statusLabel = STATUS_LABEL[linha.status as StatusPendencia] ?? linha.status;
@@ -151,13 +154,20 @@ function LinhaProblema({ linha, projetoId, itens, expandido, agora, onAlternar, 
         <span>{linha.fechadoEm ? `${dias}d até encerrar` : `${dias}d em aberto`}</span>
       </div>
 
-      {expandido && <DetalheDoProblema linha={linha} />}
+      {expandido && <DetalheDoProblema linha={linha} usuarioId={usuarioId} />}
     </LinhaComMenu>
   );
 }
 
-/** Área que abre sob a linha: o texto inteiro e a procedência. A conversa entra aqui. */
-function DetalheDoProblema({ linha }: { linha: ProblemaLinha }) {
+/** Área que abre sob a linha: o texto inteiro, a procedência e a conversa. */
+function DetalheDoProblema({ linha, usuarioId }: { linha: ProblemaLinha; usuarioId: string }) {
+  // A MESMA função que o servidor usa em `responderPendencia`: a tela não oferece o que a action nega.
+  const podeResponder = podeParticiparDaConversa({
+    autorId: linha.autorId,
+    usuarioId,
+    ehResponsavel: linha.papeis.ehResponsavel,
+    ehGlobal: linha.papeis.ehGlobal,
+  });
   return (
     <div className="mt-2 space-y-2 pl-6">
       <p className="whitespace-pre-wrap break-words text-sm">{linha.texto}</p>
@@ -166,6 +176,7 @@ function DetalheDoProblema({ linha }: { linha: ProblemaLinha }) {
         {linha.fechadoEm ? ` · encerrado em ${formatarDataHora(linha.fechadoEm)}` : ""}
         {linha.deOutraRevisao ? " · trazido de revisão anterior" : ""}
       </p>
+      <ProblemaConversa linha={linha} podeResponder={podeResponder} />
     </div>
   );
 }
@@ -320,6 +331,7 @@ export function ProblemasView({
                     key={l.id}
                     linha={l}
                     projetoId={projetoId}
+                    usuarioId={usuarioId}
                     itens={menuDaLinha(l, ctx)}
                     expandido={expandidos.has(l.id)}
                     agora={agora}
