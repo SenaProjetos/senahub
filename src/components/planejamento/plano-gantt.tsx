@@ -50,6 +50,9 @@ import {
   type ModoGantt,
 } from "@/components/planejamento/gantt-barra";
 
+/** Largura padrão de Início/Término: em edição cabem `dd/mm/aaaa` (~61px de texto) e o ícone do calendário (16px). */
+const LARGURA_COLUNA_DATA = 108;
+
 /**
  * O cronograma do projeto no molde do MS Project: a TABELA à esquerda e o GRÁFICO à direita, nas mesmas
  * linhas, dentro de UMA área de rolagem — a tabela fica presa à esquerda e o cabeçalho preso em cima,
@@ -611,14 +614,14 @@ export function PlanoGantt({
     const inicio: Coluna = {
       id: "inicio",
       rotulo: "Início",
-      w: 84,
+      w: LARGURA_COLUNA_DATA,
       render: (l) =>
         envolver(l, "inicio", "Início", <span className="font-mono text-xs" title="Digite, cole ou escolha no calendário (dd/mm/aaaa). Ela fixa o início da tarefa (alfinete).">{gravado(l.t.id, "inicio") ?? (dataCurta(l.t.inicioPrevisto) || "—")}</span>),
     };
     const termino: Coluna = {
       id: "termino",
       rotulo: "Término",
-      w: 84,
+      w: LARGURA_COLUNA_DATA,
       render: (l) =>
         envolver(l, "termino", "Término", <span className="font-mono text-xs" title="Digite, cole ou escolha no calendário (dd/mm/aaaa). O término recalcula a duração em dias úteis.">{gravado(l.t.id, "termino") ?? (dataCurta(l.t.fimPrevisto) || "—")}</span>),
     };
@@ -1333,7 +1336,7 @@ function CelulaEditavel({
       className={cn(
         "h-6 w-full min-w-0 rounded-sm border bg-background px-1 text-xs outline-none disabled:opacity-60",
         invalida ? "border-destructive ring-1 ring-destructive/40" : "border-primary ring-1 ring-primary/40",
-        data && "pr-5", // espaço do ícone do calendário
+        data && "pr-4", // espaço do ícone do calendário
       )}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
@@ -1387,7 +1390,7 @@ function CelulaEditavel({
         aria-label="Abrir calendário"
         title="Escolher no calendário"
         disabled={salvando}
-        className="absolute inset-y-0 right-0 flex w-5 items-center justify-center rounded-r-sm text-muted-foreground hover:text-foreground disabled:opacity-60"
+        className="absolute inset-y-0 right-0 flex w-4 items-center justify-center rounded-r-sm text-muted-foreground hover:text-foreground disabled:opacity-60"
         onMouseDown={(e) => e.preventDefault()}
         onClick={(e) => {
           e.stopPropagation();
