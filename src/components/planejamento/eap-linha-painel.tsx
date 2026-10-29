@@ -8,7 +8,7 @@ import { criarEapTarefa, definirBloqueio, desbloquear, excluirEapTarefa, salvarL
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
 import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
-import { disciplinaParaLinhaNova } from "@/modules/planejamento/disciplina-linha";
+import { disciplinaParaLinhaNova, propagacaoDeDisciplina } from "@/modules/planejamento/disciplina-linha";
 import { MOTIVO_PLANO_TRAVADO } from "@/modules/planejamento/trava-plano";
 import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
 import { PredecessorasDialog } from "@/components/planejamento/predecessoras-dialog";
@@ -20,6 +20,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+
+/** Mesmo teto do servidor (`MAX_LINHAS` e o schema de `propagarDisciplina`): acima disso nem chama a ação. */
+const LIMITE_LINHAS_DE_DENTRO = 500;
 
 const selectCls =
   "h-8 w-full min-w-0 rounded-sm border border-input bg-background px-2 text-sm text-foreground outline-none focus-visible:border-primary disabled:opacity-60";
@@ -213,7 +216,7 @@ export function EapLinhaPainel({
     }
   }
 
-  function salvar() {
+  async function salvar() {
     if (pending || !form.nome.trim() || (linha && mudou.length === 0)) return;
     const semDuracao = form.marco || ehResumo;
     const duracaoDias = Number(form.duracao.replace(",", "."));
@@ -224,6 +227,29 @@ export function EapLinhaPainel({
     if (form.restricaoTipo && !form.restricaoData) {
       toast.error("Informe a data da restrição.");
       return;
+    }
+    // 6a: trocar a disciplina de um agrupamento leva as linhas de dentro junto — a pessoa vê quantas ANTES de gravar
+    // (o confirm fica fora do start: dialog dentro de transição trava). O servidor confere a mesma contagem.
+    let propagadas = 0;
+    if (linha && ehResumo && form.disciplinaId && form.disciplinaId !== (linha.disciplinaId ?? "")) {
+      propagadas = propagacaoDeDisciplina(
+        tarefas.map((t) => ({ id: t.id, parentId: t.parentId, disciplinaId: t.disciplinaId, etapaId: t.etapaId })),
+        linha.id,
+        { disciplinaId: form.disciplinaId, etapaId: form.etapaId || null },
+        new Set(fases.map((f) => f.etapaId)),
+      ).length;
+      if (propagadas > LIMITE_LINHAS_DE_DENTRO) {
+        toast.error(`A troca de disciplina leva no máximo ${LIMITE_LINHAS_DE_DENTRO} linhas de dentro por vez; este agrupamento tem ${propagadas}. Troque a disciplina dos subagrupamentos antes.`);
+        return;
+      }
+      if (propagadas > 0) {
+        const ok = await confirm({
+          title: "Mudar a disciplina das linhas de dentro?",
+          description: `${propagadas === 1 ? "1 linha de dentro vai" : `${propagadas} linhas de dentro vão`} para ${disciplinas.find((d) => d.id === form.disciplinaId)?.nome ?? "a disciplina nova"}. Responsáveis, ponto e horas já lançados ficam; a linha que ficar sem ninguém recebe o responsável da disciplina nova. Dá para voltar com Ctrl+Z.`,
+          confirmLabel: "Mudar disciplina",
+        });
+        if (!ok) return;
+      }
     }
     start(async () => {
       if (!linha) {
@@ -263,12 +289,15 @@ export function EapLinhaPainel({
         termino: terminoDigitado && form.termino ? form.termino : undefined,
         restricao: mudouRestricao ? { tipo: (form.restricaoTipo || null) as never, data: form.restricaoData || undefined } : undefined,
         predecessoras: mudou.includes("predecessoras") ? form.predecessoras : undefined,
+        propagarDisciplina: propagadas > 0 ? { esperadas: propagadas } : undefined,
       });
       if (!r.ok) return void toast.error(r.error);
       if (mudou.includes("inicio") && form.inicio && r.data.inicio !== form.inicio && !mudouRestricao) {
         toast.warning(`A tarefa só pode começar em ${dataCurta(r.data.inicio)}.`, {
           description: 'Depois das predecessoras e num dia útil — a data que você pediu ficou como "não iniciar antes de".',
         });
+      } else if (propagadas > 0) {
+        toast.success(`Linha salva — ${propagadas === 1 ? "1 linha de dentro mudou" : `${propagadas} linhas de dentro mudaram`} de disciplina.`);
       } else {
         toast.success("Linha salva — datas recalculadas.");
       }
