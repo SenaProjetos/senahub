@@ -1385,6 +1385,8 @@ export const salvarLinhaEap = defineAction(
         .object({ tipo: restricaoSchema.shape.tipo, data: diaIso.optional() })
         .optional(),
       predecessoras: predecessorasSchema.shape.vinculos.optional(),
+      /** 6a: a tela confirmou quantas linhas de dentro do agrupamento mudam de disciplina junto. */
+      propagarDisciplina: z.object({ esperadas: z.number().int().min(0).max(500) }).optional(),
     }),
     entidadeId: (_d, i) => i.id,
     // Decimal não vai para o JSON da auditoria: a duração sai como número.

@@ -16,6 +16,8 @@ import { inserirLinhaAcima } from "../src/modules/planejamento/arvore-service";
 import { sincronizarCards } from "../src/modules/planejamento/recursos-service";
 import { alinharDisciplinasNoBanco } from "../src/modules/planejamento/disciplina-linha-service";
 import { MOTIVO_PLANO_TRAVADO } from "../src/modules/planejamento/trava-plano";
+import { editarLinhaNoBanco, salvarLinhaNoBanco, type SalvarLinha } from "../src/modules/planejamento/linha-service";
+import { comPasso, desfazerUltimoPasso } from "../src/modules/planejamento/desfazer/service";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -41,9 +43,11 @@ async function erroDe(fn: () => Promise<unknown>): Promise<string | null> {
 async function main() {
   const admin = await prisma.user.findFirst({ where: { superUsuario: true, ativo: true }, select: { id: true } });
   const fase = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", projetoId: null, ativo: true }, select: { id: true, sigla: true } });
-  const fase2 = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", projetoId: null, ativo: true, id: { not: fase?.id } }, select: { id: true } });
-  if (!admin || !fase || !fase2) {
-    console.log("Banco de dev sem admin ou sem fase — rode `npm run db:seed`.");
+  const fase2 = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", projetoId: null, ativo: true, id: { not: fase?.id } }, select: { id: true, sigla: true } });
+  const fase3 = await prisma.pranchaCatalogo.findFirst({ where: { categoria: "fase", projetoId: null, ativo: true, id: { notIn: [fase?.id ?? "", fase2?.id ?? ""] } }, select: { id: true } });
+  const outro = await prisma.user.findFirst({ where: { ativo: true, tipo: "interno", id: { not: admin?.id } }, select: { id: true } });
+  if (!admin || !fase || !fase2 || !fase3 || !outro) {
+    console.log("Banco de dev sem admin, sem um segundo usuário interno ativo ou sem três fases — rode `npm run db:seed`.");
     process.exitCode = 1;
     return;
   }
@@ -128,6 +132,137 @@ async function main() {
     const r2 = await alinharDisciplinasNoBanco(projeto.id, [V.id, Y.id]);
     check("lista velha: a segunda chamada não encontra nada a corrigir", r2.corrigidas.length === 0, r2);
 
+    // ── 6a: trocar a disciplina do agrupamento leva as linhas de dentro ──────
+    // F › A (Hidro, fase) › a1 (Hidro, fase2, com responsável) · a2 (Elétrica, fase3) · a3 (sem disciplina) ·
+    //     A.sub (Hidro, fase) › a4 (Hidro, fase3).   Estrutural tem fase e fase2 cadastradas e outro responsável.
+    const est = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Estrutural" } });
+    await prisma.disciplinaEtapa.create({ data: { disciplinaId: est.id, etapaId: fase.id, percentual: 50, ordem: 0 } });
+    await prisma.disciplinaEtapa.create({ data: { disciplinaId: est.id, etapaId: fase2.id, percentual: 50, ordem: 1 } });
+    await prisma.disciplinaResponsavel.create({ data: { disciplinaId: est.id, userId: outro.id } });
+    const A = await nova("Agrupamento A", F.id, hid.id, fase.id, "res");
+    const a1 = await nova("Linha a1", A.id, hid.id, fase2.id);
+    const a2 = await nova("Linha a2", A.id, ele.id, fase3.id);
+    const a3 = await nova("Linha a3", A.id, null, null);
+    const Asub = await nova("Sub A", A.id, hid.id, fase.id, "res");
+    const a4 = await nova("Linha a4", Asub.id, hid.id, fase3.id);
+    await prisma.eapAtribuicao.create({ data: { tarefaId: a1.id, userId: admin.id, papel: "pro", horasPrevistas: 4, principal: true } });
+    const blocoA = [A.id, a1.id, a2.id, a3.id, Asub.id, a4.id];
+    const linhasDe = async (ids: string[]) =>
+      new Map((await prisma.eapTarefa.findMany({ where: { id: { in: ids } }, select: { id: true, disciplinaId: true, etapaId: true } })).map((l) => [l.id, l]));
+    const fotoBloco = async () => JSON.stringify([...(await linhasDe(blocoA)).values()].sort((x, y) => x.id.localeCompare(y.id)));
+    const original = await fotoBloco();
+    const salvarGrupo = async (id: string, nome: string, extra: Partial<SalvarLinha>) => {
+      const { progresso } = await prisma.eapTarefa.findUniqueOrThrow({ where: { id }, select: { progresso: true } });
+      return salvarLinhaNoBanco({ id, nome, progresso, marco: false, ...extra }, admin.id);
+    };
+    const salvarA = (extra: Partial<SalvarLinha>) => salvarGrupo(A.id, "Agrupamento A", extra);
+    const voltarA = () => prisma.eapTarefa.update({ where: { id: A.id }, data: { disciplinaId: hid.id, etapaId: fase.id } });
+
+    // sem o campo: comportamento antigo, só o agrupamento muda
+    await salvarA({ disciplinaId: ele.id });
+    const semCampo = await linhasDe(blocoA);
+    check(
+      "6a sem propagarDisciplina: só o agrupamento muda",
+      semCampo.get(A.id)?.disciplinaId === ele.id && blocoA.slice(1).every((id) => JSON.parse(original).find((l: { id: string }) => l.id === id).disciplinaId === semCampo.get(id)?.disciplinaId),
+      [...semCampo.values()],
+    );
+    await voltarA();
+    check("6a (estado de volta ao original para os próximos cenários)", (await fotoBloco()) === original);
+
+    // contagem confirmada errada: recusa e nada muda
+    const errada = await erroDe(() => salvarA({ disciplinaId: est.id, etapaId: fase.id, propagarDisciplina: { esperadas: 4 } }));
+    check("6a esperadas errada recusa com a frase da EAP mudada", errada === "A EAP mudou enquanto você confirmava; confira e tente de novo.", errada);
+    check("6a e nada mudou (nem o agrupamento, nem as de dentro)", (await fotoBloco()) === original, await fotoBloco());
+
+    // a troca de verdade, como o painel faz (um passo de desfazer)
+    await comPasso({ projetoId: projeto.id, userId: admin.id, rotulo: "smoke 6a" }, () =>
+      salvarA({ disciplinaId: est.id, etapaId: fase.id, propagarDisciplina: { esperadas: 5 } }),
+    );
+    const prop = await linhasDe(blocoA);
+    check("6a todas as de dentro (qualquer nível, sem disciplina e de outra disciplina) vão para a nova", blocoA.every((id) => prop.get(id)?.disciplinaId === est.id), [...prop.values()]);
+    check("6a fase: a própria fica se a nova a tem (a1 fase2)", prop.get(a1.id)?.etapaId === fase2.id, prop.get(a1.id));
+    check(
+      "6a fase: senão a do agrupamento depois de salvar (a2, a3, A.sub, a4)",
+      [a2.id, a3.id, Asub.id, a4.id].every((id) => prop.get(id)?.etapaId === fase.id),
+      [a2.id, a3.id, Asub.id, a4.id].map((id) => prop.get(id)),
+    );
+    const atrib = async (tarefaId: string) => (await prisma.eapAtribuicao.findMany({ where: { tarefaId }, select: { userId: true } })).map((x) => x.userId).sort();
+    check("6a a1 mantém o responsável antigo (e não ganha o novo)", JSON.stringify(await atrib(a1.id)) === JSON.stringify([admin.id]), await atrib(a1.id));
+    check("6a a3 (sem ninguém) recebe o responsável da disciplina nova", JSON.stringify(await atrib(a3.id)) === JSON.stringify([outro.id]), await atrib(a3.id));
+    await desfazerUltimoPasso(projeto.id, admin.id);
+    check("6a um Ctrl+Z desfaz o agrupamento e as de dentro juntos (disciplina e fase)", (await fotoBloco()) === original, await fotoBloco());
+    check("6a e tira o responsável herdado", (await atrib(a3.id)).length === 0, await atrib(a3.id));
+
+    // agrupamento que fica sem fase: a de dentro mantém a própria se a nova a tem, senão fica sem
+    await comPasso({ projetoId: projeto.id, userId: admin.id, rotulo: "smoke 6a sem fase" }, () =>
+      salvarA({ disciplinaId: est.id, etapaId: "", propagarDisciplina: { esperadas: 5 } }),
+    );
+    const semFaseA = await linhasDe(blocoA);
+    check(
+      "6a agrupamento sem fase: a1 mantém fase2, a2/a3/a4 ficam sem, A.sub mantém a dela",
+      semFaseA.get(A.id)?.etapaId === null &&
+        semFaseA.get(a1.id)?.etapaId === fase2.id &&
+        [a2.id, a3.id, a4.id].every((id) => semFaseA.get(id)?.etapaId === null) &&
+        semFaseA.get(Asub.id)?.etapaId === fase.id,
+      [...semFaseA.values()],
+    );
+    await desfazerUltimoPasso(projeto.id, admin.id);
+    check("6a (desfeito de novo)", (await fotoBloco()) === original);
+
+    // tirar a disciplina do agrupamento não propaga
+    await salvarA({ disciplinaId: "", propagarDisciplina: { esperadas: 0 } });
+    const limpo = await linhasDe(blocoA);
+    check(
+      "6a limpar a disciplina do agrupamento: só ele muda, as de dentro ficam",
+      limpo.get(A.id)?.disciplinaId === null && blocoA.slice(1).every((id) => JSON.parse(original).find((l: { id: string }) => l.id === id).disciplinaId === limpo.get(id)?.disciplinaId),
+      [...limpo.values()],
+    );
+    await voltarA();
+
+    // acima do teto: recusa citando 500, nada muda
+    const B = await nova("Agrupamento grande", F.id, hid.id, null, "res");
+    const idsB = await reservarIdsParaLinhas(prisma, Array.from({ length: 501 }, () => "atv" as const));
+    await prisma.eapTarefa.createMany({
+      data: idsB.map((idCorporativo, k) => ({
+        projetoId: projeto.id, idCorporativo, nome: `Linha ${k}`, parentId: B.id, disciplinaId: hid.id, tipoEap: "atv" as const, duracaoDias: 2, ordem: ordem++, inicioPrevisto: d("2026-10-05"), fimPrevisto: d("2026-10-06"),
+      })),
+    });
+    const teto = await erroDe(() => salvarGrupo(B.id, "Agrupamento grande", { disciplinaId: est.id, propagarDisciplina: { esperadas: 501 } }));
+    check("6a mais de 500 de dentro: recusa citando o teto", !!teto && teto.includes("500"), teto);
+    check(
+      "6a e nada mudou no grupo grande",
+      (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: B.id }, select: { disciplinaId: true } })).disciplinaId === hid.id &&
+        (await prisma.eapTarefa.count({ where: { parentId: B.id, disciplinaId: hid.id } })) === 501,
+    );
+    await prisma.eapTarefa.deleteMany({ where: { parentId: B.id } });
+    await prisma.eapTarefa.delete({ where: { id: B.id } });
+
+    // em revisão (aprovado + revisão aberta) a troca vale, e o card aberto da linha acompanha
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true, emRevisao: true, revisaoAlterada: false } });
+    await sincronizarCards(prisma, projeto.id, admin.id);
+    const cardA1Antes = await prisma.tarefa.findUnique({ where: { eapTarefaId: a1.id }, select: { id: true, disciplinaId: true } });
+    check("6a (em revisão: o card de a1 existe, em Hidro)", cardA1Antes?.disciplinaId === hid.id, cardA1Antes);
+    // Fora do Next o `revalidatePath` do `aposMudarEap` lança quando um card muda: grava pelo editar da linha (a mesma
+    // transação da propagação) e sincroniza os cards como o `aposMudarEap` faz depois.
+    const { progresso: progressoA } = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: A.id }, select: { progresso: true } });
+    await editarLinhaNoBanco({ id: A.id, nome: "Agrupamento A", progresso: progressoA, marco: false, disciplinaId: est.id, etapaId: fase.id, propagarDisciplina: { esperadas: 5 } }, admin.id);
+    await sincronizarCards(prisma, projeto.id, admin.id);
+    const cardA1 = await prisma.tarefa.findUnique({ where: { eapTarefaId: a1.id }, select: { id: true, disciplinaId: true, titulo: true, responsaveis: { select: { userId: true } } } });
+    check(
+      "6a card aberto de a1: mesmo card, vai para a disciplina nova com a fase no título e a mesma pessoa",
+      cardA1?.id === cardA1Antes?.id && cardA1?.disciplinaId === est.id && cardA1?.titulo === `${fase2.sigla} · Linha a1` && cardA1?.responsaveis.map((r) => r.userId).join() === admin.id,
+      cardA1,
+    );
+    const cardA3 = await prisma.tarefa.findUnique({ where: { eapTarefaId: a3.id }, select: { disciplinaId: true, responsaveis: { select: { userId: true } } } });
+    check("6a a3 ganha card do responsável herdado, na disciplina nova", cardA3?.disciplinaId === est.id && cardA3?.responsaveis.map((r) => r.userId).join() === outro.id, cardA3);
+
+    // plano aprovado e fechado: recusa antes de gravar qualquer coisa
+    await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { emRevisao: false } });
+    const antesTrava = await fotoBloco();
+    const trava6a = await erroDe(() => salvarA({ disciplinaId: hid.id, etapaId: fase.id, propagarDisciplina: { esperadas: 5 } }));
+    check("6a plano aprovado recusa com a frase da trava", trava6a === MOTIVO_PLANO_TRAVADO, trava6a);
+    check("6a e nada mudou", (await fotoBloco()) === antesTrava);
+
     const Z = await nova("Outra visita", H.id, ele.id, null);
     await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true } });
     const travado = await erroDe(() => alinharDisciplinasNoBanco(projeto.id, [Z.id]));
@@ -146,6 +281,7 @@ async function main() {
     const de3 = await sincronizarCards(prisma, projeto.id, admin.id);
     check("sincronizar de novo não regrava card nenhum (compara o título composto)", de3.atualizados === 0 && de3.criados === 0, de3);
   } finally {
+    await prisma.eapPassoDesfazer.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.tarefa.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.cronogramaProjeto.deleteMany({ where: { projetoId: projeto.id } });

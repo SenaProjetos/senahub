@@ -9,6 +9,7 @@ import { mudaCampoDoPlano } from "./trava-plano";
 import { exigirPlanoEditavel } from "./trava-plano-service";
 import { registrarProgresso } from "./progresso-historico-service";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
+import { propagarDisciplinaNoTx } from "./disciplina-linha-service";
 import { trocarPredecessoras } from "./dependencias-service";
 import { definirInicioDaLinha, definirTerminoDaLinha } from "./datas-linha-service";
 import { aposMudarEap } from "./pos-eap";
@@ -50,6 +51,11 @@ export type EdicaoLinha = {
   duracaoDias?: number;
   progresso: number;
   marco: boolean;
+  /**
+   * 6a: a tela confirmou que trocar a disciplina deste AGRUPAMENTO leva `esperadas` linhas de dentro junto. Ausente =
+   * só a linha muda (scripts e chamadas antigas não propagam sem querer). Tirar a disciplina nunca propaga.
+   */
+  propagarDisciplina?: { esperadas: number };
 };
 
 /** O editar da linha, SEM reagendar (quem chama reagenda uma vez no fim). */
@@ -97,37 +103,49 @@ export async function editarLinhaNoBanco(i: EdicaoLinha, autorId: string): Promi
       : mudouDisciplina
         ? null
         : undefined;
+  // 6a: só a TROCA para uma disciplina nova de um agrupamento leva as de dentro (limpar não propaga: responsável só
+  // existe com disciplina). A fase de referência é a que o agrupamento fica depois de salvar.
+  const propagar =
+    i.propagarDisciplina && mudouDisciplina && i.disciplinaId && antes._count.filhas > 0
+      ? { disciplinaId: i.disciplinaId, etapaId: etapaId !== undefined ? etapaId : antes.etapaId, esperadas: i.propagarDisciplina.esperadas }
+      : null;
   // Decisão #17: a mudança do % vai para o histórico NA MESMA TRANSAÇÃO — é o histórico que responde
   // pelo número que o Valor Agregado publica numa data passada.
-  const t = await prisma.$transaction(async (tx) => {
-    const linha = await tx.eapTarefa.update({
-      where: { id: i.id },
-      data: {
-        nome: i.nome,
-        disciplinaId: i.disciplinaId || null,
-        ...(etapaId !== undefined ? { etapaId } : {}),
+  const { linha: t, propagadas } = await prisma.$transaction(
+    async (tx) => {
+      const linha = await tx.eapTarefa.update({
+        where: { id: i.id },
+        data: {
+          nome: i.nome,
+          disciplinaId: i.disciplinaId || null,
+          ...(etapaId !== undefined ? { etapaId } : {}),
+          progresso: i.progresso,
+          tipoEap,
+          ...(duracaoDias !== undefined ? { duracaoDias } : {}),
+        },
+        select: { projetoId: true },
+      });
+      await registrarProgresso(tx, {
+        tarefaId: i.id,
+        projetoId: linha.projetoId,
+        anterior: antes.progresso,
         progresso: i.progresso,
-        tipoEap,
-        ...(duracaoDias !== undefined ? { duracaoDias } : {}),
-      },
-      select: { projetoId: true },
-    });
-    await registrarProgresso(tx, {
-      tarefaId: i.id,
-      projetoId: linha.projetoId,
-      anterior: antes.progresso,
-      progresso: i.progresso,
-      autorId,
-      origem: "informado",
-      ehResumo: antes._count.filhas > 0,
-    });
-    return linha;
-  });
+        autorId,
+        origem: "informado",
+        ehResumo: antes._count.filhas > 0,
+      });
+      // Na mesma transação do agrupamento: tudo ou nada (a recusa da contagem desfaz também a troca dele).
+      const propagadas = propagar ? await propagarDisciplinaNoTx(tx, { projetoId: linha.projetoId, agrupamentoId: i.id, ...propagar }) : [];
+      return { linha, propagadas };
+    },
+    // Até `MAX_LINHAS` updates em sequência na propagação: o padrão de 5 s do Prisma não basta.
+    { timeout: 30_000 },
+  );
   // Linha que MUDOU de disciplina e está sem ninguém recebe o responsável da nova (D22).
   // Só na mudança: herdar a cada edição devolveria as pessoas a uma linha que o
   // coordenador esvaziou de propósito — bastaria renomeá-la.
   if (mudouDisciplina) {
-    await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id]);
+    await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id, ...propagadas]);
   }
   return t;
 }

@@ -2,7 +2,8 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { divergenciasDeDisciplina, faseQueAcompanha } from "./disciplina-linha";
+import { ActionError } from "@/lib/action-error";
+import { divergenciasDeDisciplina, faseQueAcompanha, propagacaoDeDisciplina } from "./disciplina-linha";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
 import { exigirPlanoEditavel } from "./trava-plano-service";
 
@@ -66,6 +67,46 @@ export async function alinharDisciplinasNoBanco(
   );
   if (corrigidas.length > 0) await herdarResponsaveisNoProjeto(prisma, projetoId, corrigidas);
   return { corrigidas };
+}
+
+export const MOTIVO_EAP_MUDOU_NA_CONFIRMACAO = "A EAP mudou enquanto você confirmava; confira e tente de novo.";
+
+/**
+ * Trocar a disciplina de um agrupamento leva as linhas de dentro junto (6a): grava, DENTRO da transação de quem chama,
+ * a disciplina nova (e a fase de `propagacaoDeDisciplina`) em toda descendente que ainda não está nela. A árvore é lida
+ * de novo aqui: a tela confirmou `esperadas` linhas e, se o número real for outro (alguém mexeu na árvore entre a
+ * confirmação e o salvar), recusa — nunca grava em linha que a pessoa não viu. Cada linha só é gravada se ainda está
+ * na disciplina lida (`updateMany` condicionado); `count ≠ 1` recusa com a mesma frase e a transação inteira volta.
+ * Responsáveis ficam com quem chama (`herdarResponsaveisNoProjeto` DEPOIS da transação). Devolve os ids gravados.
+ */
+export async function propagarDisciplinaNoTx(
+  tx: Prisma.TransactionClient,
+  p: { projetoId: string; agrupamentoId: string; disciplinaId: string; etapaId: string | null; esperadas: number },
+): Promise<string[]> {
+  const linhas = await tx.eapTarefa.findMany({ where: { projetoId: p.projetoId }, select: { id: true, parentId: true, disciplinaId: true, etapaId: true } });
+  const fases = await tx.disciplinaEtapa.findMany({ where: { disciplinaId: p.disciplinaId }, select: { etapaId: true } });
+  const mudancas = propagacaoDeDisciplina(
+    linhas,
+    p.agrupamentoId,
+    { disciplinaId: p.disciplinaId, etapaId: p.etapaId },
+    new Set(fases.map((f) => f.etapaId)),
+  );
+  if (mudancas.length > MAX_LINHAS) {
+    throw new ActionError(
+      `Este agrupamento tem ${mudancas.length} linhas de dentro para mudar de disciplina; o limite é ${MAX_LINHAS} por vez. Divida o agrupamento ou troque a disciplina dos subagrupamentos antes.`,
+    );
+  }
+  if (mudancas.length !== p.esperadas) throw new ActionError(MOTIVO_EAP_MUDOU_NA_CONFIRMACAO);
+  const gravadas: string[] = [];
+  for (const m of mudancas) {
+    const r = await tx.eapTarefa.updateMany({
+      where: { id: m.tarefaId, disciplinaId: m.atualId },
+      data: { disciplinaId: p.disciplinaId, etapaId: m.etapaId },
+    });
+    if (r.count !== 1) throw new ActionError(MOTIVO_EAP_MUDOU_NA_CONFIRMACAO);
+    gravadas.push(m.tarefaId);
+  }
+  return gravadas;
 }
 
 /** A fase com que uma linha NOVA nasce sob um agrupamento: a dele, se a disciplina a tem cadastrada. */
