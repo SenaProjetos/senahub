@@ -1444,7 +1444,7 @@ function Legenda({ modo, tarefas, rotuloBase }: { modo: ModoGantt; tarefas: EapT
       )}
       {modo === "controle" && (
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-1 w-5 rounded-sm bg-muted-foreground" aria-hidden /> Linha de base{rotuloBase ? ` ${rotuloBase}` : ""}
+          <span className="inline-block h-2.5 w-5 rounded-sm bg-muted-foreground" aria-hidden /> Linha de base{rotuloBase ? ` ${rotuloBase}` : ""} (mesma espessura da tarefa)
         </span>
       )}
       <span className="flex items-center gap-1.5">
