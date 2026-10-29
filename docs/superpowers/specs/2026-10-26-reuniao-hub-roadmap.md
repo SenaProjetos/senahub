@@ -20,6 +20,9 @@ Desenho pronto: [2026-10-26-lote1-papeis-avisos-problemas-design.md](2026-10-26-
 
 ## Lote 6 — Refinos da EAP (feedback complementar, 26/10/2026)
 
+Desenho pronto: [2026-10-29-lote6-refinos-eap-design.md](2026-10-29-lote6-refinos-eap-design.md)
+(6a: as filhas acompanham o agrupamento; 6b: calendário nativo + máscara + colar; 6c: opção B, duas barras de 9 px).
+
 Feedback de quem fez a reunião: a criação da EAP dentro do projeto (árvore, arrastar, copiar) "ficou
 show". Dois pedidos pequenos, na mesma tela. Pelo tamanho, sugiro fazê-lo logo depois do Lote 1.
 
