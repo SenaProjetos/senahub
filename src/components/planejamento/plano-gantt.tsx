@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Flag, GripVertical, ListTree, Lock, Pin } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Flag, GripVertical, ListTree, Lock, Pin } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { ROTULO_SINAL, sinalDaLinha } from "@/modules/planejamento/sinais-linha";
 import {
@@ -33,7 +33,7 @@ import {
 import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
 import { criarCalendario, diasUteisEntre } from "@/lib/calendario-trabalho";
 import { dataCurta, diasEntre } from "@/lib/dias-iso";
-import { lerDataDigitada } from "@/modules/planejamento/datas-linha";
+import { lerDataDigitada, mascaraDataDigitando } from "@/modules/planejamento/datas-linha";
 import { brl, cn } from "@/lib/utils";
 import { useAlturaRestante } from "@/lib/use-altura-restante";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
@@ -441,6 +441,7 @@ export function PlanoGantt({
   const envolver = (l: Linha, campo: CampoEditavel, rotulo: string, conteudo: ReactNode): ReactNode =>
     ehEditavel(l, campo) ? (
       <CelulaEditavel
+        data={campo === "inicio" ? { iso: l.t.inicioPrevisto } : campo === "termino" ? { iso: l.t.fimPrevisto } : undefined}
         ativa={edicao?.id === l.t.id && edicao.campo === campo}
         salvando={salvando}
         invalida={invalida}
@@ -612,14 +613,14 @@ export function PlanoGantt({
       rotulo: "Início",
       w: 84,
       render: (l) =>
-        envolver(l, "inicio", "Início", <span className="font-mono text-xs" title="Digite a data (dd/mm/aaaa). Ela fixa o início da tarefa (alfinete).">{gravado(l.t.id, "inicio") ?? (dataCurta(l.t.inicioPrevisto) || "—")}</span>),
+        envolver(l, "inicio", "Início", <span className="font-mono text-xs" title="Digite, cole ou escolha no calendário (dd/mm/aaaa). Ela fixa o início da tarefa (alfinete).">{gravado(l.t.id, "inicio") ?? (dataCurta(l.t.inicioPrevisto) || "—")}</span>),
     };
     const termino: Coluna = {
       id: "termino",
       rotulo: "Término",
       w: 84,
       render: (l) =>
-        envolver(l, "termino", "Término", <span className="font-mono text-xs" title="Digite a data (dd/mm/aaaa). O término recalcula a duração em dias úteis.">{gravado(l.t.id, "termino") ?? (dataCurta(l.t.fimPrevisto) || "—")}</span>),
+        envolver(l, "termino", "Término", <span className="font-mono text-xs" title="Digite, cole ou escolha no calendário (dd/mm/aaaa). O término recalcula a duração em dias úteis.">{gravado(l.t.id, "termino") ?? (dataCurta(l.t.fimPrevisto) || "—")}</span>),
     };
     const progresso: Coluna = {
       id: "progresso",
@@ -1177,6 +1178,7 @@ export function PlanoGantt({
  * dentro do componente pai ela remontaria a cada render e o campo perderia o foco a cada tecla.
  */
 function CelulaEditavel({
+  data,
   ativa,
   salvando,
   invalida,
@@ -1188,6 +1190,8 @@ function CelulaEditavel({
   aoDigitar,
   children,
 }: {
+  /** Presente = célula de data: máscara dd/mm/aaaa ao digitar e calendário nativo (`iso` = o dia atual da linha). */
+  data?: { iso: string | null };
   ativa: boolean;
   salvando: boolean;
   invalida: boolean;
@@ -1204,6 +1208,9 @@ function CelulaEditavel({
   // O que o campo mostrava ao abrir: se a pessoa não digitou nada e o dado do servidor mudou no meio (outra gravação),
   // confirmar não pode regravar o valor velho.
   const abertoCom = useRef(valorInicial);
+  // Calendário nativo aberto: o campo de texto perde o foco para ele, e isso NÃO é "clicar fora" (não grava).
+  const seletorAberto = useRef(false);
+  const seletorRef = useRef<HTMLInputElement | null>(null);
 
   // Volta o foco depois que a gravação termina (o campo desabilita enquanto salva e perde o foco).
   useEffect(() => {
@@ -1246,7 +1253,31 @@ function CelulaEditavel({
     });
   };
 
-  return (
+  const abrirSeletor = () => {
+    const el = seletorRef.current;
+    if (!el) return;
+    seletorAberto.current = true;
+    try {
+      el.showPicker();
+    } catch {
+      // Navegador sem showPicker (ou sem permissão): segue só com o campo de texto, sem travar a célula.
+      seletorAberto.current = false;
+      campoRef.current?.focus();
+    }
+  };
+  /** O calendário fechou sem escolher (cancel/blur): volta ao campo de texto, que segue em edição. */
+  const seletorFechou = () => {
+    if (!seletorAberto.current) return;
+    seletorAberto.current = false;
+    campoRef.current?.focus();
+  };
+  const escolheuDia = (iso: string) => {
+    if (!iso) return seletorFechou(); // "Limpar" do calendário: não é uma data, trata como desistência
+    seletorAberto.current = false;
+    confirmar(iso, "fica");
+  };
+
+  const campoTexto = (
     <input
       ref={(el) => {
         if (el && campoRef.current !== el) {
@@ -1264,11 +1295,29 @@ function CelulaEditavel({
       className={cn(
         "h-6 w-full min-w-0 rounded-sm border bg-background px-1 text-xs outline-none disabled:opacity-60",
         invalida ? "border-destructive ring-1 ring-destructive/40" : "border-primary ring-1 ring-primary/40",
+        data && "pr-5", // espaço do ícone do calendário
       )}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
-      onChange={aoDigitar}
+      onMouseDown={() => {
+        seletorAberto.current = false; // mexer no campo de texto = o calendário já fechou
+      }}
+      onChange={(e) => {
+        if (data) {
+          // Máscara só ao DIGITAR (inserir no fim): apagar, colar e arrastar texto passam direto.
+          const ev = e.nativeEvent as InputEvent;
+          const tipo = typeof ev.inputType === "string" ? ev.inputType : "";
+          const digitando = tipo.startsWith("insert") && tipo !== "insertFromPaste" && tipo !== "insertFromDrop";
+          const el = e.currentTarget;
+          if (digitando && el.selectionStart === el.value.length) {
+            const mascarado = mascaraDataDigitando(el.value);
+            if (mascarado !== el.value) el.value = mascarado;
+          }
+        }
+        aoDigitar();
+      }}
       onKeyDown={(e) => {
+        seletorAberto.current = false;
         if (e.key === "Enter") {
           e.preventDefault();
           confirmar(e.currentTarget.value, "abaixo");
@@ -1278,14 +1327,56 @@ function CelulaEditavel({
         } else if (e.key === "Escape") {
           e.preventDefault();
           encerrada.current = true;
+          seletorAberto.current = false;
           aoCancelar();
         }
       }}
       onBlur={(e) => {
-        if (encerrada.current) return;
+        if (encerrada.current || seletorAberto.current) return;
         confirmar(e.currentTarget.value, "fica");
       }}
     />
+  );
+
+  if (!data) return campoTexto;
+  const isoDoDia = data.iso && /^\d{4}-\d{2}-\d{2}/.test(data.iso) ? data.iso.slice(0, 10) : "";
+  return (
+    <div className="relative flex min-w-0 flex-1">
+      {campoTexto}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Abrir calendário"
+        title="Escolher no calendário"
+        disabled={salvando}
+        className="absolute inset-y-0 right-0 flex w-5 items-center justify-center rounded-r-sm text-muted-foreground hover:text-foreground disabled:opacity-60"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.stopPropagation();
+          abrirSeletor();
+        }}
+      >
+        <CalendarDays className="size-3.5" aria-hidden />
+      </button>
+      {/* Seletor nativo invisível, só para abrir o calendário; fora do tab e dos leitores de tela (o campo de texto é o oficial). */}
+      <input
+        ref={(el) => {
+          seletorRef.current = el;
+          if (!el) return;
+          // `cancel` (calendário fechado sem escolher) não existe como prop de <input> nos tipos do React: ouvinte nativo.
+          const aoFechar = () => seletorFechou();
+          el.addEventListener("cancel", aoFechar);
+          return () => el.removeEventListener("cancel", aoFechar);
+        }}
+        type="date"
+        tabIndex={-1}
+        aria-hidden
+        value={isoDoDia}
+        className="pointer-events-none absolute inset-0 opacity-0"
+        onChange={(e) => escolheuDia(e.currentTarget.value)}
+        onBlur={seletorFechou}
+      />
+    </div>
   );
 }
 
