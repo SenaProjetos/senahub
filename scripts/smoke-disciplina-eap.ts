@@ -237,6 +237,36 @@ async function main() {
     await prisma.eapTarefa.deleteMany({ where: { parentId: B.id } });
     await prisma.eapTarefa.delete({ where: { id: B.id } });
 
+    // a tela confirmou N de dentro, mas o agrupamento ficou sem filhas: recusa, não pula em silêncio
+    const vazio = await nova("Agrupamento esvaziado", F.id, hid.id, fase.id);
+    const semFilhas = await erroDe(() => salvarGrupo(vazio.id, "Agrupamento esvaziado", { disciplinaId: est.id, propagarDisciplina: { esperadas: 2 } }));
+    check("6a propagarDisciplina sem filhas recusa com a frase da EAP mudada", semFilhas === "A EAP mudou enquanto você confirmava; confira e tente de novo.", semFilhas);
+    check(
+      "6a e a linha não mudou de disciplina",
+      (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: vazio.id }, select: { disciplinaId: true } })).disciplinaId === hid.id,
+    );
+    await prisma.eapTarefa.delete({ where: { id: vazio.id } });
+
+    // o agrupamento JÁ está na disciplina nova e as de dentro não: a confirmação leva as de dentro, e o agrupamento não
+    // recebe responsável de novo (não mudou de disciplina)
+    await prisma.eapTarefa.update({ where: { id: A.id }, data: { disciplinaId: est.id, etapaId: fase.id } });
+    const pessoasA = await atrib(A.id);
+    await comPasso({ projetoId: projeto.id, userId: admin.id, rotulo: "smoke 6a já na nova" }, () =>
+      salvarA({ disciplinaId: est.id, propagarDisciplina: { esperadas: 5 } }),
+    );
+    const jaNaNova = await linhasDe(blocoA);
+    check("6a agrupamento já na nova: as de dentro vão para ela", blocoA.every((id) => jaNaNova.get(id)?.disciplinaId === est.id), [...jaNaNova.values()]);
+    check(
+      "6a com a fase do agrupamento como referência (a1 mantém fase2; a2, a3, A.sub, a4 com a do agrupamento)",
+      jaNaNova.get(a1.id)?.etapaId === fase2.id && [a2.id, a3.id, Asub.id, a4.id].every((id) => jaNaNova.get(id)?.etapaId === fase.id),
+      [...jaNaNova.values()],
+    );
+    check("6a a3 (sem ninguém) recebe o responsável da disciplina nova", JSON.stringify(await atrib(a3.id)) === JSON.stringify([outro.id]), await atrib(a3.id));
+    check("6a as pessoas do agrupamento não mudam", JSON.stringify(await atrib(A.id)) === JSON.stringify(pessoasA), await atrib(A.id));
+    await desfazerUltimoPasso(projeto.id, admin.id);
+    await voltarA();
+    check("6a (desfeito: de volta ao original)", (await fotoBloco()) === original, await fotoBloco());
+
     // em revisão (aprovado + revisão aberta) a troca vale, e o card aberto da linha acompanha
     await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true, emRevisao: true, revisaoAlterada: false } });
     await sincronizarCards(prisma, projeto.id, admin.id);
@@ -262,6 +292,14 @@ async function main() {
     const trava6a = await erroDe(() => salvarA({ disciplinaId: hid.id, etapaId: fase.id, propagarDisciplina: { esperadas: 5 } }));
     check("6a plano aprovado recusa com a frase da trava", trava6a === MOTIVO_PLANO_TRAVADO, trava6a);
     check("6a e nada mudou", (await fotoBloco()) === antesTrava);
+    // o agrupamento JÁ está na disciplina (nenhum campo do plano muda nele), mas a propagação gravaria nas de dentro: a
+    // trava vale do mesmo jeito
+    await prisma.eapTarefa.update({ where: { id: a2.id }, data: { disciplinaId: ele.id } });
+    const antesTravaJa = await fotoBloco();
+    const travaJa = await erroDe(() => salvarA({ disciplinaId: est.id, propagarDisciplina: { esperadas: 1 } }));
+    check("6a plano aprovado + agrupamento já na disciplina: recusa com a frase da trava", travaJa === MOTIVO_PLANO_TRAVADO, travaJa);
+    check("6a e nada mudou (a2 continua em Elétrica)", (await fotoBloco()) === antesTravaJa, await fotoBloco());
+    await prisma.eapTarefa.update({ where: { id: a2.id }, data: { disciplinaId: est.id } });
 
     const Z = await nova("Outra visita", H.id, ele.id, null);
     await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true } });

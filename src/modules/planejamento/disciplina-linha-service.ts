@@ -83,7 +83,13 @@ export async function propagarDisciplinaNoTx(
   tx: Prisma.TransactionClient,
   p: { projetoId: string; agrupamentoId: string; disciplinaId: string; etapaId: string | null; esperadas: number },
 ): Promise<string[]> {
-  const linhas = await tx.eapTarefa.findMany({ where: { projetoId: p.projetoId }, select: { id: true, parentId: true, disciplinaId: true, etapaId: true } });
+  // Ordem estável: a mesma árvore grava sempre na mesma sequência (duas propagações concorrentes não se cruzam).
+  const linhas = await tx.eapTarefa.findMany({
+    where: { projetoId: p.projetoId },
+    select: { id: true, parentId: true, disciplinaId: true, etapaId: true },
+    orderBy: { id: "asc" },
+  });
+  const paiDe = new Map(linhas.map((l) => [l.id, l.parentId]));
   const fases = await tx.disciplinaEtapa.findMany({ where: { disciplinaId: p.disciplinaId }, select: { etapaId: true } });
   const mudancas = propagacaoDeDisciplina(
     linhas,
@@ -99,8 +105,9 @@ export async function propagarDisciplinaNoTx(
   if (mudancas.length !== p.esperadas) throw new ActionError(MOTIVO_EAP_MUDOU_NA_CONFIRMACAO);
   const gravadas: string[] = [];
   for (const m of mudancas) {
+    // Condicionado também ao pai lido: a linha que saiu do bloco depois da leitura não é gravada.
     const r = await tx.eapTarefa.updateMany({
-      where: { id: m.tarefaId, disciplinaId: m.atualId },
+      where: { id: m.tarefaId, disciplinaId: m.atualId, parentId: paiDe.get(m.tarefaId) ?? null },
       data: { disciplinaId: p.disciplinaId, etapaId: m.etapaId },
     });
     if (r.count !== 1) throw new ActionError(MOTIVO_EAP_MUDOU_NA_CONFIRMACAO);

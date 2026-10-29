@@ -85,7 +85,10 @@ export async function editarLinhaNoBanco(i: EdicaoLinha, autorId: string): Promi
     { tipoEap: antes.tipoEap, duracaoDias: Number(antes.duracaoDias), disciplinaId: antes.disciplinaId, etapaId: antes.etapaId },
     { tipoEap, duracaoDias, disciplinaId: i.disciplinaId || null, etapaId: i.etapaId === undefined ? undefined : i.etapaId || null },
   );
-  if (mudaPlano) await exigirPlanoEditavel(antes.projetoId);
+  // 6a: a propagação grava nas linhas de dentro mesmo quando o agrupamento já está na disciplina (então `mudaPlano` pode
+  // ser falso) — com o plano aprovado ela nunca pode passar.
+  const pedePropagacao = !!(i.propagarDisciplina && i.disciplinaId);
+  if (mudaPlano || pedePropagacao) await exigirPlanoEditavel(antes.projetoId);
   if (regra.virouMarco) {
     // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
     // conta — carga, custo e rollup — sem ninguém ver.
@@ -103,10 +106,12 @@ export async function editarLinhaNoBanco(i: EdicaoLinha, autorId: string): Promi
       : mudouDisciplina
         ? null
         : undefined;
-  // 6a: só a TROCA para uma disciplina nova de um agrupamento leva as de dentro (limpar não propaga: responsável só
-  // existe com disciplina). A fase de referência é a que o agrupamento fica depois de salvar.
+  // 6a: a tela confirmou levar as de dentro para a disciplina escolhida (limpar não propaga: responsável só existe com
+  // disciplina). Quem decide se a confirmação ainda vale é `propagarDisciplinaNoTx`, relendo a árvore: o agrupamento que
+  // perdeu as filhas, ou cujas de dentro já mudaram, recusa em vez de pular em silêncio (a tela mostraria uma contagem
+  // falsa). A fase de referência é a que o agrupamento fica depois de salvar.
   const propagar =
-    i.propagarDisciplina && mudouDisciplina && i.disciplinaId && antes._count.filhas > 0
+    pedePropagacao && i.propagarDisciplina && i.disciplinaId
       ? { disciplinaId: i.disciplinaId, etapaId: etapaId !== undefined ? etapaId : antes.etapaId, esperadas: i.propagarDisciplina.esperadas }
       : null;
   // Decisão #17: a mudança do % vai para o histórico NA MESMA TRANSAÇÃO — é o histórico que responde
@@ -143,9 +148,10 @@ export async function editarLinhaNoBanco(i: EdicaoLinha, autorId: string): Promi
   );
   // Linha que MUDOU de disciplina e está sem ninguém recebe o responsável da nova (D22).
   // Só na mudança: herdar a cada edição devolveria as pessoas a uma linha que o
-  // coordenador esvaziou de propósito — bastaria renomeá-la.
-  if (mudouDisciplina) {
-    await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id, ...propagadas]);
+  // coordenador esvaziou de propósito — bastaria renomeá-la. O agrupamento que NÃO mudou de disciplina fica fora (só as
+  // de dentro que a propagação gravou).
+  if (mudouDisciplina || propagadas.length > 0) {
+    await herdarResponsaveisNoProjeto(prisma, t.projetoId, [...(mudouDisciplina ? [i.id] : []), ...propagadas]);
   }
   return t;
 }
