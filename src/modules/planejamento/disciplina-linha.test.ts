@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { disciplinaParaLinhaNova, divergenciasDeDisciplina, faseQueAcompanha, type NoDisciplina } from "./disciplina-linha";
+import {
+  disciplinaParaLinhaNova,
+  divergenciasDeDisciplina,
+  faseQueAcompanha,
+  propagacaoDeDisciplina,
+  type NoDisciplina,
+} from "./disciplina-linha";
 
 describe("disciplinaParaLinhaNova", () => {
   it("sem pai: nasce sem disciplina e sem fase", () => {
@@ -81,5 +87,58 @@ describe("faseQueAcompanha", () => {
     expect(faseQueAcompanha([null, "bs"], fases)).toBe("bs");
     expect(faseQueAcompanha(["pl", null], fases)).toBeNull();
     expect(faseQueAcompanha(["bs"], new Set())).toBeNull();
+  });
+});
+
+describe("propagacaoDeDisciplina", () => {
+  const nova = { disciplinaId: "estr", etapaId: "bs" as string | null };
+  const fasesDaNova = new Set(["bs"]);
+  const arvore = (): NoDisciplina[] => [
+    no("F", null, null),
+    no("G", "F", "hid", "bs"),
+    no("M", "G", "hid"),
+    no("V", "G", "ele", "ex"),
+    no("S", "G", null),
+    no("SG", "G", "ele"),
+    no("Y", "SG", "ele"),
+    no("X", "F", "ele"),
+  ];
+
+  it("leva filhas, netas e subagrupamentos para a disciplina nova", () => {
+    expect(propagacaoDeDisciplina(arvore(), "G", nova, fasesDaNova).map((m) => m.tarefaId)).toEqual(["M", "V", "S", "SG", "Y"]);
+  });
+
+  it("não toca linhas fora do agrupamento", () => {
+    expect(propagacaoDeDisciplina(arvore(), "G", nova, fasesDaNova).map((m) => m.tarefaId)).not.toContain("X");
+  });
+
+  it("ignora quem já está na disciplina nova", () => {
+    const nos = arvore().map((n) => (n.id === "M" ? { ...n, disciplinaId: "estr" } : n));
+    expect(propagacaoDeDisciplina(nos, "G", nova, fasesDaNova).map((m) => m.tarefaId)).not.toContain("M");
+  });
+
+  it("inclui a linha que estava sem disciplina", () => {
+    const s = propagacaoDeDisciplina(arvore(), "G", nova, fasesDaNova).find((m) => m.tarefaId === "S");
+    expect(s).toEqual({ tarefaId: "S", atualId: null, etapaId: "bs" });
+  });
+
+  it("fase: mantém a própria se a nova disciplina a tem; senão a do agrupamento; senão nenhuma", () => {
+    const porId = (m: ReturnType<typeof propagacaoDeDisciplina>, id: string) => m.find((x) => x.tarefaId === id);
+    // V tem fase "ex", que a nova disciplina não tem: cai na do agrupamento.
+    expect(porId(propagacaoDeDisciplina(arvore(), "G", nova, fasesDaNova), "V")?.etapaId).toBe("bs");
+    // Sem fase no agrupamento, a que a nova disciplina não tem não serve: nenhuma.
+    expect(porId(propagacaoDeDisciplina(arvore(), "G", { ...nova, etapaId: null }, fasesDaNova), "V")?.etapaId).toBeNull();
+    // Linha com fase própria que a nova disciplina tem mantém a dela, mesmo com outra no agrupamento.
+    const nos = arvore().map((n) => (n.id === "M" ? { ...n, etapaId: "bs" } : n));
+    expect(porId(propagacaoDeDisciplina(nos, "G", { ...nova, etapaId: "ex" }, new Set(["bs", "ex"])), "M")?.etapaId).toBe("bs");
+  });
+
+  it("agrupamento sem descendentes devolve lista vazia", () => {
+    expect(propagacaoDeDisciplina(arvore(), "X", nova, fasesDaNova)).toEqual([]);
+  });
+
+  it("ciclo de parentId e pai fora da lista não travam", () => {
+    const nos = [no("G", null, "hid"), no("A", "B", "ele"), no("B", "A", "ele"), no("C", "fantasma", "ele")];
+    expect(propagacaoDeDisciplina(nos, "G", nova, fasesDaNova)).toEqual([]);
   });
 });

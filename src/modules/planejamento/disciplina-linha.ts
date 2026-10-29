@@ -79,3 +79,45 @@ export function divergenciasDeDisciplina(nos: readonly NoDisciplina[]): Divergen
 export function faseQueAcompanha(candidatas: readonly (string | null)[], fasesDaDisciplina: ReadonlySet<string>): string | null {
   return candidatas.find((e): e is string => e != null && fasesDaDisciplina.has(e)) ?? null;
 }
+
+export type MudancaDePropagacao = { tarefaId: string; atualId: string | null; etapaId: string | null };
+
+/**
+ * Trocar a disciplina de um agrupamento pode levar o bloco junto (A3): devolve as descendentes — qualquer nível,
+ * inclusive subagrupamentos e linhas sem disciplina — cuja disciplina é outra que a nova, na ordem de entrada.
+ * A fase de cada uma é a própria se a disciplina nova a tem cadastrada, senão a que o agrupamento terá depois de
+ * salvar (`nova.etapaId`), senão nenhuma (`faseQueAcompanha`). Ciclo de `parentId` não repete ninguém; `parentId`
+ * que aponta para fora da lista simplesmente não chega ao agrupamento.
+ */
+export function propagacaoDeDisciplina(
+  nos: readonly NoDisciplina[],
+  agrupamentoId: string,
+  nova: { disciplinaId: string; etapaId: string | null },
+  fasesDaNova: ReadonlySet<string>,
+): MudancaDePropagacao[] {
+  const filhosDe = new Map<string, string[]>();
+  for (const n of nos) {
+    if (!n.parentId) continue;
+    const irmaos = filhosDe.get(n.parentId);
+    if (irmaos) irmaos.push(n.id);
+    else filhosDe.set(n.parentId, [n.id]);
+  }
+  // Busca em largura a partir do agrupamento; o próprio agrupamento já conta como visitado (ciclo não o devolve).
+  const descendentes = new Set<string>();
+  const vistos = new Set<string>([agrupamentoId]);
+  const fila = [agrupamentoId];
+  for (let i = 0; i < fila.length; i++) {
+    for (const filho of filhosDe.get(fila[i]) ?? []) {
+      if (vistos.has(filho)) continue;
+      vistos.add(filho);
+      descendentes.add(filho);
+      fila.push(filho);
+    }
+  }
+  const out: MudancaDePropagacao[] = [];
+  for (const n of nos) {
+    if (!descendentes.has(n.id) || n.disciplinaId === nova.disciplinaId) continue;
+    out.push({ tarefaId: n.id, atualId: n.disciplinaId, etapaId: faseQueAcompanha([n.etapaId, nova.etapaId], fasesDaNova) });
+  }
+  return out;
+}
