@@ -91,8 +91,13 @@ export function juntarCaracteres(itens: readonly ItemTextoPdf[]): ItemTextoPdf[]
   let corrida: ItemTextoPdf | null = null;
   for (const it of itens) {
     const solto = it.str.length <= 1;
+    // Mesma linha E colado: o valor de OUTRO campo na mesma altura (a revisão ao lado do código) não entra na junção.
     const mesmaLinha =
-      corrida !== null && corrida.pagina === it.pagina && (corrida.giro ?? 0) === (it.giro ?? 0) && Math.abs(corrida.y - it.y) <= 0.5;
+      corrida !== null &&
+      corrida.pagina === it.pagina &&
+      (corrida.giro ?? 0) === (it.giro ?? 0) &&
+      Math.abs(corrida.y - it.y) <= 0.5 &&
+      Math.abs(it.x - (corrida.x + corrida.w)) <= 2 * Math.max(corrida.h, it.h, 6);
     if (solto && corrida && mesmaLinha) {
       corrida.str += it.str;
       corrida.w = Math.max(corrida.w, it.x + it.w - corrida.x);

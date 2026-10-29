@@ -196,6 +196,11 @@ describe("texto um caractere por item (260030-SENA-AGF-BAS-001-PLB)", () => {
     expect(conferirCarimbo(leitura, { nomeArquivo: "260030-SENA-AGF-BAS-001-PLB.pdf", numero: 1 }).problemas).toEqual([]);
   });
 
+  it("o valor de outro campo na mesma altura, longe do código, não gruda nele", () => {
+    const leitura = lerCarimbo([...porCaractere("260030-SENA-AGF-BAS-001-PLB", 2590, 49), ...porCaractere("00", 2907, 49)]);
+    expect(leitura.codigos).toContain("260030-SENA-AGF-BAS-001-PLB");
+  });
+
   it("não junta palavras inteiras nem linhas diferentes", () => {
     const juntado = juntarCaracteres([it_("AB", 0, 10), it_("C", 5, 10), it_("D", 6, 10), it_("E", 6, 20), it_("FG", 6, 20)]);
     expect(juntado.map((i) => i.str)).toEqual(["AB", "CD", "E", "FG"]);
