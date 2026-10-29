@@ -165,6 +165,19 @@ direita — a tabela continua à vista. Quem tem só `planejamento:ver` não abr
   disciplina (como "Gestão"), ela nasce sem disciplina. Você pode trocar à mão. Mover ou recuar uma linha
   **não** muda a disciplina dela (mexeria em responsável, card e pagamento) — se ela ficar numa disciplina
   diferente da do agrupamento, o verificador avisa (veja abaixo).
+  - **Trocar a disciplina de um agrupamento leva o que está dentro.** Ao escolher outra disciplina para uma linha
+    que tem subtarefas, todas as linhas de dentro (filhas, netas, subagrupamentos e até as que estavam sem
+    disciplina) passam para a mesma disciplina, de uma vez. Antes de gravar, o sistema pergunta, com o número de
+    linhas (por exemplo, "12 linhas de dentro vão para Hidro. Continuar?"); **Cancelar** não muda nada. Se nenhuma
+    linha de dentro muda, não pergunta.
+  - **O que fica:** responsáveis, ponto, horas apontadas e cards já lançados continuam como estavam. A linha que
+    ficar sem ninguém recebe o responsável da disciplina nova. A fase de cada linha fica quando a disciplina nova a
+    tem cadastrada; senão entra a do agrupamento (se tiver) ou a linha fica sem fase.
+  - **Desfazer:** **Ctrl+Z** desfaz o agrupamento e as linhas de dentro num passo só.
+  - **Tirar a disciplina** do agrupamento **não** leva as de dentro: elas ficam como estão.
+  - **Limites:** com o cronograma aprovado a troca continua bloqueada (use **Revisar planejamento**). A troca leva
+    no máximo **500 linhas de dentro** por vez. Se a EAP mudar enquanto você confirma, o sistema não grava e pede
+    para conferir e tentar de novo.
 - **Fase** (opcional): aparece quando a disciplina escolhida tem
   [etapas](etapas-e-pagamento-por-fase.md). É o que liga um **marco** à fase que ele entrega.
 - **Andamento:** o **%** que o coordenador **informa** — botões **0, 25, 50, 75 e 100%** ou **outro** valor. O sistema só **sugere**: o
@@ -252,8 +265,14 @@ cálculo e acusada como erro.
 
 ### Datas direto na tabela
 
-Na tabela, as colunas **Início** e **Término** aceitam a data digitada (dd/mm/aaaa, dd/mm/aa ou só dd/mm). Elas **não** fazem a
-mesma coisa:
+Na tabela, as colunas **Início** e **Término** aceitam a data de três jeitos, na mesma célula:
+
+- **Digitar:** as barras entram sozinhas e só vale número — `05112026` vira `05/11/2026`.
+- **Colar:** vale `5/11`, `5/11/26`, `05/11/2026` ou `2026-11-05`.
+- **Escolher no calendário:** o ícone de calendário ao lado do campo abre o seletor de data do navegador, já na data
+  atual da linha; clicar no dia grava, como o **Enter**. O calendário **não marca feriados** nem dias não úteis.
+
+Os três jeitos fazem o mesmo. As colunas **Início** e **Término** **não** fazem a mesma coisa entre si:
 
 - **Término digitado = duração.** O sistema conta os **dias úteis** do início da tarefa até a data (feriados não contam,
   fim de semana também não) e grava essa duração. **Não** fixa nenhuma data: se a tarefa atrasar, o término anda junto.
@@ -322,8 +341,8 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
 
 - **Visões**, como no Project: **Gantt** (o Gráfico de Gantt — planejamento: EDT, Nome da tarefa, Duração,
   Início, Término, Predecessoras e Nomes dos recursos) e **Controle** (o Gantt de Controle — acompanhamento: % concluído,
-  datas, linha de base e **Desvio**, com a barra da linha de base — **cinza escuro e fininha** — logo abaixo
-  da barra prevista). Com mais de uma versão da linha de base, **Comparar com** escolhe qual delas o
+  datas, linha de base e **Desvio**, com a barra da linha de base — **cinza**, da mesma espessura da barra de
+  execução, uma sobre a outra; linha sem linha de base mostra só a execução. O modo **Gantt** não muda). Com mais de uma versão da linha de base, **Comparar com** escolhe qual delas o
   controle desenha e usa no Desvio (veja **Nova linha de base**, abaixo). As linhas de **agrupamento** têm um
   fundo um pouco mais escuro que as tarefas, para a estrutura saltar aos olhos.
 - **Filtros:** **Todas**, **A validar**, **Atrasadas**, **Críticas**, **Bloqueadas**, com a quantidade em cada um.

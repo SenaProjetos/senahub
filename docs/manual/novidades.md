@@ -20,6 +20,19 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Refinos da EAP: disciplina do agrupamento, datas com calendário e Gantt de controle (outubro/2026)
+
+- **Disciplina do agrupamento leva o que está dentro:** ao trocar a disciplina de uma tarefa-mãe no painel da linha, as
+  linhas de dentro (inclusive as sem disciplina) vão junto. O sistema mostra quantas linhas serão trocadas e só grava se
+  você confirmar. Responsáveis, ponto, horas e cards já lançados ficam; a linha que ficar sem ninguém recebe o
+  responsável da disciplina nova. **Ctrl+Z** desfaz tudo de uma vez. Tirar a disciplina do agrupamento não leva as de
+  dentro, e com o cronograma aprovado a troca segue bloqueada.
+- **Datas da grade da EAP:** em **Início** e **Término** dá para **digitar** (as barras entram sozinhas: `05112026` vira
+  `05/11/2026`), **colar** (`5/11`, `5/11/26`, `2026-11-05`) ou **escolher no calendário**, pelo ícone ao lado do campo.
+  As regras não mudaram; o calendário não marca feriados.
+- **Gantt de controle:** a barra da linha de base (cinza) e a de execução agora têm a mesma espessura, uma sobre a outra.
+  Linhas sem linha de base mostram só a execução.
+
 ## Papéis Gerente e Analista, aba Problemas e atalho de Avisos (outubro/2026)
 
 - **Equipe do projeto:** os papéis agora incluem **Gerente** e **Analista**, além de Coordenador, Projetista, Apoio,
