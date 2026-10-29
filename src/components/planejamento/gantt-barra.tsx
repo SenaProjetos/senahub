@@ -5,6 +5,7 @@ import { textoRecursos, type LinhaGrade } from "@/modules/planejamento/gantt-lin
 import type { EscalaGantt } from "@/modules/planejamento/gantt-escala";
 import { geometriaDasBarras, geometriaDoAgrupamento } from "@/modules/planejamento/gantt-geometria";
 import { cn } from "@/lib/utils";
+import { dataCurta } from "@/lib/dias-iso";
 
 /**
  * A BARRA de uma linha no gráfico do Gantt, no molde do MS Project — a peça que o cronograma do projeto
@@ -68,7 +69,6 @@ export function BarraDaLinha({
 
   const barras = geometriaDasBarras(modo, ROW_H);
   const grupo = geometriaDoAgrupamento(modo, ROW_H);
-  const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
   const baseIni = t.inicioBaseline ? escala.x(t.inicioBaseline) : null;
   const baseFim = t.fimBaseline ? escala.xFim(t.fimBaseline) : null;
 
@@ -121,10 +121,11 @@ export function BarraDaLinha({
               // Base e execução com a MESMA espessura, uma faixa sobre a outra (reunião de 29/10/2026, opção B do
               // mock aprovado pelo dono). Isso reverte a decisão de 29/09/2026 ("base fininha sob a barra grossa").
               // Segue sempre cinza cheio — a referência não deve chamar atenção nem competir com o caminho crítico (o
-              // atraso aparece na coluna Desvio). Linha sem base mantém a faixa vazia: a espessura não alterna.
-              className="absolute rounded-sm bg-muted-foreground"
+              // atraso aparece na coluna Desvio). Linha sem base mantém a faixa vazia: a espessura não alterna. No tema
+              // escuro o cinza cheio pesa mais que a execução: lá ele fica a 60%.
+              className="absolute rounded-sm bg-muted-foreground dark:bg-muted-foreground/60"
               style={{ left: baseIni, width: Math.max(escala.pxPorDia, baseFim - baseIni), top: barras.baseTop, height: barras.baseAltura }}
-              title={`Linha de base: ${diaMes(t.inicioBaseline!)} a ${diaMes(t.fimBaseline!)}`}
+              title={`Linha de base: ${dataCurta(t.inicioBaseline)} a ${dataCurta(t.fimBaseline)}`}
             />
           )}
           <span

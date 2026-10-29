@@ -1387,6 +1387,8 @@ function CelulaEditavel({
       <button
         type="button"
         tabIndex={-1}
+        // Atalho do mouse: pelo teclado e pelo leitor de tela o caminho é o campo de texto ao lado.
+        aria-hidden="true"
         aria-label="Abrir calendário"
         title="Escolher no calendário"
         disabled={salvando}
@@ -1447,7 +1449,7 @@ function Legenda({ modo, tarefas, rotuloBase }: { modo: ModoGantt; tarefas: EapT
       )}
       {modo === "controle" && (
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-2.5 w-5 rounded-sm bg-muted-foreground" aria-hidden /> Linha de base{rotuloBase ? ` ${rotuloBase}` : ""} (mesma espessura da tarefa)
+          <span className="inline-block h-[9px] w-5 rounded-sm bg-muted-foreground dark:bg-muted-foreground/60" aria-hidden /> Linha de base{rotuloBase ? ` ${rotuloBase}` : ""} (mesma espessura da tarefa)
         </span>
       )}
       <span className="flex items-center gap-1.5">

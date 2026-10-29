@@ -244,8 +244,8 @@ export function EapLinhaPainel({
       }
       if (propagadas > 0) {
         const ok = await confirm({
-          title: "Mudar a disciplina das linhas de dentro?",
-          description: `${propagadas === 1 ? "1 linha de dentro vai" : `${propagadas} linhas de dentro vão`} para ${disciplinas.find((d) => d.id === form.disciplinaId)?.nome ?? "a disciplina nova"}. Responsáveis, ponto e horas já lançados ficam; a linha que ficar sem ninguém recebe o responsável da disciplina nova. Dá para voltar com Ctrl+Z.`,
+          title: propagadas === 1 ? "Mudar a disciplina da linha de dentro?" : "Mudar a disciplina das linhas de dentro?",
+          description: `${propagadas === 1 ? "1 linha de dentro vai" : `${propagadas} linhas de dentro vão`} para ${disciplinas.find((d) => d.id === form.disciplinaId)?.nome ?? "a disciplina nova"}. Responsáveis, ponto e horas já lançados são mantidos; a linha que ficar sem ninguém recebe o responsável da disciplina nova. Dá para voltar com Ctrl+Z.`,
           confirmLabel: "Mudar disciplina",
         });
         if (!ok) return;
@@ -292,12 +292,16 @@ export function EapLinhaPainel({
         propagarDisciplina: propagadas > 0 ? { esperadas: propagadas } : undefined,
       });
       if (!r.ok) return void toast.error(r.error);
+      const textoPropagadas = propagadas === 1 ? "1 linha de dentro mudou" : `${propagadas} linhas de dentro mudaram`;
       if (mudou.includes("inicio") && form.inicio && r.data.inicio !== form.inicio && !mudouRestricao) {
+        // A contagem da propagação vai junto no aviso: o toast de sucesso não aparece neste caminho.
         toast.warning(`A tarefa só pode começar em ${dataCurta(r.data.inicio)}.`, {
-          description: 'Depois das predecessoras e num dia útil — a data que você pediu ficou como "não iniciar antes de".',
+          description: `Depois das predecessoras e num dia útil — a data que você pediu ficou como "não iniciar antes de".${
+            propagadas > 0 ? ` A linha foi salva: ${textoPropagadas} de disciplina.` : ""
+          }`,
         });
       } else if (propagadas > 0) {
-        toast.success(`Linha salva — ${propagadas === 1 ? "1 linha de dentro mudou" : `${propagadas} linhas de dentro mudaram`} de disciplina.`);
+        toast.success(`Linha salva — ${textoPropagadas} de disciplina.`);
       } else {
         toast.success("Linha salva — datas recalculadas.");
       }
