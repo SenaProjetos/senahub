@@ -48,7 +48,7 @@ export function mascaraDataDigitando(texto: string): string {
   return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
 }
 
-const MOTIVO_DURACAO_GRANDE ="Duração grande demais — divida a atividade.";
+const MOTIVO_DURACAO_GRANDE = "Duração grande demais — divida a atividade.";
 const dataBr = (d: Dia) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
 /** O término digitado → a duração: dias úteis do `inicio` (o do motor) a `fim`, inclusive. */
