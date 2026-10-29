@@ -80,8 +80,32 @@ function revisaoDoCampo(itens: ItemLeitura[]): number | null {
   return null;
 }
 
+/**
+ * Alguns PDFs (Revit/AutoCAD com fonte própria) trazem o texto de um campo um CARACTERE por item (`2`,`6`,`0`…).
+ * A regex do código roda por item e não via o código inteiro — prancha 260030-SENA-AGF-BAS-001-PLB, 2026-10-29.
+ * Sequência seguida de itens de 0–1 caractere, na mesma linha e no mesmo giro, vira um item só. Item de
+ * texto inteiro (palavra) nunca entra na junção, então carimbo normal passa intacto.
+ */
+export function juntarCaracteres(itens: readonly ItemTextoPdf[]): ItemTextoPdf[] {
+  const saida: ItemTextoPdf[] = [];
+  let corrida: ItemTextoPdf | null = null;
+  for (const it of itens) {
+    const solto = it.str.length <= 1;
+    const mesmaLinha =
+      corrida !== null && corrida.pagina === it.pagina && (corrida.giro ?? 0) === (it.giro ?? 0) && Math.abs(corrida.y - it.y) <= 0.5;
+    if (solto && corrida && mesmaLinha) {
+      corrida.str += it.str;
+      corrida.w = Math.max(corrida.w, it.x + it.w - corrida.x);
+      continue;
+    }
+    corrida = solto ? { ...it } : null;
+    saida.push(corrida ?? it);
+  }
+  return saida;
+}
+
 export function lerCarimbo(itens: readonly ItemTextoPdf[]): LeituraCarimbo {
-  const daPrimeira = itens.filter((it) => it.pagina === 1 && it.str.trim() !== "");
+  const daPrimeira = juntarCaracteres(itens.filter((it) => it.pagina === 1)).filter((it) => it.str.trim() !== "");
   if (daPrimeira.length === 0) return LEITURA_VAZIA;
   const brutos = new Set<string>();
   for (const it of daPrimeira) for (const m of it.str.matchAll(CODIGO)) brutos.add(m[0].toUpperCase());

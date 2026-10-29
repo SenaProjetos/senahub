@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ItemTextoPdf } from "@/lib/ler-texto-pdf";
-import { codigoBase, conferirCarimbo, lerCarimbo, LEITURA_VAZIA } from "./carimbo";
+import { codigoBase, conferirCarimbo, juntarCaracteres, lerCarimbo, LEITURA_VAZIA } from "./carimbo";
 
 const it_ = (str: string, x: number, y: number, extra: Partial<ItemTextoPdf> = {}): ItemTextoPdf => ({
   str,
@@ -176,5 +176,28 @@ describe("código separado por sublinhado", () => {
 
   it("nunca começa um código no meio de outro (depois de sublinhado)", () => {
     expect(lerCarimbo([it_("ABC_HID_PE_001_TER_PLAEXE", 10, 10)]).codigos).toEqual([]);
+  });
+});
+
+describe("texto um caractere por item (260030-SENA-AGF-BAS-001-PLB)", () => {
+  const porCaractere = (texto: string, x: number, y: number) => [...texto].map((c, i) => it_(c, x + i * 0.3, y, { w: 0.5 }));
+  const CARIMBO = [
+    it_("CÓDIGO:", 2562, 55),
+    ...porCaractere("260030-SENA-AGF-BAS-001-PLB", 2590, 49),
+    it_("REVISÃO:", 2887, 55),
+    ...porCaractere("00", 2907, 49),
+    it_("ABNT NBR 15575-6-2013", 2468, 286),
+  ];
+
+  it("lê o código inteiro, não só o número da norma da nota geral", () => {
+    const leitura = lerCarimbo(CARIMBO);
+    expect(leitura.codigos).toContain("260030-SENA-AGF-BAS-001-PLB");
+    expect(leitura.revisao).toBe(0);
+    expect(conferirCarimbo(leitura, { nomeArquivo: "260030-SENA-AGF-BAS-001-PLB.pdf", numero: 1 }).problemas).toEqual([]);
+  });
+
+  it("não junta palavras inteiras nem linhas diferentes", () => {
+    const juntado = juntarCaracteres([it_("AB", 0, 10), it_("C", 5, 10), it_("D", 6, 10), it_("E", 6, 20), it_("FG", 6, 20)]);
+    expect(juntado.map((i) => i.str)).toEqual(["AB", "CD", "E", "FG"]);
   });
 });
