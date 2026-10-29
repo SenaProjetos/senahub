@@ -141,4 +141,29 @@ describe("propagacaoDeDisciplina", () => {
     const nos = [no("G", null, "hid"), no("A", "B", "ele"), no("B", "A", "ele"), no("C", "fantasma", "ele")];
     expect(propagacaoDeDisciplina(nos, "G", nova, fasesDaNova)).toEqual([]);
   });
+
+  it("ciclo alcançável a partir do agrupamento termina, não devolve o agrupamento e não repete ninguém", () => {
+    // Agrupamento que aponta para si mesmo, com filha e neta.
+    const proprio = [no("G", "G", "hid"), no("A", "G", "ele"), no("B", "A", "ele")];
+    expect(propagacaoDeDisciplina(proprio, "G", nova, fasesDaNova).map((m) => m.tarefaId)).toEqual(["A", "B"]);
+    // Ciclo que passa pelo agrupamento: G → A → B → G (o pai de G é B).
+    const pelaRaiz = [no("G", "B", "hid"), no("A", "G", "ele"), no("B", "A", "ele"), no("C", "B", null)];
+    const ids = propagacaoDeDisciplina(pelaRaiz, "G", nova, fasesDaNova).map((m) => m.tarefaId);
+    expect(ids).toEqual(["A", "B", "C"]);
+    expect(ids).not.toContain("G");
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("devolve na ordem de entrada, não na ordem da busca", () => {
+    // Y (neta) vem antes de M (filha) na entrada.
+    const nos = [no("G", null, "hid"), no("Y", "SG", "ele"), no("SG", "G", "ele"), no("M", "G", "hid")];
+    expect(propagacaoDeDisciplina(nos, "G", nova, fasesDaNova).map((m) => m.tarefaId)).toEqual(["Y", "SG", "M"]);
+  });
+
+  it("subagrupamento já na disciplina nova ainda leva as descendentes de outras disciplinas", () => {
+    const nos = arvore().map((n) => (n.id === "SG" ? { ...n, disciplinaId: "estr" } : n));
+    const ids = propagacaoDeDisciplina(nos, "G", nova, fasesDaNova).map((m) => m.tarefaId);
+    expect(ids).not.toContain("SG");
+    expect(ids).toContain("Y");
+  });
 });
