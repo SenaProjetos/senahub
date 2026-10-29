@@ -33,7 +33,22 @@ export function lerDataDigitada(texto: string, hoje: Dia): { ok: true; dia: Dia 
   return dia ? { ok: true, dia } : falha;
 }
 
-const MOTIVO_DURACAO_GRANDE = "Duração grande demais — divida a atividade.";
+/**
+ * Máscara `dd/mm/aaaa` aplicada enquanto a pessoa DIGITA números. Só mexe em texto feito de dígitos (e das barras nas posições
+ * canônicas 2 e 5): o que tem outro caractere ou barra fora do lugar (`5/11`, `2026-11-05`, uma colagem) volta igual.
+ */
+export function mascaraDataDigitando(texto: string): string {
+  if (/[^\d/]/.test(texto)) return texto;
+  for (let i = 0; i < texto.length; i++) {
+    if (texto[i] === "/" && i !== 2 && i !== 5) return texto;
+  }
+  const d = texto.replace(/\//g, "").slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+const MOTIVO_DURACAO_GRANDE ="Duração grande demais — divida a atividade.";
 const dataBr = (d: Dia) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
 
 /** O término digitado → a duração: dias úteis do `inicio` (o do motor) a `fim`, inclusive. */

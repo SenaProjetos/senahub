@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { criarCalendario } from "@/lib/calendario-trabalho";
-import { deslocamentoEmDiasUteis, duracaoPeloTermino, lerDataDigitada, moverRestricoes } from "./datas-linha";
+import { deslocamentoEmDiasUteis, duracaoPeloTermino, lerDataDigitada, mascaraDataDigitando, moverRestricoes } from "./datas-linha";
 
 const cal = criarCalendario();
 const comFeriado = criarCalendario({ feriados: ["2026-10-07"] });
@@ -23,6 +23,26 @@ describe("lerDataDigitada", () => {
     for (const ruim of ["", "abc", "31/02/2026", "32/01/2026", "00/10/2026", "05/13/2026", "2026-02-30"]) {
       expect(lerDataDigitada(ruim, "2026-01-01")).toEqual({ ok: false, erro: "Data inválida. Use dd/mm/aaaa." });
     }
+  });
+});
+
+describe("mascaraDataDigitando", () => {
+  it.each([
+    ["", ""],
+    ["0", "0"],
+    ["05", "05"],
+    ["051", "05/1"],
+    ["05112", "05/11/2"],
+    ["05112026", "05/11/2026"],
+    ["051120261", "05/11/2026"],
+    ["05/1", "05/1"],
+    ["05/11/", "05/11"],
+    ["5/11", "5/11"],
+    ["2026-11-05", "2026-11-05"],
+    ["abc", "abc"],
+    ["/", "/"],
+  ])("%j vira %j", (entrada, esperado) => {
+    expect(mascaraDataDigitando(entrada)).toBe(esperado);
   });
 });
 
