@@ -1211,6 +1211,22 @@ function CelulaEditavel({
   // Calendário nativo aberto: o campo de texto perde o foco para ele, e isso NÃO é "clicar fora" (não grava).
   const seletorAberto = useRef(false);
   const seletorRef = useRef<HTMLInputElement | null>(null);
+  // Ouvintes de "o calendário já fechou" (um tiro só): soltam a bandeira quando o navegador não avisa o fechamento.
+  const soltarOuvintes = useRef<(() => void) | null>(null);
+  const liberarSeletor = () => {
+    seletorAberto.current = false;
+    soltarOuvintes.current?.();
+    soltarOuvintes.current = null;
+  };
+  // Célula que deixa de estar ativa (ou sai da tela): nada de bandeira nem ouvinte no document/window sobrando.
+  useEffect(
+    () => () => {
+      seletorAberto.current = false;
+      soltarOuvintes.current?.();
+      soltarOuvintes.current = null;
+    },
+    [ativa],
+  );
 
   // Volta o foco depois que a gravação termina (o campo desabilita enquanto salva e perde o foco).
   useEffect(() => {
@@ -1256,24 +1272,46 @@ function CelulaEditavel({
   const abrirSeletor = () => {
     const el = seletorRef.current;
     if (!el) return;
+    liberarSeletor();
     seletorAberto.current = true;
     try {
       el.showPicker();
     } catch {
       // Navegador sem showPicker (ou sem permissão): segue só com o campo de texto, sem travar a célula.
-      seletorAberto.current = false;
+      liberarSeletor();
       campoRef.current?.focus();
+      return;
     }
+    // O navegador nem sempre avisa que o calendário fechou (mesmo dia escolhido não dispara `change`; `cancel`/`blur` variam).
+    // Então a bandeira não pode sobreviver ao calendário: o próximo clique, tecla ou volta de foco da janela a solta ANTES do
+    // blur do campo de texto (pointerdown vem antes do blur). Registrado depois do clique que abriu, para ele não se soltar.
+    const timer = window.setTimeout(() => {
+      const aoInteragir = () => liberarSeletor();
+      const aoVoltarFoco = () => {
+        if (!seletorAberto.current) return;
+        liberarSeletor();
+        campoRef.current?.focus();
+      };
+      document.addEventListener("pointerdown", aoInteragir, true);
+      document.addEventListener("keydown", aoInteragir, true);
+      window.addEventListener("focus", aoVoltarFoco);
+      soltarOuvintes.current = () => {
+        document.removeEventListener("pointerdown", aoInteragir, true);
+        document.removeEventListener("keydown", aoInteragir, true);
+        window.removeEventListener("focus", aoVoltarFoco);
+      };
+    }, 0);
+    soltarOuvintes.current = () => window.clearTimeout(timer);
   };
   /** O calendário fechou sem escolher (cancel/blur): volta ao campo de texto, que segue em edição. */
   const seletorFechou = () => {
     if (!seletorAberto.current) return;
-    seletorAberto.current = false;
+    liberarSeletor();
     campoRef.current?.focus();
   };
   const escolheuDia = (iso: string) => {
     if (!iso) return seletorFechou(); // "Limpar" do calendário: não é uma data, trata como desistência
-    seletorAberto.current = false;
+    liberarSeletor();
     confirmar(iso, "fica");
   };
 
@@ -1300,7 +1338,7 @@ function CelulaEditavel({
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
       onMouseDown={() => {
-        seletorAberto.current = false; // mexer no campo de texto = o calendário já fechou
+        liberarSeletor(); // mexer no campo de texto = o calendário já fechou
       }}
       onChange={(e) => {
         if (data) {
@@ -1317,7 +1355,7 @@ function CelulaEditavel({
         aoDigitar();
       }}
       onKeyDown={(e) => {
-        seletorAberto.current = false;
+        liberarSeletor();
         if (e.key === "Enter") {
           e.preventDefault();
           confirmar(e.currentTarget.value, "abaixo");
@@ -1327,7 +1365,7 @@ function CelulaEditavel({
         } else if (e.key === "Escape") {
           e.preventDefault();
           encerrada.current = true;
-          seletorAberto.current = false;
+          liberarSeletor();
           aoCancelar();
         }
       }}
