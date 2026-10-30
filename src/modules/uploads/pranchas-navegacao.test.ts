@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   agruparPorDisciplina,
   ancoraNaLista,
+  disciplinasDaLista,
   escopoEtapaDisponivel,
+  filtrarPorDisciplinas,
   filtrarPranchas,
   ordenarPranchas,
   pranchasDoEscopo,
@@ -81,6 +83,22 @@ describe("filtrarPranchas", () => {
     expect(filtrarPranchas(lista, "terreo").map((p) => p.uploadId)).toEqual(["arq-1001"]);
     expect(filtrarPranchas(lista, "ARQUITETURA")).toHaveLength(1);
     expect(filtrarPranchas(lista, "  ")).toHaveLength(5);
+  });
+});
+
+describe("disciplinasDaLista e filtrarPorDisciplinas", () => {
+  it("lista as disciplinas na ordem do projeto, com a contagem", () => {
+    expect(disciplinasDaLista(lista)).toEqual([
+      { disciplinaId: "arq", disciplinaNome: "Arquitetura", total: 1 },
+      { disciplinaId: "est", disciplinaNome: "Estrutural", total: 4 },
+    ]);
+  });
+
+  it("filtra pelas marcadas; vazio ou marcação sem par na lista não filtra", () => {
+    expect(filtrarPorDisciplinas(lista, new Set(["arq"])).map((p) => p.uploadId)).toEqual(["arq-1001"]);
+    expect(filtrarPorDisciplinas(lista, new Set(["arq", "est"]))).toHaveLength(5);
+    expect(filtrarPorDisciplinas(lista, new Set())).toHaveLength(5);
+    expect(filtrarPorDisciplinas(lista, new Set(["hid"]))).toHaveLength(5);
   });
 });
 

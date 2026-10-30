@@ -77,6 +77,33 @@ export function filtrarPranchas(lista: readonly PranchaNavegavel[], termo: strin
   );
 }
 
+/** Disciplinas presentes na lista, na ordem do projeto, com quantas pranchas cada uma tem. */
+export function disciplinasDaLista(
+  lista: readonly PranchaNavegavel[],
+): { disciplinaId: string; disciplinaNome: string; total: number }[] {
+  const porId = new Map<string, { disciplinaId: string; disciplinaNome: string; ordem: number; total: number }>();
+  for (const p of lista) {
+    const d = porId.get(p.disciplinaId);
+    if (d) d.total += 1;
+    else porId.set(p.disciplinaId, { disciplinaId: p.disciplinaId, disciplinaNome: p.disciplinaNome, ordem: p.disciplinaOrdem, total: 1 });
+  }
+  return [...porId.values()]
+    .sort((a, b) => a.ordem - b.ordem || colar.compare(a.disciplinaNome, b.disciplinaNome))
+    .map(({ disciplinaId, disciplinaNome, total }) => ({ disciplinaId, disciplinaNome, total }));
+}
+
+/**
+ * Só as pranchas das disciplinas marcadas. Marcação vazia — ou que não casa com nenhuma da lista
+ * (sobrou de outro recorte) — não filtra: a lista nunca esvazia por causa de um chip que sumiu.
+ */
+export function filtrarPorDisciplinas(
+  lista: readonly PranchaNavegavel[],
+  marcadas: ReadonlySet<string>,
+): PranchaNavegavel[] {
+  if (marcadas.size === 0 || !lista.some((p) => marcadas.has(p.disciplinaId))) return [...lista];
+  return lista.filter((p) => marcadas.has(p.disciplinaId));
+}
+
 /**
  * Qual linha da lista representa a prancha aberta. A lista só tem a versão VIGENTE de cada
  * documento: aberta uma revisão anterior, ela não está lá — e o "1/N", as setas e o recorte por
