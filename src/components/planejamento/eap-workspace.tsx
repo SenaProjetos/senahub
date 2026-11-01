@@ -98,7 +98,7 @@ const diasDesvio = (t: EapTarefaDTO) => {
 };
 
 /** A visão da tela: os dois Gantt e os Indicadores (Valor Agregado + Plano vs Real, que a página manda prontos). */
-type VisaoTela = ModoGantt | "indicadores";
+type VisaoTela = ModoGantt | "variacao" | "indicadores";
 type Filtro = "todas" | "validar" | "atrasadas" | "criticas" | "bloqueadas";
 type Lookahead = "todas" | 7 | 15 | 30;
 
@@ -664,6 +664,8 @@ export function EapWorkspace({
       ? ([
           ["planejamento", "Gantt"],
           ["controle", "Controle"],
+          // Lote 7: só comparação com a base — sem base, não há o que comparar.
+          ...(temLinhaBase ? ([["variacao", "Variação"]] as [VisaoTela, string][]) : []),
         ] as [VisaoTela, string][])
       : ([["planejamento", "EAP"]] as [VisaoTela, string][])),
     ...(comIndicadores ? ([["indicadores", "Indicadores"]] as [VisaoTela, string][]) : []),
@@ -689,7 +691,7 @@ export function EapWorkspace({
   const barraInicio = (
     <>
       {seletorVisao}
-      {verDatas && modo === "controle" && versoes.length > 1 && (
+      {verDatas && (modo === "controle" || modo === "variacao") && versoes.length > 1 && (
         // Reunião de 29/09/2026: escolher com qual versão da linha de base o plano de hoje é comparado.
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           Comparar com
@@ -914,7 +916,8 @@ export function EapWorkspace({
             alturaCheia
             tarefas={tarefasComBase}
             rotuloBase={rotuloBase}
-            modo={modo === "controle" ? "controle" : "planejamento"}
+            modo={modo === "controle" || modo === "variacao" ? "controle" : "planejamento"}
+            colunas={modo === "variacao" ? "variacao" : "padrao"}
             calendario={calendario}
             verDatas={verDatas}
             mostrarCusto={custoTotal != null}

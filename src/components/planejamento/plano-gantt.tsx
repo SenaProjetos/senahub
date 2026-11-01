@@ -94,6 +94,11 @@ export type PlanoGanttProps = {
   mostrarCusto: boolean;
   /** `YYYY-MM-DD` de hoje (a linha vermelha do gráfico). */
   hoje: string;
+  /**
+   * Lote 7: `variacao` troca a grade pelas colunas de comparação com a base (as barras seguem o `modo`).
+   * Padrão `padrao`.
+   */
+  colunas?: "padrao" | "variacao";
   /** Ids que passaram nos filtros; `null` = sem filtro (a árvore, com recolher e expandir). */
   filtroIds: ReadonlySet<string> | null;
   /** Abre a janela completa da linha (duplo clique ou Enter na linha) — só para quem monta o cronograma. */
@@ -179,6 +184,21 @@ const diasDeDesvio = (t: EapTarefaDTO) => diasDeVariacao(t.fimBaseline, t.fimPre
 
 const SEM_VALOR = <span className="text-xs text-muted-foreground">—</span>;
 
+/** Selo de variação em dias (Desvio, Var. início, Var. término): vermelho = depois da base, verde = antes. */
+function seloDeVariacao(d: number | null) {
+  if (d == null) return SEM_VALOR;
+  return (
+    <span
+      className={cn(
+        "rounded-sm border px-1.5 py-0.5 font-mono text-[11px]",
+        d > 0 ? "border-destructive/40 text-destructive" : d < 0 ? "border-success/40 text-success" : "text-muted-foreground",
+      )}
+    >
+      {d > 0 ? `+${d}d` : d < 0 ? `${d}d` : "no prazo"}
+    </span>
+  );
+}
+
 function zoomInicial(tarefas: EapTarefaDTO[]): ZoomGantt {
   const ini = tarefas.map((t) => t.inicioPrevisto).filter(Boolean).sort();
   const fim = tarefas.map((t) => t.fimPrevisto).filter(Boolean).sort();
@@ -190,6 +210,7 @@ function zoomInicial(tarefas: EapTarefaDTO[]): ZoomGantt {
 export function PlanoGantt({
   tarefas,
   modo,
+  colunas: conjuntoDeColunas = "padrao",
   calendario,
   verDatas,
   mostrarCusto,
@@ -311,6 +332,8 @@ export function PlanoGantt({
   const podeEditarPred = !!onEditarPredecessoras;
   // Agrupamento só edita o nome: duração, % e predecessoras derivam dos filhos (Doc 03 §23). Marco não tem % digitado.
   const ehEditavel = (l: Linha, campo: CampoEditavel): boolean => {
+    // Variação é só comparação com a base: nada se edita nela.
+    if (conjuntoDeColunas === "variacao") return false;
     if (campo === "nome") return podeEditar;
     if (l.temFilhos) return false;
     if (campo === "duracao") return podeEditar && !planoTravado;
@@ -319,7 +342,13 @@ export function PlanoGantt({
     if (campo === "progresso") return podeEditar && !l.t.marco;
     return podeEditarPred;
   };
-  const camposDaVisao: CampoEditavel[] = !verDatas ? ["nome", "duracao", "progresso", "pred"] : modo === "planejamento" ? ["nome", "duracao", "inicio", "termino", "pred"] : ["nome", "progresso"];
+  const camposDaVisao: CampoEditavel[] = !verDatas
+    ? ["nome", "duracao", "progresso", "pred"]
+    : conjuntoDeColunas === "variacao"
+      ? []
+      : modo === "planejamento"
+        ? ["nome", "duracao", "inicio", "termino", "pred"]
+        : ["nome", "progresso"];
 
   const textoInicial = (l: Linha, campo: CampoEditavel): string => {
     const t = l.t;
@@ -747,21 +776,16 @@ export function PlanoGantt({
       rotulo: "Desvio",
       w: 84,
       alinhar: "right",
-      render: (l) => {
-        const d = diasDeDesvio(l.t);
-        if (d == null) return <span className="text-xs text-muted-foreground">—</span>;
-        return (
-          <span
-            className={cn(
-              "rounded-sm border px-1.5 py-0.5 font-mono text-[11px]",
-              d > 0 ? "border-destructive/40 text-destructive" : d < 0 ? "border-success/40 text-success" : "text-muted-foreground",
-            )}
-          >
-            {d > 0 ? `+${d}d` : d < 0 ? `${d}d` : "no prazo"}
-          </span>
-        );
-      },
+      render: (l) => seloDeVariacao(diasDeDesvio(l.t)),
     };
+    const varInicio: Coluna = {
+      id: "varInicio",
+      rotulo: "Var. início",
+      w: 84,
+      alinhar: "right",
+      render: (l) => seloDeVariacao(diasDeVariacao(l.t.inicioBaseline, l.t.inicioPrevisto)),
+    };
+    const varTermino: Coluna = { ...desvio, id: "varTermino", rotulo: "Var. término" };
     // ── Lote 7: o realizado (só leitura; "—" = não se mede) ──
     const inicioReal: Coluna = {
       id: "inicioReal",
@@ -863,6 +887,7 @@ export function PlanoGantt({
 
     if (!verDatas) cs.push(codigo, nome, disciplina, duracao, progresso, predecessoras, recursos);
     else if (modo === "planejamento") cs.push(codigo, nome, disciplina, duracao, inicio, termino, predecessoras, recursos);
+    else if (conjuntoDeColunas === "variacao") cs.push(codigo, nome, inicio, termino, inicioBase, terminoBase, varInicio, varTermino);
     else {
       cs.push(codigo, nome, progresso, inicioReal, fimReal, duracaoReal, duracaoRestante, trabalhoReal);
       if (mostrarCusto) cs.push(custoReal);
@@ -872,7 +897,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, conjuntoDeColunas, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
   // da alça não refazer as células de todas as linhas (só a largura muda).
