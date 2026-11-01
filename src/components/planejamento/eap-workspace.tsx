@@ -207,7 +207,7 @@ export function EapWorkspace({
   const [predAberta, setPredAberta] = useState<EapTarefaDTO | null>(null);
   /** Área de cópia: as linhas que o Copiar guardou (a estrutura é lida de novo na hora de colar). */
   const [copiadas, setCopiadas] = useState<string[]>([]);
-  /** Linha no "Atualizar tarefa" (datas reais) — `null` = fechado. */
+  /** Linha no "Atualizar tarefa" (datas reais e %) — `null` = fechado. */
   const [execucao, setExecucao] = useState<EapTarefaDTO | null>(null);
   /** Folhas sem custo conhecido — o que falta cadastrar para o custo previsto fechar. */
   const semCusto = tarefas.filter((t) => !t.ehResumo && t.custo == null).length;
@@ -964,8 +964,8 @@ export function EapWorkspace({
                       <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label="Atualizar tarefa (datas reais)"
-                        title={t.marco ? "Concluir o marco (data real)" : "Atualizar tarefa: início e término reais"}
+                        aria-label="Atualizar tarefa (datas reais e %)"
+                        title={t.marco ? "Concluir o marco (data real)" : "Atualizar tarefa: datas reais e % concluído"}
                         disabled={pending}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -983,7 +983,12 @@ export function EapWorkspace({
       )}
 
       {podeExecutado && (
-        <ExecucaoDialog linha={execucao} onClose={() => setExecucao(null)} podeAprovarFase={podeAprovarFase} />
+        <ExecucaoDialog
+          linha={execucao}
+          onClose={() => setExecucao(null)}
+          podeAprovarFase={podeAprovarFase}
+          podeVerCusto={custoTotal != null}
+        />
       )}
 
       {podeGerir && predAberta && (

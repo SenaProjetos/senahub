@@ -77,7 +77,7 @@ export function itensDeLinhaEap(
     ...(ctx.podeGerir ? itensDeMover(l).map((i) => (trava && i.tipo === "acao" ? { ...i, desabilitado: trava } : i)) : []),
     { tipo: "separador", id: "sep-execucao" },
     ctx.podeExecutado && !l.ehResumo
-      ? { tipo: "acao", id: ACAO_ATUALIZAR, rotulo: "Atualizar tarefa (datas reais)", icone: CalendarCheck }
+      ? { tipo: "acao", id: ACAO_ATUALIZAR, rotulo: "Atualizar tarefa (datas reais e %)", icone: CalendarCheck }
       : null,
     ctx.podeGerir && !l.ehResumo
       ? {
