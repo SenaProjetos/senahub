@@ -50,7 +50,7 @@ export async function exigirContaLancavel(db: Db, reduzido: number): Promise<voi
   if (!c.ativa) throw new ActionError(MOTIVO_CONTA_INATIVA);
 }
 
-export type AlvoEditavel = "categoria" | "conta_bancaria" | "imposto_recolher" | "imposto_compensar";
+export type AlvoEditavel = "categoria" | "conta_bancaria" | "cartao" | "imposto_recolher" | "imposto_compensar";
 
 /** Liga um alvo a uma conta do plano. Na categoria, escolher conta tira o "não exportar". */
 export async function definirContaNoBanco(alvo: AlvoEditavel, alvoId: string, reduzido: number): Promise<void> {

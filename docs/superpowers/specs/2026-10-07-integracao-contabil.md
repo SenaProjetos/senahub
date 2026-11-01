@@ -1,6 +1,6 @@
 # Integração contábil (M5) e retenções na NF
 
-**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3, C4 e C5 feitas (C4 em 2026-10-16, §14); C1 só no que o mock aprovou (ver §12 e §13); cinco contas que faltavam (ISS/INSS, cartão a pagar, adiantamento de sócios) criadas no nosso plano em 2026-11-01 (§15), aguardando o contador criar as reais; bloco Cartões do de-para aprovado (§6)
+**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3, C4 e C5 feitas (C4 em 2026-10-16, §14); C1 completa com o bloco Cartões (2026-11-01, §15, §6 item 1); cinco contas que faltavam (ISS/INSS, cartão a pagar, adiantamento de sócios) criadas no nosso plano em 2026-11-01, aguardando o contador criar as reais; faltam os demais acréscimos do §6 (itens 2–4) e as perguntas do §10
 
 Fecha as duas pendências que o plano do Financeiro deixou para o contador: a fase **M5 (integração contábil)** e as
 **retenções na NF** (decisão 5 de 2026-10-02). Base: as respostas do contador (GAMA CONTABIL, 2026-10-05 e 2026-10-07),
@@ -188,9 +188,10 @@ Duas abas como no mock:
   linhas e "Exportar <mês>". Mês aberto: botão desabilitado com o motivo ("Só meses fechados exportam…").
 
 **Acréscimos ao mock** (precisam de OK do dono antes da C1 — mock aprovado é contrato; desvio só com OK prévio):
-1. Blocos de de-para além de categorias e contas: **Cartões**, **Impostos retidos** (a recolher / a compensar),
-   **Contrapartida por categoria**, **Clientes e fornecedores** (só os que têm conta própria + os dois padrões) e
-   **Centros e projetos**.
+1. Blocos de de-para além de categorias e contas: **Cartões** (feito em 2026-11-01, §15 — espelha o bloco Impostos
+   retidos: `itensDeCartaoContabil`, `cartao` em `AlvoEditavel`/`alvoEditavelSchema`, dialog filtrado pelo prefixo
+   `2.1`), **Impostos retidos** (a recolher / a compensar, feito na C4), **Contrapartida por categoria**,
+   **Clientes e fornecedores** (só os que têm conta própria + os dois padrões) e **Centros e projetos**.
 2. Estado "**Não exportar (o contador lança)**" na categoria (folha), no menu da linha.
 3. "**Importar plano do contador**" no `⋯` do cabeçalho, com o resultado (novas, alteradas, desativadas).
 4. Selo "Exportado em … / Mudou desde a última exportação" na aba Exportação.

@@ -31,6 +31,8 @@ export type CategoriaContabilDto = {
 
 export type ContaBancariaContabilDto = { id: string; nome: string; investimento: boolean; conta: number | null };
 
+export type CartaoContabilDto = { id: string; nome: string; tipo: "empresa" | "pessoal"; conta: number | null };
+
 export type PendenciaDto = { alvo: AlvoPendencia; rotulo: string; lancamentos: number };
 
 /** C4: um imposto retido no de-para — `imposto` é o alvoId (`iss`, `irrf`…). */
@@ -48,6 +50,7 @@ export type TelaContabil = {
   planoImportado: boolean;
   categorias: CategoriaContabilDto[];
   contasBancarias: ContaBancariaContabilDto[];
+  cartoes: CartaoContabilDto[];
   impostos: ImpostoContabilDto[];
   linhas: LinhaExportada[];
   totalCentavos: number;
@@ -66,7 +69,7 @@ export async function telaContabil(mesPedido?: string): Promise<TelaContabil> {
   const mes = mesPedido && /^\d{4}-\d{2}$/.test(mesPedido) ? mesPedido : (fechados[0] ?? mesAnterior(diaDeSaoPaulo()));
 
   const contas = await prisma.contaContabil.findMany({ orderBy: [{ classificacao: "asc" }, { reduzido: "asc" }] });
-  const deParas = await prisma.deParaContabil.findMany({ where: { alvo: { in: ["categoria", "conta_bancaria", "imposto_recolher", "imposto_compensar"] } } });
+  const deParas = await prisma.deParaContabil.findMany({ where: { alvo: { in: ["categoria", "conta_bancaria", "cartao", "imposto_recolher", "imposto_compensar"] } } });
   const categorias = await prisma.categoriaFinanceira.findMany({
     where: { ativo: true },
     select: { id: true, codigo: true, nome: true, tipo: true, natureza: true, paiId: true },
@@ -77,11 +80,12 @@ export async function telaContabil(mesPedido?: string): Promise<TelaContabil> {
     select: { id: true, nome: true, investimento: { select: { id: true } } },
     orderBy: [{ padrao: "desc" }, { ordem: "asc" }, { nome: "asc" }],
   });
-  const cartoes = await prisma.cartaoCredito.findMany({ select: { id: true, nome: true } });
+  const cartoes = await prisma.cartaoCredito.findMany({ select: { id: true, nome: true, tipo: true }, orderBy: [{ tipo: "asc" }, { nome: "asc" }] });
   const resumo = await partidasDoMes(mes);
 
   const daCategoria = new Map(deParas.filter((d) => d.alvo === "categoria").map((d) => [d.alvoId, d]));
   const doBanco = new Map(deParas.filter((d) => d.alvo === "conta_bancaria").map((d) => [d.alvoId, d.contaReduzido]));
+  const doCartao = new Map(deParas.filter((d) => d.alvo === "cartao").map((d) => [d.alvoId, d.contaReduzido]));
   const porId = new Map(categorias.map((c) => [c.id, c]));
   // Mãe inativa também conta na herança: busca a cadeia inteira.
   const todasCategorias = new Map((await prisma.categoriaFinanceira.findMany({ select: { id: true, nome: true, codigo: true, paiId: true } })).map((c) => [c.id, c]));
@@ -187,6 +191,7 @@ export async function telaContabil(mesPedido?: string): Promise<TelaContabil> {
     planoImportado: contas.length > 0,
     categorias: categoriasDto,
     contasBancarias: bancos.map((b) => ({ id: b.id, nome: b.nome, investimento: b.investimento != null, conta: doBanco.get(b.id) ?? null })),
+    cartoes: cartoes.map((c) => ({ id: c.id, nome: c.nome, tipo: c.tipo, conta: doCartao.get(c.id) ?? null })),
     impostos,
     linhas: resumo.linhas,
     totalCentavos: resumo.totalCentavos,

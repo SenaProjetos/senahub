@@ -20,6 +20,7 @@ import {
   ACAO_ESCOLHER_CONTA,
   ACAO_LIMPAR_CONTA,
   ACAO_VER_LANCAMENTOS,
+  itensDeCartaoContabil,
   itensDeCategoriaContabil,
   itensDeContaBancariaContabil,
   itensDeImpostoContabil,
@@ -32,10 +33,10 @@ import {
   MOTIVO_ALTERDATA_SEM_CONTA,
   type FormatoContabil,
 } from "@/modules/financeiro/contabil/arquivo";
-import type { CategoriaContabilDto, ContaBancariaContabilDto, ContaDoPlanoDto, ImpostoContabilDto, TelaContabil } from "@/modules/financeiro/contabil/queries";
+import type { CartaoContabilDto, CategoriaContabilDto, ContaBancariaContabilDto, ContaDoPlanoDto, ImpostoContabilDto, TelaContabil } from "@/modules/financeiro/contabil/queries";
 
 type Aba = "depara" | "exportacao";
-type Alvo = { alvo: "categoria" | "conta_bancaria" | "imposto_recolher" | "imposto_compensar"; id: string; rotulo: string; prefixo: string };
+type Alvo = { alvo: "categoria" | "conta_bancaria" | "cartao" | "imposto_recolher" | "imposto_compensar"; id: string; rotulo: string; prefixo: string };
 type LancamentoDoMes = { id: string; descricao: string; tipo: "receita" | "despesa"; valor: number; data: string };
 
 const NATUREZA = (c: CategoriaContabilDto) => (c.natureza === "fora_do_resultado" ? "Fora do resultado" : c.tipo === "receita" ? "Receita" : "Despesa");
@@ -144,6 +145,11 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
   function aoEscolherBanco(b: ContaBancariaContabilDto, item: AcaoItemAcao) {
     if (item.id === ACAO_ESCOLHER_CONTA) setEscolhendo({ alvo: "conta_bancaria", id: b.id, rotulo: b.nome, prefixo: "1.1" });
     else if (item.id === ACAO_LIMPAR_CONTA) rodar(limparContaContabil({ alvo: "conta_bancaria", alvoId: b.id }), "Conta limpa.");
+  }
+
+  function aoEscolherCartao(c: CartaoContabilDto, item: AcaoItemAcao) {
+    if (item.id === ACAO_ESCOLHER_CONTA) setEscolhendo({ alvo: "cartao", id: c.id, rotulo: c.nome, prefixo: "2.1" });
+    else if (item.id === ACAO_LIMPAR_CONTA) rodar(limparContaContabil({ alvo: "cartao", alvoId: c.id }), "Conta limpa.");
   }
 
   function aoEscolherImposto(i: ImpostoContabilDto, item: AcaoItemAcao) {
@@ -259,6 +265,7 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
                   {dados.contasBancarias.map((b) => renderBanco(b))}
                 </ul>
               </section>
+              {renderCartoes()}
               {renderImpostos()}
               {renderCartaoExportacao()}
             </aside>
@@ -379,6 +386,45 @@ export function ContabilView({ dados, abaInicial, subnav }: { dados: TelaContabi
         <span className="flex min-w-0 items-center gap-1">
           {renderConta(b.conta)}
           <BotaoAcoes itens={itens} onSelect={aoEscolher} rotulo={`Ações de ${b.nome}`} className="size-8" />
+        </span>
+      </LinhaComMenu>
+    );
+  }
+
+  /** Cartões → conta contábil: contrapartida da fatura paga (empresa) ou do reembolso ao sócio (pessoal). */
+  function renderCartoes() {
+    const faltamCartoes = dados.cartoes.filter((c) => c.conta == null).length;
+    return (
+      <section className="rounded-sm border bg-card shadow-[var(--card-shadow)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+          <h2 className="text-sm font-bold">Cartões → conta contábil</h2>
+          {faltamCartoes > 0 && <span className="inline-flex rounded-sm border border-warning px-1.5 text-xs font-semibold text-warning">{faltamCartoes} faltam</span>}
+        </div>
+        <ul className="flex flex-col py-1 text-sm">
+          {dados.cartoes.length === 0 && <li className="px-4 py-3 text-[13px] text-muted-foreground">Nenhum cartão cadastrado. Cadastre em Financeiro → Mais → Cadastros.</li>}
+          {dados.cartoes.map((c) => renderCartao(c))}
+        </ul>
+        {faltamCartoes > 0 && (
+          <p className="border-t px-4 py-2 text-xs text-muted-foreground">
+            Enquanto faltarem, o layout do contador não exporta o mês em que houver fatura desse cartão. Se a conta não existe no plano dele, peça para criar.
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  function renderCartao(c: CartaoContabilDto) {
+    const itens = itensDeCartaoContabil({ temConta: c.conta != null });
+    const aoEscolher = (item: AcaoItemAcao) => aoEscolherCartao(c, item);
+    return (
+      <LinhaComMenu key={c.id} itens={itens} onSelect={aoEscolher} render={<li className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 py-1.5" />}>
+        <span className="min-w-0">
+          {c.nome}
+          <span className="ml-1 text-xs text-muted-foreground">({c.tipo === "pessoal" ? "pessoal" : "empresa"})</span>
+        </span>
+        <span className="flex min-w-0 items-center gap-1">
+          {renderConta(c.conta)}
+          <BotaoAcoes itens={itens} onSelect={aoEscolher} rotulo={`Ações de ${c.nome}`} className="size-8" />
         </span>
       </LinhaComMenu>
     );

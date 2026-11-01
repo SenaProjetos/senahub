@@ -49,6 +49,15 @@ export function itensDeImpostoContabil(c: { temConta: boolean; rotulo: string; a
   return limparSeparadores(itens.filter((i): i is AcaoItem => i !== null));
 }
 
+/** Cartão de crédito: escolher/limpar a conta contábil (contrapartida da fatura). */
+export function itensDeCartaoContabil(c: { temConta: boolean }): AcaoItem[] {
+  return limparSeparadores([
+    { tipo: "acao", id: ACAO_ESCOLHER_CONTA, rotulo: "Escolher conta contábil…", icone: ListTree },
+    { tipo: "separador", id: "sep" },
+    { tipo: "acao", id: ACAO_LIMPAR_CONTA, rotulo: "Limpar conta", icone: Eraser, desabilitado: c.temConta ? undefined : MOTIVO_SEM_CONTA_PROPRIA },
+  ]);
+}
+
 /** Conta bancária: escolher/limpar a conta e abrir o extrato do mês. */
 export function itensDeContaBancariaContabil(c: { temConta: boolean; contaId: string; mes: string; rotuloMes: string }): AcaoItem[] {
   return limparSeparadores([

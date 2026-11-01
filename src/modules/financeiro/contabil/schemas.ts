@@ -5,7 +5,7 @@ import { IMPOSTOS_RETIDOS } from "@/modules/financeiro/lancamentos/retencoes";
 const id = z.string().min(1);
 export const mesSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mês inválido.");
 
-export const alvoEditavelSchema = z.enum(["categoria", "conta_bancaria", "imposto_recolher", "imposto_compensar"]);
+export const alvoEditavelSchema = z.enum(["categoria", "conta_bancaria", "cartao", "imposto_recolher", "imposto_compensar"]);
 
 /** C4: nos impostos retidos o alvo é o próprio imposto (`iss`, `irrf`…), não um id. */
 const impostoValido = (i: { alvo: string; alvoId: string }) =>
