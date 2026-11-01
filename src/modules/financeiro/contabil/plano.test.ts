@@ -36,8 +36,20 @@ describe("lerPlanoCsv", () => {
     const csv = readFileSync(path.resolve(__dirname, "../../../../docs/financeiro/contabil/plano-de-contas-gama-2026-10.csv"), "utf8");
     const r = lerPlanoCsv(csv);
     expect(r.erros).toEqual([]);
-    expect(r.contas).toHaveLength(389);
+    expect(r.contas).toHaveLength(394);
     expect(r.contas.find((c) => c.reduzido === 3108)).toMatchObject({ nome: "Serviços Prestados - Mercado Interno", analitica: true });
+  });
+
+  it("as contas que criamos com autorização do contador saem analíticas, na classificação combinada", () => {
+    const csv = readFileSync(path.resolve(__dirname, "../../../../docs/financeiro/contabil/plano-de-contas-gama-2026-10.csv"), "utf8");
+    const porReduzido = new Map(lerPlanoCsv(csv).contas.map((c) => [c.reduzido, c]));
+    expect([9101, 9102, 9103, 9104, 9105].map((r) => [r, porReduzido.get(r)?.classificacao, porReduzido.get(r)?.analitica])).toEqual([
+      [9101, "2.1.3.01.0006", true],
+      [9102, "1.1.3.06.0002", true],
+      [9103, "1.1.3.06.0003", true],
+      [9104, "2.1.5.02.0005", true],
+      [9105, "2.1.5.03.0001", true],
+    ]);
   });
 });
 
