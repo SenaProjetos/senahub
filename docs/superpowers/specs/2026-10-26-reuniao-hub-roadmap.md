@@ -60,6 +60,8 @@ show". Dois pedidos pequenos, na mesma tela. Pelo tamanho, sugiro fazê-lo logo 
 
 ## Lote 7 — Execução real no Gantt de controle (datas reais, colunas e variação)
 
+Desenho pronto: [2026-10-26-lote7-execucao-real-design.md](2026-10-26-lote7-execucao-real-design.md).
+
 Feedback do dia 26/10/2026, com duas capturas do MS Project como referência (colunas de
 execução e colunas de variação).
 
