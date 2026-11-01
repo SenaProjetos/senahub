@@ -5,12 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import { ajustarPontoProprio, ajustarPontoEquipe } from "@/modules/ponto/actions";
-import { formatarCodigo } from "@/modules/projetos/numbering";
-import {
-  ALOCACAO_REUNIAO_EXTERNA,
-  ALOCACAO_REUNIAO_INTERNA,
-  ALOCACAO_SEM_PROJETO,
-} from "@/modules/ponto/alocacao";
+import { ALOCACAO_SEM_PROJETO } from "@/modules/ponto/alocacao";
+import { SeletorAlocacao } from "@/components/ponto/seletor-alocacao";
 import {
   Dialog,
   DialogContent,
@@ -24,13 +20,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 type Projeto = { id: string; codigo: string; nome: string };
 type Descanso = { inicio: string; fim: string };
@@ -40,6 +29,11 @@ export type DiaEdicaoInicial = {
   entrada: string | null;
   saida: string | null;
   descansos: Descanso[];
+  /**
+   * Alocação do dia (a da entrada): sem ela, corrigir só o horário da saída gravaria o dia inteiro
+   * como "sem projeto" e as horas sairiam do projeto (e da disciplina) no rateio.
+   */
+  alocacao?: string;
 };
 
 function dataLabel(iso: string): string {
@@ -70,14 +64,14 @@ export function EditarDiaDialog({
   const [entrada, setEntrada] = useState(inicial.entrada ?? "");
   const [saida, setSaida] = useState(inicial.saida ?? "");
   const [descansos, setDescansos] = useState<Descanso[]>(inicial.descansos);
-  const [alocacao, setAlocacao] = useState(ALOCACAO_SEM_PROJETO);
+  const [alocacao, setAlocacao] = useState(inicial.alocacao ?? ALOCACAO_SEM_PROJETO);
   const [justificativa, setJustificativa] = useState("");
 
   function reset() {
     setEntrada(inicial.entrada ?? "");
     setSaida(inicial.saida ?? "");
     setDescansos(inicial.descansos);
-    setAlocacao(ALOCACAO_SEM_PROJETO);
+    setAlocacao(inicial.alocacao ?? ALOCACAO_SEM_PROJETO);
     setJustificativa("");
   }
 
@@ -193,21 +187,7 @@ export function EditarDiaDialog({
 
           <div className="space-y-1.5">
             <Label className="text-xs">Alocação da jornada</Label>
-            <Select value={alocacao} onValueChange={(v) => setAlocacao(v ?? ALOCACAO_SEM_PROJETO)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sem projeto" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALOCACAO_SEM_PROJETO}>Sem projeto</SelectItem>
-                <SelectItem value={ALOCACAO_REUNIAO_INTERNA}>Reunião interna</SelectItem>
-                <SelectItem value={ALOCACAO_REUNIAO_EXTERNA}>Reunião externa</SelectItem>
-                {projetos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {formatarCodigo(p.codigo)} · {p.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SeletorAlocacao value={alocacao} onChange={setAlocacao} projetos={projetos} triggerClassName="w-full" placeholder="Sem projeto" />
           </div>
 
           <div className="space-y-1.5">

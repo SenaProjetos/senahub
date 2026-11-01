@@ -44,7 +44,7 @@ export function estadoCongelado(estado: EstadoRevisao): boolean {
   return estado === "publicado" || estado === "arquivado";
 }
 
-export const TIPOS_CONTROLE = ["liberado_obra", "enviado_cliente", "bloqueio", "restricao"] as const;
+export const TIPOS_CONTROLE = ["liberado_obra", "enviado_cliente", "bloqueio", "restricao", "em_revisao"] as const;
 export type TipoControle = (typeof TIPOS_CONTROLE)[number];
 
 export const ROTULO_CONTROLE: Record<TipoControle, string> = {
@@ -52,6 +52,7 @@ export const ROTULO_CONTROLE: Record<TipoControle, string> = {
   enviado_cliente: "Enviado ao cliente",
   bloqueio: "Bloqueado",
   restricao: "Com restrição",
+  em_revisao: "Em revisão",
 };
 
 export const COR_CONTROLE: Record<TipoControle, string> = {
@@ -59,10 +60,15 @@ export const COR_CONTROLE: Record<TipoControle, string> = {
   enviado_cliente: "info",
   bloqueio: "perigo",
   restricao: "revisao",
+  // Âmbar, como no link público: roxo (`aguardando`) é o Arquivado.
+  em_revisao: "atencao",
 };
 
 /** Controles que levam a revisão a uma pasta do cliente — só existem em revisão publicada (I5, D1-c). */
 export const CONTROLES_DE_PASTA: readonly TipoControle[] = ["liberado_obra", "enviado_cliente"];
+
+/** Controles que só existem em revisão publicada: os de pasta + a marca "Em revisão" (que não aponta pasta nenhuma). */
+export const CONTROLES_SO_PUBLICADA: readonly TipoControle[] = [...CONTROLES_DE_PASTA, "em_revisao"];
 
 export const ESCOPOS_BLOQUEIO = ["download", "atualizacao", "exclusao"] as const;
 export type EscopoBloqueio = (typeof ESCOPOS_BLOQUEIO)[number];

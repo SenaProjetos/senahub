@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { campo } from "@/lib/campos/zod";
+import { caminhoAnexoLeadValido } from "./vinculo/regras";
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
 
@@ -45,7 +46,9 @@ export const converterLeadSchema = z.object({ id: z.string().min(1) });
 // ── Anexos do lead ────────────────────────────────────────────
 /** Metadados devolvidos pela rota multipart `/api/comercial/anexos`. */
 const anexoMetaSchema = z.object({
-  caminho: z.string().min(1),
+  // O caminho vem do cliente: sem a trava, um anexo poderia apontar para o arquivo de outro cliente (e o link
+  // projeto × ficha o copiaria para um projeto). Só `comercial/leads/<arquivo>`, a pasta que a rota grava.
+  caminho: z.string().refine(caminhoAnexoLeadValido, "Arquivo inválido. Envie o anexo de novo."),
   nomeArquivo: z.string().min(1),
   mime: z.string().min(1),
   tamanho: z.number().int().nonnegative(),

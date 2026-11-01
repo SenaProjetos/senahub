@@ -40,6 +40,7 @@ import {
   Megaphone,
   type LucideIcon,
   ListTree,
+  FileWarning,
 } from "lucide-react";
 import type { Setor } from "@/generated/prisma/enums";
 
@@ -197,6 +198,13 @@ export const NAV_GROUPS: NavGroup[] = [
         permissao: "uploads:validar",
       },
       {
+        title: "Pendências",
+        href: "/arquivos/pendencias",
+        icon: FileWarning,
+        permissao: "notificacoes:gestao",
+        tipo: "interno",
+      },
+      {
         title: "Tarefas",
         href: "/tarefas",
         icon: KanbanSquare,
@@ -317,6 +325,13 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/rh/escalas",
         icon: Clock,
         permissao: "ponto:gerir_escalas",
+      },
+      {
+        // Fechamento do custo das horas por mês (R3). Ver = `ponto:rateio`; fechar/reabrir = `rh:gerir`.
+        title: "Rateio de horas",
+        href: "/rh/rateio",
+        icon: Scale,
+        permissao: "ponto:rateio",
       },
     ],
   },

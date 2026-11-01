@@ -1,4 +1,5 @@
 import "server-only";
+import { substituirResponsaveis } from "@/modules/projetos/responsaveis-service";
 import { randomUUID } from "node:crypto";
 import type { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -157,13 +158,12 @@ export async function duplicarProjetoNoBanco(
     }
 
     if (input.copiarResponsaveis) {
-      const rows: { disciplinaId: string; userId: string }[] = [];
+      // Pelo serviço: a cópia começa o histórico de responsáveis hoje, sem herdar o do original.
       for (const d of origem.disciplinas) {
         const newDId = dMap.get(d.id);
-        if (!newDId) continue;
-        for (const r of d.responsaveis) rows.push({ disciplinaId: newDId, userId: r.userId });
+        if (!newDId || d.responsaveis.length === 0) continue;
+        await substituirResponsaveis(tx, newDId, d.responsaveis.map((r) => r.userId));
       }
-      if (rows.length > 0) await tx.disciplinaResponsavel.createMany({ data: rows, skipDuplicates: true });
     }
 
     if (input.copiarMembros && origem.membros.length > 0) {

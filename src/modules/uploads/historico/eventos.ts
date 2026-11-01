@@ -9,6 +9,7 @@
 
 import { rotuloRevisao } from "@/lib/utils";
 import { ROTULO_CONTROLE, ROTULO_ESCOPO, ROTULO_ESTADO, type EscopoBloqueio, type EstadoRevisao, type TipoControle } from "@/modules/uploads/ciclo/estados";
+import { ROTULO_PENDENCIA } from "@/modules/uploads/ciclo/pendencias";
 
 export type CategoriaEvento = "alteracao" | "acesso";
 export type OrigemEvento = "interno" | "link_publico";
@@ -38,8 +39,11 @@ export const TIPOS_EVENTO = {
   estado: { categoria: "alteracao", rotulo: "Mudou o estado da revisão" },
   controle_aplicado: { categoria: "alteracao", rotulo: "Aplicou um controle" },
   controle_removido: { categoria: "alteracao", rotulo: "Removeu um controle" },
+  pendencia_dispensada: { categoria: "alteracao", rotulo: "Dispensou uma pendência" },
+  pendencia_dispensa_desfeita: { categoria: "alteracao", rotulo: "Desfez a dispensa de uma pendência" },
   arquivo_substituido: { categoria: "alteracao", rotulo: "Enviou nova versão" },
   envio_sem_carimbo: { categoria: "alteracao", rotulo: "Enviou para análise sem conferência de carimbo" },
+  publicacao_sem_dwg: { categoria: "alteracao", rotulo: "Publicou sem DWG" },
   download: { categoria: "acesso", rotulo: "Baixou" },
   visualizacao: { categoria: "acesso", rotulo: "Visualizou" },
 } as const satisfies Record<string, { categoria: CategoriaEvento; rotulo: string }>;
@@ -117,6 +121,16 @@ function mudancaTexto(m: unknown): string | null {
   return `${aspas(de ?? null)} → ${aspas(para ?? null)}`;
 }
 
+/** Envio para análise em que o projetista contestou a descrição lida do carimbo (`detalhe.descricao`). */
+function descricaoContestada(v: unknown): string | null {
+  if (!v || typeof v !== "object") return null;
+  const { origem, lido } = v as { origem?: unknown; lido?: unknown };
+  if (origem !== "contestada") return null;
+  return typeof lido === "string" && lido
+    ? `descrição contestada: o carimbo dizia ${aspas(lido)}`
+    : "descrição contestada: o carimbo não tinha descrição";
+}
+
 /**
  * Complemento legível do rótulo, a partir do `detalhe` gravado. Tolerante a lixo: o JSON vem do
  * banco (inclusive linhas importadas do AuditLog), então campo ausente só omite o trecho.
@@ -169,6 +183,7 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
         para ? (de ? `${de} → ${para}` : para) : null,
         texto("motivo"),
         d.automatico === true ? "automático" : null,
+        descricaoContestada(d.descricao),
       ].filter(Boolean);
       return partes.length ? partes.join(" · ") : null;
     }
@@ -193,7 +208,14 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
       ].filter(Boolean);
       return partes.length ? partes.join(" · ") : null;
     }
+    case "pendencia_dispensada":
+    case "pendencia_dispensa_desfeita": {
+      const pendencia = typeof d.pendencia === "string" ? ROTULO_PENDENCIA[d.pendencia as keyof typeof ROTULO_PENDENCIA] ?? d.pendencia : null;
+      const partes = [pendencia, texto("motivo")].filter(Boolean);
+      return partes.length ? partes.join(" · ") : null;
+    }
     case "envio_sem_carimbo":
+    case "publicacao_sem_dwg":
       return texto("motivo");
     case "envio": {
       // Só o que ESTE envio classificou (o motor de nomenclatura não sobrescreve o que já

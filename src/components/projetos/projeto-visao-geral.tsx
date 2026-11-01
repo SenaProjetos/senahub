@@ -30,6 +30,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { EquipeManager } from "@/components/projetos/equipe-manager";
+import { HorasDisciplinaCard } from "@/components/projetos/horas-disciplina-card";
+import { ROTULO_PAPEL, rotuloPapel } from "@/modules/projetos/papeis";
+import type { LinhaHoras } from "@/modules/projetos/horas-disciplina";
 import { MargemDonut } from "@/components/projetos/margem-donut";
 import { PontoProjeto } from "@/components/ponto/ponto-projeto";
 import { RegistrosPontoProjeto } from "@/components/ponto/registros-ponto-projeto";
@@ -55,7 +58,6 @@ type Props = {
   podeVerPlanejamento: boolean;
   podeVerPendencias: boolean;
   internos: { id: string; name: string; contratacao: Contratacao | null; cargo: string | null }[];
-  papeisSugeridos: string[];
   user: { id: string; tipo: "interno" | "externo"; setor: string | null };
   sessaoAtiva: { id: string; projetoId: string | null; inicio: Date } | null;
   podeVerRegistrosPontoEquipe: boolean;
@@ -64,6 +66,8 @@ type Props = {
   layoutSalvo: unknown;
   /** Credenciais do cofre ligadas ao projeto, já no escopo de quem vê (vazio sem `acessos:ver`). */
   acessos: AcessoDoProjeto[];
+  /** Horas por disciplina já filtradas pelo servidor para quem pede (R5); `null` = sem o painel. */
+  horasDisciplina: { linhas: LinhaHoras[]; temLinhaDeBase: boolean; podeVerCusto: boolean } | null;
 };
 
 const MS_DIA = 86_400_000;
@@ -516,7 +520,7 @@ function MembroEquipeRow({ membro, projetoId }: { membro: MembroEquipe; projetoI
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{membro.nome}</p>
-        <p className="truncate text-xs text-muted-foreground">{membro.papel ?? rotuloContratacao(membro.contratacao)}</p>
+        <p className="truncate text-xs text-muted-foreground">{membro.papel ? (membro.papel in ROTULO_PAPEL ? rotuloPapel(membro.papel) : membro.papel) : rotuloContratacao(membro.contratacao)}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {membro.disciplinas.length > 0 ? (
@@ -553,8 +557,7 @@ function TeamSummary({
   projeto,
   podeGerir,
   internos,
-  papeisSugeridos,
-}: Pick<Props, "projeto" | "podeGerir" | "internos" | "papeisSugeridos">) {
+}: Pick<Props, "projeto" | "podeGerir" | "internos">) {
   const equipeMap = new Map<string, { nome: string; contratacao: Contratacao | null; image: string | null; papel: string | null; disciplinas: DisciplinaDoMembro[] }>();
   for (const disciplina of projeto.disciplinas) {
     for (const responsavel of disciplina.responsaveis) {
@@ -591,7 +594,6 @@ function TeamSummary({
             compacto
             projetoId={projeto.id}
             internos={internos}
-            papeisSugeridos={papeisSugeridos}
             membrosAtuais={projeto.membros.map((membro) => ({ userId: membro.userId, papel: membro.papel ?? null }))}
           />
         )}
@@ -637,7 +639,6 @@ export function ProjetoVisaoGeral({
   podeVerPlanejamento,
   podeVerPendencias,
   internos,
-  papeisSugeridos,
   user,
   sessaoAtiva,
   podeVerRegistrosPontoEquipe,
@@ -645,6 +646,7 @@ export function ProjetoVisaoGeral({
   margem,
   layoutSalvo,
   acessos,
+  horasDisciplina,
 }: Props) {
   const progresso = progressoProjeto(projeto.disciplinas.map((disciplina) => disciplina.status));
   const hoje = inicioDoDiaLocal();
@@ -746,19 +748,26 @@ export function ProjetoVisaoGeral({
     },
     { id: "disciplinas", conteudo: <DisciplinesTable projeto={projeto} dados={dados} /> },
     { id: "riscos", conteudo: <RiskHighlights projetoId={projeto.id} riscos={dados.riscos} podeGerir={podeGerir} /> },
-    { id: "equipe", conteudo: <TeamSummary projeto={projeto} podeGerir={podeGerir} internos={internos} papeisSugeridos={papeisSugeridos} /> },
+    { id: "equipe", conteudo: <TeamSummary projeto={projeto} podeGerir={podeGerir} internos={internos} /> },
     { id: "atividade", conteudo: <RecentActivity projetoId={projeto.id} eventos={eventos} podeVerHistorico={podeVerHistorico} /> },
   ];
 
   if (margem && margem.receitaConfirmada > 0) {
     paineis.push({
       id: "financeiro",
-      conteudo: <Card size="sm"><CardHeader><CardTitle className="text-sm">Resultado financeiro</CardTitle></CardHeader><CardContent><MargemDonut receitaConfirmada={margem.receitaConfirmada} despesaDireta={margem.despesaDireta} custoHoras={margem.custoHoras} margem={margem.margem} margemPct={margem.margemPct} custo={margem.custo} rateioHoras={margem.rateioHoras} /><p className="mt-3 text-xs text-muted-foreground">Dados confirmados. <Link href={`/projetos/${projeto.id}/financeiro`} className="font-medium text-primary hover:underline">Ver detalhamento financeiro</Link></p></CardContent></Card>,
+      conteudo: <Card size="sm"><CardHeader><CardTitle className="text-sm">Resultado financeiro</CardTitle></CardHeader><CardContent><MargemDonut receitaConfirmada={margem.receitaConfirmada} despesaDireta={margem.despesaDireta} custoHoras={margem.custoHoras + margem.custoHorasEstimadas} margem={margem.margem} margemPct={margem.margemPct} custo={margem.custo} rateioHoras={margem.rateioHoras} /><p className="mt-3 text-xs text-muted-foreground">Dados confirmados. <Link href={`/projetos/${projeto.id}/financeiro`} className="font-medium text-primary hover:underline">Ver detalhamento financeiro</Link></p></CardContent></Card>,
     });
   }
 
   if (acessos.length > 0) {
     paineis.push({ id: "acessos", conteudo: <AcessosDoProjeto acessos={acessos} /> });
+  }
+
+  if (horasDisciplina && horasDisciplina.linhas.length > 0) {
+    paineis.push({
+      id: "horas",
+      conteudo: <HorasDisciplinaCard linhas={horasDisciplina.linhas} temLinhaDeBase={horasDisciplina.temLinhaDeBase} podeVerCusto={horasDisciplina.podeVerCusto} />,
+    });
   }
 
   if (podeVerRegistrosPontoEquipe) {

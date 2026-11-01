@@ -35,6 +35,7 @@ function timeTheme(light: boolean) {
 const PAINEL = {
   meta: "text-slate-300",
   heading: "text-slate-50",
+  nome: "text-slate-200",
   divider: "border-white/15",
 } as const;
 
@@ -141,7 +142,7 @@ export function HeroCardAnimado({
                       <span className={`w-5 shrink-0 text-center font-mono text-[11px] tabular-nums ${PAINEL.meta}`}>
                         {String(a.dia).padStart(2, "0")}
                       </span>
-                      <span className={`truncate text-sm ${a.hoje ? `font-semibold ${PAINEL.heading}` : theme.meta}`}>
+                      <span className={`truncate text-sm ${a.hoje ? `font-semibold ${PAINEL.heading}` : PAINEL.nome}`}>
                         {a.name}
                         {a.hoje && " 🎂"}
                       </span>

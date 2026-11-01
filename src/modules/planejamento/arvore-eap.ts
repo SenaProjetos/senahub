@@ -22,11 +22,11 @@ export const MOTIVO_DENTRO_DELA_MESMA = "Uma tarefa não pode ir para dentro del
 const comparar = (a: NoArvore, b: NoArvore) => (a.ordem !== b.ordem ? a.ordem - b.ordem : a.id.localeCompare(b.id));
 
 /** Pai válido: existe no conjunto e não é a própria linha (órfã e ciclo contam como raiz, como em `calcularCodigos`). */
-function paiDe(n: NoArvore, ids: ReadonlySet<string>): string | null {
+export function paiDe(n: NoArvore, ids: ReadonlySet<string>): string | null {
   return n.parentId && n.parentId !== n.id && ids.has(n.parentId) ? n.parentId : null;
 }
 
-function irmaosDe(nos: readonly NoArvore[], pai: string | null): NoArvore[] {
+export function irmaosDe(nos: readonly NoArvore[], pai: string | null): NoArvore[] {
   const ids = new Set(nos.map((n) => n.id));
   return nos.filter((n) => paiDe(n, ids) === pai).sort(comparar);
 }

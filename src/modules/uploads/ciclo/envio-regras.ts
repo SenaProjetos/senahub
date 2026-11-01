@@ -3,15 +3,18 @@
  * de nomenclatura (`interpretarNomeArquivo`) e os arquivos da revisão, e devolve TODOS os problemas de
  * uma vez, cada um dizendo o que corrigir — corrigir um por vez, reenviando, é o que a lista evita.
  *
- * Lista fixa para todos os projetos (decisão do dono). Os metadados vêm do nome, do carimbo e da
+ * Lista fixa para todos os projetos (decisão do dono), exceto o projeto em "Nomenclatura livre": nele o
+ * nome segue o padrão de outro dono e as verificações do nome ficam de fora (`nomenclaturaLivre`). Os metadados vêm do nome, do carimbo e da
  * detecção; o único campo digitado é a descrição da revisão, obrigatória da R01 em diante.
  *
- * A conferência com o CARIMBO (código e revisão) não está aqui: só entra depois de o dono ver exemplos
- * reais da leitura (spec, "Em aberto").
+ * A conferência do código e da revisão do CARIMBO está em `carimbo.ts`. Aqui entra só a DESCRIÇÃO lida do
+ * quadro de revisão do carimbo (`quadro-revisao.ts`, spec de 2026-10-21 §3): da R01 em diante, linha vazia
+ * ou genérica bloqueia, e o projetista pode contestar a leitura digitando a descrição (`contestada`).
  */
 import { rotuloRevisao } from "@/lib/utils";
 import type { Interpretacao } from "@/modules/uploads/nomenclatura/interpretar";
 import { ehDocumentoDeModelo } from "./escopo";
+import { descricaoGenerica, textoDaRevisao, type QuadroRevisao } from "./quadro-revisao";
 
 export type ArquivoParaEnvio = { nome: string; ext: string; hash: string };
 
@@ -30,13 +33,90 @@ export type EntradaEnvio = {
   modelo: string | null;
   /** Código do projeto como está cadastrado (`260027`). Ausente = não confere o formato. */
   codigoProjeto?: string;
+  /**
+   * Projeto em "Nomenclatura livre" (`NomenclaturaConfig.exigir = false`): o nome segue o padrão de
+   * outro dono (licitação segue o do órgão), então nada do que se lê do NOME bloqueia o envio.
+   */
+  nomenclaturaLivre?: boolean;
+  /** O que o quadro de revisão do carimbo diz desta revisão; `null` = revisão sem PDF. */
+  carimbo: DescricaoDoCarimbo | null;
+  /** O projetista marcou "O carimbo foi lido errado": vale a descrição digitada. */
+  contestada: boolean;
 };
+
+/** A descrição desta revisão no quadro de revisão do carimbo do PDF. */
+export type DescricaoDoCarimbo =
+  | { tipo: "lida"; texto: string }
+  | { tipo: "vazia" }
+  | { tipo: "generica"; texto: string }
+  | { tipo: "sem_quadro" };
+
+function ultimaLinhaComTexto(q: QuadroRevisao): string | null {
+  return [...q.linhas].reverse().find((l) => l.texto.trim() !== "")?.texto ?? null;
+}
+
+/**
+ * `numero` = número interno da revisão (1 = R00) → `textoDaRevisao(q, numero - 1)`; `revisaoDoCarimbo` já é
+ * 0 = R00. Em "Nomenclatura livre" (licitação) o carimbo segue a numeração do órgão: a linha é a do
+ * `REVISÃO:` lido do próprio carimbo e, sem ele, a última linha preenchida.
+ */
+export function descricaoDoCarimbo(p: {
+  numero: number;
+  quadro: QuadroRevisao | null;
+  revisaoDoCarimbo: number | null;
+  nomenclaturaLivre: boolean;
+}): DescricaoDoCarimbo {
+  if (!p.quadro) return { tipo: "sem_quadro" };
+  const texto = p.nomenclaturaLivre
+    ? p.revisaoDoCarimbo !== null
+      ? textoDaRevisao(p.quadro, p.revisaoDoCarimbo)
+      : ultimaLinhaComTexto(p.quadro)
+    : textoDaRevisao(p.quadro, p.numero - 1);
+  if (texto === null || texto.trim() === "") return { tipo: "vazia" };
+  return descricaoGenerica(texto) ? { tipo: "generica", texto } : { tipo: "lida", texto };
+}
+
+/** O carimbo decide a descrição (não contestado e com quadro lido)? Mesmo critério no envio e na tela. */
+export function descricaoVemDoCarimbo(carimbo: DescricaoDoCarimbo | null, contestada: boolean): boolean {
+  return carimbo !== null && carimbo.tipo !== "sem_quadro" && !contestada;
+}
+
+export const motivoDescricaoVazia = (rotulo: string) => `Preencha no carimbo o que mudou nesta revisão (${rotulo}).`;
+export const motivoDescricaoGenerica = (texto: string) =>
+  `A descrição no carimbo (${texto}) não diz o que mudou. Escreva no carimbo o que foi alterado.`;
+export const MOTIVO_DESCRICAO_DIGITADA_GENERICA = "A descrição não diz o que mudou. Escreva o que foi alterado nesta revisão.";
+export const MOTIVO_SEM_DESCRICAO = "Descreva o que mudou nesta revisão.";
+
+/** Da R01 em diante: a descrição lida do carimbo ou, sem quadro / contestada, a digitada. */
+function problemasDaDescricao(e: EntradaEnvio): string[] {
+  if (e.numero < PRECISA_DESCRICAO_A_PARTIR_DE) return [];
+  const c = e.carimbo;
+  if (c && descricaoVemDoCarimbo(c, e.contestada)) {
+    if (c.tipo === "vazia") return [motivoDescricaoVazia(rotuloRevisao(e.numero))];
+    if (c.tipo === "generica") return [motivoDescricaoGenerica(c.texto)];
+    return [];
+  }
+  const digitada = e.descricao?.trim();
+  if (!digitada) return [MOTIVO_SEM_DESCRICAO];
+  if (descricaoGenerica(digitada)) return [MOTIVO_DESCRICAO_DIGITADA_GENERICA];
+  return [];
+}
 
 const primeirosDigitos = (texto: string) => texto.match(/\d+/)?.[0] ?? "";
 
+/** Extensões de desenho: com uma delas na revisão, o PDF passa a ser obrigatório. */
+const EXTENSOES_DE_DESENHO = ["dwg", "dxf", "rvt"];
+
+export function temDesenho(extensoes: readonly string[]): boolean {
+  return extensoes.some((e) => EXTENSOES_DE_DESENHO.includes(e.toLowerCase()));
+}
+
+export const MOTIVO_DESENHO_SEM_PDF = "A revisão tem desenho e precisa ter o PDF dele.";
+
 export const PRECISA_DESCRICAO_A_PARTIR_DE = 2;
 
-export function problemasDoEnvio(e: EntradaEnvio): string[] {
+/** O que se confere no NOME do arquivo — desligado quando o projeto está em nomenclatura livre. */
+function problemasDoNome(e: EntradaEnvio): string[] {
   const problemas: string[] = [];
   const { nome } = e;
 
@@ -76,10 +156,20 @@ export function problemasDoEnvio(e: EntradaEnvio): string[] {
   if (nome.revisao && nome.revisao.valor !== e.numero - 1) {
     problemas.push(`O nome indica R${String(nome.revisao.valor).padStart(2, "0")}, mas o sistema espera ${rotuloRevisao(e.numero)}.`);
   }
+  return problemas;
+}
 
-  // Documento de modelo (IFC) não tem PDF: o IFC é o arquivo principal dele.
+export function problemasDoEnvio(e: EntradaEnvio): string[] {
+  const problemas: string[] = [];
+
+  if (!e.nomenclaturaLivre) problemas.push(...problemasDoNome(e));
+
+  // O PDF é a cópia de leitura do DESENHO: só é exigido quando a revisão tem um (decisão do dono,
+  // 2026-10-21). Planilha de quantitativos, memorial em Word e afins seguem sem PDF. Documento de
+  // modelo (IFC) também não tem: o IFC é o arquivo principal dele.
   const exts = e.arquivos.map((a) => a.ext);
-  if (!ehDocumentoDeModelo(exts) && !exts.includes("pdf")) problemas.push("A revisão precisa ter o PDF.");
+  if (e.arquivos.length === 0) problemas.push("A revisão não tem arquivo para enviar.");
+  else if (!ehDocumentoDeModelo(exts) && temDesenho(exts) && !exts.includes("pdf")) problemas.push(MOTIVO_DESENHO_SEM_PDF);
 
   for (const a of e.arquivos) {
     const igual = e.anteriores.find((p) => p.ext === a.ext && p.hash === a.hash);
@@ -88,9 +178,7 @@ export function problemasDoEnvio(e: EntradaEnvio): string[] {
     }
   }
 
-  if (e.numero >= PRECISA_DESCRICAO_A_PARTIR_DE && !e.descricao?.trim()) {
-    problemas.push("Descreva o que mudou nesta revisão.");
-  }
+  problemas.push(...problemasDaDescricao(e));
   return problemas;
 }
 

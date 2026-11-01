@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
-import { CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Flag, GripVertical, ListTree, Lock, Pin } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Flag, GripVertical, ListTree, Lock, Pin } from "lucide-react";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { ROTULO_SINAL, sinalDaLinha } from "@/modules/planejamento/sinais-linha";
 import {
@@ -33,7 +33,9 @@ import {
 import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
 import { criarCalendario, diasUteisEntre } from "@/lib/calendario-trabalho";
 import { dataCurta, diasEntre } from "@/lib/dias-iso";
+import { lerDataDigitada, mascaraDataDigitando } from "@/modules/planejamento/datas-linha";
 import { brl, cn } from "@/lib/utils";
+import { useAlturaRestante } from "@/lib/use-altura-restante";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { Button } from "@/components/ui/button";
@@ -47,6 +49,9 @@ import {
   ROW_H,
   type ModoGantt,
 } from "@/components/planejamento/gantt-barra";
+
+/** Largura padrão de Início/Término: em edição cabem `dd/mm/aaaa` (~61px de texto) e o ícone do calendário (16px). */
+const LARGURA_COLUNA_DATA = 108;
 
 /**
  * O cronograma do projeto no molde do MS Project: a TABELA à esquerda e o GRÁFICO à direita, nas mesmas
@@ -66,12 +71,14 @@ import {
 export type { ModoGantt } from "@/components/planejamento/gantt-barra";
 
 /** O que se edita direto na célula. `pred` (Predecessoras) tem callback próprio: grava o conjunto inteiro. */
-export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred";
+export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred" | "inicio" | "termino";
 
 export type EdicaoDeCampo =
   | { campo: "nome"; nome: string }
   | { campo: "duracao"; marco: boolean; duracaoDias?: number }
-  | { campo: "progresso"; progresso: number };
+  | { campo: "progresso"; progresso: number }
+  /** Início/término digitados (`YYYY-MM-DD`): o início fixa a tarefa (alfinete), o término recalcula a duração. */
+  | { campo: "inicio" | "termino"; data: string };
 
 type Destino = "fica" | "proxima" | "anterior" | "abaixo";
 
@@ -120,6 +127,15 @@ export type PlanoGanttProps = {
    * subtarefas junto. Sem esta prop não há alça. Mover para cima/baixo pelo teclado passa pelo menu (`onAcao`).
    */
   onMover?: (t: EapTarefaDTO, alvoId: string, posicao: "antes" | "depois") => void;
+  /**
+   * A seleção de linhas mudou (ordem de documento). Clique simples seleciona uma; Ctrl/⌘+clique alterna; Shift+clique
+   * seleciona o intervalo. É o que as setas da barra de estrutura e o menu de contexto usam para agir em várias linhas.
+   */
+  onSelecaoChange?: (ids: string[]) => void;
+  /** Abre a janela da árvore de predecessoras da linha (um botão ao lado da célula Predecessoras). */
+  onEscolherPredecessoras?: (t: EapTarefaDTO) => void;
+  /** Cada vez que este número muda, a seleção é limpa (o botão "Limpar" da barra de estrutura). */
+  sinalLimparSelecao?: number;
   /** Uma linha recém-criada cujo nome deve abrir em edição assim que ela aparecer na tabela. */
   focoNomeId?: string | null;
   onFocoConsumido?: () => void;
@@ -130,6 +146,16 @@ export type PlanoGanttProps = {
   celulaRecursos?: (t: EapTarefaDTO, conteudo: ReactNode) => ReactNode;
   /** Botões da coluna Ações, por linha (os de uso frequente; o resto está no `...`). */
   acoes?: (t: EapTarefaDTO) => ReactNode;
+  /**
+   * Barra única da tela (mock de 2026-10-23): o que vem antes das ferramentas do gráfico (visão, filtros, período) e o que
+   * entra entre elas e o "Compacta" (Desfazer, o link do Planejamento). Sem eles a barra só tem as ferramentas do gráfico.
+   */
+  barraInicio?: ReactNode;
+  barraFim?: ReactNode;
+  /** Flutua sobre o pé do quadro (a barra de estrutura da seleção), sem empurrar a tabela. */
+  sobreposicao?: ReactNode;
+  /** O quadro ocupa a altura que sobra na tela e rola por dentro (a partir de `md`); sem isto, até 72% da altura. */
+  alturaCheia?: boolean;
   className?: string;
 };
 
@@ -174,13 +200,22 @@ export function PlanoGantt({
   menuDe,
   onAcao,
   onMover,
+  onSelecaoChange,
+  onEscolherPredecessoras,
+  sinalLimparSelecao = 0,
   focoNomeId = null,
   onFocoConsumido,
   celulaRecursos,
   acoes,
   rotuloBase,
+  barraInicio,
+  barraFim,
+  sobreposicao,
+  alturaCheia = false,
   className,
 }: PlanoGanttProps) {
+  // Folga para a legenda abaixo do quadro.
+  const quadro = useAlturaRestante<HTMLDivElement>({ minimo: 320, folga: 44 });
   const [zoom, setZoom] = useState<ZoomGantt>(() => zoomInicial(tarefas));
   const [larguras, setLarguras] = useState<Larguras>(largurasIniciais ?? {});
   // Espelho do estado para gravar a preferência ao soltar a alça (o handler de soltar enxergaria o estado velho).
@@ -191,7 +226,14 @@ export function PlanoGantt({
   // com uma nesga de tela. Sem gráfico (sem datas) não há o que poupar.
   const [compacto, setCompacto] = useState(verDatas);
   const [hoverId, setHoverId] = useState<string | null>(null);
-  const [selecionadaId, setSelecionadaId] = useState<string | null>(null);
+  // Seleção de várias linhas: o conjunto e a âncora do Shift+clique.
+  const [selecaoBruta, setSelecaoBruta] = useState<ReadonlySet<string>>(new Set());
+  const ancoraRef = useRef<string | null>(null);
+  const [sinalVisto, setSinalVisto] = useState(sinalLimparSelecao);
+  if (sinalLimparSelecao !== sinalVisto) {
+    setSinalVisto(sinalLimparSelecao);
+    setSelecaoBruta(new Set());
+  }
   const [edicao, setEdicao] = useState<{ id: string; campo: CampoEditavel } | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [invalida, setInvalida] = useState(false);
@@ -213,6 +255,44 @@ export function PlanoGantt({
     () => (filtroIds ? soAsDoFiltro(grade, filtroIds) : linhasVisiveis(grade, recolhidos)),
     [grade, filtroIds, recolhidos],
   );
+  // Só vale o que está VISÍVEL: depois de excluir, recolher um agrupamento ou filtrar, o id some da seleção — a ação (excluir,
+  // mover, recuar) não pode agir numa linha que a pessoa não está vendo.
+  const selecao = useMemo(() => {
+    const visiveis = new Set(linhas.map((l) => l.t.id));
+    return new Set([...selecaoBruta].filter((id) => visiveis.has(id)));
+  }, [selecaoBruta, linhas]);
+  const selecaoEmOrdem = useMemo(() => linhas.map((l) => l.t.id).filter((id) => selecao.has(id)), [linhas, selecao]);
+  const selecaoChave = selecaoEmOrdem.join("|");
+  useEffect(() => {
+    onSelecaoChange?.(selecaoEmOrdem);
+    // `selecaoChave` representa o conteúdo: sem ela o efeito dispararia a cada render (o array é novo toda vez).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selecaoChave]);
+
+  /** Clique numa linha: simples seleciona só ela; Ctrl/⌘ alterna; Shift seleciona o intervalo visível desde a âncora. */
+  function selecionarLinha(id: string, e?: { ctrlKey?: boolean; metaKey?: boolean; shiftKey?: boolean }) {
+    if (e?.shiftKey && ancoraRef.current) {
+      const ids = linhas.map((l) => l.t.id);
+      const a = ids.indexOf(ancoraRef.current);
+      const b = ids.indexOf(id);
+      if (a >= 0 && b >= 0) {
+        setSelecaoBruta(new Set(ids.slice(Math.min(a, b), Math.max(a, b) + 1)));
+        return;
+      }
+    }
+    if (e?.ctrlKey || e?.metaKey) {
+      setSelecaoBruta((atual) => {
+        const proxima = new Set(atual);
+        if (!proxima.delete(id)) proxima.add(id);
+        return proxima;
+      });
+      ancoraRef.current = id;
+      return;
+    }
+    setSelecaoBruta(new Set([id]));
+    ancoraRef.current = id;
+  }
+
   const cal = useMemo(() => criarCalendario({ diasSemana: calendario.diasUteis, feriados: calendario.feriados }), [calendario]);
 
   // A escala cobre TODAS as linhas (não só as visíveis): filtrar ou recolher não pode mexer o gráfico de lugar.
@@ -230,16 +310,20 @@ export function PlanoGantt({
     if (campo === "nome") return podeEditar;
     if (l.temFilhos) return false;
     if (campo === "duracao") return podeEditar && !planoTravado;
+    if (campo === "inicio") return podeEditar && !planoTravado;
+    if (campo === "termino") return podeEditar && !planoTravado && !l.t.marco; // marco é uma data só: muda-se o início
     if (campo === "progresso") return podeEditar && !l.t.marco;
     return podeEditarPred;
   };
-  const camposDaVisao: CampoEditavel[] = !verDatas ? ["nome", "duracao", "progresso", "pred"] : modo === "planejamento" ? ["nome", "duracao", "pred"] : ["nome", "progresso"];
+  const camposDaVisao: CampoEditavel[] = !verDatas ? ["nome", "duracao", "progresso", "pred"] : modo === "planejamento" ? ["nome", "duracao", "inicio", "termino", "pred"] : ["nome", "progresso"];
 
   const textoInicial = (l: Linha, campo: CampoEditavel): string => {
     const t = l.t;
     if (campo === "nome") return t.nome;
     if (campo === "duracao") return t.marco ? "0" : String(t.duracaoDias).replace(".", ",");
     if (campo === "progresso") return String(t.progresso);
+    if (campo === "inicio") return dataCurta(t.inicioPrevisto) || "";
+    if (campo === "termino") return dataCurta(t.fimPrevisto) || "";
     return formatarPredecessoras(t.predecessoras, codigoPorId);
   };
 
@@ -254,7 +338,7 @@ export function PlanoGantt({
   };
 
   const iniciar = (id: string, campo: CampoEditavel) => {
-    setSelecionadaId(id);
+    selecionarLinha(id);
     setInvalida(false);
     setEdicao({ id, campo });
   };
@@ -304,6 +388,16 @@ export function PlanoGantt({
       if (r.valor === t.progresso) return true;
       exibir = `${r.valor}%`;
       erro = await onEditarCampo!(t, { campo: "progresso", progresso: r.valor });
+    } else if (campo === "inicio" || campo === "termino") {
+      const r = lerDataDigitada(texto, hoje);
+      if (!r.ok) {
+        onErro?.(r.erro);
+        return false;
+      }
+      const atual = campo === "inicio" ? t.inicioPrevisto : t.fimPrevisto;
+      if (r.dia === atual) return true;
+      exibir = dataCurta(r.dia);
+      erro = await onEditarCampo!(t, { campo, data: r.dia });
     } else {
       const r = lerPredecessoras(texto, idPorCodigo, t.id);
       if (!r.ok) {
@@ -318,14 +412,23 @@ export function PlanoGantt({
       onErro?.(erro);
       return false;
     }
-    setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
+    // Início e término NÃO mostram o texto digitado como se estivesse gravado: o motor pode dar outra data (predecessora, dia
+    // não útil) e o término vira duração — a célula espera o dado novo do servidor.
+    if (campo !== "inicio" && campo !== "termino") setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
     return true;
   }
 
   async function confirmar(l: Linha, campo: CampoEditavel, texto: string, destino: Destino): Promise<boolean> {
     setSalvando(true);
-    const ok = await executar(l, campo, texto);
-    setSalvando(false);
+    let ok = false;
+    try {
+      ok = await executar(l, campo, texto);
+    } catch {
+      // Rede ou servidor: a célula não pode ficar travada em "salvando".
+      onErro?.("Não foi possível gravar. Tente de novo.");
+    } finally {
+      setSalvando(false);
+    }
     if (!ok) {
       setInvalida(true);
       return false;
@@ -333,7 +436,7 @@ export function PlanoGantt({
     setInvalida(false);
     const prox = destino === "fica" ? null : vizinha(l.t.id, campo, destino);
     setEdicao(prox);
-    if (prox) setSelecionadaId(prox.id);
+    if (prox) selecionarLinha(prox.id);
     return true;
   }
 
@@ -341,6 +444,7 @@ export function PlanoGantt({
   const envolver = (l: Linha, campo: CampoEditavel, rotulo: string, conteudo: ReactNode): ReactNode =>
     ehEditavel(l, campo) ? (
       <CelulaEditavel
+        data={campo === "inicio" ? { iso: l.t.inicioPrevisto } : campo === "termino" ? { iso: l.t.fimPrevisto } : undefined}
         ativa={edicao?.id === l.t.id && edicao.campo === campo}
         salvando={salvando}
         invalida={invalida}
@@ -510,14 +614,16 @@ export function PlanoGantt({
     const inicio: Coluna = {
       id: "inicio",
       rotulo: "Início",
-      w: 84,
-      render: (l) => <span className="font-mono text-xs">{dataCurta(l.t.inicioPrevisto) || "—"}</span>,
+      w: LARGURA_COLUNA_DATA,
+      render: (l) =>
+        envolver(l, "inicio", "Início", <span className="font-mono text-xs" title="Digite, cole ou escolha no calendário (dd/mm/aaaa). Ela fixa o início da tarefa (alfinete).">{gravado(l.t.id, "inicio") ?? (dataCurta(l.t.inicioPrevisto) || "—")}</span>),
     };
     const termino: Coluna = {
       id: "termino",
       rotulo: "Término",
-      w: 84,
-      render: (l) => <span className="font-mono text-xs">{dataCurta(l.t.fimPrevisto) || "—"}</span>,
+      w: LARGURA_COLUNA_DATA,
+      render: (l) =>
+        envolver(l, "termino", "Término", <span className="font-mono text-xs" title="Digite, cole ou escolha no calendário (dd/mm/aaaa). O término recalcula a duração em dias úteis.">{gravado(l.t.id, "termino") ?? (dataCurta(l.t.fimPrevisto) || "—")}</span>),
     };
     const progresso: Coluna = {
       id: "progresso",
@@ -550,7 +656,25 @@ export function PlanoGantt({
       w: 112,
       render: (l) => {
         const texto = gravado(l.t.id, "pred") ?? formatarPredecessoras(l.t.predecessoras, codigoPorId);
-        return envolver(l, "pred", "Predecessoras", <span className="truncate font-mono text-xs text-muted-foreground" title={texto}>{texto}</span>);
+        const celula = envolver(l, "pred", "Predecessoras", <span className="truncate font-mono text-xs text-muted-foreground" title={texto}>{texto}</span>);
+        if (!onEscolherPredecessoras || !ehEditavel(l, "pred")) return celula;
+        return (
+          <div className="flex w-full min-w-0 items-center gap-0.5">
+            {celula}
+            <button
+              type="button"
+              className="grid size-5 shrink-0 place-items-center rounded-sm text-muted-foreground hover:bg-primary/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={`Escolher as predecessoras da tarefa ${l.codigo} numa árvore`}
+              title="Escolher numa árvore"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEscolherPredecessoras(l.t);
+              }}
+            >
+              <ListTree className="size-3" />
+            </button>
+          </div>
+        );
       },
     };
     const recursos: Coluna = {
@@ -663,7 +787,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
   // da alça não refazer as células de todas as linhas (só a largura muda).
@@ -735,53 +859,71 @@ export function PlanoGantt({
 
   return (
     <div className={cn("min-w-0 space-y-2", className)}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+        {barraInicio}
+        {filtroIds && <span className="text-xs text-muted-foreground">Mostrando {linhas.length} linha(s), sem os níveis.</span>}
+        <span className="flex-1" />
         {verDatas && (
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">Escala</span>
-            <div className="flex overflow-hidden rounded-sm border" role="group" aria-label="Escala de tempo">
+            <select
+              aria-label="Escala de tempo"
+              value={zoom}
+              onChange={(e) => setZoom(e.target.value as ZoomGantt)}
+              className="h-7 rounded-sm border bg-background px-2 text-xs text-foreground outline-none focus-visible:border-primary"
+            >
               {ZOOMS_GANTT.map((z) => (
-                <button
-                  key={z.id}
-                  type="button"
-                  aria-pressed={zoom === z.id}
-                  onClick={() => setZoom(z.id)}
-                  className={cn("px-2.5 py-1 text-xs", zoom === z.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground")}
-                >
+                <option key={z.id} value={z.id}>
                   {z.rotulo}
-                </button>
+                </option>
               ))}
-            </div>
-            <Button size="sm" variant="outline" type="button" onClick={irParaHoje} disabled={!escala?.contem(hoje)} title="Rolar o gráfico até a data de hoje">
+            </select>
+            <Button size="sm" variant="outline" type="button" className="h-7 px-2" onClick={irParaHoje} disabled={!escala?.contem(hoje)} title="Rolar o gráfico até a data de hoje">
               Hoje
             </Button>
           </div>
         )}
         {temNivel && (
           <div className="flex items-center gap-1">
-            <Button size="sm" variant="outline" type="button" disabled={!!filtroIds} onClick={() => setRecolhidos(new Set(todosIds))} title="Recolher todos os agrupamentos">
-              <ChevronsDownUp className="size-3.5" /> Recolher
+            <Button size="icon-sm" variant="outline" type="button" disabled={!!filtroIds} onClick={() => setRecolhidos(new Set(todosIds))} title="Recolher todos os agrupamentos" aria-label="Recolher todos os agrupamentos">
+              <ChevronsDownUp className="size-3.5" />
             </Button>
-            <Button size="sm" variant="outline" type="button" disabled={!!filtroIds} onClick={() => setRecolhidos(new Set())} title="Expandir todos os agrupamentos">
-              <ChevronsUpDown className="size-3.5" /> Expandir
+            <Button size="icon-sm" variant="outline" type="button" disabled={!!filtroIds} onClick={() => setRecolhidos(new Set())} title="Expandir todos os agrupamentos" aria-label="Expandir todos os agrupamentos">
+              <ChevronsUpDown className="size-3.5" />
             </Button>
           </div>
         )}
-        <Button size="sm" variant="outline" type="button" aria-pressed={compacto} onClick={() => setCompacto((c) => !c)} title="Esconde as colunas secundárias para dar mais espaço ao gráfico">
-          {compacto ? "Tabela completa" : "Tabela compacta"}
+        {barraFim}
+        <Button
+          size="sm"
+          variant="outline"
+          type="button"
+          aria-pressed={compacto}
+          className={cn("h-7 px-2", compacto && "border-primary bg-muted")}
+          onClick={() => setCompacto((c) => !c)}
+          title="Esconde as colunas secundárias para dar mais espaço ao gráfico"
+        >
+          Compacta
         </Button>
         {temLarguraEscolhida && (
           <Button size="sm" variant="ghost" type="button" onClick={restaurarLarguras} title="Devolve todas as colunas à largura padrão">
             Larguras padrão
           </Button>
         )}
-        {filtroIds && <span className="text-xs text-muted-foreground">Filtro ativo: mostrando só {linhas.length} linha(s), sem os níveis.</span>}
       </div>
 
       {linhas.length === 0 ? (
         <EmptyState icon={ListTree} title="Nenhuma tarefa para os filtros selecionados" className="py-10" />
       ) : (
-        <div ref={rolagemRef} className="relative max-h-[72vh] overflow-auto rounded-sm border bg-background" role="region" aria-label="Cronograma: tabela e gráfico">
+        <div
+          ref={(el) => {
+            rolagemRef.current = el;
+            if (alturaCheia) quadro.ref.current = el;
+          }}
+          style={alturaCheia ? quadro.style : undefined}
+          className={cn("relative overflow-auto rounded-sm border bg-background", alturaCheia ? "max-h-[72vh] md:max-h-none" : "max-h-[72vh]")}
+          role="region"
+          aria-label="Cronograma: tabela e gráfico"
+        >
           <div className="flex min-w-max">
             {/* ── Tabela ── */}
             <div className="sticky left-0 z-20 shrink-0 border-r bg-background" style={{ width: larguraTabela }} role="table" aria-label="Tarefas">
@@ -854,20 +996,54 @@ export function PlanoGantt({
                     itens={itens}
                     onSelect={(item) => onAcao?.(l.t, item)}
                     aoAbrir={(aberto) => {
-                      if (aberto) setSelecionadaId(l.t.id);
+                      if (!aberto) return;
+                      // Menu de contexto fora da seleção troca a seleção pela linha clicada; dentro, mantém (ADR-0002).
+                      if (!selecao.has(l.t.id)) {
+                        setSelecaoBruta(new Set([l.t.id]));
+                        ancoraRef.current = l.t.id;
+                      }
                     }}
                     render={
                       <div
                         role="row"
                         tabIndex={0}
-                        aria-selected={selecionadaId === l.t.id}
-                        onClick={() => setSelecionadaId(l.t.id)}
+                        data-linha-id={l.t.id}
+                        aria-selected={selecao.has(l.t.id)}
+                        onMouseDown={(e) => {
+                          // Shift+clique seleciona linhas, não texto.
+                          if (e.shiftKey) e.preventDefault();
+                        }}
+                        onClick={(e) => selecionarLinha(l.t.id, e)}
                         onDoubleClick={() => onAbrir?.(l.t)}
                         onKeyDown={(e) => {
                           if (e.target !== e.currentTarget) return; // teclas de dentro de uma célula em edição não chegam aqui
-                          if (e.key === "F2" && ehEditavel(l, "nome")) {
+                          if ((e.key === "ArrowDown" || e.key === "ArrowUp") && !e.altKey && !e.ctrlKey && !e.metaKey) {
+                            // Setas movem o foco entre as linhas; com Shift, estendem a seleção desde a âncora.
+                            const i = linhas.findIndex((x) => x.t.id === l.t.id);
+                            const alvo = linhas[i + (e.key === "ArrowDown" ? 1 : -1)];
+                            if (alvo) {
+                              e.preventDefault();
+                              if (e.shiftKey) {
+                                if (!ancoraRef.current) ancoraRef.current = l.t.id; // só pelo teclado: a âncora é a linha onde se começou
+                                selecionarLinha(alvo.t.id, { shiftKey: true });
+                              }
+                              (document.querySelector(`[data-linha-id="${alvo.t.id}"]`) as HTMLElement | null)?.focus();
+                            }
+                          } else if ((e.ctrlKey || e.metaKey) && e.key === " ") {
+                            e.preventDefault();
+                            selecionarLinha(l.t.id, { ctrlKey: true });
+                          } else if (e.key === "Escape" && selecao.size > 0) {
+                            e.preventDefault();
+                            setSelecaoBruta(new Set());
+                          } else if (e.key === "F2" && ehEditavel(l, "nome")) {
                             e.preventDefault();
                             iniciar(l.t.id, "nome");
+                          } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "c") {
+                            e.preventDefault();
+                            atalho("copiar-linhas");
+                          } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "v") {
+                            e.preventDefault();
+                            atalho("colar-linhas");
                           } else if (e.key === "Insert") {
                             e.preventDefault();
                             atalho("inserir-acima");
@@ -901,7 +1077,8 @@ export function PlanoGantt({
                           // aos olhos. No hover ele escurece mais um degrau, senão não mudaria nada.
                           l.temFilhos && "bg-muted",
                           hoverId === l.t.id && (l.temFilhos ? "bg-border/60" : "bg-muted"),
-                          selecionadaId === l.t.id && "bg-primary/10",
+                          // Selecionada: fundo mais forte E uma faixa à esquerda (não depende só da cor do fundo).
+                          selecao.has(l.t.id) && "bg-primary/20 shadow-[inset_3px_0_0_0_var(--color-primary)]",
                           arrasto?.junto.has(l.t.id) && "opacity-50",
                           // Onde a linha vai cair: um traço em cima ou embaixo desta.
                           destino?.id === l.t.id &&
@@ -958,9 +1135,9 @@ export function PlanoGantt({
                       escala={escala}
                       geo={geometria.get(l.t.id)}
                       top={i * ROW_H}
-                      destaque={hoverId === l.t.id || selecionadaId === l.t.id}
+                      destaque={hoverId === l.t.id || selecao.has(l.t.id)}
                       onHover={(h) => setHoverId((atual) => (h ? l.t.id : atual === l.t.id ? null : atual))}
-                      onSelecionar={() => setSelecionadaId(l.t.id)}
+                      onSelecionar={() => selecionarLinha(l.t.id)}
                       onAbrir={onAbrir}
                     />
                   ))}
@@ -985,6 +1162,12 @@ export function PlanoGantt({
           </div>
         </div>
       )}
+      {sobreposicao && (
+        // Barra da seleção: flutua no pé do quadro (como a barra de seleção das listas), sem empurrar a tabela.
+        <div className="pointer-events-none sticky bottom-3 z-30 -mt-14 flex h-12 justify-center px-2">
+          <div className="pointer-events-auto flex max-w-full items-center overflow-x-auto rounded-md border bg-card px-2 py-1.5 shadow-md">{sobreposicao}</div>
+        </div>
+      )}
 
       {verDatas && linhas.length > 0 && <Legenda modo={modo} tarefas={tarefas} rotuloBase={rotuloBase} />}
     </div>
@@ -998,6 +1181,7 @@ export function PlanoGantt({
  * dentro do componente pai ela remontaria a cada render e o campo perderia o foco a cada tecla.
  */
 function CelulaEditavel({
+  data,
   ativa,
   salvando,
   invalida,
@@ -1009,6 +1193,8 @@ function CelulaEditavel({
   aoDigitar,
   children,
 }: {
+  /** Presente = célula de data: máscara dd/mm/aaaa ao digitar e calendário nativo (`iso` = o dia atual da linha). */
+  data?: { iso: string | null };
   ativa: boolean;
   salvando: boolean;
   invalida: boolean;
@@ -1022,6 +1208,28 @@ function CelulaEditavel({
 }) {
   const campoRef = useRef<HTMLInputElement | null>(null);
   const encerrada = useRef(false);
+  // O que o campo mostrava ao abrir: se a pessoa não digitou nada e o dado do servidor mudou no meio (outra gravação),
+  // confirmar não pode regravar o valor velho.
+  const abertoCom = useRef(valorInicial);
+  // Calendário nativo aberto: o campo de texto perde o foco para ele, e isso NÃO é "clicar fora" (não grava).
+  const seletorAberto = useRef(false);
+  const seletorRef = useRef<HTMLInputElement | null>(null);
+  // Ouvintes de "o calendário já fechou" (um tiro só): soltam a bandeira quando o navegador não avisa o fechamento.
+  const soltarOuvintes = useRef<(() => void) | null>(null);
+  const liberarSeletor = () => {
+    seletorAberto.current = false;
+    soltarOuvintes.current?.();
+    soltarOuvintes.current = null;
+  };
+  // Célula que deixa de estar ativa (ou sai da tela): nada de bandeira nem ouvinte no document/window sobrando.
+  useEffect(
+    () => () => {
+      seletorAberto.current = false;
+      soltarOuvintes.current?.();
+      soltarOuvintes.current = null;
+    },
+    [ativa],
+  );
 
   // Volta o foco depois que a gravação termina (o campo desabilita enquanto salva e perde o foco).
   useEffect(() => {
@@ -1031,8 +1239,21 @@ function CelulaEditavel({
   if (!ativa) {
     return (
       <div
-        className="flex h-6 min-w-0 flex-1 cursor-text items-center rounded-sm px-1 hover:bg-primary/5 hover:ring-1 hover:ring-primary/30"
+        role="button"
+        tabIndex={0}
+        aria-label={`${rotulo} — editar`}
+        className="flex h-6 min-w-0 flex-1 cursor-text items-center rounded-sm px-1 hover:bg-primary/5 hover:ring-1 hover:ring-primary/30 focus-visible:ring-2 focus-visible:ring-ring"
+        onKeyDown={(e) => {
+          // Pelo teclado: Enter, Espaço ou F2 abrem a edição da célula focada (as setas movem entre as linhas).
+          if (e.key === "Enter" || e.key === " " || e.key === "F2") {
+            e.preventDefault();
+            e.stopPropagation();
+            aoIniciar();
+          }
+        }}
         onClick={(e) => {
+          // Ctrl/⌘ e Shift+clique são seleção de linhas: deixa a linha tratar, sem abrir a edição da célula.
+          if (e.ctrlKey || e.metaKey || e.shiftKey) return;
           e.stopPropagation();
           aoIniciar();
         }}
@@ -1045,17 +1266,65 @@ function CelulaEditavel({
 
   const confirmar = (texto: string, destino: Destino) => {
     encerrada.current = true;
-    void aoConfirmar(texto, destino).then((ok) => {
+    const semDigitar = texto === abertoCom.current;
+    void aoConfirmar(semDigitar ? valorInicial : texto, destino).then((ok) => {
       if (!ok) encerrada.current = false; // continua editando: o próximo blur ou Enter tenta de novo
     });
   };
 
-  return (
+  const abrirSeletor = () => {
+    const el = seletorRef.current;
+    if (!el) return;
+    liberarSeletor();
+    seletorAberto.current = true;
+    try {
+      el.showPicker();
+    } catch {
+      // Navegador sem showPicker (ou sem permissão): segue só com o campo de texto, sem travar a célula.
+      liberarSeletor();
+      campoRef.current?.focus();
+      return;
+    }
+    // O navegador nem sempre avisa que o calendário fechou (mesmo dia escolhido não dispara `change`; `cancel`/`blur` variam).
+    // Então a bandeira não pode sobreviver ao calendário: o próximo clique, tecla ou volta de foco da janela a solta ANTES do
+    // blur do campo de texto (pointerdown vem antes do blur). Registrado depois do clique que abriu, para ele não se soltar.
+    const timer = window.setTimeout(() => {
+      const aoInteragir = () => liberarSeletor();
+      const aoVoltarFoco = () => {
+        if (!seletorAberto.current) return;
+        liberarSeletor();
+        campoRef.current?.focus();
+      };
+      document.addEventListener("pointerdown", aoInteragir, true);
+      document.addEventListener("keydown", aoInteragir, true);
+      window.addEventListener("focus", aoVoltarFoco);
+      soltarOuvintes.current = () => {
+        document.removeEventListener("pointerdown", aoInteragir, true);
+        document.removeEventListener("keydown", aoInteragir, true);
+        window.removeEventListener("focus", aoVoltarFoco);
+      };
+    }, 0);
+    soltarOuvintes.current = () => window.clearTimeout(timer);
+  };
+  /** O calendário fechou sem escolher (cancel/blur): volta ao campo de texto, que segue em edição. */
+  const seletorFechou = () => {
+    if (!seletorAberto.current) return;
+    liberarSeletor();
+    campoRef.current?.focus();
+  };
+  const escolheuDia = (iso: string) => {
+    if (!iso) return seletorFechou(); // "Limpar" do calendário: não é uma data, trata como desistência
+    liberarSeletor();
+    confirmar(iso, "fica");
+  };
+
+  const campoTexto = (
     <input
       ref={(el) => {
         if (el && campoRef.current !== el) {
           campoRef.current = el;
           encerrada.current = false;
+          abertoCom.current = valorInicial;
           el.focus();
           el.select();
         }
@@ -1067,11 +1336,29 @@ function CelulaEditavel({
       className={cn(
         "h-6 w-full min-w-0 rounded-sm border bg-background px-1 text-xs outline-none disabled:opacity-60",
         invalida ? "border-destructive ring-1 ring-destructive/40" : "border-primary ring-1 ring-primary/40",
+        data && "pr-4", // espaço do ícone do calendário
       )}
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
-      onChange={aoDigitar}
+      onMouseDown={() => {
+        liberarSeletor(); // mexer no campo de texto = o calendário já fechou
+      }}
+      onChange={(e) => {
+        if (data) {
+          // Máscara só ao DIGITAR (inserir no fim): apagar, colar e arrastar texto passam direto.
+          const ev = e.nativeEvent as InputEvent;
+          const tipo = typeof ev.inputType === "string" ? ev.inputType : "";
+          const digitando = tipo.startsWith("insert") && tipo !== "insertFromPaste" && tipo !== "insertFromDrop";
+          const el = e.currentTarget;
+          if (digitando && el.selectionStart === el.value.length) {
+            const mascarado = mascaraDataDigitando(el.value);
+            if (mascarado !== el.value) el.value = mascarado;
+          }
+        }
+        aoDigitar();
+      }}
       onKeyDown={(e) => {
+        liberarSeletor();
         if (e.key === "Enter") {
           e.preventDefault();
           confirmar(e.currentTarget.value, "abaixo");
@@ -1081,14 +1368,58 @@ function CelulaEditavel({
         } else if (e.key === "Escape") {
           e.preventDefault();
           encerrada.current = true;
+          liberarSeletor();
           aoCancelar();
         }
       }}
       onBlur={(e) => {
-        if (encerrada.current) return;
+        if (encerrada.current || seletorAberto.current) return;
         confirmar(e.currentTarget.value, "fica");
       }}
     />
+  );
+
+  if (!data) return campoTexto;
+  const isoDoDia = data.iso && /^\d{4}-\d{2}-\d{2}/.test(data.iso) ? data.iso.slice(0, 10) : "";
+  return (
+    <div className="relative flex min-w-0 flex-1">
+      {campoTexto}
+      <button
+        type="button"
+        tabIndex={-1}
+        // Atalho do mouse: pelo teclado e pelo leitor de tela o caminho é o campo de texto ao lado.
+        aria-hidden="true"
+        aria-label="Abrir calendário"
+        title="Escolher no calendário"
+        disabled={salvando}
+        className="absolute inset-y-0 right-0 flex w-4 items-center justify-center rounded-r-sm text-muted-foreground hover:text-foreground disabled:opacity-60"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={(e) => {
+          e.stopPropagation();
+          abrirSeletor();
+        }}
+      >
+        <CalendarDays className="size-3.5" aria-hidden />
+      </button>
+      {/* Seletor nativo invisível, só para abrir o calendário; fora do tab e dos leitores de tela (o campo de texto é o oficial). */}
+      <input
+        ref={(el) => {
+          seletorRef.current = el;
+          if (!el) return;
+          // `cancel` (calendário fechado sem escolher) não existe como prop de <input> nos tipos do React: ouvinte nativo.
+          const aoFechar = () => seletorFechou();
+          el.addEventListener("cancel", aoFechar);
+          return () => el.removeEventListener("cancel", aoFechar);
+        }}
+        type="date"
+        tabIndex={-1}
+        aria-hidden
+        value={isoDoDia}
+        className="pointer-events-none absolute inset-0 opacity-0"
+        onChange={(e) => escolheuDia(e.currentTarget.value)}
+        onBlur={seletorFechou}
+      />
+    </div>
   );
 }
 
@@ -1118,7 +1449,7 @@ function Legenda({ modo, tarefas, rotuloBase }: { modo: ModoGantt; tarefas: EapT
       )}
       {modo === "controle" && (
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-1 w-5 rounded-sm bg-muted-foreground" aria-hidden /> Linha de base{rotuloBase ? ` ${rotuloBase}` : ""}
+          <span className="inline-block h-[9px] w-5 rounded-sm bg-muted-foreground dark:bg-muted-foreground/60" aria-hidden /> Linha de base{rotuloBase ? ` ${rotuloBase}` : ""} (mesma espessura da tarefa)
         </span>
       )}
       <span className="flex items-center gap-1.5">

@@ -1,19 +1,21 @@
 "use client";
 
 import { BriefingForm } from "@/components/inputs/briefing-form";
-import { filtrarSecoes } from "@/modules/inputs/briefing-schema";
+import { aplicarOcultos, filtrarSecoes, type OcultosBriefing } from "@/modules/inputs/briefing-schema";
 
 /** Briefing de Start no link público: salva via rota token-gated (sem login). */
 export function BriefingPublico({
   token,
   respostasIniciais,
   disciplinas,
+  ocultos,
 }: {
   token: string;
   respostasIniciais: Record<string, unknown>;
   disciplinas: string[];
+  ocultos: OcultosBriefing;
 }) {
-  const secoes = filtrarSecoes(disciplinas);
+  const secoes = aplicarOcultos(filtrarSecoes(disciplinas), ocultos);
 
   async function onSalvar(respostas: Record<string, unknown>) {
     try {
@@ -34,6 +36,9 @@ export function BriefingPublico({
       return { ok: false as const, error: "Falha de conexão." };
     }
   }
+
+  // Tudo oculto pela equipe neste projeto: o link mostra só as perguntas extras.
+  if (secoes.length === 0) return null;
 
   return (
     <section className="rounded-sm border bg-card p-5">

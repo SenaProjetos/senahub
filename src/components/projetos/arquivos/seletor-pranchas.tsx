@@ -11,7 +11,9 @@ import { cn, rotuloRevisao } from "@/lib/utils";
 import {
   agruparPorDisciplina,
   ancoraNaLista,
+  disciplinasDaLista,
   escopoEtapaDisponivel,
+  filtrarPorDisciplinas,
   filtrarPranchas,
   pranchasDoEscopo,
   rotuloPrancha,
@@ -23,6 +25,9 @@ import { comVolta } from "@/modules/uploads/volta-visualizador";
 
 /** Onde o navegador lembra o recorte escolhido (etapa × projeto) — conveniência de quem navega. */
 const CHAVE_ESCOPO = "senahub:pranchas-escopo";
+
+/** Quantos chips de disciplina aparecem sem expandir; acima disso o resto vira "+N" (não come a lista). */
+const CHIPS_RECOLHIDOS = 4;
 
 /**
  * "1/N pranchas" do visualizador: as setas andam pela lista, e o meio abre a lista inteira — os
@@ -48,6 +53,18 @@ export function SeletorPranchas({
   const [escopo, setEscopo] = useState<EscopoPranchas>("etapa");
   const [aberto, setAberto] = useState(false);
   const [termo, setTermo] = useState("");
+  /** Disciplinas marcadas no filtro da lista; vazio = todas. Só filtra a lista aberta — as setas seguem o recorte. */
+  const [marcadas, setMarcadas] = useState<ReadonlySet<string>>(new Set());
+
+  const [chipsExpandidos, setChipsExpandidos] = useState(false);
+
+  function alternarDisciplina(id: string) {
+    setMarcadas((atual) => {
+      const novo = new Set(atual);
+      if (!novo.delete(id)) novo.add(id);
+      return novo;
+    });
+  }
 
   useEffect(() => {
     try {
@@ -75,7 +92,19 @@ export function SeletorPranchas({
   const lista = useMemo(() => pranchasDoEscopo(pranchas, ancora, efetivo), [pranchas, ancora, efetivo]);
   const atual = pranchas.find((p) => p.uploadId === ancora) ?? null;
   const { anterior, proxima, posicao } = vizinhas(lista, ancora);
-  const filtradas = useMemo(() => filtrarPranchas(lista, termo), [lista, termo]);
+  const disciplinas = useMemo(() => disciplinasDaLista(lista), [lista]);
+  // Marcação que sobrou de outro recorte (chip que não existe mais) não conta como filtro.
+  const semFiltroDeDisciplina = !disciplinas.some((d) => marcadas.has(d.disciplinaId));
+  // Recolhido: as primeiras + as marcadas (nunca esconde um filtro ligado). Uma só sobrando não vale um "+1".
+  const recolhe = !chipsExpandidos && disciplinas.length > CHIPS_RECOLHIDOS + 1;
+  const chipsVisiveis = recolhe
+    ? disciplinas.filter((d, i) => i < CHIPS_RECOLHIDOS || marcadas.has(d.disciplinaId))
+    : disciplinas;
+  const chipsOcultos = disciplinas.length - chipsVisiveis.length;
+  const filtradas = useMemo(
+    () => filtrarPranchas(filtrarPorDisciplinas(lista, marcadas), termo),
+    [lista, marcadas, termo],
+  );
   const grupos = agruparPorDisciplina(filtradas);
   // A sigla da etapa em cada linha só informa quando a lista mistura etapas.
   const variasEtapas = new Set(lista.map((p) => p.faseId)).size > 1;
@@ -158,10 +187,46 @@ export function SeletorPranchas({
                 </Button>
               </div>
             )}
+            {disciplinas.length > 1 && (
+              <div className="flex flex-wrap gap-1" role="group" aria-label="Filtrar por disciplina">
+                <Button
+                  size="xs"
+                  variant={semFiltroDeDisciplina ? "default" : "outline"}
+                  aria-pressed={semFiltroDeDisciplina}
+                  onClick={() => setMarcadas(new Set())}
+                >
+                  Todas
+                </Button>
+                {chipsVisiveis.map((d) => {
+                  const ativa = marcadas.has(d.disciplinaId);
+                  return (
+                    <Button
+                      key={d.disciplinaId}
+                      size="xs"
+                      variant={ativa ? "default" : "outline"}
+                      aria-pressed={ativa}
+                      onClick={() => alternarDisciplina(d.disciplinaId)}
+                    >
+                      {d.disciplinaNome} ({d.total})
+                    </Button>
+                  );
+                })}
+                {(chipsOcultos > 0 || (chipsExpandidos && disciplinas.length > CHIPS_RECOLHIDOS + 1)) && (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    aria-expanded={chipsExpandidos}
+                    onClick={() => setChipsExpandidos((v) => !v)}
+                  >
+                    {chipsExpandidos ? "Recolher" : `+${chipsOcultos} disciplinas`}
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
           <div className="max-h-[min(60vh,28rem)] overflow-y-auto py-1">
             {grupos.length === 0 ? (
-              <p className="px-3 py-4 text-center text-xs text-muted-foreground">Nenhuma prancha com esse termo.</p>
+              <p className="px-3 py-4 text-center text-xs text-muted-foreground">Nenhuma prancha com esse filtro.</p>
             ) : (
               grupos.map((g) => (
                 <section key={g.disciplinaId} aria-label={g.disciplinaNome}>

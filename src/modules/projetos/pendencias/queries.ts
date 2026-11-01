@@ -15,6 +15,10 @@ import { acessoGlobal, type EscopoDeDados } from "@/lib/roles";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { calcularAging, type FaixaAging } from "@/lib/aging";
 import type { Novidades } from "@/modules/projetos/pendencias/novidades";
+import type { SessionUser } from "@/lib/session";
+import { escolherVigente, extensaoDoArquivo, podeVerProblema, type ProblemaLinha } from "@/modules/projetos/pendencias/problemas";
+import { papeisPorDisciplina } from "@/modules/projetos/pendencias/papeis-pendencia";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { candidatosReincidencia, tokenizar, MIN_TOKENS_COMPARAVEL } from "@/modules/projetos/pendencias/similaridade";
 
 /** Um anexo do apontamento (item 12) — arquivo (print/foto/áudio/PDF) ou link externo. */
@@ -540,6 +544,137 @@ export async function visaoConsolidadaPendencias(viewer: { id: string; ehSocio?:
       responsaveis: disc?.responsaveis.map((r) => r.user.name) ?? [],
       faixa,
       diasAbertos: diasAtraso,
+    };
+  });
+}
+
+/**
+ * Aba "Problemas" do projeto: todos os apontamentos PUBLICADOS (rascunho de qualquer autor fica de
+ * fora), com a conversa, o arquivo vigente do documento e os papéis de quem lê. Sem N+1: uma leitura
+ * das pendências e uma consulta em lote para autores, disciplinas e arquivos (com a revisão de cada um).
+ *
+ * Cada linha só sai para quem baixaria o arquivo da disciplina dela (`podeVerProblema`, mesma
+ * muralha da rota de download). Os portões da página (interno, `arquivos:ver`, projeto visível) continuam obrigatórios.
+ */
+export async function problemasDoProjeto(projetoId: string, viewer: SessionUser): Promise<ProblemaLinha[]> {
+  const rows = await prisma.pendencia.findMany({
+    // `Pendencia` fica fora da extensão de soft delete: o filtro é explícito.
+    where: { projetoId, publicadoEm: { not: null }, excluidoEm: null },
+    orderBy: { numero: "asc" },
+    include: {
+      respostas: { orderBy: { createdAt: "asc" } },
+      // Relação aninhada não passa pela extensão de soft delete: `excluidoEm` é checado à mão.
+      upload: { select: { id: true, nomeArquivo: true, excluidoEm: true } },
+      revisaoOrigem: { select: { numero: true } },
+    },
+  });
+  if (rows.length === 0) return [];
+
+  const autorIds = [...new Set([...rows.map((r) => r.autorId), ...rows.flatMap((r) => r.respostas.map((x) => x.autorId))])];
+  const disciplinaIds = [...new Set(rows.map((r) => r.disciplinaId))];
+  const documentoIds = [...new Set(rows.flatMap((r) => (r.documentoId ? [r.documentoId] : [])))];
+
+  // Mesma muralha por disciplina da rota de download (api/uploads/[id]/download): global, responsável
+  // pela disciplina da linha, ou `arquivos:ver_todas_disciplinas` + participar do projeto (membro OU
+  // responsável de qualquer disciplina dele). Fora do global, o vínculo de responsável vem na leitura
+  // das disciplinas (só o do próprio usuário) e a participação numa consulta só.
+  const global = acessoGlobal(viewer);
+  // Leituras independentes, fora de transação: podem ir juntas.
+  const [users, disciplinas, uploads, papeis, participa, veTodas] = await Promise.all([
+    prisma.user.findMany({ where: { id: { in: autorIds } }, select: { id: true, name: true } }),
+    prisma.disciplina.findMany({
+      where: { id: { in: disciplinaIds } },
+      select: {
+        id: true,
+        disciplinaTextoLegado: true,
+        responsaveis: { where: { userId: viewer.id }, select: { userId: true } },
+      },
+    }),
+    // Leituras de topo passam pelas extensões; os filtros ficam explícitos mesmo assim. Um documento
+    // guarda PDF e DWG juntos: o vigente é escolhido por pendência, só entre a MESMA extensão da origem.
+    documentoIds.length
+      ? prisma.upload.findMany({
+          where: { documentoId: { in: documentoIds }, excluidoEm: null, substituidoPorId: null },
+          orderBy: [{ versao: "desc" }, { createdAt: "desc" }],
+          select: {
+            id: true,
+            documentoId: true,
+            nomeArquivo: true,
+            versao: true,
+            excluidoEm: true,
+            substituidoPorId: true,
+            revisaoId: true,
+            revisao: { select: { numero: true } },
+          },
+        })
+      : [],
+    papeisPorDisciplina(disciplinaIds, viewer),
+    global
+      ? Promise.resolve(true)
+      : prisma.projetoMembro
+          .findFirst({ where: { projetoId, userId: viewer.id }, select: { id: true } })
+          .then(async (m) =>
+            m !== null ||
+            (await prisma.disciplina.count({ where: { projetoId, responsaveis: { some: { userId: viewer.id } } } })) > 0,
+          ),
+    podeVerTodasDisciplinas(viewer),
+  ]);
+
+  const nomeUsuario = new Map(users.map((u) => [u.id, u.name]));
+  const nomeDisciplina = new Map(disciplinas.map((d) => [d.id, d.disciplinaTextoLegado]));
+  const responsavelDe = new Set(disciplinas.filter((d) => d.responsaveis.length > 0).map((d) => d.id));
+  const visiveis = rows.filter((r) =>
+    podeVerProblema({ global, veTodas, participa, responsavelDaDisciplina: responsavelDe.has(r.disciplinaId) }),
+  );
+  const uploadsPorDocumento = new Map<string, (typeof uploads)[number][]>();
+  for (const u of uploads) {
+    if (!u.documentoId) continue;
+    const lista = uploadsPorDocumento.get(u.documentoId);
+    if (lista) lista.push(u);
+    else uploadsPorDocumento.set(u.documentoId, [u]);
+  }
+  const semPapeis = { ehValidador: false, ehResponsavel: false, ehGlobal: false };
+
+  return visiveis.map((r) => {
+    const vigente = r.documentoId
+      ? escolherVigente(uploadsPorDocumento.get(r.documentoId) ?? [], extensaoDoArquivo(r.upload.nomeArquivo))
+      : null;
+    const origemNaLixeira = r.upload.excluidoEm != null;
+    return {
+      id: r.id,
+      numero: r.numero,
+      texto: r.texto,
+      pagina: r.pagina,
+      status: r.status,
+      severidade: r.severidade,
+      tipo: r.tipo,
+      prazo: r.prazo?.toISOString() ?? null,
+      createdAt: r.createdAt.toISOString(),
+      fechadoEm: r.fechadoEm?.toISOString() ?? null,
+      autorId: r.autorId,
+      autor: nomeUsuario.get(r.autorId) ?? "—",
+      tarefaId: r.tarefaId,
+      disciplinaId: r.disciplinaId,
+      disciplinaNome: nomeDisciplina.get(r.disciplinaId) ?? "—",
+      arquivo: vigente?.nomeArquivo ?? r.upload.nomeArquivo,
+      uploadIdOrigem: r.uploadId,
+      uploadIdVigente: vigente?.id ?? null,
+      // Com documento: existe versão vigente fora da lixeira. Sem documento (legado): a de origem.
+      arquivoDisponivel: r.documentoId ? vigente != null : !origemNaLixeira,
+      deOutraRevisao: r.revisaoOrigemId != null && vigente?.revisaoId != null && r.revisaoOrigemId !== vigente.revisaoId,
+      revisaoOrigemId: r.revisaoOrigemId,
+      revisaoVigenteId: vigente?.revisaoId ?? null,
+      // A revisão vem do arquivo vigente escolhido (o mesmo do link do alfinete). Sem ele, cai na revisão
+      // de origem; sem nenhuma (legado órfão) não há número a mostrar: 0 = desconhecida.
+      revisaoVigenteNumero: vigente?.revisao?.numero ?? r.revisaoOrigem?.numero ?? 0,
+      respostas: r.respostas.map((x) => ({
+        id: x.id,
+        autor: nomeUsuario.get(x.autorId) ?? "—",
+        autorId: x.autorId,
+        texto: x.texto,
+        createdAt: x.createdAt.toISOString(),
+      })),
+      papeis: papeis.get(r.disciplinaId) ?? semPapeis,
     };
   });
 }

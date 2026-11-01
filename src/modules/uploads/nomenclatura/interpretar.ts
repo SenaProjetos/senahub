@@ -407,10 +407,18 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
   if (!nomeLivre) {
     const numericas = partesFinais.filter((p) => p.numero !== null && !usadas.has(p.indice));
     const depoisDaFase = indiceFase === null ? [] : numericas.filter((p) => p.indice > indiceFase);
-    const universo = depoisDaFase.length > 0 ? depoisDaFase : numericas;
+    const todas = depoisDaFase.length > 0 ? depoisDaFase : numericas;
+    // `0000` ocupa o lugar do número sem ser prancha (o modelo IFC da SENA sai `…-EX-0000-M3D`): não
+    // disputa com um número de verdade e, sozinho, é reconhecido sem virar número — prancha 0
+    // gravada travava o documento (2026-10-21).
+    const universo = todas.filter((p) => p.numero !== 0);
+    const zero = todas.find((p) => p.numero === 0 && !p.colada);
     const escolhida =
       universo.find((p) => !p.colada && p.normal.length >= 3) ?? universo.find((p) => !p.colada) ?? universo[0];
-    if (escolhida) {
+    if (!escolhida && zero) {
+      zero.papel = "numero";
+      usadas.add(zero.indice);
+    } else if (escolhida) {
       let conf = escolhida.normal.length >= 3 ? 0.9 : 0.7;
       if (escolhida.colada) conf -= 0.1;
       if (indiceFase === null) conf -= 0.1;
@@ -474,7 +482,9 @@ export function interpretarNomeArquivo(nome: string, ctx: ContextoNomenclatura):
         if (categoria === "fase") fase = valor;
         if (categoria === "tipo") tipo = valor;
       }
-      if (campos.num) numero = { valor: Number(campos.num), confianca: 0.95, fonte: "padrao_projeto", texto: campos.num };
+      // `0000` no campo do número = sem prancha, como na heurística acima.
+      if (campos.num && Number(campos.num) === 0) numero = undefined;
+      else if (campos.num) numero = { valor: Number(campos.num), confianca: 0.95, fonte: "padrao_projeto", texto: campos.num };
       if (campos.rev) {
         const digitos = campos.rev.match(/\d{1,3}$/);
         if (digitos) revisao = { valor: Number(digitos[0]), confianca: 0.95, fonte: "padrao_projeto", texto: campos.rev };

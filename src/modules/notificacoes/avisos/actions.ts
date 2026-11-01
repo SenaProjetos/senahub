@@ -8,6 +8,7 @@ import { criarAvisoSchema } from "./schemas";
 import { resolverDestinatarios, rolesValidas, dispatcharAviso } from "./service";
 import { validarAgendamentoAviso } from "./agendamento";
 import { avisosPendentes } from "./queries";
+import { JANELA_AVISO_RECENTE_DIAS } from "./recentes";
 
 /**
  * Cria um aviso geral direcionado — imediato ou agendado (`agendadoPara`).
@@ -115,4 +116,24 @@ export async function buscarAvisosPendentes() {
   const session = await getSession();
   if (!session) return [];
   return avisosPendentes(session.user.id);
+}
+
+/**
+ * Quando chegou o último aviso (não cancelado) do usuário atual, dentro da janela do atalho de
+ * Avisos no topo. Sem sessão ou com erro devolve `null` — o atalho só fica sem o ponto.
+ */
+export async function ultimoAvisoRecebidoEm(): Promise<string | null> {
+  try {
+    const session = await getSession();
+    if (!session) return null;
+    const desde = new Date(Date.now() - JANELA_AVISO_RECENTE_DIAS * 24 * 60 * 60 * 1000);
+    const ultimo = await prisma.avisoDestinatario.findFirst({
+      where: { userId: session.user.id, criadoEm: { gte: desde }, aviso: { canceladoEm: null } },
+      orderBy: { criadoEm: "desc" },
+      select: { criadoEm: true },
+    });
+    return ultimo ? ultimo.criadoEm.toISOString() : null;
+  } catch {
+    return null;
+  }
 }

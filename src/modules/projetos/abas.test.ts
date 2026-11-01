@@ -34,6 +34,14 @@ describe("aplicarConfigAbas", () => {
   });
 });
 
+describe("ABAS_CONFIGURAVEIS", () => {
+  it('"/problemas" vem logo depois de "/arquivos" na ordem padrão', () => {
+    const i = ABAS_CONFIGURAVEIS.indexOf("/arquivos");
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(ABAS_CONFIGURAVEIS[i + 1]).toBe("/problemas");
+  });
+});
+
 describe("ordenarPorAtividade", () => {
   it("sem conteudoPorAba, mantém a ordem original", () => {
     expect(ordenarPorAtividade(TODAS, undefined)).toEqual(TODAS);

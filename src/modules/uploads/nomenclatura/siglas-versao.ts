@@ -161,6 +161,36 @@ export function siglasEfetivas<L extends SiglaLinha>(linhas: readonly L[], ...fa
   return saida;
 }
 
+/** Item do catálogo geral como `siglaQueOGeralJaTem` lê: linhas de sigla e, sem elas, as colunas. */
+export type ItemGeralComSiglas = FaixaVersao & {
+  nome: string;
+  sigla: string | null;
+  sinonimos: readonly string[];
+  siglas: readonly SiglaLinha[];
+};
+
+/**
+ * Sigla própria de projeto que o catálogo GERAL já reconhece na versão que o projeto segue
+ * (2026-10-21). Um EX do projeto ao lado do EX geral vira um segundo item com a mesma sigla — a
+ * árvore de Arquivos abre duas pastas EX e o envio passa a cair no do projeto. Item geral sem linha
+ * de sigla (cadastro anterior à F2) é lido pelas colunas. `null` = nenhuma repetida.
+ */
+export function siglaQueOGeralJaTem(
+  siglas: readonly string[],
+  geral: readonly ItemGeralComSiglas[],
+  versao: number,
+): { sigla: string; nome: string } | null {
+  const procuradas = new Set(siglas.map((s) => s.trim().toUpperCase()).filter(Boolean));
+  for (const item of geral) {
+    const linhas = item.siglas.length > 0 ? item.siglas : siglasDasColunas(item.sigla, item.sinonimos, item);
+    for (const linha of siglasEfetivas(linhas, item)) {
+      const sigla = linha.sigla.trim().toUpperCase();
+      if (valeNaVersao(linha, versao) && procuradas.has(sigla)) return { sigla, nome: item.nome };
+    }
+  }
+  return null;
+}
+
 /**
  * Sigla oficial e sinônimos de um item numa versão. Mais de uma oficial valendo na mesma
  * versão é cadastro inconsistente (a action barra); aqui vence a de `versaoDesde` mais recente,

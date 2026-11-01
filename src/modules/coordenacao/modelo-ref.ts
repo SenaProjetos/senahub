@@ -35,3 +35,15 @@ export function parseModeloId(modeloId: string): { tipo: TipoModelo; id: string 
 export function ehDocumento(modeloId: string): boolean {
   return modeloId.startsWith(PREFIXO_DOC);
 }
+
+/**
+ * Série de um modelo: o que continua sendo "o mesmo arquivo" entre revisões. É a chave de quem a
+ * coordenação tira da Compatibilização (`ModeloCoordenacaoOculto.serie`): a revisão nova do mesmo
+ * arquivo herda a decisão. IFC de disciplina = disciplina + nome (o agrupamento do versionamento de
+ * uploads, sem diferenciar maiúsculas); recebido = o Documento (as versões são dele).
+ */
+export function serieDoModelo(
+  m: { tipo: "upload"; disciplinaId: string; nomeArquivo: string } | { tipo: "documento"; documentoId: string },
+): string {
+  return m.tipo === "upload" ? `u:${m.disciplinaId}:${m.nomeArquivo.toLowerCase()}` : `d:${m.documentoId}`;
+}

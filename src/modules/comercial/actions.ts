@@ -57,6 +57,7 @@ import {
   configComercialSchema,
 } from "@/modules/comercial/schemas";
 import { CHAVE_CONFIG_COMERCIAL } from "@/modules/comercial/config/queries";
+import { caminhoAnexoLeadValido } from "@/modules/comercial/vinculo/regras";
 import { removerArquivo } from "@/lib/storage";
 import { etapaEhPerdido } from "@/modules/comercial/status";
 import { exigeQualificacao } from "@/modules/comercial/prospeccao";
@@ -311,7 +312,9 @@ export const removerAnexoLead = defineAction(
     const anexo = await prisma.anexoLead.findUnique({ where: { id: i.id }, select: { caminho: true, leadId: true } });
     if (!anexo) throw new ActionError("Anexo não encontrado.");
     await prisma.anexoLead.delete({ where: { id: i.id } });
-    await removerArquivo(anexo.caminho);
+    // Linha antiga com caminho fora de `comercial/leads/` some do banco, mas o arquivo NÃO é apagado: ele pode
+    // ser de outro cliente (o caminho vinha do cliente sem validação até 2026-10-15).
+    if (caminhoAnexoLeadValido(anexo.caminho)) await removerArquivo(anexo.caminho);
     rev();
     revalidatePath(`/comercial/${anexo.leadId}`);
     return { id: i.id };

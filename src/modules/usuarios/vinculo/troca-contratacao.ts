@@ -22,12 +22,25 @@ export type DadosTrocaContratacao = {
   pjId: string | null;
   /** `User.cpf` preenchido — autônomo/RPA exige, e o dado não vem do Vínculo. */
   cpfPreenchido: boolean;
+  /** Início do novo vínculo e do vínculo ativo (`null` = não há vínculo ativo). Ausentes = não confere. */
+  dataInicio?: Date;
+  inicioAtual?: Date | null;
 };
+
+const ddmmaaaa = (d: Date) => d.toISOString().slice(0, 10).split("-").reverse().join("/");
 
 /**
  * Valida a troca de contratação. Devolve a mensagem de erro pt-BR, ou `null` quando pode seguir.
  */
 export function validarTrocaContratacao(d: DadosTrocaContratacao): string | null {
+  // Vínculo novo começando no início do atual ou antes dele: o atual seria encerrado num dia só
+  // (dataFim = dataInicio) e, por ser o de início mais recente, seguiria mandando na apuração do
+  // mês — o ponto deixava de cobrar jornada a partir do dia seguinte. Corrigir a data de entrada
+  // é outra operação: a Admissão no cadastro (`admissao.ts`).
+  if (d.dataInicio && d.inicioAtual && d.dataInicio <= d.inicioAtual) {
+    return `A nova contratação precisa começar depois do início do vínculo atual (${ddmmaaaa(d.inicioAtual)}). Para corrigir a data de entrada, edite a Admissão em Editar cadastro.`;
+  }
+
   const teto = TETO_SEMANAL_HORAS[d.contratacao];
   if (teto !== undefined) {
     if (d.cargaSemanal == null) return "Informe a carga horária semanal.";

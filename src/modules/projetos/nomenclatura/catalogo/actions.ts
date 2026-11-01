@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
+import { normalizarFormatosExigidos, VALORES_FORMATOS_EXIGIDOS } from "@/modules/uploads/ciclo/formatos-exigidos";
 import { normalizarSigla } from "./planilha";
 import { operacoesEscolhidas, planejarImportacao } from "./importacao";
 import { conferirVoltas, operacoesComId, planejarTransferencia, resolverLeva, type OperacaoComId } from "./versao";
@@ -108,6 +109,33 @@ const operacaoSchema = z.discriminatedUnion("tipo", [
 ]);
 
 /**
+ * Ciclo documental: o tipo de documento diz quais arquivos a publicação exige — DWG, PDF, Excel, Word ou
+ * "Word ou Excel" (decisão do dono, 2026-10-28; antes só "exige DWG", 2026-10-09). Lista vazia = sem
+ * exigência. Vale para o tipo em todas as versões — é uma propriedade do tipo, não da sigla.
+ */
+export const definirFormatosExigidosTipo = defineAction(
+  {
+    ...base,
+    acao: "definir-formatos-exigidos-tipo",
+    entidade: "PranchaCatalogo",
+    schema: z.object({
+      id: z.string().min(1),
+      formatosExigidos: z.array(z.enum(VALORES_FORMATOS_EXIGIDOS)).max(VALORES_FORMATOS_EXIGIDOS.length),
+    }),
+    entidadeId: (_d, i) => i.id,
+    capturarAntes: (i) => prisma.pranchaCatalogo.findUnique({ where: { id: i.id }, select: { formatosExigidos: true } }),
+  },
+  async (i) => {
+    const tipo = await prisma.pranchaCatalogo.findUnique({ where: { id: i.id }, select: { categoria: true } });
+    if (!tipo || tipo.categoria !== "tipo") throw new ActionError("Tipo de documento não encontrado.");
+    const formatosExigidos = normalizarFormatosExigidos(i.formatosExigidos);
+    await prisma.pranchaCatalogo.update({ where: { id: i.id }, data: { formatosExigidos } });
+    revalidatePath("/configuracoes/nomenclatura", "layout");
+    return { id: i.id, formatosExigidos };
+  },
+);
+
+/**
  * Edições avulsas na tabela da versão (adicionar, siglas e sinônimos, tirar, voltar), numa
  * transação. Se uma sigla já tem dono na versão, a action só a tira do outro dono (a partir da
  * versão — a regra da importação, "a planilha manda") quando a transferência veio confirmada em
@@ -115,28 +143,6 @@ const operacaoSchema = z.discriminatedUnion("tipo", [
  * O plano é recalculado contra o banco de agora (a tela pode estar velha). Os ids confirmados entram
  * na auditoria junto com a entrada — dá para saber depois de quem a sigla saiu.
  */
-/**
- * Ciclo documental: o tipo de documento diz se a publicação exige o DWG (decisão do dono, 2026-10-09).
- * Vale para o tipo em todas as versões — é uma propriedade do tipo, não da sigla.
- */
-export const definirExigeDwgTipo = defineAction(
-  {
-    ...base,
-    acao: "definir-exige-dwg-tipo",
-    entidade: "PranchaCatalogo",
-    schema: z.object({ id: z.string().min(1), exigeDwg: z.boolean() }),
-    entidadeId: (_d, i) => i.id,
-    capturarAntes: (i) => prisma.pranchaCatalogo.findUnique({ where: { id: i.id }, select: { exigeDwg: true } }),
-  },
-  async (i) => {
-    const tipo = await prisma.pranchaCatalogo.findUnique({ where: { id: i.id }, select: { categoria: true } });
-    if (!tipo || tipo.categoria !== "tipo") throw new ActionError("Tipo de documento não encontrado.");
-    await prisma.pranchaCatalogo.update({ where: { id: i.id }, data: { exigeDwg: i.exigeDwg } });
-    revalidatePath("/configuracoes/nomenclatura", "layout");
-    return { id: i.id, exigeDwg: i.exigeDwg };
-  },
-);
-
 export const alterarCatalogoNaVersao = defineAction(
   {
     ...base,

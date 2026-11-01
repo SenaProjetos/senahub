@@ -1,4 +1,4 @@
-import { Archive, ArchiveRestore, ChevronDown, ChevronUp, CircleMinus, ExternalLink, FileX2, PencilRuler, Pencil, Plus, Tags, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronDown, ChevronUp, CircleMinus, ExternalLink, PencilRuler, Pencil, Plus, Tags, Trash2 } from "lucide-react";
 
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import {
@@ -16,6 +16,7 @@ import {
   itensDeLoteDisciplinas,
   type DisciplinaParaAcoes,
 } from "@/modules/projetos/acoes-catalogo-disciplina";
+import type { FormatoExigido } from "@/modules/uploads/ciclo/formatos-exigidos";
 import { motivoExclusao } from "./todas";
 import type { AlvoCatalogo } from "./versao";
 
@@ -29,9 +30,8 @@ export const ACAO_SIGLAS = "siglas";
 export const ACAO_ADICIONAR_SUB = "adicionar-sub";
 export const ACAO_EDITAR = "editar";
 export const ACAO_TIRAR = "tirar";
-/** Só tipo de documento: liga/desliga "exige o DWG para publicar" (ciclo documental). */
-export const ACAO_EXIGIR_DWG = "exigir-dwg";
-export const ACAO_DISPENSAR_DWG = "dispensar-dwg";
+/** Só tipo de documento: escolhe os arquivos que a publicação exige (ciclo documental). */
+export const ACAO_FORMATOS_EXIGIDOS = "formatos-exigidos";
 
 export type ContextoLinhaCatalogo = {
   /** `configuracoes:gerir` — o que muda a versão (siglas, sub, tirar). */
@@ -52,7 +52,7 @@ export function acaoUnica(itens: readonly AcaoItem[]): AcaoItemAcao | null {
   return acoes.length === 1 && itens.every((i) => i.tipo === "acao" || i.tipo === "separador") ? acoes[0] : null;
 }
 
-export function itensDaLinhaCatalogo(linha: { alvo: AlvoCatalogo; exigeDwg?: boolean }, ctx: ContextoLinhaCatalogo): AcaoItem[] {
+export function itensDaLinhaCatalogo(linha: { alvo: AlvoCatalogo; formatosExigidos?: FormatoExigido[] }, ctx: ContextoLinhaCatalogo): AcaoItem[] {
   const ehCard = linha.alvo.tipo === "disciplina";
   const podeEditar = ehCard ? ctx.podeEditarCard : ctx.podeGerir;
   const grupo: AcaoItem[] = [];
@@ -62,12 +62,8 @@ export function itensDaLinhaCatalogo(linha: { alvo: AlvoCatalogo; exigeDwg?: boo
   }
   if (podeEditar) grupo.push({ tipo: "acao", id: ACAO_EDITAR, rotulo: "Editar cadastro…", icone: Pencil });
   // Tipo de documento: vale para o tipo inteiro (todas as versões), não só para esta.
-  if (ctx.podeGerir && linha.exigeDwg !== undefined) {
-    grupo.push(
-      linha.exigeDwg
-        ? { tipo: "acao", id: ACAO_DISPENSAR_DWG, rotulo: "Não exigir DWG para publicar", icone: FileX2 }
-        : { tipo: "acao", id: ACAO_EXIGIR_DWG, rotulo: "Exigir DWG para publicar", icone: PencilRuler },
-    );
+  if (ctx.podeGerir && linha.formatosExigidos !== undefined) {
+    grupo.push({ tipo: "acao", id: ACAO_FORMATOS_EXIGIDOS, rotulo: "Arquivos exigidos para publicar…", icone: PencilRuler });
   }
 
   // "Tirar" tem confirmação própria na tela (o texto fala da versão e do que continua valendo nas

@@ -20,6 +20,250 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Refinos da EAP: disciplina do agrupamento, datas com calendário e Gantt de controle (outubro/2026)
+
+- **Disciplina do agrupamento leva o que está dentro:** ao trocar a disciplina de uma tarefa-mãe no painel da linha, as
+  linhas de dentro (inclusive as sem disciplina) vão junto. O sistema mostra quantas linhas serão trocadas e só grava se
+  você confirmar. Responsáveis, ponto, horas e cards já lançados ficam; a linha que ficar sem ninguém recebe o
+  responsável da disciplina nova. **Ctrl+Z** desfaz tudo de uma vez. Tirar a disciplina do agrupamento não leva as de
+  dentro, e com o cronograma aprovado a troca segue bloqueada.
+- **Datas da grade da EAP:** em **Início** e **Término** dá para **digitar** (as barras entram sozinhas: `05112026` vira
+  `05/11/2026`), **colar** (`5/11`, `5/11/26`, `2026-11-05`) ou **escolher no calendário**, pelo ícone ao lado do campo.
+  As regras não mudaram; o calendário não marca feriados.
+- **Gantt de controle:** a barra da linha de base (cinza) e a de execução agora têm a mesma espessura, uma sobre a outra.
+  Linhas sem linha de base mostram só a execução.
+
+## Papéis Gerente e Analista, aba Problemas e atalho de Avisos (outubro/2026)
+
+- **Equipe do projeto:** os papéis agora incluem **Gerente** e **Analista**, além de Coordenador, Projetista, Apoio,
+  Estagiário e Consultor externo. O papel aparece ao lado do nome na **Visão Geral**.
+- **Aba Problemas em cada projeto:** lista, por disciplina, os apontamentos já enviados nas pranchas, com filtros
+  (**Em aberto**, **Aguardando verificação**, **Encerrados**, severidade e tipo). Dá para **assumir**, **resolver**,
+  **fechar** ou marcar **não procede** direto na linha (botão direito ou **⋯**), responder à conversa e abrir a prancha
+  na versão vigente. Rascunhos de outras pessoas não aparecem.
+  Projetos com as abas em ordem personalizada veem **Problemas** no fim da lista até reorganizarem.
+- **Atalho de Avisos no topo** (computador): um ícone de megafone ao lado do sino leva direto à tela **Avisos**. Um
+  pontinho vermelho acende quando chegou um aviso nos últimos 3 dias que você ainda não viu, e some ao abrir a tela.
+
+## Arquivos exigidos por tipo de documento (outubro/2026)
+
+- Em **Configurações → Nomenclatura → Tipos**, cada tipo diz **quais arquivos a publicação exige**: DWG, PDF, Excel, Word ou
+  "Word ou Excel" (qualquer um dos dois). Antes só dava para exigir ou não o DWG.
+- **Ponto de partida:** todo tipo exige o PDF; os que já exigiam DWG passam a exigir DWG e PDF; a lista de quantitativo exige só
+  o Excel; os memoriais, Word ou Excel e PDF. Ajuste no **⋯** da linha do tipo.
+- Se faltar arquivo, a publicação é recusada dizendo exatamente o que falta. O modelo IFC continua dispensado.
+
+## Planejamento mais limpo e painel da linha (outubro/2026)
+
+- **Mais espaço para o cronograma:** o título do projeto subiu para a barra do topo, com **Nova tarefa** e o **⋯** (onde ficam
+  exportar, reagendar, herdar responsáveis, aplicar ao projeto, salvar como modelo e apagar a EAP). A saúde, a situação do
+  cronograma, a Data de Status, o início e o custo cabem numa **faixa de uma linha**, e filtros, período e escala numa **barra
+  só**. A tabela ocupa o resto da tela.
+- **Saúde do cronograma** abre num painel ao lado, com os achados (e **Ver na tabela** para filtrar as linhas), o comparativo com
+  a linha de base e as versões dela.
+- **Indicadores:** o Valor Agregado e o Plano × real agora são uma visão, ao lado de Gantt e Controle.
+- **Painel da linha** no lugar da janela de editar tarefa: a tabela continua à vista, as setas passam para a linha de cima ou de
+  baixo, as datas se editam como na tabela, o andamento tem botões de 0 a 100%, a lista de predecessoras mostra só as da linha e
+  **um Salvar** grava tudo de uma vez — um passo só no Ctrl+Z.
+
+## EAP: datas na tabela e salvar como modelo (outubro/2026)
+
+- **Digite o início ou o término** direto na tabela da EAP. O **término** recalcula a duração em dias úteis; o **início** fixa a
+  tarefa naquela data (alfinete). Se o cronograma não consegue começar na data pedida, o aviso diz a data real.
+- **Mudar o início do projeto** agora pergunta, quando há tarefas de data fixada, se elas **andam junto** (os mesmos dias úteis)
+  ou **ficam onde estão**.
+- **Salvar como modelo:** a EAP de um projeto vira um modelo para os próximos — com estrutura, durações, marcos e predecessoras,
+  sem pessoas, horas nem datas fixadas.
+  [Saiba mais](projetos/planejamento.md#datas-direto-na-tabela)
+
+## EAP: várias linhas de uma vez (outubro/2026)
+
+- **Selecione e aja.** Na EAP, **Ctrl+clique** soma linhas e **Shift+clique** pega um intervalo. A barra de estrutura
+  (setas para avançar, recuar e mover, mais copiar, colar e excluir) age em todas de uma vez, e um Ctrl+Z desfaz o lote.
+- **Novas tarefas:** cole uma lista (do Excel, por exemplo) e crie dezenas de tarefas de uma vez, com a duração.
+- **Copiar um agrupamento inteiro** (com as subtarefas e as predecessoras entre elas) para outro lugar da EAP.
+- **Predecessoras numa árvore:** escolha clicando, sem digitar o código; as opções que não valem aparecem apagadas,
+  com o motivo.
+  [Saiba mais](projetos/planejamento.md#várias-linhas-de-uma-vez)
+
+## EAP: desfazer com Ctrl+Z (outubro/2026)
+
+- **Errou? Desfaça.** Na EAP do planejamento, o botão **Desfazer** e o atalho **Ctrl+Z** voltam a última mudança do
+  plano que você fez — inclusive uma exclusão: o agrupamento volta com as subtarefas, as predecessoras e as
+  pessoas. Guarda os 20 últimos passos de cada pessoa, em cada projeto.
+  [Saiba mais](projetos/planejamento.md#desfazer-ctrl-z)
+
+## EAP: disciplina da linha e fase no card (outubro/2026)
+
+- **Linha nova nasce na disciplina certa.** Ao inserir uma linha na EAP, ela agora recebe a disciplina do
+  **agrupamento** em que entra, e não a da linha ao lado. Antes, uma "Visita técnica" inserida ao lado de uma
+  linha de Hidrossanitário nascia como Hidrossanitário, com o responsável dessa disciplina.
+- **Aviso e correção.** O verificador do cronograma avisa quando uma linha está numa disciplina diferente da
+  do agrupamento, e o botão **Usar a disciplina do agrupamento** corrige.
+  [Saiba mais](projetos/planejamento.md#saúde-e-verificador)
+- **Fase no card.** O card da tarefa gerado da EAP mostra a fase antes do nome ("BS · Modelagem"), para a mesma
+  disciplina em fases diferentes não aparecer duas vezes igual no quadro e no ponto.
+
+## Compatibilização: tirar modelos da lista (outubro/2026)
+
+- **Lista de disciplinas mais curta.** Na aba Compatibilização, o coordenador ou o administrador pode tirar
+  um modelo da compatibilização pelo olho riscado ao lado dele. O modelo sai do painel, da comparação de
+  versões e do IFC federado, mas continua na aba Arquivos; a revisão nova do mesmo arquivo continua fora.
+  Para trazer de volta, use **Fora da compatibilização**, no fim do painel.
+  [Saiba mais](projetos/compatibilizacao.md#tirar-um-modelo-da-compatibilização)
+
+## Arquivos: envio ao cliente, "Em revisão" e descrição do carimbo (outubro/2026)
+
+- **Publicar já envia ao cliente.** A revisão publicada entra na pasta Compartilhado na hora. O administrador
+  pode desligar por projeto em Arquivos, ⋯, Ciclo dos documentos.
+- **Marcar em revisão.** Quando o cliente pede mudança numa prancha publicada, a coordenação marca a revisão
+  e informa o pedido. A R00 continua com o cliente e na obra, com a etiqueta "Em revisão", e os responsáveis
+  da disciplina são avisados. A etiqueta sai sozinha quando a revisão nova é publicada, ou em "Cancelar
+  revisão". Há um filtro "Em revisão" em Arquivos.
+- **Descrição lida do carimbo.** Da R01 em diante, o Enviar para análise lê o que mudou na tabela de revisões
+  do carimbo e recusa linha vazia ou genérica ("REVISÕES"). Se a leitura errar, o projetista marca "O
+  carimbo foi lido errado" e digita a descrição; a coordenação vê que foi digitada.
+- **Códigos com sublinhado** (como `2558_HDR_EX_6001_DTC`) passam a ser conferidos no carimbo.
+
+## Arquivos: planilhas, memoriais e confirmação no envio em lote (outubro/2026)
+
+- **Planilha de quantitativos, memorial em Word e outros arquivos sem desenho** podem ser enviados para
+  análise sem PDF. O PDF continua obrigatório quando a revisão tem DWG, DXF ou RVT.
+- **Documento sem tipo e sem DWG** (comum quando o projeto segue a nomenclatura do cliente) publica com uma
+  confirmação: "este documento não precisa de DWG". Fica registrado no histórico. Documento cujo tipo exige
+  DWG continua precisando dele.
+- **Envio e publicação em lote**: quando uma revisão para no carimbo ilegível ou no DWG, o relatório de
+  falhas mostra a mesma confirmação da ação de uma revisão só, e o botão envia (ou publica) só essas.
+
+## Projetos: aba EAP (outubro/2026)
+
+- **A EAP do projeto agora aparece numa aba própria, ao lado de Disciplinas.** É só consulta: a tabela, o
+  Gantt, os filtros (atrasadas, críticas…), a Saúde do cronograma e a exportação em Excel/PDF.
+- **Para mudar alguma coisa**, use o botão **Editar no Planejamento**, que abre a tela completa do cronograma.
+- A aba aparece para quem já via o Planejamento; quem não vê datas do cronograma vê só a estrutura.
+
+## Comercial × Projetos: linkar o projeto à ficha do funil (outubro/2026)
+
+- **Projeto criado à mão agora pode ser ligado à ficha Contratado do mesmo cliente.** Na ficha, aba
+  **Dados → Projetos linkados → Linkar projeto**; ou, no projeto, menu **⋯ → Linkar a uma ficha do funil**.
+- **Uma prévia mostra tudo antes de gravar:** valor, área e tipo de empreendimento passam para o projeto
+  **só se estiverem vazios** (nada é sobrescrito); o responsável da ficha entra como coordenador; e dá
+  para resumir o histórico comercial na descrição.
+- **Anexos da ficha e PDFs das propostas vão para a pasta Geral do projeto**, por cópia. Em cada arquivo
+  você decide se ele também aparece em **Recebidos do cliente** para os projetistas.
+- **Desfazer link** está disponível; o que já foi importado continua no projeto. As disciplinas da ficha
+  não são trazidas.
+
+## Pendências documentais (outubro/2026)
+
+- **Tela nova para administradores: Arquivos › Pendências.** Mostra, em uma lista só, tudo o que o aviso diário
+  das 06:20 ("Ciclo dos documentos: verificação diária") apontava em texto cortado: arquivo de revisão publicada
+  ou arquivada que está na lixeira, revisão parada em análise além do prazo e documento com duas revisões
+  publicadas. As liberações indevidas que o sistema revogou sozinho aparecem no chip "Corrigida automaticamente".
+- **Cada linha explica o que fazer.** O botão "O que fazer" diz, para aquela situação, se vale restaurar o arquivo,
+  publicar nova revisão, cobrar a análise ou só dispensar.
+- **Dispensar com motivo.** Se foi proposital (por exemplo, limpeza de arquivos antigos), dispense a pendência, uma
+  a uma ou várias de uma vez. Ela some do aviso e fica em "Mostrar dispensadas", com quem dispensou e por quê, e dá
+  para desfazer. Se algo mudar naquela pendência (outro arquivo vai para a lixeira, a revisão volta para a análise),
+  ela reaparece sozinha.
+- **O aviso diário ficou um resumo.** Ele conta as pendências abertas por tipo e leva direto para a tela.
+
+## Compatibilização: realinhar, conflitos e filtros (outubro/2026)
+
+- **Realinhar IFC ficou mais completo.** Além de mover o modelo, agora dá para **girar em planta** (em graus
+  ou de 90° em 90°) e **mover por pontos** (clique num ponto do modelo e depois no destino). Também dá para
+  **alinhar por 2 pares** de pontos, que acerta posição e giro de uma vez, e o sistema avisa quando as duas
+  distâncias não batem (escala errada ou ponto errado). A prévia aparece ao vivo, antes de gravar.
+- **Desfazer e teclado.** `Ctrl+Z` desfaz e `Ctrl+Shift+Z` refaz cada passo da prévia. As setas movem 10 cm,
+  `PageUp`/`PageDown` sobem e descem, `Q`/`E` giram 1° (com `Shift` ×10, com `Alt` ÷10). O cursor também
+  gruda no **meio da aresta**, como no AutoCAD.
+- **Aviso de modelos afastados.** Ao abrir, se um modelo está muito longe dos outros (origem exportada
+  errada), o visualizador avisa e oferece o **Realinhar**. Com só dois modelos, o aviso é um só e você
+  escolhe qual dos dois mover.
+- **Conflitos (clash) muito mais rápidos.** A conferência pela malha, que passava de 11 minutos sem
+  terminar, leva cerca de 1 minuto e meio num projeto real, com barra de progresso. Ambientes, aberturas,
+  terreno, anotações e grades deixam de gerar falsos conflitos. A lista vem **agrupada por elemento**, com
+  o nome do IFC e a categoria em português; você pode ignorar uma combinação de categorias e transformar um
+  conflito em apontamento (só quem gere).
+- **Filtros valem para todos os modelos.** Escolher um pavimento (ex.: Térreo) isola o pavimento em todas as
+  disciplinas carregadas ao mesmo tempo, em vez de esconder as outras. Os pavimentos vêm ordenados pela cota.
+- **Vistas padrão e corte em DXF.** O botão **Vistas** (ou as teclas 1 a 7) leva a câmera para superior,
+  frontal, laterais, posterior, inferior ou isométrica. Com um corte ativo, **Exportar corte (DXF)** gera
+  o desenho em milímetros, uma camada por modelo.
+- **Celular.** A barra do visualizador deixou de se sobrepor e, em tela pequena, os painéis abrem como gaveta.
+- Perfis em C (terças e banzos) exportados pelo CYPECAD deixam de aparecer achatados. Modelos já
+  convertidos precisam de **Reconverter** para se corrigirem.
+
+---
+
+## Horas: Minhas horas e horas de qualquer período (outubro/2026)
+
+- **Ponto → Minhas horas.** Nova aba com as suas horas em 7, 14 ou 30 dias, mês atual, mês anterior ou
+  um intervalo livre, com total, média por dia e um gráfico por projeto. O card **Minhas horas** no
+  Início leva direto para ela. Só você vê as suas horas.
+- **Produtividade (coordenação e RH).** A tela mostra as horas de **qualquer período**, em ranking, com
+  comparação de até **5 projetistas** lado a lado e a divisão **por projeto**, reunião e sem projeto.
+  O botão direito numa linha do ranking compara, mostra por projeto ou abre o espelho de ponto.
+  Quem tem a permissão de produtividade (a coordenação já tem) volta a ver essa tela no menu.
+  [Saiba mais](rh-ponto/produtividade.md)
+
+---
+
+## Cadastro de pessoas sem "papel" e moderação do chat (outubro/2026)
+
+- **Nova pessoa pede tipo, vínculo e perfil.** Em **Usuários**, a conta nasce com o **tipo** (equipe interna
+  ou cliente do portal), o **vínculo** (contratação, setor e data de início) e o **perfil de acesso**. O
+  perfil é sugerido pela contratação. A lista ganhou a coluna **Vínculo**, e o menu da linha tem **Ver
+  ficha** e **Permissões desta pessoa**. O campo "Papel" saiu do sistema.
+- **Sem vínculo, sem jornada.** Quem não tem vínculo ativo não controla jornada, não entra em pagamento
+  nem em nota fiscal. Confira se todo mundo tem o vínculo certo.
+- **Gestão de RH e moderação do chat são dadas pessoa a pessoa**, por interruptor na ficha, e só o
+  superusuário concede. Quem tem a moderação lê e modera todos os canais, **menos Anotações**, que só o
+  dono e o superusuário leem.
+- **Novo Termo de Uso para os colaboradores (v2026-10-10).** Ele declara a moderação do chat e **exige
+  novo aceite** de todos no primeiro acesso depois da atualização.
+- **Ver o custo do rateio** passa a ser só do administrador, dos sócios e de quem receber a permissão.
+
+---
+
+## Melhorias do dia a dia (outubro/2026)
+
+- **Projetos:** quando todas as disciplinas estão aprovadas, uma faixa pergunta se o projeto deve ser
+  **concluído** (só para quem gere; "Agora não" esconde a faixa). Também há **Concluir projeto** no menu
+  `⋯`, desabilitado com o motivo enquanto falta aprovação. Reativar continua desfazendo.
+- **Planejamento:** o botão **Apagar EAP** limpa a EAP inteira para recomeçar com outro modelo. Só
+  funciona em rascunho sem andamento: com cronograma aprovado, linha de base, linha com andamento, card
+  gerado da EAP ou parcela de contrato ligada, ele fica desabilitado e diz o motivo. As fases das
+  disciplinas ficam. Pede confirmação com a contagem e não desfaz.
+- **Clientes:** a lista começa só com os **ativos** (há "Só inativos" e "Ativos e inativos"), e dá para
+  **excluir** um cadastro que nunca teve dado nenhum (contato, projeto, proposta, lançamento…). Com dado,
+  o item fica desabilitado e explica por quê.
+- **Tarefas:** o card concluído deixa de mostrar prioridade e prazo em vermelho, e sai do quadro depois de
+  7 dias. Ele continua na produtividade, na ficha do projeto e na busca; o filtro **Todas as concluídas**
+  traz de volta.
+- **Chat:** `Tab` completa a menção ativa, o aviso de mensagem nova diz se veio no privado, num grupo,
+  projeto, disciplina ou canal, e a barra "Marcando:" mostra a foto da pessoa.
+- **Modo foco** passa a esconder também o menu lateral, a barra do topo e as abas. `Esc` sai.
+
+---
+
+## Rateio por disciplina, fechamento do mês e folha no Financeiro (outubro/2026)
+
+- **Ponto:** reunião interna ou externa pode ser **ligada a um projeto** (o custo vai para o projeto como
+  reunião). Só marca horas num projeto quem é da equipe, responsável por disciplina ou tem card nele. Quem tem
+  **2 ou mais disciplinas** no projeto escolhe a **tarefa** (obrigatória) para as horas irem à disciplina certa.
+- **RH → Rateio de horas:** cada mês pode ser **fechado**, **reaberto** ou **recalculado** (com motivo), com
+  aviso quando um mês fechado foi alterado depois. Horas e custo por projeto e disciplina, com histórico.
+- **Reais só para quem pode:** o custo em reais do rateio e das disciplinas aparece para o administrador, os
+  sócios e quem receber a permissão de custo; a coordenação vê as horas.
+- **Folha CLT:** ao fechar, a folha lança no Financeiro o líquido, a bolsa dos estagiários, INSS, IRRF e FGTS
+  (dia 20; no 13º, INSS e IRRF em 20/12), os benefícios e a taxa do IEL dos estagiários — todos **em aberto**, sem pagar. Reabrir pede motivo e guarda a versão assinada.
+  A folha mostra o **custo total** e as contas lançadas.
+- **Projetos:** papel do membro em lista fixa; bloco **Horas por disciplina** (orçado × planejado × realizado);
+  histórico de responsáveis por disciplina; troca de contratação no meio do mês divide o custo pelos dias.
+
+---
+
 ## Custo da hora com encargos (outubro/2026)
 
 - O rateio de horas passa a incluir **FGTS, reservas de 13º, férias e aviso prévio, multa do FGTS, vale-transporte, vale-refeição** e a **taxa do IEL** dos estagiários.

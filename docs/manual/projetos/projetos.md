@@ -85,8 +85,8 @@ Cada disciplina passa por um ciclo de status:
 - **Adicionar do catálogo** (ignora nomes que já existem no projeto).
 - **Editar em massa** (status, prazo e responsável de várias de uma vez).
 - **Regras:** o **prazo da disciplina não pode ultrapassar o prazo do projeto**; não é
-  possível **excluir** disciplina que já tenha **arquivos enviados** ou **pagamentos
-  liberados**.
+  possível **excluir** disciplina que já tenha **arquivos enviados**, **pagamentos
+  liberados** ou **horas registradas** no ponto ou no rateio (as horas perderiam a disciplina).
 - **Etapas por fase:** **Etapas e fases…** (no ⋯ ou no botão direito do card) divide o trabalho em fases (Básico,
   Executivo…), cada uma com **prazo, situação e percentual do valor**. Com etapas, o **prazo da
   disciplina** passa a ser o maior prazo entre elas, e aprovar uma fase **libera o pagamento dela**.
@@ -96,7 +96,13 @@ Cada disciplina passa por um ciclo de status:
 
 - **Responsáveis** por disciplina: definidos por quem tem `projetos:gerir`; ao atribuir,
   a pessoa é notificada.
-- **Membros** do projeto: equipe com papel; sincroniza os canais de chat do projeto.
+- **Membros** do projeto: equipe com papel, escolhido numa lista fixa — **Coordenador**, **Gerente**,
+  **Analista**, **Projetista**, **Apoio**, **Estagiário** ou **Consultor externo** (ou **Sem papel**);
+  sincroniza os canais de chat do projeto. O papel aparece ao lado do nome na **Visão Geral**. Só o papel
+  Coordenador dá acesso às horas de cada pessoa por disciplina; **Gerente** e **Analista** identificam a
+  função da pessoa na equipe, sem dar acesso extra.
+- O **histórico de responsáveis** de cada disciplina é guardado (quem entrou, quem saiu e quando): corrigir o
+  ponto de um dia antigo usa quem era responsável naquele dia.
 - **Revisões (R0, R1, …):** qualquer **responsável** ou gestor registra uma revisão com
   motivo; os demais responsáveis são notificados.
 
@@ -115,6 +121,11 @@ Cada disciplina passa por um ciclo de status:
   - O **cronograma novo nasce em rascunho**. Informe o **início do cronograma novo** (opcional) e o
     sistema calcula as datas a partir dele; sem data, elas partem das do projeto original — defina o
     início depois, em [Planejamento](planejamento.md) — as datas se recalculam ao salvar.
+- **Linkar a uma ficha do funil / Desfazer link** (exige `projetos:gerir` e `comercial:gerir`): liga o projeto
+  a uma ficha **Contratado do mesmo cliente** e traz para ele anexos e informações da ficha (veja
+  [Comercial](../clientes-comercial/comercial.md)). Com o link feito, o cabeçalho do projeto mostra
+  **Ficha: …** (com atalho para a ficha) e o item do menu vira **Desfazer link com a ficha**. O que foi
+  importado fica na pasta **Geral** (categoria *Comercial*) e continua no projeto se o link for desfeito.
 - **Cancelar / Arquivar:** muda a situação e notifica os membros; o motivo é registrado
   na descrição.
 - **Reabrir disciplina aprovada:** exige **motivo** e **novo prazo**. Se o novo prazo
@@ -222,6 +233,17 @@ Essa lista é apenas para acompanhamento: ela não altera jornadas nem apontamen
 no projeto continua vendo somente o próprio bloco **Ponto no projeto**. Os perfis **TI** e
 **Cliente** não veem registros de horas da equipe.
 
+### Horas por disciplina
+
+A Visão Geral traz o bloco **Horas por disciplina**: para cada disciplina, as horas **orçadas** (da primeira
+linha de base do cronograma), **planejadas** (atribuições da EAP de hoje) e **realizadas** (ponto), com uma
+barra do consumo — verde até 85%, amarela perto do limite e vermelha acima do orçado.
+
+- **Coordenador** (papel no projeto ou perfil de coordenação) abre cada disciplina e vê as horas **por pessoa**;
+  os demais veem só as próprias horas, com o total da disciplina inteiro.
+- A coluna **Custo** (em reais) só aparece para o administrador, os sócios e quem recebeu a permissão de custo.
+- Sem linha de base (cronograma não aprovado), o orçado aparece como "—".
+
 ### Resultado financeiro
 
 Quem tem acesso ao financeiro do projeto vê o bloco **Resultado financeiro** quando houver
@@ -240,6 +262,38 @@ os valores previstos e a análise completa.
 
 Além disso, há abas para: **Serviços**, **Arquivos**, **Financeiro** (veja abaixo) e
 **Inputs** (formulários de start). As demais serão detalhadas em suas próprias páginas do manual.
+
+### Aba Problemas (apontamentos do projeto)
+
+A aba **Problemas** reúne, num só lugar, os **apontamentos publicados** nas pranchas do projeto — o que a
+coordenação apontou e ainda precisa de correção. É a mesma lista que você vê no visualizador, sem precisar
+abrir prancha por prancha. **Rascunhos** (apontamentos que quem escreveu ainda não enviou) não aparecem.
+
+- **Quem vê:** só pessoas da equipe interna que enxergam os arquivos do projeto. Cliente do portal não tem a
+  aba.
+- **Agrupada por disciplina**, cada linha mostra o número, o texto, o arquivo e a página, a severidade, o tipo,
+  a situação, o prazo e há quantos dias está em aberto.
+- **Filtros:** **Em aberto** (padrão), **Aguardando verificação** e **Encerrados** — com a contagem de cada um —,
+  mais severidade e tipo.
+- **Menu da linha:** botão direito (ou toque longo no celular) e o **⋯** mostram as mesmas ações. Quem é
+  responsável pela disciplina pode **Assumir**, **Resolver** e **Reabrir** (devolver para a fila); quem valida
+  pode **Fechar** ou marcar **Não procede** (pede uma justificativa de pelo menos 3 letras, que fica
+  registrada). Num apontamento trazido de revisão anterior, **Resolver na R02** (por exemplo) registra que ele
+  foi corrigido na revisão vigente, como no visualizador. A ação que você não pode fazer não aparece; a que não
+  vale naquele momento aparece apagada, com o motivo.
+- **Quais linhas aparecem:** as das disciplinas cujos arquivos você pode ver na aba Arquivos (mesma regra do
+  download). Quem tem a permissão de ver todas as disciplinas e participa do projeto vê todas; quem só responde
+  por uma disciplina vê as dela, mesmo sendo da equipe.
+- **Conversa:** clique na linha para abrir o texto inteiro e as respostas. Quem apontou, os responsáveis pela
+  disciplina e a gestão respondem; para as demais pessoas o campo fica desabilitado com o aviso "Só um
+  responsável da disciplina pode alterar esta pendência."
+- **Abrir na prancha:** o nome do arquivo na linha leva ao visualizador, na **versão vigente** do documento, com
+  o apontamento já selecionado. Se o arquivo foi para a lixeira, o link fica desabilitado ("Arquivo indisponível").
+- Criar, editar, excluir, classificar e replicar apontamentos continua sendo feito no visualizador, com a
+  prancha aberta.
+
+> Projetos que já tinham a **ordem das abas personalizada** veem a aba **Problemas** no **fim** da lista de
+> abas, até que alguém reorganize. Quem gerencia o projeto ajusta a ordem e pode ocultar a aba.
 
 ### Aba Financeiro: receita e contrato
 
@@ -400,6 +454,25 @@ cadastro**, e as respostas caem direto nesta aba (salvam sozinhas, campo a campo
   aviso quando o briefing fica completo). Para não receber, desligue **Formulário
   preenchido pelo cliente** em *Preferências → Notificações*.
 
+### Ajustar o formulário ao projeto (aba Inputs)
+
+**Briefing de Start** — o botão **Personalizar** mostra todas as seções e perguntas do
+briefing com uma marca de "aparece". Desligue a **seção** inteira ou desmarque **perguntas**
+soltas que não se aplicam a este projeto; clique em **Concluir** para voltar ao formulário.
+
+- O que fica oculto some da aba e do link do cliente e **não conta no status** (uma
+  pergunta obrigatória oculta não deixa o briefing "Em preenchimento").
+- Ocultar **não apaga resposta**: mostrar de novo traz o que já estava preenchido.
+- Vale só para este projeto; os outros continuam com o briefing completo.
+
+**Perguntas extras** — cada pergunta tem o menu **⋯** (ou botão direito):
+
+- **Editar pergunta** muda o texto e a disciplina; a resposta fica.
+- **Remover do formulário** tira a pergunta da aba e do link. Ela vai para **Perguntas
+  removidas**, no fim do cartão, com a resposta guardada — **Restaurar** devolve as duas.
+- **Aplicar padrão** e gerar o link **não recriam** uma pergunta padrão que você removeu
+  ou editou.
+
 ### Colunas e filtros da tabela de arquivos (aba Arquivos)
 
 A tabela mostra um DOCUMENTO por linha (não um arquivo — quando o PDF e o DWG de uma mesma
@@ -413,7 +486,8 @@ qualquer projeto:
 - **Papel** — tamanho da folha (A0 a A4), lido sozinho da 1ª página de todo PDF enviado
   (nenhuma ação sua é necessária; documento sem PDF, ou com PDF fora desses tamanhos, fica
   sem papel);
-- **Extensões** — um badge por arquivo (PDF, DWG...), clicável para abrir ou baixar.
+- **Extensões** — um badge por arquivo (PDF, DWG...): clicar nele **baixa** o arquivo. Para
+  visualizar, clique no título do documento.
 
 Um documento cujo nome não bate com nada reconhecível fica com "—" nessas colunas: o sistema
 nunca inventa um valor, só mostra o que conseguiu ler com segurança.
@@ -507,22 +581,32 @@ coordenação devolver ou publicar.
 **Os passos (botão direito ou ⋯ da linha):**
 
 - **Enviar para análise** — o sistema confere sozinho e só deixa passar com tudo certo: nome no padrão do
-  projeto, disciplina/etapa/tipo existentes no catálogo, código do projeto, PDF presente, nenhum arquivo
-  igual ao da revisão anterior, a **descrição do que mudou** (obrigatória da R01 em diante) e o
-  **carimbo do PDF**: o código e a revisão escritos no carimbo têm de bater com o nome do arquivo e com a
-  revisão esperada. Se o carimbo não puder ser lido (PDF sem texto), o sistema avisa e pede que você
-  confirme o envio; fica registrado no histórico. O modelo IFC é um documento próprio e dispensa o PDF. Se
+  projeto, disciplina/etapa/tipo existentes no catálogo, código do projeto, PDF presente quando a revisão tem
+  desenho (DWG, DXF ou RVT — planilha de quantitativos ou memorial em Word seguem sem PDF), nenhum arquivo
+  igual ao da revisão anterior, a **descrição do que mudou** (obrigatória da R01 em diante; veja
+  "Descrição lida do carimbo" abaixo) e o **carimbo do PDF**: o código e a revisão escritos no carimbo têm de bater com o nome do arquivo e com a
+  revisão esperada. Se o carimbo não puder ser lido (PDF sem texto, memorial sem carimbo), o sistema avisa e
+  pede que você confirme o envio; fica registrado no histórico. No envio de várias de uma vez, as que
+  pararam no carimbo aparecem no relatório com a mesma confirmação, para enviar só elas. O modelo IFC é um documento próprio e dispensa o PDF. Se
   algo falhar, a mensagem lista o que corrigir.
 - **Pagamento do projetista** — sai quando a gestão **aprova a disciplina** (ou a fase), e isso só é
   possível com todos os documentos **publicados**.
 - **Devolver para ajustes** — com motivo; o projetista é avisado.
-- **Publicar** — só com todos os arquivos **validados**, com o **DWG** junto do PDF (quando o tipo de
-  documento exige — configurado em Configurações → Nomenclatura → Tipos; o padrão é exigir) e sem
+- **Publicar** — só com todos os arquivos **validados** e com os **arquivos que o tipo do documento exige**
+  (Configurações → Nomenclatura → Tipos → ⋯ → *Arquivos exigidos para publicar*): por padrão o PDF; planta
+  costuma exigir DWG e PDF; memorial, Word ou Excel e PDF; lista de quantitativo, só o Excel. Faltando algum, a
+  mensagem diz qual. Documento **sem tipo** (comum na nomenclatura
+  do cliente) e sem DWG pede uma confirmação — "este documento não precisa de DWG" (memorial, planilha) —
+  que fica registrada no histórico; na publicação em lote, a confirmação aparece no relatório. E sem
   apontamento **impeditivo** em aberto. A validação do arquivo também só é barrada
   por apontamento impeditivo. Outros
   apontamentos em aberto também impedem, a menos que o projeto permita publicar assim: aí você escreve uma
   justificativa e a revisão ganha uma **restrição** que sai sozinha quando os apontamentos forem
   resolvidos. Ao publicar, a revisão anterior é **arquivada** e perde a liberação para obra.
+  **Publicar já envia ao cliente:** a revisão publicada entra na pasta **Compartilhado** do link do cliente
+  no mesmo gesto, sem precisar de um segundo passo "Enviar ao cliente".
+- **Marcar em revisão…** — para a revisão **publicada** que o cliente pediu para mudar (veja "Cliente pediu
+  revisão" abaixo).
 - **Arquivar** — para documento cancelado ou obsoleto, com motivo.
 
 **Controles** aparecem como etiquetas ao lado do estado (passe o mouse para ver o motivo):
@@ -531,6 +615,8 @@ coordenação devolver ou publicar.
   nas pastas **Liberado para obra** e **Compartilhado** do link do cliente. Quem já estava enviado ao
   cliente continua: ao publicar a revisão nova, o envio passa para ela sozinho. A liberação para obra pode
   ser automática na publicação, se o projeto ligar essa opção.
+- **Em revisão** (etiqueta âmbar) — o cliente pediu mudança nesta revisão publicada; a revisão continua com
+  o cliente e na obra até a próxima ser publicada.
 - **Bloqueado** — impede baixar, atualizar ou excluir (você escolhe) e também impede mudar o estado.
 - **Com restrição** — a revisão não pode ser liberada para obra enquanto a restrição existir.
 
@@ -544,6 +630,53 @@ com apontamentos e o prazo para avisar de revisão parada em análise.
 
 > Backup do modelo (pacote B) e as pastas (Aprovação, Laudo, Recebidos, Geral…) ficam fora do ciclo e
 > funcionam como antes.
+
+### Publicar já envia ao cliente
+
+Em todo projeto, **publicar uma revisão já a envia ao cliente**: ela aparece na pasta **Compartilhado** do link
+do cliente, e a revisão anterior sai de lá porque foi arquivada. Quem não quiser esse comportamento num
+projeto desliga em **Arquivos → ⋯ → Ciclo dos documentos → Publicar já envia ao cliente** (só administradores).
+Desligado, vale a regra de antes: a revisão nova só vai para o cliente se a anterior já tinha ido, e o resto
+continua manual, em **Enviar ao cliente**.
+
+### Cliente pediu revisão: "Em revisão"
+
+Quando o cliente pede mudança numa prancha que já está com ele, a coordenação registra isso no sistema:
+
+1. Na revisão **publicada** (botão direito ou ⋯ da linha), escolha **Marcar em revisão…** e escreva **o que o
+   cliente pediu**. Para várias de uma vez, selecione as linhas da pasta **Compartilhado** e use a barra de
+   seleção. Quem pode: a mesma permissão de liberar para obra (alterar status).
+2. A revisão atual (por exemplo, R00) **continua com o cliente e na obra**, agora com a etiqueta âmbar
+   **Em revisão**. A etiqueta aparece também no link público do cliente e, enquanto a R01 está sendo feita,
+   como **"R00 em revisão"** na linha do documento em Desenvolvimento. A obra segue usando a R00 até a R01 ser
+   publicada.
+3. Os **responsáveis da disciplina** recebem a notificação **"Revisão solicitada"**, com o pedido do cliente.
+4. Para achar tudo o que está pedindo revisão, use o filtro **Em revisão** na barra de Arquivos.
+5. A etiqueta **sai sozinha** quando a próxima revisão é publicada. Se o pedido foi cancelado, use **Cancelar
+   revisão…** na própria linha e informe o motivo; a etiqueta sai e o histórico do documento guarda quem fez.
+
+Marcar e cancelar ficam registrados no **Histórico** do documento. Criar um apontamento não marca a revisão
+nem devolve o documento: "Devolver para ajustes" continua manual.
+
+### Descrição lida do carimbo
+
+Da **R01 em diante**, o **Enviar para análise** lê a descrição do que mudou direto da **tabela de revisões do
+carimbo** do PDF, e mostra o que leu antes de você confirmar. O sistema **recusa** o envio quando:
+
+- a linha da revisão está **vazia**: "Preencha no carimbo o que mudou nesta revisão (R01)." — corrija o
+  carimbo e envie o PDF de novo;
+- a descrição é **genérica** (por exemplo "REVISÕES" ou "ALTERAÇÕES"), ou seja, não diz o que mudou.
+
+**Se o sistema leu errado** (o carimbo está certo, mas a leitura falhou), marque **"O carimbo foi lido
+errado"** e digite a descrição. Ela não pode ser genérica. O sistema registra que a descrição foi digitada
+pelo projetista e a coordenação vê: *"Descrição digitada pelo projetista; o carimbo dizia: …"*.
+
+Documentos **sem tabela de revisões** (memorial, carimbo antigo) seguem como antes, com o campo de
+descrição digitado. No envio em lote, o documento que parou na descrição fica de fora com o motivo; para
+contestar a leitura, use o envio individual.
+
+Os códigos de carimbo com **sublinhado** (por exemplo `2558_HDR_EX_6001_DTC`) também são conferidos contra o
+nome do arquivo.
 
 ### Histórico de cada documento (aba Arquivos)
 

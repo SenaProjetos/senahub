@@ -12,6 +12,7 @@
  * - `colisoes`: a mesma sigla com dois donos numa versão.
  */
 
+import type { FormatoExigido } from "@/modules/uploads/ciclo/formatos-exigidos";
 import {
   intersecaoFaixas,
   siglasNaVersao,
@@ -30,8 +31,8 @@ export type ItemListaSnap = BaseSnap & {
   categoria: "fase" | "tipo";
   sigla: string;
   sinonimos: string[];
-  /** Só tipo: a publicação de um documento deste tipo exige o DWG (ciclo documental). */
-  exigeDwg?: boolean;
+  /** Só tipo: os arquivos que a publicação de um documento deste tipo exige (ciclo documental). */
+  formatosExigidos?: FormatoExigido[];
 };
 
 /** Catálogo global inteiro (arquivados inclusos): cards, subs e fases/tipos sem projeto. */
@@ -100,8 +101,8 @@ export type LinhaCatalogo = {
   /** Em relação à versão anterior. Na v1, tudo é "igual". */
   situacao: SituacaoNaVersao;
   siglaAnterior: string | null;
-  /** Só em tipo de documento: exige o DWG para publicar (ciclo documental). Ausente = não se aplica. */
-  exigeDwg?: boolean;
+  /** Só em tipo de documento: os arquivos exigidos para publicar (ciclo documental). Ausente = não se aplica. */
+  formatosExigidos?: FormatoExigido[];
 };
 
 export type CardNaVersao = LinhaCatalogo & { categoria: string | null; subs: LinhaCatalogo[] };
@@ -154,7 +155,7 @@ export function catalogoNaVersao(snap: CatalogoSnap, versao: number): CatalogoNa
       .sort(porOrdem)
       .map((i) => ({
         ...linha(snap, { tipo: "prancha", id: i.id }, i.nome, versao),
-        ...(categoria === "tipo" ? { exigeDwg: i.exigeDwg ?? true } : {}),
+        ...(categoria === "tipo" ? { formatosExigidos: i.formatosExigidos ?? ["pdf" as const] } : {}),
       }));
 
   const saem: SaiNaVersao[] = [];

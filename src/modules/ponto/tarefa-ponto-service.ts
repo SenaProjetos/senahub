@@ -34,8 +34,8 @@ export type SugestaoDoPonto = {
 };
 
 /** Cards ABERTOS da pessoa (de um projeto ou de todos), já com a janela e a etapa da linha da EAP. */
-export async function candidatasDaPessoa(userId: string, projetoId?: string) {
-  const cards = await prisma.tarefa.findMany({
+export async function candidatasDaPessoa(userId: string, projetoId?: string, db: Db = prisma) {
+  const cards = await db.tarefa.findMany({
     where: {
       ...(projetoId ? { projetoId } : { projetoId: { not: null } }),
       arquivada: false,
@@ -54,7 +54,7 @@ export async function candidatasDaPessoa(userId: string, projetoId?: string) {
   });
   if (cards.length === 0) return [];
 
-  const linhas = await prisma.eapTarefa.findMany({
+  const linhas = await db.eapTarefa.findMany({
     where: { id: { in: cards.map((c) => c.eapTarefaId).filter((id): id is string => id != null) } },
     select: { id: true, inicioPrevisto: true, fimPrevisto: true, disciplinaId: true, etapaId: true },
   });
@@ -78,8 +78,13 @@ export async function candidatasDaPessoa(userId: string, projetoId?: string) {
  * Lista que o ponto oferece: cards ABERTOS da pessoa no projeto, recortados pelo período (com a
  * atrasada que nunca some) e, recolhidas, as "outras da etapa" — nunca todas as tarefas do projeto.
  */
-export async function tarefasParaPonto(userId: string, projetoId: string, hoje: string = diaLocal(new Date())): Promise<TarefaDoPonto[]> {
-  const candidatas = await candidatasDaPessoa(userId, projetoId);
+export async function tarefasParaPonto(
+  userId: string,
+  projetoId: string,
+  hoje: string = diaLocal(new Date()),
+  db: Db = prisma,
+): Promise<TarefaDoPonto[]> {
+  const candidatas = await candidatasDaPessoa(userId, projetoId, db);
   return listaDoPonto(candidatas, hoje).map((t) => ({
     id: t.id,
     titulo: t.titulo,

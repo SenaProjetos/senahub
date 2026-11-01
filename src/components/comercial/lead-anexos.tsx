@@ -8,6 +8,10 @@ import { adicionarAnexoLead, removerAnexoLead } from "@/modules/comercial/action
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { enviarEmChunks, precisaChunk } from "@/lib/upload-grande";
+
+/** Mesmo teto da rota `/api/comercial/anexos` — recusar aqui poupa o envio inteiro para ouvir "não". */
+const TETO_ANEXO = 500 * 1024 * 1024;
 
 export type AnexoLead = { id: string; nome: string; nomeArquivo: string; tamanho: number };
 
@@ -25,6 +29,7 @@ export function LeadAnexos({ leadId, anexos }: { leadId: string; anexos: AnexoLe
   const router = useRouter();
   const [pending, start] = useTransition();
   const [busy, setBusy] = useState(false);
+  const [progresso, setProgresso] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function enviar() {
@@ -33,13 +38,36 @@ export function LeadAnexos({ leadId, anexos }: { leadId: string; anexos: AnexoLe
       toast.error("Selecione um arquivo.");
       return;
     }
+    if (file.size > TETO_ANEXO) {
+      toast.error("Arquivo muito grande (máx 500 MB).");
+      return;
+    }
     setBusy(true);
+    setProgresso(null);
     try {
       const fd = new FormData();
-      fd.append("file", file);
+      if (precisaChunk(file)) {
+        // Acima de ~70 MB vai em pedaços: o Cloudflare corta request acima de 100 MB.
+        const meta = await enviarEmChunks(file, setProgresso);
+        fd.append("sessaoId", meta.sessaoId);
+        fd.append("total", String(meta.total));
+        fd.append("tamanho", String(meta.tamanho));
+        fd.append("nome", file.name);
+        fd.append("mime", file.type);
+      } else {
+        fd.append("file", file);
+      }
       const res = await fetch("/api/comercial/anexos", { method: "POST", body: fd });
-      const meta = await res.json();
-      if (!res.ok) throw new Error(meta.error ?? "Falha no upload.");
+      // A borda (Cloudflare) devolve HTML em 413/502: sem o catch, o erro seria "Unexpected token <".
+      const meta = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          meta.error ??
+            (res.status === 413
+              ? "Arquivo acima do limite de envio."
+              : "O servidor demorou ou falhou ao receber o arquivo. Tente de novo."),
+        );
+      }
       const r = await adicionarAnexoLead({ leadId, meta });
       if (r.ok) {
         toast.success("Anexo adicionado.");
@@ -50,6 +78,7 @@ export function LeadAnexos({ leadId, anexos }: { leadId: string; anexos: AnexoLe
       toast.error((e as Error).message);
     } finally {
       setBusy(false);
+      setProgresso(null);
     }
   }
 
@@ -103,7 +132,7 @@ export function LeadAnexos({ leadId, anexos }: { leadId: string; anexos: AnexoLe
       <div className="flex flex-wrap items-center gap-2">
         <Input ref={fileRef} type="file" className="min-w-32 flex-1" />
         <Button size="sm" variant="outline" onClick={enviar} disabled={busy}>
-          <Paperclip className="size-3.5" /> {busy ? "Enviando…" : "Anexar"}
+          <Paperclip className="size-3.5" /> {busy ? (progresso == null ? "Enviando…" : progresso >= 100 ? "Finalizando…" : `Enviando… ${progresso}%`) : "Anexar"}
         </Button>
       </div>
     </div>

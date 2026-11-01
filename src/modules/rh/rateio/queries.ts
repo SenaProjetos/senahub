@@ -98,6 +98,7 @@ export type LinhaRateio = {
   userId: string;
   projetoId: string | null;
   natureza: NaturezaLinha;
+  disciplinaId: string | null;
   contratacao: Contratacao | null;
   minutos: number;
   custoCent: number;
@@ -123,7 +124,7 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
   const [sessoes, comCusto] = await Promise.all([
     prisma.sessaoTrabalho.findMany({
       where: { inicio: { lt: fim }, OR: [{ fim: null }, { fim: { gt: inicio } }] },
-      select: { userId: true, projetoId: true, tipoAlocacao: true, inicio: true, fim: true },
+      select: { userId: true, projetoId: true, tipoAlocacao: true, disciplinaId: true, inicio: true, fim: true },
     }),
     prisma.vinculo.findMany({
       where: {
@@ -142,7 +143,7 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
     const minutos = minutosNoIntervalo(s.inicio, s.fim, inicio, fim, agora);
     if (minutos === 0) continue;
     const lista = sessoesPorUser.get(s.userId) ?? [];
-    lista.push({ projetoId: s.projetoId, tipoAlocacao: s.tipoAlocacao, minutos });
+    lista.push({ projetoId: s.projetoId, tipoAlocacao: s.tipoAlocacao, disciplinaId: s.disciplinaId, minutos });
     sessoesPorUser.set(s.userId, lista);
   }
 
@@ -176,8 +177,10 @@ export async function calcularRateioV2(ano: number, mes: number, agora: Date = n
 export async function calcularRateioDoMes(
   ano: number,
   mes: number,
+  /** `forcarV2`: recalcular um mês antigo no cálculo novo (decisão 8 / R3). */
+  opcoes: { forcarV2?: boolean } = {},
 ): Promise<{ calculo: "legado" | "v2"; linhas: LinhaRateio[]; avisos: string[] }> {
-  const calculo = calculoDoMes(ano, mes, await corteCalculoNovo());
+  const calculo = opcoes.forcarV2 ? "v2" : calculoDoMes(ano, mes, await corteCalculoNovo());
   if (calculo === "v2") return { calculo, ...(await calcularRateioV2(ano, mes)) };
   const rows = await calcularRateioLegado(ano, mes);
   const users = await prisma.user.findMany({
@@ -192,6 +195,7 @@ export async function calcularRateioDoMes(
       userId: r.userId,
       projetoId: r.projetoId,
       natureza: "projeto" as const,
+      disciplinaId: null,
       contratacao: contr.get(r.userId) ?? null,
       minutos: r.minutos,
       custoCent: Math.round(r.custo * 100),
@@ -200,7 +204,8 @@ export async function calcularRateioDoMes(
 }
 
 /** Rateio do mês agregado por projeto, para o painel do gestor. */
-export async function rateioMesGestor(ano: number, mes: number) {
+/** `custoVisivel` sem padrão de propósito: quem chama decide, por `podeVerCusto`, se os reais saem (decisão 26). */
+export async function rateioMesGestor(ano: number, mes: number, custoVisivel: boolean) {
   // O botão do card fecha o mês ANTERIOR: mês em curso não fecha (congelaria uma estimativa).
   const anterior = mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
   const fechamentoAnterior = await prisma.fechamentoRateio.findUnique({
@@ -245,13 +250,15 @@ export async function rateioMesGestor(ano: number, mes: number) {
 
   return {
     porProjeto: [...agg.values()]
-      .map((a) => ({ projeto: a.projeto, minutos: a.minutos, custo: a.centavos / 100 }))
+      .map((a) => ({ projeto: a.projeto, minutos: a.minutos, custo: custoVisivel ? a.centavos / 100 : 0 }))
       .sort((a, b) => b.minutos - a.minutos),
     ...alocacoesSemProjeto,
-    custoNaoAlocado: custoNaoAlocadoCent / 100,
-    avisos,
+    custoNaoAlocado: custoVisivel ? custoNaoAlocadoCent / 100 : 0,
+    // Sem permissão de custo, os reais saem zerados daqui e a tela esconde as colunas.
+    custoVisivel,
+    avisos: custoVisivel ? avisos : [],
     mesAnterior: { ...anterior, fechadoEm: fechamentoAnterior?.fechadoEm ?? null },
-    custoTotal: custoTotalCent / 100,
+    custoTotal: custoVisivel ? custoTotalCent / 100 : 0,
     fechado: fechamento != null,
     fechadoEm: fechamento?.fechadoEm ?? null,
   };

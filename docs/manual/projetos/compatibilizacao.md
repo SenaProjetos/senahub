@@ -2,12 +2,28 @@
 titulo: Compatibilização (modelo federado)
 descricao: Como juntar os modelos IFC das disciplinas num único arquivo federado, onde ele fica guardado e quem pode vê-lo.
 resumo: Na aba Compatibilização do projeto, o painel Disciplinas exporta o IFC federado — um só arquivo IFC com os modelos escolhidos, na mesma unidade e no mesmo schema. Cada geração vira uma revisão (R00, R01…) na pasta Modelo federado, dentro do Desenvolvimento, na aba Arquivos.
-tags: [compatibilização, modelo federado, ifc, bim, revit, exportar, revisão, coordenação]
+tags: [compatibilização, modelo federado, ocultar modelo, ifc, bim, revit, exportar, revisão, coordenação]
 palavras-chave: [compatibilização, ifc federado, modelo federado, exportar ifc, juntar modelos, ifc único, revit, navisworks, maquete, unidade, schema, revisão R00]
 sinonimos: [maquete federada, federação de modelos, coordenação bim, juntar ifcs]
 ---
 
 # Compatibilização (modelo federado)
+
+## Tirar um modelo da compatibilização
+
+Às vezes a lista do painel **Disciplinas** fica maior que o necessário — um IFC exportado duas vezes,
+um modelo de estudo, um arquivo do cliente que já foi substituído. Quem gerencia a coordenação
+(coordenador ou administrador) pode tirar esse modelo da compatibilização:
+
+1. No painel **Disciplinas**, clique no **olho riscado** ao lado do modelo.
+2. Ele sai da lista e vai para **Fora da compatibilização**, no fim do painel. Se estava ligado no
+   visualizador, é desligado.
+
+O modelo fora da compatibilização não aparece no painel, no realinhamento, na comparação de versões
+nem no **Exportar IFC federado**. Nada é apagado: o arquivo continua na aba **Arquivos**, na lista
+**Modelos e conversões** (marcado "Fora da compatibilização") e nos apontamentos já feitos nele. A
+decisão vale para o arquivo, não só para a revisão: quando chegar uma revisão nova do mesmo arquivo,
+ela continua fora. Para trazer de volta, abra **Fora da compatibilização** e clique em **Incluir**.
 
 ## Exportar o modelo federado
 

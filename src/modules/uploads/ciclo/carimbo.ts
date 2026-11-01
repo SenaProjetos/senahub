@@ -6,6 +6,8 @@
  *  - SENA antigo: `CÓDIGO:` traz o NOME DO DWG ("SENA PROJETOS_ESTRUTURAL - ESCOLA … .DWG") · `REVISÃO: 00`
  *  - Cliente (Localiza): `ARQUIVO: 26027-EST-EX-4006-DTC-R00` · `REVISÃO: R00`
  *
+ *  - Cliente (Shopping Guararapes): `ARQUIVO: 1SG-HID-PE-001-TER-PLAEXE-R00` · `REVISÃO: R00`
+ *
  * Código: qualquer trecho da prancha com cara de código de documento (projeto + 2 ou mais blocos). Sem
  * nenhum, o código não é conferido (SENA antigo). Com algum, um deles tem de ser o do nome do arquivo —
  * extensão e `-Rnn` final não contam.
@@ -15,6 +17,7 @@
 import type { ItemTextoPdf } from "@/lib/ler-texto-pdf";
 import { rotuloRevisao } from "@/lib/utils";
 import { paraEspacoDeLeitura, type ItemLeitura } from "../titulo-carimbo";
+import { lerQuadroDeRevisao, type QuadroRevisao } from "./quadro-revisao";
 
 export type LeituraCarimbo = {
   temTexto: boolean;
@@ -22,17 +25,24 @@ export type LeituraCarimbo = {
   codigos: string[];
   /** Revisão lida (0 = R00), ou `null`. */
   revisao: number | null;
+  /** Quadro de revisão do carimbo (o que mudou em cada revisão), ou `null` sem quadro reconhecido. */
+  quadro: QuadroRevisao | null;
 };
 
-export const LEITURA_VAZIA: LeituraCarimbo = { temTexto: false, codigos: [], revisao: null };
+export const LEITURA_VAZIA: LeituraCarimbo = { temTexto: false, codigos: [], revisao: null, quadro: null };
 
 /** Mesma frase no servidor (ActionError) e na tela, que reconhece o caso e oferece a confirmação. */
 export const MOTIVO_CARIMBO_ILEGIVEL =
   "Não foi possível ler o código e a revisão no carimbo do PDF. Confira o carimbo e confirme o envio sem a conferência.";
 
-/** Código de documento: projeto (3–6 dígitos) + 2 ou mais blocos, com extensão opcional. */
-const CODIGO = /(?<![\w.])(\d{3,6}(?:-[A-Za-zÀ-ÿ0-9]{1,12}){2,})(?:\.(?:dwg|pdf|dxf|rvt|ifc|nwd))?(?![\w-])/gi;
-const REV_FINAL = /-R(\d{1,3})$/;
+/**
+ * Código de documento: prefixo opcional (`PRJ-`), projeto (3–6 caracteres começando por dígito: `260029`,
+ * `1SG`) + 2 ou mais blocos, com extensão opcional. Os blocos separam-se por hífen ou sublinhado (`2558_HDR_EX_6001_DTC_R00`; `codigoBase` unifica). Nunca começa depois de hífen/sublinhado — senão
+ * `1SG-HID-PE-001-TER-PLAEXE` virava `001-TER-PLAEXE` (o primeiro bloco só de dígitos no meio do código).
+ */
+const CODIGO =
+  /(?<![\w.-])((?:[A-Za-z]{1,4}[-_])?\d[A-Za-z0-9]{2,5}(?:[-_][A-Za-zÀ-ÿ0-9]{1,12}){2,})(?:\.(?:dwg|pdf|dxf|rvt|ifc|nwd))?(?![\w-])/gi;
+const REV_FINAL = /[-_]R(\d{1,3})$/;
 const ROTULO_REVISAO = /^\s*REVIS[ÃA]O\s*:\s*(.*)$/i;
 const VALOR_REVISAO = /^(?:R|REV\.?\s*)?0*(\d{1,3})$/i;
 
@@ -42,7 +52,8 @@ export function codigoBase(texto: string): string {
     .trim()
     .toUpperCase()
     .replace(/\.(DWG|PDF|DXF|RVT|IFC|NWD)$/, "")
-    .replace(REV_FINAL, "");
+    .replace(REV_FINAL, "")
+    .replace(/_/g, "-");
 }
 
 function revisaoDoValor(texto: string): number | null {
@@ -69,8 +80,37 @@ function revisaoDoCampo(itens: ItemLeitura[]): number | null {
   return null;
 }
 
+/**
+ * Alguns PDFs (Revit/AutoCAD com fonte própria) trazem o texto de um campo um CARACTERE por item (`2`,`6`,`0`…).
+ * A regex do código roda por item e não via o código inteiro — prancha 260030-SENA-AGF-BAS-001-PLB, 2026-10-29.
+ * Sequência seguida de itens de 0–1 caractere, na mesma linha e no mesmo giro, vira um item só. Item de
+ * texto inteiro (palavra) nunca entra na junção, então carimbo normal passa intacto.
+ */
+export function juntarCaracteres(itens: readonly ItemTextoPdf[]): ItemTextoPdf[] {
+  const saida: ItemTextoPdf[] = [];
+  let corrida: ItemTextoPdf | null = null;
+  for (const it of itens) {
+    const solto = it.str.length <= 1;
+    // Mesma linha E colado: o valor de OUTRO campo na mesma altura (a revisão ao lado do código) não entra na junção.
+    const mesmaLinha =
+      corrida !== null &&
+      corrida.pagina === it.pagina &&
+      (corrida.giro ?? 0) === (it.giro ?? 0) &&
+      Math.abs(corrida.y - it.y) <= 0.5 &&
+      Math.abs(it.x - (corrida.x + corrida.w)) <= 2 * Math.max(corrida.h, it.h, 6);
+    if (solto && corrida && mesmaLinha) {
+      corrida.str += it.str;
+      corrida.w = Math.max(corrida.w, it.x + it.w - corrida.x);
+      continue;
+    }
+    corrida = solto ? { ...it } : null;
+    saida.push(corrida ?? it);
+  }
+  return saida;
+}
+
 export function lerCarimbo(itens: readonly ItemTextoPdf[]): LeituraCarimbo {
-  const daPrimeira = itens.filter((it) => it.pagina === 1 && it.str.trim() !== "");
+  const daPrimeira = juntarCaracteres(itens.filter((it) => it.pagina === 1)).filter((it) => it.str.trim() !== "");
   if (daPrimeira.length === 0) return LEITURA_VAZIA;
   const brutos = new Set<string>();
   for (const it of daPrimeira) for (const m of it.str.matchAll(CODIGO)) brutos.add(m[0].toUpperCase());
@@ -80,23 +120,27 @@ export function lerCarimbo(itens: readonly ItemTextoPdf[]): LeituraCarimbo {
     const comRev = [...brutos].map((c) => c.replace(/\.(DWG|PDF|DXF|RVT|IFC|NWD)$/, "").match(REV_FINAL)).find(Boolean);
     if (comRev) revisao = Number(comRev[1]);
   }
-  return { temTexto: true, codigos, revisao };
+  return { temTexto: true, codigos, revisao, quadro: lerQuadroDeRevisao(itens) };
 }
 
 export type ConferenciaCarimbo = { problemas: string[]; leituraFalhou: boolean };
 
 /**
  * Confere a leitura com o que o sistema espera. `nomeArquivo` = o PDF da revisão; `numero` = número
- * interno da revisão (1 = R00).
+ * interno da revisão (1 = R00). `conferirRevisao: false` (projeto em nomenclatura livre): o carimbo segue
+ * a numeração de outro dono (o órgão, na licitação) e só o código é conferido com o nome do arquivo.
  */
-export function conferirCarimbo(leitura: LeituraCarimbo, esperado: { nomeArquivo: string; numero: number }): ConferenciaCarimbo {
+export function conferirCarimbo(
+  leitura: LeituraCarimbo,
+  esperado: { nomeArquivo: string; numero: number; conferirRevisao?: boolean },
+): ConferenciaCarimbo {
   const leituraFalhou = !leitura.temTexto || (leitura.codigos.length === 0 && leitura.revisao === null);
   const problemas: string[] = [];
   const base = codigoBase(esperado.nomeArquivo);
   if (leitura.codigos.length > 0 && !leitura.codigos.includes(base)) {
     problemas.push(`O carimbo indica o código ${leitura.codigos[0]}, mas o arquivo se chama ${base}.`);
   }
-  if (leitura.revisao !== null && leitura.revisao !== esperado.numero - 1) {
+  if (esperado.conferirRevisao !== false && leitura.revisao !== null && leitura.revisao !== esperado.numero - 1) {
     problemas.push(`O carimbo indica R${String(leitura.revisao).padStart(2, "0")}, mas o sistema espera ${rotuloRevisao(esperado.numero)}.`);
   }
   return { problemas, leituraFalhou };

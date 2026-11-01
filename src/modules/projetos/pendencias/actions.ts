@@ -8,12 +8,11 @@ import { notificarMuitos } from "@/lib/notificar";
 import { removerArquivo } from "@/lib/storage";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import type { SessionUser } from "@/lib/session";
-import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
+import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import {
   rotuloItemPendencia,
   podeTransicionar,
   revisaoPosteriorDaOrigem,
-  type PapeisPendencia,
   type StatusPendencia,
   mencionadosNovos,
   resolverMencionados,
@@ -28,6 +27,8 @@ import {
   MAX_TRACOS_RABISCO,
   TIPOS_MARCACAO,
 } from "@/modules/projetos/pendencias/marcacao";
+import { papeisSobre } from "@/modules/projetos/pendencias/papeis-pendencia";
+import { MOTIVO_NAO_PARTICIPA, podeParticiparDaConversa } from "@/modules/projetos/pendencias/problemas";
 import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
 import { extrairMencoes } from "@/modules/chat/mencoes";
 import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
@@ -226,6 +227,7 @@ function revalidarViewer(projetoId: string, uploadId: string) {
   revalidatePath(`/projetos/${projetoId}`);
   revalidatePath(`/projetos/${projetoId}/arquivos`);
   revalidatePath(`/projetos/${projetoId}/arquivos/${uploadId}/visualizar`);
+  revalidatePath(`/projetos/${projetoId}/problemas`);
 }
 
 /** Carrega o upload + contexto da disciplina; recusa se a entrega já foi finalizada. */
@@ -306,18 +308,18 @@ async function notificarMencionados(
  * `uploads:validar`) nem responsável de disciplina.
  */
 async function exigirParticipante(p: { autorId: string; disciplinaId: string }, user: SessionUser) {
+  // Autor passa sem consulta nenhuma (caminho mais quente da thread).
   if (p.autorId === user.id) return;
-  await exigirResponsavelOuGlobal(p.disciplinaId, user);
-}
-
-/** Exige que o usuário seja responsável da disciplina (ou atue em disciplina alheia). */
-async function exigirResponsavelOuGlobal(disciplinaId: string, user: SessionUser) {
-  if (await podeAtuarEmDisciplinaAlheia(user)) return;
-  const resp = await prisma.disciplinaResponsavel.findFirst({
-    where: { disciplinaId, userId: user.id },
-    select: { id: true },
-  });
-  if (!resp) throw new ActionError("Só um responsável da disciplina pode alterar esta pendência.");
+  const ehGlobal = await podeAtuarEmDisciplinaAlheia(user);
+  const ehResponsavel =
+    ehGlobal ||
+    (await prisma.disciplinaResponsavel.findFirst({
+      where: { disciplinaId: p.disciplinaId, userId: user.id },
+      select: { id: true },
+    })) !== null;
+  if (!podeParticiparDaConversa({ autorId: p.autorId, usuarioId: user.id, ehResponsavel, ehGlobal })) {
+    throw new ActionError(MOTIVO_NAO_PARTICIPA);
+  }
 }
 
 // ── Apontamentos (validador) ───────────────────────────────────
@@ -722,22 +724,6 @@ export const enviarApontamentos = defineAction(
 );
 
 // ── Ciclo de vida: máquina de estados do item 22 ───────────────
-
-/** Descobre os papéis do usuário SOBRE ESTA pendência, na forma que a máquina entende. */
-async function papeisSobre(p: { disciplinaId: string }, user: SessionUser): Promise<PapeisPendencia> {
-  // `ehGlobal` na máquina = quem atua em disciplina alheia (`projetos:atuar_disciplina_alheia`);
-  // até 2026-09-15 era o papel admin/supervisor.
-  const global = await podeAtuarEmDisciplinaAlheia(user);
-  const [validador, resp] = await Promise.all([
-    can(user, "uploads", "validar"),
-    global
-      ? Promise.resolve(true)
-      : prisma.disciplinaResponsavel
-          .findFirst({ where: { disciplinaId: p.disciplinaId, userId: user.id }, select: { id: true } })
-          .then((r) => r !== null),
-  ]);
-  return { ehValidador: validador, ehResponsavel: resp, ehGlobal: global };
-}
 
 /**
  * Aplica UMA transição de estado, validada pela máquina do item 22

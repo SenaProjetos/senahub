@@ -5,6 +5,13 @@ export const converterModeloSchema = z.object({
   modeloId: z.string().min(1),
 });
 
+// Tira o modelo da Compatibilização (incluir: false) ou devolve (true). A série é resolvida no servidor.
+export const modeloNaCompatibilizacaoSchema = z.object({
+  projetoId: z.string().min(1),
+  modeloId: z.string().min(1),
+  incluir: z.boolean(),
+});
+
 // Realinhamento (offset) de um IFC por um vetor (dx,dy,dz) em METROS, espaço IFC (Z-up).
 // O alcance é revalidado no núcleo puro (validarVetor); aqui só barra NaN/Infinity cedo.
 const componenteVetor = z.number().finite();

@@ -92,3 +92,39 @@ describe("complementoEvento", () => {
     expect(complementoEvento("download", { qualquer: "coisa" })).toBeNull();
   });
 });
+
+describe("pendências do ciclo documental", () => {
+  it("os dois tipos são catalogados e contam como alteração", () => {
+    expect(ehTipoEvento("pendencia_dispensada")).toBe(true);
+    expect(ehTipoEvento("pendencia_dispensa_desfeita")).toBe(true);
+    expect(categoriaDoTipo("pendencia_dispensada")).toBe("alteracao");
+    expect(categoriaDoTipo("pendencia_dispensa_desfeita")).toBe("alteracao");
+  });
+
+  it("o complemento junta o tipo da pendência e o motivo", () => {
+    expect(complementoEvento("pendencia_dispensada", { pendencia: "publicada_com_lixeira", motivo: "Planilha substituída" })).toBe(
+      "Lixeira · Planilha substituída",
+    );
+    expect(complementoEvento("pendencia_dispensa_desfeita", { pendencia: "analise_parada" })).toBe("Análise parada");
+    expect(complementoEvento("pendencia_dispensada", {})).toBeNull();
+  });
+});
+
+describe("envio para análise com a descrição contestada", () => {
+  const base = { de: "em_andamento", para: "compartilhado", revisao: 2, automatico: false };
+
+  it("diz que o projetista contestou e o que o carimbo dizia", () => {
+    expect(
+      complementoEvento("estado", { ...base, descricao: { origem: "contestada", lido: "REVISÕES", digitado: "Ajuste da laje L3" } }),
+    ).toBe('R01 · Em andamento → Em análise · descrição contestada: o carimbo dizia "REVISÕES"');
+    expect(complementoEvento("estado", { ...base, descricao: { origem: "contestada", lido: null, digitado: "Ajuste da laje L3" } })).toBe(
+      "R01 · Em andamento → Em análise · descrição contestada: o carimbo não tinha descrição",
+    );
+  });
+
+  it("descrição do carimbo ou digitada não muda o texto", () => {
+    expect(complementoEvento("estado", { ...base, descricao: { origem: "carimbo", lido: "AJUSTE DAS COTAS" } })).toBe(
+      "R01 · Em andamento → Em análise",
+    );
+  });
+});

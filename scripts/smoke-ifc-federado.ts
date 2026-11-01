@@ -2,7 +2,8 @@
  * Smoke do IFC federado (spec docs/superpowers/specs/2026-10-04-ifc-federado-design.md) contra o banco de dev.
  * O vitest cobre o motor puro; aqui vai o I/O: o child de verdade, Documento/versões, a trava de uma geração viva,
  * o arquivo que some, a recusa de unidade, a revisão que nunca se repete, a geração travada que se libera e o
- * federado fora de Recebidos e da Compatibilização (com a regra de leitura). Abre a saída com web-ifc e roda o
+ * federado fora de Recebidos e da Compatibilização (com a regra de leitura), o modelo que a coordenação tira da
+ * Compatibilização (fora dos candidatos, e a revisão nova do mesmo arquivo continua fora). Abre a saída com web-ifc e roda o
  * converter-ifc sobre ela (prova que a geometria é legível).
  *
  * Uso: npm run smoke:ifc-federado
@@ -118,6 +119,22 @@ async function main() {
     check("admin lê o federado", (await podeLerDocumento(sessaoAdmin, ancora, ORIGEM_MODELO_FEDERADO)) === true);
     check("usuário sem coordenacao:ver não lê o federado", (await podeLerDocumento(semPerfil, ancora, ORIGEM_MODELO_FEDERADO)) === false);
     check("nem o admin muda o federado pelas ações genéricas de documento", (await podeGerirDocumento(sessaoAdmin, ancora, ORIGEM_MODELO_FEDERADO)) === false);
+
+    // ── modelo tirado da Compatibilização: fora dos candidatos, e a revisão nova do mesmo arquivo continua fora ──
+    const serieMet = (await modelosCoordenacao(projeto.id)).find((m) => m.uploadId === met.id)!.serie;
+    await prisma.modeloCoordenacaoOculto.create({ data: { projetoId: projeto.id, serie: serieMet, ocultadoPorId: admin.id } });
+    check("oculto sai dos candidatos do federado", (await candidatosDoProjeto(projeto.id)).every((c) => c.modeloId !== met.id));
+    const recusaOculto = await erroDe(() => criarGeracao({ projetoId: projeto.id, modeloIds: [est.id, met.id], autorId: admin.id }));
+    check("oculto marcado no pedido é recusado", recusaOculto === "Um dos modelos marcados não existe mais. Recarregue a página.", recusaOculto);
+    const f2 = gravar("hid-r01.ifc", ifcDeTeste({ semente: "H", unidade: "METRE" }));
+    const met2 = await prisma.upload.create({
+      data: { disciplinaId: met.disciplinaId, pacote: "A", nomeArquivo: "HID.ifc", versao: 2, caminho: f2.caminho, hashSha256: "x", tamanho: f2.tamanho, autorId: admin.id },
+    });
+    const lista = await modelosCoordenacao(projeto.id);
+    check("revisão nova do mesmo arquivo continua fora", lista.find((m) => m.uploadId === met2.id)?.oculto === true && !lista.some((m) => m.uploadId === met.id), lista.map((m) => [m.nomeArquivo, m.versao, m.oculto]));
+    check("os outros seguem na compatibilização", lista.filter((m) => !m.oculto).length === 2);
+    await prisma.modeloCoordenacaoOculto.deleteMany({ where: { projetoId: projeto.id, serie: serieMet } });
+    check("incluído de volta volta aos candidatos", (await candidatosDoProjeto(projeto.id)).some((c) => c.modeloId === met2.id));
 
     // ── geração 2 vira R01 ──
     const g2 = await criarGeracao(pedido);

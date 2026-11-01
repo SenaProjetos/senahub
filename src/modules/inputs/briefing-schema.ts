@@ -210,9 +210,78 @@ export function prePopularRespostas(
 
 export type StatusBriefing = "nao_iniciado" | "em_preenchimento" | "completo";
 
-/** Status geral do briefing pelo preenchimento dos campos obrigatórios (de TODAS as seções). */
-export function calcularStatusBriefing(respostas: Record<string, unknown>): StatusBriefing {
-  const obrigatorios = BRIEFING_SCHEMA.flatMap((s) => s.campos).filter((c) => c.obrigatorio);
+/** Seções e campos ocultos em UM projeto (`BriefingProjeto.secoesOcultas/camposOcultos`). */
+export type OcultosBriefing = { secoes: readonly string[]; campos: readonly string[] };
+
+export const SEM_OCULTOS: OcultosBriefing = { secoes: [], campos: [] };
+
+/**
+ * Tira das seções o que o projeto ocultou: a seção oculta sai inteira, o campo oculto sai da
+ * sua seção, e a seção que ficou sem campo nenhum sai também. É a regra única do que o cliente
+ * vê, do que a equipe preenche e do que conta no status.
+ */
+export function aplicarOcultos(secoes: readonly SecaoBriefing[], ocultos: OcultosBriefing): SecaoBriefing[] {
+  const secoesOcultas = new Set(ocultos.secoes);
+  const camposOcultos = new Set(ocultos.campos);
+  return secoes
+    .filter((s) => !secoesOcultas.has(s.id))
+    .map((s) => ({ ...s, campos: s.campos.filter((c) => !camposOcultos.has(c.chave)) }))
+    .filter((s) => s.campos.length > 0);
+}
+
+/**
+ * Respostas a gravar: as já gravadas, com o que veio no envio APENAS para os campos visíveis.
+ * Campo oculto (ou chave desconhecida) no envio é ignorado, e campo ausente do envio fica como
+ * estava — o envio nunca apaga a resposta guardada de um campo que a tela não mostra.
+ */
+export function mesclarRespostasVisiveis(
+  anteriores: Record<string, unknown>,
+  enviadas: Record<string, unknown>,
+  visiveis: readonly SecaoBriefing[],
+): Record<string, unknown> {
+  const resultado = { ...anteriores };
+  for (const campo of visiveis.flatMap((s) => s.campos)) {
+    if (campo.chave in enviadas) resultado[campo.chave] = enviadas[campo.chave];
+  }
+  return resultado;
+}
+
+/** Só as respostas dos campos visíveis — o que vai ao navegador do cliente no link. */
+export function respostasVisiveis(
+  respostas: Record<string, unknown>,
+  visiveis: readonly SecaoBriefing[],
+): Record<string, unknown> {
+  const chaves = new Set(visiveis.flatMap((s) => s.campos.map((c) => c.chave)));
+  return Object.fromEntries(Object.entries(respostas).filter(([k]) => chaves.has(k)));
+}
+
+/** A chave existe no briefing (seção pelo `id`, campo pela `chave`)? */
+export function existeNoBriefing(alvo: "secao" | "campo", chave: string): boolean {
+  return alvo === "secao"
+    ? BRIEFING_SCHEMA.some((s) => s.id === chave)
+    : BRIEFING_SCHEMA.some((s) => s.campos.some((c) => c.chave === chave));
+}
+
+function respondido(v: unknown): boolean {
+  if (v === undefined || v === null || v === "" || v === false) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+}
+
+/**
+ * Status geral do briefing pelo preenchimento dos campos obrigatórios das `secoes` (padrão: TODAS;
+ * com campos ocultos, passe `aplicarOcultos(BRIEFING_SCHEMA, ocultos)`). Sem obrigatório visível,
+ * completo = alguma resposta nos campos visíveis.
+ */
+export function calcularStatusBriefing(
+  respostas: Record<string, unknown>,
+  secoes: readonly SecaoBriefing[] = BRIEFING_SCHEMA,
+): StatusBriefing {
+  const campos = secoes.flatMap((s) => s.campos);
+  const obrigatorios = campos.filter((c) => c.obrigatorio);
+  if (obrigatorios.length === 0) {
+    return campos.some((c) => respondido(respostas[c.chave])) ? "completo" : "nao_iniciado";
+  }
   const preenchidos = obrigatorios.filter((c) => {
     const v = respostas[c.chave];
     if (v === undefined || v === null || v === "") return false;

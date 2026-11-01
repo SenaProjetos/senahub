@@ -19,8 +19,14 @@ import type { AcaoCiclo } from "./transicoes";
  */
 const CATEGORIA = "ciclo_documental";
 
-function href(r: Pick<ResultadoTransicao, "projetoId" | "disciplinaId">): string {
-  return `/projetos/${r.projetoId}/arquivos?disciplinaId=${r.disciplinaId}`;
+function href(r: Pick<ResultadoTransicao, "projetoId" | "disciplinaId">, extra = ""): string {
+  return `/projetos/${r.projetoId}/arquivos?disciplinaId=${r.disciplinaId}${extra}`;
+}
+
+/** Responsáveis vigentes da disciplina (linhas atuais de `DisciplinaResponsavel`; a troca apaga a anterior). */
+async function responsaveisDaDisciplina(disciplinaId: string): Promise<string[]> {
+  const linhas = await prisma.disciplinaResponsavel.findMany({ where: { disciplinaId }, select: { userId: true } });
+  return linhas.map((l) => l.userId);
 }
 
 function participaDoProjeto(projetoId: string) {
@@ -84,7 +90,8 @@ export async function notificarTransicao(r: ResultadoTransicao, acao: AcaoCiclo,
 export async function notificarPublicacao(r: ResultadoPublicacao, atorId: string): Promise<void> {
   await seguro("publicar", async () => {
     const rev = `${rotuloRevisao(r.numero)} de ${r.nome}`;
-    await notificarMuitos(sem(r.autores, atorId), { titulo: "Revisão publicada", corpo: `${rev} foi publicada.`, href: href(r) }, { categoria: CATEGORIA });
+    const corpo = r.envioAoCliente === "automatico" ? `${rev} foi publicada e enviada ao cliente.` : `${rev} foi publicada.`;
+    await notificarMuitos(sem(r.autores, atorId), { titulo: "Revisão publicada", corpo, href: href(r) }, { categoria: CATEGORIA });
 
     const obra = await equipeDeObra(r.projetoId);
     if (r.liberacaoObra === "liberada") {
@@ -107,11 +114,22 @@ export async function notificarPublicacao(r: ResultadoPublicacao, atorId: string
   });
 }
 
-/** Liberar para obra ou revogar à mão → equipe de obra. Os demais controles não avisam ninguém. */
+/**
+ * Liberar para obra ou revogar à mão → equipe de obra; marcar/cancelar "Em revisão" → responsáveis da
+ * disciplina. Os demais controles não avisam ninguém.
+ */
 export async function notificarControle(r: ResultadoTransicao & { tipo: TipoControle }, mudanca: "aplicado" | "removido", atorId: string, motivo?: string): Promise<void> {
-  if (r.tipo !== "liberado_obra") return;
+  if (r.tipo !== "liberado_obra" && r.tipo !== "em_revisao") return;
   await seguro(`controle-${mudanca}`, async () => {
     const rev = `${rotuloRevisao(r.numero)} de ${r.nome}`;
+    if (r.tipo === "em_revisao") {
+      const n =
+        mudanca === "aplicado"
+          ? { titulo: "Revisão solicitada", corpo: `${rev} em revisão: ${motivo ?? ""}`.trim() }
+          : { titulo: "Revisão cancelada", corpo: `${rev} não está mais em revisão${motivo ? `: ${motivo}` : "."}` };
+      await notificarMuitos(sem(await responsaveisDaDisciplina(r.disciplinaId), atorId), { ...n, href: href(r, "&emRevisao=1") }, { categoria: CATEGORIA });
+      return;
+    }
     const n = mudanca === "aplicado"
       ? { titulo: "Liberado para obra", corpo: `${rev} foi liberada para obra.` }
       : { titulo: "Liberação para obra revogada", corpo: `${rev} não está mais liberada para obra${motivo ? `: ${motivo}` : "."}` };

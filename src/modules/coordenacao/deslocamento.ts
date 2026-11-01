@@ -6,6 +6,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { resolverCaminho, removerArquivo } from "@/lib/storage";
+import { reservarCaminhoLivre } from "@/modules/uploads/arquivo-fisico";
 import { enfileirarConversao, enfileirarConversaoDocumento } from "@/modules/coordenacao/service";
 import { parseModeloId, refUpload, refDocumento } from "@/modules/coordenacao/modelo-ref";
 import {
@@ -204,12 +205,20 @@ async function realinharUpload(
 
   // Próxima versão do MESMO grupo (disciplina + pacote + nomeArquivo), igual ao upload.
   const ultima = await prisma.upload.findFirst({
-    where: { disciplinaId: upload.disciplinaId, pacote: upload.pacote, nomeArquivo: upload.nomeArquivo },
+    // Vê lixeira e substituídas: o número entra no nome físico (ver uploads/arquivo-fisico.ts).
+    where: {
+      disciplinaId: upload.disciplinaId,
+      pacote: upload.pacote,
+      nomeArquivo: upload.nomeArquivo,
+      excluidoEm: { not: undefined },
+      substituidoPorId: { not: undefined },
+    },
     orderBy: { versao: "desc" },
     select: { versao: true },
   });
   const novaVersao = (ultima?.versao ?? 0) + 1;
-  const saidaRel = caminhoVersaoRealinhada(upload.caminho, novaVersao);
+  // Caminho reservado: o child nunca escreve por cima do arquivo de outra linha.
+  const { caminho: saidaRel } = await reservarCaminhoLivre((n) => caminhoVersaoRealinhada(upload.caminho, n), novaVersao);
 
   const r = await rodarDeslocamento(upload.caminho, saidaRel, mov, spawnFn);
 

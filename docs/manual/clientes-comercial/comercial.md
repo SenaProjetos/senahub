@@ -191,6 +191,31 @@ Ao aceitar a proposta, use **Aceitar → projeto**. O SenaHub cria o projeto, su
 canais de comunicação necessários. A empresa, a prospecção, a negociação, a proposta e o projeto
 continuam consultáveis na **Empresa 360**.
 
+#### Linkar um projeto à ficha (quando o projeto já foi criado em Projetos)
+
+Se o projeto foi criado direto em **Projetos** (sem aceitar proposta), dá para ligá-lo à ficha do funil
+que está em **Contratado**. Assim os anexos e algumas informações da ficha passam para o projeto.
+
+1. Abra a ficha em **Contratado** e, na aba **Dados**, clique em **Linkar projeto** (em *Projetos
+   linkados*). Só aparecem os projetos **do mesmo cliente** que ainda não têm ficha.
+2. Escolha o projeto. O sistema mostra uma **prévia** antes de gravar:
+   - **Vai preencher:** valor do contrato, área e tipo de empreendimento — **só os que estão vazios** no
+     projeto. O que o projeto já tem fica como está (aparece em *Vai manter*).
+   - **Coordenador:** o responsável da ficha entra na equipe do projeto como coordenador, se ainda não
+     fizer parte dela.
+   - **Resumo do histórico:** as últimas notas e reuniões da ficha, na descrição do projeto — só se a
+     descrição estiver vazia.
+   - **Arquivos:** os anexos da ficha e o PDF de cada proposta. Tudo vem marcado para ir à pasta **Geral**
+     do projeto. Marque **Mostrar também em "Recebidos do cliente"** nos que os projetistas devem ver.
+     Arquivos que já estão no projeto vêm desmarcados.
+3. Clique em **Linkar e importar**. Os arquivos são **copiados**: apagar o anexo no funil depois não afeta o
+   projeto.
+
+**Desfazer link** (no mesmo bloco, ou no menu **⋯** do projeto) só desliga o projeto da ficha; o que já foi
+importado continua no projeto. Não vale para projeto criado por **Aceitar → projeto**.
+
+As **disciplinas** da ficha não são trazidas — o projeto mantém as suas.
+
 ## Painéis e listas
 
 - **Parceiros**: a lista de quem indica negócio. A seta à esquerda de cada parceiro abre os leads

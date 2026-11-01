@@ -66,6 +66,8 @@ export type PlanoImportacao = {
    * contador tem gente que nunca vai ter usuário aqui).
    */
   matriculasIgnoradas: { matriculaExterna: string; nome: string }[];
+  /** Totais do resumo do PDF (R4 do rateio): viram as contas das guias no fechamento. */
+  totais?: { inss: number; irrf: number; fgts: number };
   /**
    * Gente do PDF SEM movimento no mês (ex.: o mês todo de férias — a folha dela sai zerada). O
    * resto da folha é importado normalmente; estes o RH precisa lançar à mão, e a tela avisa.
@@ -256,6 +258,7 @@ export async function analisarImportacao(
       holerites,
       avisosForaDoPdf,
       matriculasIgnoradas: matriculasIgnoradasRows,
+      totais: { inss: folha.resumo.totalINSS, irrf: folha.resumo.totalIRRF, fgts: folha.resumo.totalFGTS },
       lancarManualmente,
     },
   };
@@ -327,7 +330,12 @@ export async function aplicarImportacao(plano: PlanoImportacao, pdf: { path: str
     });
     await tx.folhaPagamento.update({
       where: { id: plano.folhaId },
-      data: { origemPdfPath: pdf.path, origemPdfNome: pdf.nome },
+      data: {
+        origemPdfPath: pdf.path,
+        origemPdfNome: pdf.nome,
+        // Reimport substitui os totais; o RH ainda pode corrigi-los na tela antes de fechar.
+        ...(plano.totais ? { totalInssRetido: plano.totais.inss, totalIrrfRetido: plano.totais.irrf, totalFgts: plano.totais.fgts } : {}),
+      },
     });
     return {
       holerites: plano.holerites.length,

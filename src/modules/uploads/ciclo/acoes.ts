@@ -3,7 +3,7 @@
  * o `...` da linha e o menu de contexto. O que o perfil não permite é OMITIDO; o que o estado não
  * permite fica DESABILITADO com a mesma frase do `ActionError` do servidor (`transicoes.ts`).
  */
-import { ArrowRightLeft, Archive, Ban, BadgeCheck, HardHat, Lock, Send, ShieldAlert, Undo2, Unlock, UserRoundCheck, UserRoundX } from "lucide-react";
+import { ArrowRightLeft, Archive, Ban, BadgeCheck, HardHat, Lock, MessageSquareWarning, Send, ShieldAlert, Undo2, Unlock, UserRoundCheck, UserRoundX } from "lucide-react";
 import type { AcaoItem } from "@/components/ui/acoes";
 import { ROTULO_CONTROLE, type EstadoRevisao, type TipoControle } from "./estados";
 import { motivoParaNaoAplicar, motivoParaNaoRemover, motivoParaNaoTransicionar, type AcaoCiclo } from "./transicoes";
@@ -27,6 +27,10 @@ export type CicloDaLinha = {
   /** Versão interna atual da revisão (R01 · v3). */
   versao: number | null;
   descricao: string | null;
+  /** De onde veio a descrição (`carimbo` | `digitada` | `contestada`); nulo = sem descrição ou anterior. */
+  descricaoOrigem: "carimbo" | "digitada" | "contestada" | null;
+  /** O que o carimbo dizia quando o projetista contestou a leitura (`null` = linha vazia). */
+  descricaoCarimbo: string | null;
   controles: ControleDaLinha[];
   /** A5: revisão recebida e ainda não aberta por quem olha (derivado, nunca gravado). */
   novo: boolean;
@@ -58,6 +62,7 @@ const ROTULO_REMOVER: Record<TipoControle, string> = {
   enviado_cliente: "Tirar do cliente",
   bloqueio: "Remover bloqueio",
   restricao: "Remover restrição",
+  em_revisao: "Cancelar revisão…",
 };
 
 export function itensDoCiclo(c: CicloDaLinha, travado?: string): AcaoItem[] {
@@ -88,6 +93,9 @@ export function itensDoCiclo(c: CicloDaLinha, travado?: string): AcaoItem[] {
         desabilitado: podeAplicar(tipo),
       });
     }
+    if (!c.controles.some((x) => x.tipo === "em_revisao")) {
+      itens.push({ tipo: "acao", id: `${PREFIXO_APLICAR}em_revisao`, rotulo: "Marcar em revisão…", icone: MessageSquareWarning, desabilitado: podeAplicar("em_revisao") });
+    }
   }
   if (c.podeBloquear && c.estado !== "arquivado") {
     itens.push({ tipo: "acao", id: `${PREFIXO_APLICAR}bloqueio`, rotulo: "Bloquear…", icone: Lock, desabilitado: podeAplicar("bloqueio") });
@@ -95,13 +103,13 @@ export function itensDoCiclo(c: CicloDaLinha, travado?: string): AcaoItem[] {
   }
   // Remover: um item por controle ativo que a pessoa pode tirar.
   for (const ctl of c.controles) {
-    const permitido = ctl.tipo === "liberado_obra" || ctl.tipo === "enviado_cliente" ? c.podeAlterarPasta : c.podeBloquear;
+    const permitido = ctl.tipo === "liberado_obra" || ctl.tipo === "enviado_cliente" || ctl.tipo === "em_revisao" ? c.podeAlterarPasta : c.podeBloquear;
     if (!permitido) continue;
     itens.push({
       tipo: "acao",
       id: `${PREFIXO_REMOVER}${ctl.id}`,
       rotulo: ROTULO_REMOVER[ctl.tipo],
-      icone: ctl.tipo === "bloqueio" ? Unlock : ctl.tipo === "enviado_cliente" ? UserRoundX : ctl.tipo === "restricao" ? Ban : ArrowRightLeft,
+      icone: ctl.tipo === "bloqueio" ? Unlock : ctl.tipo === "enviado_cliente" ? UserRoundX : ctl.tipo === "restricao" ? Ban : ctl.tipo === "em_revisao" ? Undo2 : ArrowRightLeft,
       desabilitado: travado ?? motivoParaNaoRemover({ tipo: ctl.tipo, origem: ctl.origem }, { ator: "pessoa", motivo: "x" }) ?? undefined,
     });
   }
@@ -115,4 +123,15 @@ export function itensDoCiclo(c: CicloDaLinha, travado?: string): AcaoItem[] {
 export function dicaDoControle(c: ControleDaLinha): string {
   const escopo = c.tipo === "bloqueio" && c.escopos.length ? ` (${c.escopos.join(", ")})` : "";
   return `${ROTULO_CONTROLE[c.tipo]}${escopo}: ${c.motivo}${c.automatico ? " · automático" : ""}`;
+}
+
+/**
+ * Aviso para quem analisa: o projetista contestou a leitura do carimbo e digitou a descrição. Só na revisão
+ * em análise — é ali que se confere o PDF antes de publicar.
+ */
+export function avisoDaDescricao(c: Pick<CicloDaLinha, "estado" | "descricaoOrigem" | "descricaoCarimbo">): string | null {
+  if (c.estado !== "compartilhado" || c.descricaoOrigem !== "contestada") return null;
+  return c.descricaoCarimbo
+    ? `Descrição digitada pelo projetista; o carimbo dizia: ${c.descricaoCarimbo}`
+    : "Descrição digitada pelo projetista; o carimbo não tinha descrição.";
 }

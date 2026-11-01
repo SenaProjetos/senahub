@@ -88,6 +88,9 @@ export function statusAoDesaprovar(p: {
  * `info` e `primario` são PREENCHIDAS: são as cores dos dois status que o cliente vê (Compartilhado, Liberado
  * para obra), e o contorno delas se confundia — `info` tem o mesmo tom de `andamento` (Em análise), e o
  * `primary` do tema escuro é um cinza que parecia badge desabilitada (visto em tela, 29/09/2026).
+ *
+ * `atencao` é a etiqueta âmbar ("Em revisão"): o `text-warning` sobre fundo claro fica em ~3:1, abaixo do AA
+ * para texto de 10 px — no claro o texto é o `foreground` sobre o fundo âmbar; no escuro, o próprio âmbar.
  */
 const CLASSE_DA_COR: Record<string, string> = {
   neutro: "border-border bg-muted text-muted-foreground",
@@ -99,6 +102,7 @@ const CLASSE_DA_COR: Record<string, string> = {
   info: "border-info bg-info text-info-foreground",
   primario: "border-primary bg-primary text-primary-foreground",
   perigo: "border-destructive/40 bg-destructive/10 text-destructive",
+  atencao: "border-warning/50 bg-warning/15 text-foreground dark:bg-warning/10 dark:text-warning",
 };
 
 export const CORES_STATUS = Object.keys(CLASSE_DA_COR);

@@ -15,6 +15,8 @@ interface MargemDonutProps {
   rateioHoras?: {
     cltEstagiarios: number;
     demaisColaboradores: number;
+    /** Reuniões ligadas ao projeto (decisão 10 do rateio). */
+    reunioes: number;
   };
 }
 
@@ -177,6 +179,7 @@ export function MargemDonut({
             <LinhaComposicao label="Custos extras" valor={custo.outrasConfirmado} />
             <LinhaComposicao label="Rateio CLT e estagiários" valor={rateioHoras.cltEstagiarios} />
             <LinhaComposicao label="Rateio demais colaboradores" valor={rateioHoras.demaisColaboradores} />
+            {rateioHoras.reunioes > 0 && <LinhaComposicao label="Reuniões do projeto" valor={rateioHoras.reunioes} />}
           </div>
         </div>
       )}

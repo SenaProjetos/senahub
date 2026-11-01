@@ -82,9 +82,10 @@ login, o link público já se limita à pasta Liberado para obra.
   publicar com pendências.
 - **IFC** entra no ciclo: é um documento próprio (código próprio, mesma nomenclatura), vai ao cliente e
   segue as mesmas revisões. Revisão de modelo (com `.ifc`) dispensa o PDF e o DWG.
-- **DWG obrigatório para publicar** é do **tipo de documento**: `PranchaCatalogo.exigeDwg` (padrão ligado),
-  configurado em Configurações → Nomenclatura → Tipos (menu da linha, `configuracoes:gerir`). Documento sem
-  tipo segue o padrão (exige). Modelo IFC é sempre isento.
+- **Arquivos obrigatórios para publicar** são do **tipo de documento**: `PranchaCatalogo.formatosExigidos`
+  (`dwg | pdf | excel | word | word_ou_excel`; padrão só PDF; decisão de 2026-10-28, substituiu o `exigeDwg`
+  sim/não de 2026-10-09), configurado em Configurações → Nomenclatura → Tipos (menu da linha,
+  `configuracoes:gerir`). Documento sem tipo segue a confirmação "sem DWG". Modelo IFC é sempre isento.
 - **Pagamento do projetista** sai na **publicação**, pelo mesmo botão (6-B): "Aprovar disciplina" e "Aprovar
   fase" exigem cada documento do pacote A (da fase, no segundo caso) com revisão publicada; o pacote B
   continua na validação arquivo a arquivo. Card e "Prontas para aprovar" usam a mesma regra (`prontidao.ts`).

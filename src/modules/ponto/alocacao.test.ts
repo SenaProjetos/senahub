@@ -5,8 +5,13 @@ import {
   ALOCACAO_SEM_PROJETO,
   alocacoesDistintas,
   normalizarAlocacaoPonto,
+  reuniaoDaSelecao,
+  rotuloDaSessao,
   selecaoDaAlocacaoPonto,
+  selecaoDeReuniao,
+  selecaoEhProjeto,
   tarefaDoDestino,
+  tarefaObrigatoria,
 } from "./alocacao";
 
 describe("alocação de ponto", () => {
@@ -60,6 +65,21 @@ describe("alocações recentes", () => {
     expect(r).toEqual([{ selecao: ALOCACAO_REUNIAO_EXTERNA, tipoAlocacao: "reuniao_externa", projeto: null }]);
   });
 
+  it("reunião ligada a projeto é outra alocação e guarda o projeto para o rótulo", () => {
+    const r = alocacoesDistintas(
+      [
+        { tipoAlocacao: "reuniao_externa", projeto: vila },
+        { tipoAlocacao: "reuniao_externa", projeto: null },
+        { tipoAlocacao: "reuniao_externa", projeto: vila },
+      ],
+      5,
+    );
+    expect(r).toEqual([
+      { selecao: "__reuniao_externa:p1", tipoAlocacao: "reuniao_externa", projeto: vila },
+      { selecao: ALOCACAO_REUNIAO_EXTERNA, tipoAlocacao: "reuniao_externa", projeto: null },
+    ]);
+  });
+
   it("para no limite", () => {
     const r = alocacoesDistintas(
       [
@@ -105,5 +125,62 @@ describe("tarefa do destino no card do celular", () => {
   it("reunião e sem projeto nunca têm tarefa", () => {
     expect(tarefaDoDestino({ ...base, destino: ALOCACAO_REUNIAO_INTERNA, selecaoCorrente: ALOCACAO_REUNIAO_INTERNA })).toBe("");
     expect(tarefaDoDestino({ ...base, destino: ALOCACAO_SEM_PROJETO, escolhida: "t5" })).toBe("");
+  });
+});
+
+describe("reunião ligada a projeto (decisão 10)", () => {
+  it("codifica e decodifica o projeto da reunião", () => {
+    expect(normalizarAlocacaoPonto("__reuniao_externa:p1")).toEqual({ projetoId: "p1", tipoAlocacao: "reuniao_externa" });
+    expect(normalizarAlocacaoPonto("__reuniao_interna:p2")).toEqual({ projetoId: "p2", tipoAlocacao: "reuniao_interna" });
+    expect(selecaoDaAlocacaoPonto("p1", "reuniao_externa")).toBe("__reuniao_externa:p1");
+    expect(selecaoDaAlocacaoPonto("p2", "reuniao_interna")).toBe("__reuniao_interna:p2");
+    expect(selecaoDaAlocacaoPonto(null, "reuniao_interna")).toBe("__reuniao_interna");
+  });
+  it("reunião com projeto não é 'projeto' para a escolha de tarefa", () => {
+    expect(selecaoEhProjeto("__reuniao_externa:p1")).toBe(false);
+    expect(selecaoEhProjeto("p1")).toBe(true);
+  });
+  it("sufixo vazio ou prefixo desconhecido não vira projeto", () => {
+    expect(normalizarAlocacaoPonto("__reuniao_externa:")).toEqual({ projetoId: null, tipoAlocacao: "reuniao_externa" });
+  });
+});
+
+describe("seletor de reunião com projeto (R2.4)", () => {
+  it("separa a reunião do projeto escolhido e monta a seleção de volta", () => {
+    expect(reuniaoDaSelecao("__reuniao_interna:p1")).toEqual({ base: "__reuniao_interna", projetoId: "p1" });
+    expect(reuniaoDaSelecao("__reuniao_externa")).toEqual({ base: "__reuniao_externa", projetoId: "" });
+    expect(reuniaoDaSelecao("p1")).toBeNull();
+    expect(reuniaoDaSelecao(ALOCACAO_SEM_PROJETO)).toBeNull();
+    expect(selecaoDeReuniao(ALOCACAO_REUNIAO_EXTERNA, "p1")).toBe("__reuniao_externa:p1");
+    expect(selecaoDeReuniao(ALOCACAO_REUNIAO_EXTERNA, "")).toBe("__reuniao_externa");
+  });
+
+  it("rótulo da sessão: reunião ligada a projeto diz os dois", () => {
+    expect(rotuloDaSessao("projeto", "0123 Casa")).toBe("0123 Casa");
+    expect(rotuloDaSessao("reuniao_externa", "0123 Casa")).toBe("Reunião externa · 0123 Casa");
+    expect(rotuloDaSessao("reuniao_interna", null)).toBe("Reunião interna");
+    expect(rotuloDaSessao("sem_projeto", null)).toBe("Sem projeto");
+  });
+
+  it("tarefa obrigatória: projeto com 2+ disciplinas da pessoa", () => {
+    const projetos = [
+      { id: "a", codigo: "1", nome: "A", disciplinasDaPessoa: 2 },
+      { id: "b", codigo: "2", nome: "B", disciplinasDaPessoa: 1 },
+      { id: "c", codigo: "3", nome: "C" },
+    ];
+    expect(tarefaObrigatoria("a", projetos)).toBe(true);
+    expect(tarefaObrigatoria("b", projetos)).toBe(false);
+    expect(tarefaObrigatoria("c", projetos)).toBe(false);
+    expect(tarefaObrigatoria("__reuniao_interna:a", projetos)).toBe(false);
+    expect(tarefaObrigatoria(ALOCACAO_SEM_PROJETO, projetos)).toBe(false);
+  });
+
+  it("tarefa obrigatória: sem tarefa para escolher, as horas vão ao projeto sem disciplina", () => {
+    const projetos = [{ id: "a", codigo: "1", nome: "A", disciplinasDaPessoa: 2 }];
+    expect(tarefaObrigatoria("a", projetos, 0)).toBe(false);
+    expect(tarefaObrigatoria("a", projetos, 3)).toBe(true);
+    // Lista ainda carregando: segue obrigatória.
+    expect(tarefaObrigatoria("a", projetos, null)).toBe(true);
+    expect(tarefaObrigatoria("a", projetos, undefined)).toBe(true);
   });
 });

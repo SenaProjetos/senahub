@@ -116,6 +116,11 @@ export type FiltrosDoc = {
    * senão a queixa original ("backup não aparece em lugar nenhum") volta pela metade).
    */
   pacote?: string;
+  /**
+   * Só documentos com uma revisão marcada "Em revisão" (o cliente pediu ajuste) — o filtro do
+   * projetista e o destino do aviso (`?emRevisao=1`).
+   */
+  emRevisao?: boolean;
 };
 
 export type ArquivoDaLinha = {
@@ -184,6 +189,11 @@ export type LinhaDoc = {
   totalRevisoes: number;
   /** Ciclo documental (ISO 19650) da revisão que a linha mostra — estado, versão, controles, "Novo". */
   ciclo: CicloDaLinha;
+  /**
+   * A revisão PUBLICADA do documento marcada "Em revisão" (o cliente pediu ajuste), qualquer que seja a
+   * revisão da linha — na linha da R01 em andamento é o que diz que a R00 voltou do cliente.
+   */
+  emRevisao: { numero: number; motivo: string } | null;
 };
 
 /** Linha fora do ciclo (ou montada fora daqui): sem estado, sem ações. */
@@ -194,6 +204,8 @@ export const CICLO_FORA: CicloDaLinha = {
   estado: null,
   versao: null,
   descricao: null,
+  descricaoOrigem: null,
+  descricaoCarimbo: null,
   controles: [],
   novo: false,
   podeEnviar: false,
@@ -201,6 +213,11 @@ export const CICLO_FORA: CicloDaLinha = {
   podeAlterarPasta: false,
   podeBloquear: false,
 };
+
+/** A coluna é texto livre no banco: valor desconhecido vira "sem origem", nunca um aviso falso. */
+function origemDaDescricao(v: string | null): CicloDaLinha["descricaoOrigem"] {
+  return v === "carimbo" || v === "digitada" || v === "contestada" ? v : null;
+}
 
 /** A5: "Novo" é derivado — revisão de outra pessoa, criada depois da última abertura, nos últimos 30 dias. */
 const NOVO_ATE_MS = 30 * 86_400_000;
@@ -401,6 +418,12 @@ export async function listarDocumentosAgrupados(opts: {
                   where u4."documentoId" = d.id and u4."excluidoEm" is null and u4."substituidoPorId" is null
                     and (u4.pacote::text = 'B' or coalesce(ea2."ehBackup", false))))
           )
+      -- $23: "Em revisão" — a revisão PUBLICADA do documento com a marca ativa (a mesma regra da etiqueta da linha).
+      and ($23::boolean is null or exists (
+            select 1 from controle_revisao cr
+            join documento_revisao dre on dre.id = cr."revisaoId"
+            where dre."documentoId" = d.id and dre.estado = 'publicado'
+              and cr.tipo = 'em_revisao' and cr."removidoEm" is null))
     group by d.id
   `;
   const params = [
@@ -426,6 +449,7 @@ export async function listarDocumentosAgrupados(opts: {
     filtros.sub ?? null,
     opts.formatoDosArquivos ? true : null,
     filtros.situacao ?? null,
+    filtros.emRevisao ? true : null,
   ];
 
   const totalRows = await prisma.$queryRawUnsafe<{ n: bigint }[]>(
@@ -484,6 +508,8 @@ export async function listarDocumentosAgrupados(opts: {
           estado: true,
           ultimaVersao: true,
           descricao: true,
+          descricaoOrigem: true,
+          descricaoCarimbo: true,
           createdAt: true,
           createdById: true,
           controles: {
@@ -612,6 +638,8 @@ export async function listarDocumentosAgrupados(opts: {
             estado: revDaLinha.estado as EstadoRevisao,
             versao: revDaLinha.ultimaVersao,
             descricao: revDaLinha.descricao,
+            descricaoOrigem: origemDaDescricao(revDaLinha.descricaoOrigem),
+            descricaoCarimbo: revDaLinha.descricaoCarimbo,
             controles: revDaLinha.controles.map((c) => ({ ...c, tipo: c.tipo as TipoControle, escopos: [...c.escopos] })),
             novo: revisaoNova(revDaLinha, userId, lidoEmPorDoc.get(d.id) ?? null),
             podeEnviar: opts.podeEnviarCap && escreveNaDisciplina,
@@ -620,6 +648,8 @@ export async function listarDocumentosAgrupados(opts: {
             podeBloquear: (opts.podeBloquear ?? false) && escreveNaDisciplina,
           }
         : CICLO_FORA;
+    const publicadaEmRevisao = d.revisoes.find((r) => r.estado === "publicado" && r.controles.some((c) => c.tipo === "em_revisao"));
+    const marcaEmRevisao = publicadaEmRevisao?.controles.find((c) => c.tipo === "em_revisao");
     linhas.push({
       id: d.id,
       // O nome do documento vem do primeiro arquivo enviado (em geral o PDF): na pasta DWG ele
@@ -673,6 +703,7 @@ export async function listarDocumentosAgrupados(opts: {
       })),
       totalRevisoes: d.revisoes.length,
       ciclo,
+      emRevisao: publicadaEmRevisao && marcaEmRevisao ? { numero: publicadaEmRevisao.numero, motivo: marcaEmRevisao.motivo } : null,
     });
   }
   return { total, pagina, linhas };

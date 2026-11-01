@@ -20,7 +20,8 @@ import { brl, formatarData } from "@/lib/utils";
 import { RegistroPonto, type EstadoDiaProp, type AjustePendenteProp } from "@/components/ponto/registro-view";
 import { ApontamentoHoras } from "@/components/ponto/apontamento-view";
 import type { DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -118,6 +119,8 @@ type Rateio = {
   /** Só a gestão de RH fecha o mês. */
   podeFechar: boolean;
   custoTotal: number;
+  /** Quem não pode ver custo recebe os reais zerados e a tela esconde as colunas de valor. */
+  custoVisivel: boolean;
   fechado: boolean;
   fechadoEm: string | Date | null;
 };
@@ -165,6 +168,7 @@ export function PontoView({
   } | null;
 }) {
   const router = useRouter();
+  const confirmar = useConfirm();
   const [busy, setBusy] = useState(false);
 
   /** Ação simples (usada pelo fechamento de rateio) — feedback + refresh. */
@@ -427,27 +431,36 @@ export function PontoView({
               <div>
                 <CardTitle className="text-base">Rateio de horas por projeto (equipe)</CardTitle>
                 <CardDescription>
-                  Mês atual (estimativa) · custo total {brl(rateio.custoTotal)}
+                  Mês atual (estimativa){rateio.custoVisivel ? ` · custo total ${brl(rateio.custoTotal)}` : ""}
                   {rateio.mesAnterior.fechadoEm
                     ? ` · ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano} fechado em ${formatarData(rateio.mesAnterior.fechadoEm)}`
                     : ` · ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano} ainda não fechado`}
                 </CardDescription>
               </div>
-              {rateio.podeFechar && (
-                <Button
-                  size="sm"
-                  variant={rateio.mesAnterior.fechadoEm ? "outline" : "default"}
-                  disabled={busy}
-                  onClick={() =>
-                    acao(
-                      () => fecharRateioMes({ ano: rateio.mesAnterior.ano, mes: rateio.mesAnterior.mes }),
-                      rateio.mesAnterior.fechadoEm ? "Rateio refechado." : "Rateio do mês fechado.",
-                    )
-                  }
-                >
-                  {rateio.mesAnterior.fechadoEm ? "Refechar" : "Fechar"} {String(rateio.mesAnterior.mes).padStart(2, "0")}/{rateio.mesAnterior.ano}
-                </Button>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Mês fechado não fecha de novo: mudar é reabrir com motivo, na tela de fechamentos. */}
+                {rateio.podeFechar && !rateio.mesAnterior.fechadoEm && (
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={async () => {
+                      // Mesmo aviso da tela de fechamentos; confirmar ANTES da ação.
+                      const ok = await confirmar({
+                        title: `Fechar ${String(rateio.mesAnterior.mes).padStart(2, "0")}/${rateio.mesAnterior.ano}?`,
+                        description: "O custo das horas deste mês fica congelado. Para mudar depois, é preciso reabrir com um motivo.",
+                        confirmLabel: "Fechar mês",
+                      });
+                      if (!ok) return;
+                      await acao(() => fecharRateioMes({ ano: rateio.mesAnterior.ano, mes: rateio.mesAnterior.mes }), "Rateio do mês fechado.");
+                    }}
+                  >
+                    Fechar {String(rateio.mesAnterior.mes).padStart(2, "0")}/{rateio.mesAnterior.ano}
+                  </Button>
+                )}
+                <Link href="/rh/rateio" className={buttonVariants({ size: "sm", variant: "outline" })}>
+                  {rateio.podeFechar ? "Gerir fechamentos" : "Ver fechamentos"}
+                </Link>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -469,28 +482,28 @@ export function PontoView({
                   <li key={r.projeto} className="flex items-center justify-between gap-3 py-2">
                     <span className="min-w-0 flex-1 truncate">{r.projeto}</span>
                     <span className="font-mono text-muted-foreground">{fmtHoras(r.minutos)}</span>
-                    <span className="w-28 text-right font-mono">{brl(r.custo)}</span>
+                    {rateio.custoVisivel && <span className="w-28 text-right font-mono">{brl(r.custo)}</span>}
                   </li>
                 ))}
                 {rateio.semProjeto > 0 && (
                   <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
                     <span className="min-w-0 flex-1 truncate">Sem projeto</span>
                     <span className="font-mono">{fmtHoras(rateio.semProjeto)}</span>
-                    <span className="w-28 text-right font-mono">—</span>
+                    {rateio.custoVisivel && <span className="w-28 text-right font-mono">—</span>}
                   </li>
                 )}
                 {rateio.reuniaoInterna > 0 && (
                   <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
                     <span className="min-w-0 flex-1 truncate">Reunião interna</span>
                     <span className="font-mono">{fmtHoras(rateio.reuniaoInterna)}</span>
-                    <span className="w-28 text-right font-mono">—</span>
+                    {rateio.custoVisivel && <span className="w-28 text-right font-mono">—</span>}
                   </li>
                 )}
                 {rateio.reuniaoExterna > 0 && (
                   <li className="flex items-center justify-between gap-3 py-2 text-muted-foreground">
                     <span className="min-w-0 flex-1 truncate">Reunião externa</span>
                     <span className="font-mono">{fmtHoras(rateio.reuniaoExterna)}</span>
-                    <span className="w-28 text-right font-mono">—</span>
+                    {rateio.custoVisivel && <span className="w-28 text-right font-mono">—</span>}
                   </li>
                 )}
                 {rateio.custoNaoAlocado > 0 && (

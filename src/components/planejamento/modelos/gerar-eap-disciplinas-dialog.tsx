@@ -35,14 +35,22 @@ export function GerarEapDisciplinasDialog({
   opcoes,
   variante = "outline",
   tamanho = "sm",
+  aberto: abertoDeFora,
+  onAbertoChange,
 }: {
   projetoId: string;
   opcoes: OpcaoDeDisciplina[];
   variante?: "default" | "outline";
   tamanho?: "default" | "sm";
+  /** Controlado de fora (o `⋯` do planejamento abre): sem botão próprio. */
+  aberto?: boolean;
+  onAbertoChange?: (aberto: boolean) => void;
 }) {
   const router = useRouter();
-  const [aberto, setAberto] = useState(false);
+  const [abertoAqui, setAbertoAqui] = useState(false);
+  const controlado = abertoDeFora !== undefined;
+  const aberto = controlado ? abertoDeFora : abertoAqui;
+  const setAberto = (v: boolean) => (controlado ? onAbertoChange?.(v) : setAbertoAqui(v));
   const [pending, start] = useTransition();
   const [incluir, setIncluir] = useState<Record<string, boolean>>(() => Object.fromEntries(opcoes.map((o) => [o.disciplinaId, true])));
   const [escolha, setEscolha] = useState<Record<string, string>>(() =>
@@ -75,6 +83,7 @@ export function GerarEapDisciplinasDialog({
   const vazio = opcoes.length === 0;
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
+      {!controlado && (
       <DialogTrigger
         render={
           <Button
@@ -87,6 +96,7 @@ export function GerarEapDisciplinasDialog({
       >
         <ListTree className="size-3.5" /> Gerar EAP das disciplinas
       </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Gerar EAP das disciplinas</DialogTitle>

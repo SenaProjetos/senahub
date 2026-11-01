@@ -23,14 +23,22 @@ import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
 import { gravarApuracaoValorAgregado } from "@/modules/planejamento/valor-agregado-service";
 import { reservarIdsParaLinhas } from "@/modules/planejamento/id-corporativo";
-import { regrasDeEdicao } from "@/modules/planejamento/edicao-linha";
 import { trocarPredecessoras } from "@/modules/planejamento/dependencias-service";
+import { MAX_LINHAS, alinharDisciplinasNoBanco } from "@/modules/planejamento/disciplina-linha-service";
 import { avancarLinha, inserirLinhaAcima, moverLinha, moverLinhaNoNivel, recuarLinha } from "@/modules/planejamento/arvore-service";
+import { MAX_LINHAS_LOTE } from "@/modules/planejamento/arvore-lote";
+import { avancarEmLote, carregarLote, excluirEmLote, moverEmLote, recuarEmLote } from "@/modules/planejamento/arvore-lote-service";
+import { lerTarefasColadas } from "@/modules/planejamento/colar-tarefas";
+import { criarTarefasEmLote } from "@/modules/planejamento/colar-tarefas-service";
+import { colarBloco } from "@/modules/planejamento/colar-bloco-service";
 import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
-import { registrarProgresso } from "@/modules/planejamento/progresso-historico-service";
-import { mudaCampoDoPlano } from "@/modules/planejamento/trava-plano";
+import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "@/modules/planejamento/desfazer/passo";
+import { lerDataDigitada } from "@/modules/planejamento/datas-linha";
+import { definirInicioDaLinha, definirTerminoDaLinha, moverRestricoesDoProjeto } from "@/modules/planejamento/datas-linha-service";
+import { desfazerUltimoPasso, descartarPassos } from "@/modules/planejamento/desfazer/service";
+import { editarLinhaNoBanco, faseDaLinha, salvarLinhaNoBanco } from "@/modules/planejamento/linha-service";
 import {
   abrirRevisao,
   cancelarRevisao,
@@ -49,24 +57,6 @@ const revRecursos = () => revalidatePath("/recursos");
 
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
-const dia = z.string().min(1, "Informe a data.");
-
-/**
- * Fase da linha (F7.0): um id do catálogo de FASES (global ou deste projeto) — o mesmo que a
- * etapa da disciplina usa (F4). É o que liga um marco da EAP à fase que ele entrega (D31) e o que
- * `aplicarAoProjeto` usa para levar a data à etapa certa. Exige disciplina: fase solta, sem
- * disciplina, não aponta etapa nenhuma. Devolve o id a gravar (ou nulo).
- */
-async function faseDaLinha(projetoId: string, disciplinaId: string | null, etapaId: string | null | undefined) {
-  if (!etapaId) return null;
-  if (!disciplinaId) throw new ActionError("Escolha a disciplina antes da fase.");
-  const fase = await prisma.pranchaCatalogo.findFirst({
-    where: { id: etapaId, categoria: "fase", OR: [{ projetoId: null }, { projetoId }] },
-    select: { id: true },
-  });
-  if (!fase) throw new ActionError("Fase não encontrada no catálogo.");
-  return fase.id;
-}
 
 // ── EAP ──────────────────────────────────────────────────────
 
@@ -114,7 +104,7 @@ const editarSchema = z.object({
 const idSchema = z.object({ id: z.string().min(1) });
 const projetoIdSchema = z.object({ projetoId: z.string().min(1) });
 const depSchema = z.object({ tarefaId: z.string().min(1), predecessoraId: z.string().min(1) });
-const tipoVinculoSchema = z.enum(["fs", "ss", "ff", "sf"]);
+const tipoVinculoSchema = z.enum(["fs", "ss", "ff", "sf"], { message: "Tipo de vínculo inválido." });
 const vincularSchema = depSchema.extend({
   tipo: tipoVinculoSchema.default("fs"),
   lagDias: z.number().finite().default(0),
@@ -139,7 +129,7 @@ const restricaoSchema = z.object({
       "terminar_em",
       "terminar_nao_antes_de",
       "terminar_nao_depois_de",
-    ])
+    ], { message: "Tipo de restrição inválido." })
     .nullable(),
   data: opt(z.string()),
 });
@@ -186,7 +176,9 @@ export const gerarTarefaDeEap = defineAction(
 
 export const criarEapTarefa = defineAction(
   { ...plan, acao: "criar-eap", entidade: "EapTarefa", schema: tarefaSchema },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: async (i) => i.projetoId, rotulo: (i) => `Nova tarefa "${i.nome}"` },
+    async (i, { user }) => {
     await exigirPlanoEditavel(i.projetoId);
     const [max, cronograma, pai] = await Promise.all([
       prisma.eapTarefa.aggregate({ where: { projetoId: i.projetoId }, _max: { ordem: true } }),
@@ -232,91 +224,21 @@ export const criarEapTarefa = defineAction(
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return { id: t.id };
-  },
+    },
+  ),
 );
 
 export const editarEapTarefa = defineAction(
   { ...plan, acao: "editar-eap", entidade: "EapTarefa", schema: editarSchema },
-  async (i, { user }) => {
-    const antes = await prisma.eapTarefa.findUnique({
-      where: { id: i.id },
-      select: {
-        disciplinaId: true,
-        etapaId: true,
-        projetoId: true,
-        tipoEap: true,
-        duracaoDias: true,
-        progresso: true,
-        _count: { select: { filhas: true } },
-      },
-    });
-    if (!antes) throw new ActionError("Tarefa não encontrada.");
-    // B2 (`edicao-linha.ts`): só alterna atividade ↔ marco; agrupamento não grava duração; marco é 0.
-    const regra = regrasDeEdicao(
-      { tipoEap: antes.tipoEap, duracaoDias: Number(antes.duracaoDias), ehResumo: antes._count.filhas > 0 },
-      { marco: i.marco, duracaoDias: i.duracaoDias },
-    );
-    if (!regra.ok) throw new ActionError(regra.motivo);
-    const { tipoEap, duracaoDias } = regra;
-    // Plano aprovado (`trava-plano.ts`): nome e % seguem livres; duração, marco, disciplina e fase, não.
-    const mudaPlano = mudaCampoDoPlano(
-      { tipoEap: antes.tipoEap, duracaoDias: Number(antes.duracaoDias), disciplinaId: antes.disciplinaId, etapaId: antes.etapaId },
-      { tipoEap, duracaoDias, disciplinaId: i.disciplinaId || null, etapaId: i.etapaId === undefined ? undefined : i.etapaId || null },
-    );
-    if (mudaPlano) await exigirPlanoEditavel(antes.projetoId);
-    if (regra.virouMarco) {
-      // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
-      // conta — carga, custo e rollup — sem ninguém ver.
-      const comHoras = await prisma.eapAtribuicao.count({ where: { tarefaId: i.id, horasPrevistas: { gt: 0 } } });
-      if (comHoras > 0) {
-        throw new ActionError("Esta linha tem horas previstas. Zere as horas das pessoas antes de transformá-la em marco.");
-      }
-    }
-    // Fase: ausente não mexe (quem não manda o campo não apaga a fase de ninguém); trocar de
-    // disciplina sem mandar a fase a limpa — a fase de outra disciplina não aponta etapa desta.
-    const mudouDisciplina = (antes.disciplinaId ?? null) !== (i.disciplinaId || null);
-    const etapaId =
-      i.etapaId !== undefined
-        ? await faseDaLinha(antes.projetoId, i.disciplinaId || null, i.etapaId)
-        : mudouDisciplina
-          ? null
-          : undefined;
-    // Decisão #17: a mudança do % vai para o histórico NA MESMA TRANSAÇÃO — é o histórico que responde
-    // pelo número que o Valor Agregado publica numa data passada.
-    const t = await prisma.$transaction(async (tx) => {
-      const linha = await tx.eapTarefa.update({
-        where: { id: i.id },
-        data: {
-          nome: i.nome,
-          disciplinaId: i.disciplinaId || null,
-          ...(etapaId !== undefined ? { etapaId } : {}),
-          progresso: i.progresso,
-          tipoEap,
-          ...(duracaoDias !== undefined ? { duracaoDias } : {}),
-        },
-        select: { projetoId: true },
-      });
-      await registrarProgresso(tx, {
-        tarefaId: i.id,
-        projetoId: linha.projetoId,
-        anterior: antes.progresso,
-        progresso: i.progresso,
-        autorId: user.id,
-        origem: "informado",
-        ehResumo: antes._count.filhas > 0,
-      });
-      return linha;
-    });
-    // Linha que MUDOU de disciplina e está sem ninguém recebe o responsável da nova (D22).
-    // Só na mudança: herdar a cada edição devolveria as pessoas a uma linha que o
-    // coordenador esvaziou de propósito — bastaria renomeá-la.
-    if (mudouDisciplina) {
-      await herdarResponsaveisNoProjeto(prisma, t.projetoId, [i.id]);
-    }
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: (i) => `Editar "${i.nome}"` },
+    async (i, { user }) => {
+    const t = await editarLinhaNoBanco(i, user.id);
     await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { id: i.id };
-  },
+    },
+  ),
 );
 
 /**
@@ -325,13 +247,16 @@ export const editarEapTarefa = defineAction(
  */
 export const inserirEapTarefaAcima = defineAction(
   { ...plan, acao: "inserir-eap-acima", entidade: "EapTarefa", schema: idSchema },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: () => "Inserir linha" },
+    async (i, { user }) => {
     await exigirPlanoEditavelDaLinha(i.id);
     const r = await inserirLinhaAcima(i.id);
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { id: r.novaId };
-  },
+    },
+  ),
 );
 
 export const recuarEapTarefa = defineAction(
@@ -342,13 +267,16 @@ export const recuarEapTarefa = defineAction(
     schema: idSchema,
     capturarAntes: (i) => prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, ordem: true } }),
   },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Recuar") },
+    async (i, { user }) => {
     await exigirPlanoEditavelDaLinha(i.id);
     const r = await recuarLinha(i.id);
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { paiVirouAgrupamentoComGente: r.paiVirouAgrupamentoComGente };
-  },
+    },
+  ),
 );
 
 export const avancarEapTarefa = defineAction(
@@ -359,13 +287,16 @@ export const avancarEapTarefa = defineAction(
     schema: idSchema,
     capturarAntes: (i) => prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, ordem: true } }),
   },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Avançar") },
+    async (i, { user }) => {
     await exigirPlanoEditavelDaLinha(i.id);
     const r = await avancarLinha(i.id);
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { ok: true };
-  },
+    },
+  ),
 );
 
 /** Arrastar a linha: vai para antes/depois de outra, no nível dela, com as subtarefas junto. */
@@ -377,13 +308,16 @@ export const moverEapTarefa = defineAction(
     schema: z.object({ id: z.string().min(1), alvoId: z.string().min(1), posicao: z.enum(["antes", "depois"]) }),
     capturarAntes: (i) => prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, ordem: true } }),
   },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Mover") },
+    async (i, { user }) => {
     await exigirPlanoEditavelDaLinha(i.id);
     const r = await moverLinha(i.id, i.alvoId, i.posicao);
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { ok: true };
-  },
+    },
+  ),
 );
 
 /** Mover para cima/baixo no mesmo nível (menu da linha, Alt+Shift+↑/↓). */
@@ -395,18 +329,263 @@ export const moverEapTarefaNoNivel = defineAction(
     schema: z.object({ id: z.string().min(1), direcao: z.union([z.literal(-1), z.literal(1)]) }),
     capturarAntes: (i) => prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { parentId: true, ordem: true } }),
   },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Mover") },
+    async (i, { user }) => {
     await exigirPlanoEditavelDaLinha(i.id);
     const r = await moverLinhaNoNivel(i.id, i.direcao);
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { ok: true };
+    },
+  ),
+);
+
+// ── Datas digitadas na tabela (Fase D) ──────────────────────────────────────────────────────────────────────
+const diaIso = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida. Use dd/mm/aaaa.")
+  .refine((v) => lerDataDigitada(v, "2000-01-01").ok, "Data inválida. Use dd/mm/aaaa.");
+
+/** O início digitado na célula: vira a restrição "não iniciar antes de" (o alfinete); a duração se mantém. */
+export const definirInicioEapTarefa = defineAction(
+  { ...plan, acao: "definir-inicio-eap", entidade: "EapTarefa", schema: z.object({ id: z.string().min(1), data: diaIso }), entidadeId: (_d, i) => i.id },
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Início de") },
+    async (i, { user }) => {
+      await exigirPlanoEditavelDaLinha(i.id);
+      const r = await definirInicioDaLinha({ id: i.id, data: i.data });
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      // O motor pode não conseguir começar na data pedida (predecessora, dia não útil): a tela avisa a data real.
+      const t = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { inicioPrevisto: true } });
+      return { inicio: t ? paraDia(t.inicioPrevisto) : i.data, pedido: i.data };
+    },
+  ),
+);
+
+/** O término digitado na célula: vira a DURAÇÃO (dias úteis do início do motor até a data); não cria restrição. */
+export const definirTerminoEapTarefa = defineAction(
+  { ...plan, acao: "definir-termino-eap", entidade: "EapTarefa", schema: z.object({ id: z.string().min(1), data: diaIso }), entidadeId: (_d, i) => i.id },
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Término de") },
+    async (i, { user }) => {
+      await exigirPlanoEditavelDaLinha(i.id);
+      const r = await definirTerminoDaLinha({ id: i.id, data: i.data });
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { duracaoDias: r.duracaoDias };
+    },
+  ),
+);
+
+// ── Várias linhas de uma vez (Fase C) ────────────────────────────────────────────────────────────────────────
+// UMA chamada, UMA transação (tudo ou nada), UM reagendamento e UM passo de desfazer — a seleção do cronograma.
+
+const lote = z.object({
+  ids: z
+    .array(z.string().min(1))
+    .min(1, "Escolha ao menos uma linha.")
+    .max(MAX_LINHAS_LOTE, `Escolha no máximo ${MAX_LINHAS_LOTE} linhas de uma vez.`),
+});
+const loteDirecao = lote.extend({ direcao: z.union([z.literal(-1), z.literal(1)]) });
+const linhasTxt = (n: number) => (n === 1 ? "1 linha" : `${n} linhas`);
+const projetoDoLote = <I extends { ids: string[] }>(i: I) => projetoDaLinha(i.ids[0]);
+/** Valida o lote (de UM projeto, linhas existentes) e SÓ ENTÃO trava/marca o plano: a guarda marca a revisão como alterada. */
+async function exigirLoteEditavel(ids: readonly string[]): Promise<string> {
+  const { projetoId } = await carregarLote(ids);
+  await exigirPlanoEditavel(projetoId);
+  return projetoId;
+}
+/** O projeto vai no resultado: a auditoria de um lote aponta o projeto, e uma linha excluída já não existe para apontar. */
+const entidadeDoLote = (d: unknown) => (d as { projetoId?: string } | null)?.projetoId;
+/** O antes de cada linha do lote (pai e posição): a auditoria de recuar/avançar/mover/excluir guarda o que mudou. */
+const antesDoLote = (i: { ids: string[] }) =>
+  prisma.eapTarefa.findMany({ where: { id: { in: i.ids } }, select: { id: true, nome: true, parentId: true, ordem: true } });
+
+export const recuarEapTarefas = defineAction(
+  { ...plan, acao: "recuar-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: entidadeDoLote, capturarAntes: antesDoLote },
+  comPassoDaAction(
+    { projetoDe: projetoDoLote, rotulo: (i) => `Recuar ${linhasTxt(i.ids.length)}` },
+    async (i, { user }) => {
+      await exigirLoteEditavel(i.ids);
+      const r = await recuarEmLote(i.ids);
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { projetoId: r.projetoId, linhas: r.linhas, paisComGente: r.paisComGente };
+    },
+  ),
+);
+
+export const avancarEapTarefas = defineAction(
+  { ...plan, acao: "avancar-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: entidadeDoLote, capturarAntes: antesDoLote },
+  comPassoDaAction(
+    { projetoDe: projetoDoLote, rotulo: (i) => `Avançar ${linhasTxt(i.ids.length)}` },
+    async (i, { user }) => {
+      await exigirLoteEditavel(i.ids);
+      const r = await avancarEmLote(i.ids);
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { projetoId: r.projetoId, linhas: r.linhas };
+    },
+  ),
+);
+
+export const moverEapTarefasNoNivel = defineAction(
+  { ...plan, acao: "mover-eap-lote", entidade: "EapTarefa", schema: loteDirecao, entidadeId: entidadeDoLote, capturarAntes: antesDoLote },
+  comPassoDaAction(
+    { projetoDe: projetoDoLote, rotulo: (i) => `Mover ${linhasTxt(i.ids.length)}` },
+    async (i, { user }) => {
+      await exigirLoteEditavel(i.ids);
+      const r = await moverEmLote(i.ids, i.direcao);
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { projetoId: r.projetoId, linhas: r.linhas };
+    },
+  ),
+);
+
+export const excluirEapTarefas = defineAction(
+  { ...plan, acao: "excluir-eap-lote", entidade: "EapTarefa", schema: lote, entidadeId: entidadeDoLote, capturarAntes: antesDoLote },
+  comPassoDaAction(
+    { projetoDe: projetoDoLote, rotulo: (i) => `Excluir ${linhasTxt(i.ids.length)}` },
+    async (i, { user }) => {
+      await exigirLoteEditavel(i.ids);
+      const r = await excluirEmLote(i.ids);
+      // Reagenda: sucessoras podem andar e o agrupamento-pai se refaz. (O card da linha excluída fica — nunca se apaga card.)
+      await aposMudarEap(r.projetoId, user.id);
+      revProjeto(r.projetoId);
+      return { projetoId: r.projetoId, linhas: r.linhas, excluidas: r.excluidas };
+    },
+  ),
+);
+
+/**
+ * "Novas tarefas": várias tarefas de uma vez a partir de um texto colado (uma por linha, `Nome<TAB>duração`). O texto vai
+ * ao servidor CRU e é lido aqui com `lerTarefasColadas`, a mesma função da prévia da tela — nunca há duas leituras.
+ * Entram abaixo de `depoisDeId`, no nível dele (`null` = fim da lista), com a disciplina do agrupamento (A1).
+ */
+export const criarEapTarefasEmLote = defineAction(
+  {
+    ...plan,
+    acao: "criar-eap-lote",
+    entidade: "EapTarefa",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      depoisDeId: z.string().min(1).nullable(),
+      texto: z.string().max(100_000, "O texto colado é grande demais."),
+    }),
+    entidadeId: (_d, i) => i.projetoId,
+    // O texto fica de fora da auditoria (pode ser enorme): ela guarda o projeto e a linha de referência.
+    redact: ["texto"],
+  },
+  comPassoDaAction(
+    {
+      projetoDe: async (i) => i.projetoId,
+      rotulo: (i) => {
+        const r = lerTarefasColadas(i.texto);
+        return r.ok ? `Colar ${r.tarefas.length === 1 ? "1 tarefa" : `${r.tarefas.length} tarefas`}` : "Colar tarefas";
+      },
+    },
+    async (i, { user }) => {
+      const leitura = lerTarefasColadas(i.texto);
+      if (!leitura.ok) throw new ActionError(leitura.linha > 0 ? `Linha ${leitura.linha}: ${leitura.erro}` : leitura.erro);
+      await exigirPlanoEditavel(i.projetoId);
+      const r = await criarTarefasEmLote({ projetoId: i.projetoId, depoisDeId: i.depoisDeId, tarefas: leitura.tarefas });
+      await aposMudarEap(i.projetoId, user.id);
+      revProjeto(i.projetoId);
+      return { criadas: r.ids.length };
+    },
+  ),
+);
+
+/**
+ * Colar o bloco copiado (a linha e tudo dentro dela) abaixo de `depoisDeId`, no nível dele (`null` = fim da lista).
+ * Estrutura, duração, marcos e vínculos internos vêm junto; pessoas, horas, % e restrições não. A disciplina é a do
+ * agrupamento de destino (A1). Um passo de desfazer.
+ */
+export const colarEapBloco = defineAction(
+  {
+    ...plan,
+    acao: "colar-eap-bloco",
+    entidade: "EapTarefa",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      origemIds: z
+        .array(z.string().min(1))
+        .min(1, "Copie linhas antes de colar.")
+        .max(MAX_LINHAS_LOTE, `Copie no máximo ${MAX_LINHAS_LOTE} linhas de uma vez.`),
+      depoisDeId: z.string().min(1).nullable(),
+    }),
+    entidadeId: (_d, i) => i.projetoId,
+  },
+  comPassoDaAction(
+    {
+      projetoDe: async (i) => i.projetoId,
+      rotulo: (i) => `Colar ${i.origemIds.length === 1 ? "1 linha copiada" : `${i.origemIds.length} linhas copiadas`}`,
+    },
+    async (i, { user }) => {
+      await exigirPlanoEditavel(i.projetoId);
+      const r = await colarBloco({ projetoId: i.projetoId, origemIds: i.origemIds, depoisDeId: i.depoisDeId });
+      await aposMudarEap(i.projetoId, user.id);
+      revProjeto(i.projetoId);
+      return { criadas: r.criadas };
+    },
+  ),
+);
+
+/**
+ * O botão do achado "disciplina diferente do agrupamento" (Fase A, A2): passa as linhas para a disciplina e a fase do
+ * agrupamento em que estão. Recalcula do banco (a lista da tela pode estar velha) e recusa com o plano aprovado.
+ */
+export const alinharDisciplinaAoAgrupamento = defineAction(
+  {
+    ...plan,
+    acao: "alinhar-disciplina-eap",
+    entidade: "EapTarefa",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      tarefaIds: z.array(z.string().min(1)).min(1, "Escolha ao menos uma linha.").max(MAX_LINHAS, `Corrija no máximo ${MAX_LINHAS} linhas de uma vez.`),
+    }),
+    entidadeId: (_data, i) => i.projetoId,
+    // O antes de cada linha pedida (disciplina e fase): a correção é em massa e o log só guardaria os ids.
+    capturarAntes: (i) =>
+      prisma.eapTarefa.findMany({
+        where: { projetoId: i.projetoId, id: { in: i.tarefaIds } },
+        select: { id: true, disciplinaId: true, etapaId: true },
+      }),
+  },
+  comPassoDaAction(
+    { projetoDe: async (i) => i.projetoId, rotulo: () => "Corrigir a disciplina das linhas" },
+    async (i, { user }) => {
+    const { corrigidas } = await alinharDisciplinasNoBanco(i.projetoId, i.tarefaIds);
+    if (corrigidas.length === 0) throw new ActionError("Nada a corrigir: as linhas já estão na disciplina do agrupamento.");
+    await aposMudarEap(i.projetoId, user.id);
+    revProjeto(i.projetoId);
+    return { corrigidas: corrigidas.length };
+    },
+  ),
+);
+
+/**
+ * Ctrl+Z da EAP: desfaz a última mudança do plano feita por esta pessoa (`desfazer/service.ts`). Recusa com o plano
+ * aprovado, sem passo, ou se outra pessoa editou depois.
+ */
+export const desfazerEap = defineAction(
+  { ...plan, acao: "desfazer-eap", entidade: "EapTarefa", schema: projetoIdSchema, entidadeId: (_d, i) => i.projetoId },
+  async (i, { user }) => {
+    const { rotulo } = await desfazerUltimoPasso(i.projetoId, user.id);
+    await aposMudarEap(i.projetoId, user.id);
+    revProjeto(i.projetoId);
+    return { rotulo };
   },
 );
 
 export const excluirEapTarefa = defineAction(
   { ...plan, acao: "excluir-eap", entidade: "EapTarefa", schema: idSchema },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Excluir") },
+    async (i, { user }) => {
     await exigirPlanoEditavelDaLinha(i.id);
     const pre = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { projetoId: true } });
     await prisma.eapTarefa.delete({ where: { id: i.id } });
@@ -415,7 +594,8 @@ export const excluirEapTarefa = defineAction(
     if (pre) await aposMudarEap(pre.projetoId, user.id);
     revProjeto(pre!.projetoId);
     return { id: i.id };
-  },
+    },
+  ),
 );
 
 /** Define/redefine a linha de base: copia datas previstas atuais → baseline de TODAS as tarefas. */
@@ -494,6 +674,8 @@ export const gerarEapDasDisciplinas = defineAction(
   async (i, { user }) => {
     await exigirPlanoEditavel(i.projetoId);
     const r = await gerarEapDasDisciplinasNoProjeto({ projetoId: i.projetoId, escolhas: i.escolhas });
+    // Gerar a EAP não tem desfazer: os passos de antes ficaram para trás (e responderiam "o plano mudou").
+    await descartarPassos(i.projetoId);
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;
@@ -521,6 +703,8 @@ export const apagarEap = defineAction(
   },
   async (i, { user }) => {
     const r = await apagarEapDoProjeto(i.projetoId);
+    // Apagar a EAP inteira não tem desfazer: a pilha de antes não vale mais.
+    await descartarPassos(i.projetoId);
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;
@@ -555,19 +739,40 @@ export const definirInicioProjeto = defineAction(
     ...plan,
     acao: "definir-inicio-projeto",
     entidade: "CronogramaProjeto",
-    schema: z.object({ projetoId: z.string().min(1), inicio: dia }),
+    schema: z.object({
+      projetoId: z.string().min(1),
+      inicio: diaIso,
+      /** As linhas de data fixada (o alfinete) andam junto, os mesmos dias úteis. Padrão: manter onde estão. */
+      moverRestricoes: z.boolean().default(false),
+    }),
+    entidadeId: (_d, i) => i.projetoId,
+    // O início de ANTES: a auditoria mostra de onde para onde o início andou.
+    capturarAntes: async (i) => {
+      const c = await prisma.cronogramaProjeto.findUnique({ where: { projetoId: i.projetoId }, select: { inicioProjeto: true } });
+      return { inicioProjeto: c?.inicioProjeto ? paraDia(c.inicioProjeto) : null };
+    },
   },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: async (i) => i.projetoId, rotulo: () => "Mudar o início do projeto" },
+    async (i, { user }) => {
     await exigirPlanoEditavel(i.projetoId);
-    await prisma.cronogramaProjeto.upsert({
-      where: { projetoId: i.projetoId },
-      create: { projetoId: i.projetoId, inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
-      update: { inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
+    const anterior = await prisma.cronogramaProjeto.findUnique({ where: { projetoId: i.projetoId }, select: { inicioProjeto: true } });
+    // O novo início e o "mover junto" das restrições numa transação só: se um falhar, nenhum fica pela metade.
+    const movidas = await prisma.$transaction(async (tx) => {
+      await tx.cronogramaProjeto.upsert({
+        where: { projetoId: i.projetoId },
+        create: { projetoId: i.projetoId, inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
+        update: { inicioProjeto: new Date(`${i.inicio}T00:00:00.000Z`) },
+      });
+      return i.moverRestricoes && anterior?.inicioProjeto
+        ? (await moverRestricoesDoProjeto(i.projetoId, paraDia(anterior.inicioProjeto), i.inicio, tx)).movidas
+        : 0;
     });
     const r = await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
-    return r;
-  },
+    return { ...r, movidas };
+    },
+  ),
 );
 
 /**
@@ -634,6 +839,8 @@ export const aprovarCronogramaAction = defineAction(
   async (i, ctx) => {
     try {
       const r = await aprovarCronograma(i.projetoId, ctx.user.id);
+      // O plano congelou: o que havia para desfazer deixa de valer (e o desfazer só existe com o plano editável).
+      await descartarPassos(i.projetoId);
       revProjeto(i.projetoId);
       revalidatePath(`/projetos/${i.projetoId}`);
       return r;
@@ -663,6 +870,8 @@ export const replanejarCronograma = defineAction(
   async (i, ctx) => {
     try {
       const r = await replanejar(i.projetoId, ctx.user.id, i.motivo, i.observacao || null);
+      // A revisão fechou com nova linha de base: o plano voltou a travar e os passos de antes ficaram para trás.
+      await descartarPassos(i.projetoId);
       revProjeto(i.projetoId);
       return r;
     } catch (e) {
@@ -705,6 +914,8 @@ export const cancelarRevisaoPlanejamento = defineAction(
   },
   async (i) => {
     await cancelarRevisao(i.projetoId);
+    // Revisão cancelada: o que se fez nela não deve reaparecer como desfazível na próxima.
+    await descartarPassos(i.projetoId);
     revProjeto(i.projetoId);
     return { ok: true };
   },
@@ -751,7 +962,9 @@ async function alcanca(deId: string, alvoId: string): Promise<boolean> {
 
 export const vincularDependencia = defineAction(
   { ...plan, acao: "vincular-dep", entidade: "EapDependencia", schema: vincularSchema },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.tarefaId), rotulo: () => "Vincular predecessora" },
+    async (i, { user }) => {
     if (i.tarefaId === i.predecessoraId) throw new ActionError("Tarefa não pode depender dela mesma.");
     await exigirPlanoEditavelDaLinha(i.tarefaId);
     const [tarefa, pred] = await Promise.all([
@@ -770,7 +983,8 @@ export const vincularDependencia = defineAction(
     await aposMudarEap(tarefa.projetoId, user.id);
     revProjeto(tarefa.projetoId);
     return { ok: true };
-  },
+    },
+  ),
 );
 
 const predecessorasSchema = z.object({
@@ -781,7 +995,7 @@ const predecessorasSchema = z.object({
         predecessoraId: z.string().min(1),
         tipo: tipoVinculoSchema,
         // Dias ÚTEIS; negativo = antecipação (Doc 03 §13).
-        lagDias: z.number().finite().min(-9999).max(9999),
+        lagDias: z.number({ message: "Informe a defasagem em dias úteis." }).finite().min(-9999, "A defasagem vai de -9999 a 9999 dias úteis.").max(9999, "A defasagem vai de -9999 a 9999 dias úteis."),
       }),
     )
     .max(50, "Predecessoras demais para uma linha."),
@@ -807,19 +1021,24 @@ export const definirPredecessorasDaLinha = defineAction(
         select: { predecessoraId: true, tipo: true, lagDias: true },
       }),
   },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.tarefaId), rotulo: () => "Mudar as predecessoras" },
+    async (i, { user }) => {
     await exigirPlanoEditavelDaLinha(i.tarefaId);
     const r = await trocarPredecessoras({ tarefaId: i.tarefaId, vinculos: i.vinculos });
     await aposMudarEap(r.projetoId, user.id);
     revProjeto(r.projetoId);
     return { vinculos: i.vinculos.length };
-  },
+    },
+  ),
 );
 
 /** Muda o TIPO (FS/SS/FF/SF) ou o LAG de um vínculo já existente, sem recriá-lo. */
 export const editarVinculo = defineAction(
   { ...plan, acao: "editar-vinculo", entidade: "EapDependencia", schema: editarVinculoSchema },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.tarefaId), rotulo: () => "Editar o vínculo" },
+    async (i, { user }) => {
     const t = { projetoId: await exigirPlanoEditavelDaLinha(i.tarefaId) };
     await prisma.eapDependencia.updateMany({
       where: { tarefaId: i.tarefaId, predecessoraId: i.predecessoraId },
@@ -828,7 +1047,8 @@ export const editarVinculo = defineAction(
     await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { ok: true };
-  },
+    },
+  ),
 );
 
 /**
@@ -891,7 +1111,9 @@ export const desbloquear = defineAction(
  */
 export const definirRestricao = defineAction(
   { ...plan, acao: "definir-restricao", entidade: "EapTarefa", schema: restricaoSchema },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Restrição de data em") },
+    async (i, { user }) => {
     if (i.tipo && !i.data) throw new ActionError("Informe a data da restrição.");
     await exigirPlanoEditavelDaLinha(i.id);
     const t = await prisma.eapTarefa.update({
@@ -905,12 +1127,15 @@ export const definirRestricao = defineAction(
     await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
     return { ok: true };
-  },
+    },
+  ),
 );
 
 export const removerDependencia = defineAction(
   { ...plan, acao: "remover-dep", entidade: "EapDependencia", schema: depSchema },
-  async (i, { user }) => {
+  comPassoDaAction(
+    { projetoDe: (i) => projetoDaLinha(i.tarefaId), rotulo: () => "Remover predecessora" },
+    async (i, { user }) => {
     await exigirPlanoEditavelDaLinha(i.tarefaId);
     const t = await prisma.eapTarefa.findUnique({
       where: { id: i.tarefaId },
@@ -924,7 +1149,8 @@ export const removerDependencia = defineAction(
       revProjeto(t.projetoId);
     }
     return { ok: true };
-  },
+    },
+  ),
 );
 
 // ── Recursos & Alocações ─────────────────────────────────────
@@ -1140,4 +1366,62 @@ export const registrarExecucao = defineAction(
     if (fase?.marcadaEntregue) revalidatePath(`/projetos/${projetoId}`);
     return { status, fase };
   },
+);
+
+/**
+ * O "Salvar" do painel da linha: tudo o que mudou nela numa chamada — nome, tipo, disciplina, fase, duração, %,
+ * predecessoras, início (o alfinete), término (a duração) e restrição. UM reagendamento e UM passo de desfazer; tudo ou
+ * nada (`salvarLinhaNoBanco`). Pessoas e bloqueio seguem nas ações deles (gravam na hora).
+ */
+export const salvarLinhaEap = defineAction(
+  {
+    ...plan,
+    acao: "salvar-linha-eap",
+    entidade: "EapTarefa",
+    schema: editarSchema.extend({
+      inicio: diaIso.optional(),
+      termino: diaIso.optional(),
+      restricao: z
+        .object({ tipo: restricaoSchema.shape.tipo, data: diaIso.optional() })
+        .optional(),
+      predecessoras: predecessorasSchema.shape.vinculos.optional(),
+      /** 6a: a tela confirmou quantas linhas de dentro do agrupamento mudam de disciplina junto. */
+      propagarDisciplina: z.object({ esperadas: z.number().int().min(0).max(MAX_LINHAS, `Limite de ${MAX_LINHAS} linhas de dentro por vez.`) }).optional(),
+    }),
+    entidadeId: (_d, i) => i.id,
+    // Decimal não vai para o JSON da auditoria: a duração sai como número.
+    capturarAntes: async (i) => {
+      const t = await prisma.eapTarefa.findUnique({
+        where: { id: i.id },
+        select: {
+          nome: true,
+          tipoEap: true,
+          disciplinaId: true,
+          etapaId: true,
+          duracaoDias: true,
+          progresso: true,
+          restricaoTipo: true,
+          restricaoData: true,
+          predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
+        },
+      });
+      return t
+        ? {
+            ...t,
+            duracaoDias: Number(t.duracaoDias),
+            restricaoData: t.restricaoData ? paraDia(t.restricaoData) : null,
+            predecessoras: t.predecessoras.map((p) => ({ ...p, lagDias: Number(p.lagDias) })),
+          }
+        : null;
+    },
+  },
+  comPassoDaAction(
+    // O nome lido ANTES: numa renomeação, o Ctrl+Z diz qual linha era.
+    { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Editar") },
+    async (i, { user }) => {
+      const r = await salvarLinhaNoBanco(i, user.id);
+      revProjeto(r.projetoId);
+      return { inicio: r.inicio, fim: r.fim };
+    },
+  ),
 );

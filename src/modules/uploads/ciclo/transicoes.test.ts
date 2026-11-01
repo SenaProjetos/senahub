@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ESTADOS_REVISAO, type EstadoRevisao } from "./estados";
+import { ESTADOS_REVISAO, type EstadoRevisao, type TipoControle } from "./estados";
 import {
   MOTIVO_BLOQUEADA,
   MOTIVO_EXIGE_MOTIVO,
@@ -78,7 +78,7 @@ describe("tabela de transições", () => {
 });
 
 describe("controles", () => {
-  const base = (estado: EstadoRevisao, ativos: { tipo: "liberado_obra" | "enviado_cliente" | "bloqueio" | "restricao"; origem: string | null }[] = []) => ({
+  const base = (estado: EstadoRevisao, ativos: { tipo: TipoControle; origem: string | null }[] = []) => ({
     ...r(estado, { bloqueada: ativos.some((a) => a.tipo === "bloqueio") }),
     ativos,
   });
@@ -93,6 +93,18 @@ describe("controles", () => {
 
   it("um de cada controle de pasta por revisão", () => {
     expect(motivoParaNaoAplicar("liberado_obra", base("publicado", [{ tipo: "liberado_obra", origem: null }]), { motivo: "x" })).toMatch(/já está/);
+  });
+
+  it('"Em revisão": só em revisão publicada, uma marca ativa, com motivo, sem barrar por bloqueio', () => {
+    for (const estado of ["em_andamento", "compartilhado"] as const) {
+      expect(motivoParaNaoAplicar("em_revisao", base(estado), { motivo: "x" })).toBe('Só uma revisão publicada pode ficar "Em revisão".');
+    }
+    expect(motivoParaNaoAplicar("em_revisao", base("publicado", [{ tipo: "em_revisao", origem: null }]), { motivo: "x" })).toBe(
+      'Esta revisão já está "Em revisão".',
+    );
+    expect(motivoParaNaoAplicar("em_revisao", base("publicado"), {})).toBe("Informe o motivo.");
+    expect(motivoParaNaoAplicar("em_revisao", base("publicado", [{ tipo: "bloqueio", origem: null }]), { motivo: "x" })).toBeNull();
+    expect(motivoParaNaoAplicar("em_revisao", base("arquivado"), { motivo: "x" })).toBe("Revisão arquivada é somente leitura.");
   });
 
   it("restrição ativa impede liberar para obra", () => {

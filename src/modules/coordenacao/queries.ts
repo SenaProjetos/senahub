@@ -1,7 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { refDocumento } from "@/modules/coordenacao/modelo-ref";
+import { refDocumento, serieDoModelo } from "@/modules/coordenacao/modelo-ref";
 import type { SessionUser } from "@/lib/session";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { ORIGENS_FORA_DOS_MODELOS } from "@/modules/documentos-cliente/origens";
@@ -21,6 +21,10 @@ export type ModeloCoordenacao = {
   versao: number;
   tamanho: number;
   enviadoEm: Date;
+  /** Série do arquivo (`serieDoModelo`) — chave de quem a coordenação tira da Compatibilização. */
+  serie: string;
+  /** Tirado da Compatibilização: fora do painel de disciplinas, do realinhamento, do diff e do federado. */
+  oculto: boolean;
   conversao: {
     status: string;
     progresso: number | null;
@@ -34,9 +38,13 @@ export type ModeloCoordenacao = {
 /**
  * Federação derivada (não persistida): para cada disciplina do projeto, a última
  * versão de cada arquivo .ifc enviado, com o estado da conversão para Fragments.
- * O acesso ao projeto (escopo) é validado pela página antes de chamar.
+ * O acesso ao projeto (escopo) é validado pela página antes de chamar. Os que a coordenação tirou
+ * da Compatibilização vêm com `oculto: true` — cada leitor decide se os mostra.
  */
 export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoordenacao[]> {
+  const ocultos = new Set(
+    (await prisma.modeloCoordenacaoOculto.findMany({ where: { projetoId }, select: { serie: true } })).map((o) => o.serie),
+  );
   const uploads = await prisma.upload.findMany({
     where: {
       disciplina: { projetoId },
@@ -70,6 +78,7 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
     const chave = `${u.disciplina.id}::${u.nomeArquivo.toLowerCase()}`;
     if (vistos.has(chave)) continue;
     vistos.add(chave);
+    const serie = serieDoModelo({ tipo: "upload", disciplinaId: u.disciplina.id, nomeArquivo: u.nomeArquivo });
     modelos.push({
       tipo: "upload",
       disciplinaId: u.disciplina.id,
@@ -79,13 +88,15 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
       versao: u.versao,
       tamanho: u.tamanho,
       enviadoEm: u.createdAt,
+      serie,
+      oculto: ocultos.has(serie),
       conversao: u.conversao,
     });
   }
 
   // IFCs recebidos do cliente (repositório Documento, origem != interno) ancorados ao
   // projeto ou à sua proposta. Cada Documento entra com a versão MAIS RECENTE.
-  modelos.push(...(await recebidosIfc(projetoId)));
+  modelos.push(...(await recebidosIfc(projetoId, ocultos)));
 
   return modelos.sort(
     (a, b) =>
@@ -99,12 +110,13 @@ export async function modelosCoordenacao(projetoId: string): Promise<ModeloCoord
  * versão mais recente e o estado da conversão para Fragments. Cada um vira um
  * ModeloCoordenacao com chave `d:<versaoId>` e sem disciplina.
  */
-async function recebidosIfc(projetoId: string): Promise<ModeloCoordenacao[]> {
+async function recebidosIfc(projetoId: string, ocultos: Set<string>): Promise<ModeloCoordenacao[]> {
   const proposta = await prisma.proposta.findUnique({ where: { projetoId }, select: { id: true } });
   const ancoras = [{ projetoId }, ...(proposta ? [{ propostaId: proposta.id }] : [])];
   const docs = await prisma.documento.findMany({
     where: { origem: { notIn: [...ORIGENS_FORA_DOS_MODELOS] }, OR: ancoras },
     select: {
+      id: true,
       versoes: {
         orderBy: { numero: "desc" },
         take: 1,
@@ -133,6 +145,7 @@ async function recebidosIfc(projetoId: string): Promise<ModeloCoordenacao[]> {
   for (const d of docs) {
     const v = d.versoes[0];
     if (!v || !/\.ifc$/i.test(v.nomeArquivo)) continue;
+    const serie = serieDoModelo({ tipo: "documento", documentoId: d.id });
     modelos.push({
       tipo: "documento",
       disciplinaId: "",
@@ -142,6 +155,8 @@ async function recebidosIfc(projetoId: string): Promise<ModeloCoordenacao[]> {
       versao: v.numero,
       tamanho: v.tamanho,
       enviadoEm: v.createdAt,
+      serie,
+      oculto: ocultos.has(serie),
       conversao: v.conversao,
     });
   }

@@ -5,6 +5,7 @@ import { estadoDoDia, projetosDoUsuario, espelhoMes, ajustesPendentesCiencia } f
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
 import { sugestaoParaPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { rateioMesGestor } from "@/modules/rh/rateio/queries";
+import { podeVerCusto } from "@/lib/custo-visivel";
 
 import { disciplinasEscreviveisNoProjeto, type DisciplinaEscrevivel } from "@/modules/projetos/diario/queries";
 import { PontoView } from "@/components/ponto/ponto-view";
@@ -32,7 +33,7 @@ export default async function PontoPage() {
   ]);
 
   // Ver o rateio é `ponto:rateio`; fechar é gestão de RH (`rh:gerir`, o gate da ação).
-  const rateio = podeRatear ? { ...(await rateioMesGestor(ano, mes)), podeFechar: user.gereRh } : null;
+  const rateio = podeRatear ? { ...(await rateioMesGestor(ano, mes, await podeVerCusto(user))), podeFechar: user.gereRh } : null;
   // Parado, o ponto abre no projeto e na atividade de hoje (reunião de 08/10/2026, decisão 1).
   const parado = usaApontamento ? !apontamento?.aberto : estadoDia.estado === "fora";
   const sugestao = parado ? await sugestaoParaPonto(user.id, new Set(projetos.map((p) => p.id))) : null;

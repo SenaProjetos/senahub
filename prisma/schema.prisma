@@ -164,6 +164,9 @@ model User {
   historicoRegistrado      HistoricoContratual[]      @relation("HistoricoAutor")
   fechamentosRateio        FechamentoRateio[]         @relation("FechamentoRateioAutor")
   tabelasEncargos          TabelaEncargos[]           @relation("TabelaEncargosAutor")
+  eventosFechamentoRateio  FechamentoRateioEvento[]   @relation("FechamentoRateioEventoAutor")
+  reaberturasFolha         FolhaReabertura[]          @relation("FolhaReaberturaAutor")
+  responsabilidadesHistorico DisciplinaResponsavelHistorico[] @relation("ResponsavelHistorico")
   cargoId                  String?
   cargoRef                 Cargo?                     @relation(fields: [cargoId], references: [id])
   /// Fonte de verdade do departamento. Nulo = ainda não classificado no catálogo.
@@ -211,6 +214,7 @@ model User {
   cronogramasAprovados          CronogramaProjeto[]         @relation("CronogramaAprovador")
   eapBaselinesAutor             EapBaseline[]               @relation("EapBaselineAutor")
   eapCodigoHistorico            EapCodigoHistorico[]        @relation("EapCodigoAutor")
+  eapPassosDesfazer             EapPassoDesfazer[]
   eapAtribuicoes                EapAtribuicao[]             @relation("EapAtribuicaoPessoa")
   batidas                       Batida[]
   batidasAjustadas              Batida[]                    @relation("BatidaCriador")
@@ -1274,6 +1278,7 @@ model Projeto {
   saudeSnapshots          CronogramaSaudeSnapshot[]
   apuracoesValorAgregado  ValorAgregadoApuracao[]
   eapTarefas              EapTarefa[]
+  eapPassosDesfazer       EapPassoDesfazer[]
   alocacoes               Alocacao[]
   necessidadesHabilidade  NecessidadeHabilidade[]
   servicos                ServicoTerceirizado[]
@@ -1319,6 +1324,7 @@ model Projeto {
   @@index([tipoEmpreendimentoId])
   regrasPreenchimento RegraCategorizacao[]
   geracoesModeloFederado GeracaoModeloFederado[]
+  modelosForaDaCompatibilizacao ModeloCoordenacaoOculto[]
   @@map("projeto")
 }
 
@@ -1349,6 +1355,7 @@ model InputTemplate {
   ordem      Int      @default(0)
   ativo      Boolean  @default(true)
   createdAt  DateTime @default(now())
+  inputs     InputProjeto[]
 
   @@index([disciplina])
   @@map("input_template")
@@ -1362,10 +1369,19 @@ model InputProjeto {
   pergunta   String
   resposta   String?
   ordem      Int      @default(0)
+  /// Pergunta padrão de origem: o padrão nunca recria uma pergunta que veio dele, nem
+  /// editada nem removida. Linhas antigas (null) casam pelo texto.
+  templateId String?
+  template   InputTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  /// Removida do formulário (fora da tela e do link). A linha fica para restaurar e para
+  /// o padrão não recriá-la; a resposta é guardada.
+  removidoEm DateTime?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@unique([projetoId, templateId])
   @@index([projetoId])
+  @@index([templateId])
   @@map("input_projeto")
 }
 
@@ -1380,6 +1396,10 @@ model BriefingProjeto {
   status        String    @default("nao_iniciado")
   preenchidoPor String?
   preenchidoEm  DateTime?
+  /// Seções (`SecaoBriefing.id`) e campos (`CampoBriefing.chave`) ocultos NESTE projeto:
+  /// somem da tela e do link e não contam no status. As respostas ficam guardadas.
+  secoesOcultas String[]  @default([])
+  camposOcultos String[]  @default([])
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -2434,6 +2454,10 @@ model SessaoTrabalho {
   /// (a validação é da action, não do banco). `SetNull`: apagar a tarefa não pode apagar horas.
   tarefaId     String?
   tarefa       Tarefa?           @relation(fields: [tarefaId], references: [id], onDelete: SetNull)
+  /// Disciplina em que a hora foi trabalhada (R2 do rateio): a da tarefa escolhida, ou a única de que
+  /// a pessoa é responsável no projeto. Foto do momento da sessão. Nula = coordenação/apoio ou reunião.
+  disciplinaId String?
+  disciplina   Disciplina?       @relation("SessaoDisciplina", fields: [disciplinaId], references: [id], onDelete: SetNull)
   inicio       DateTime
   fim          DateTime?
   createdAt    DateTime          @default(now())
@@ -2441,6 +2465,7 @@ model SessaoTrabalho {
   @@index([userId, inicio])
   @@index([projetoId])
   @@index([tarefaId])
+  @@index([disciplinaId])
   @@map("sessao_trabalho")
 }
 
@@ -2456,6 +2481,9 @@ model RateioHora {
   projetoId   String?
   projeto     Projeto?       @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   natureza    NaturezaRateio @default(projeto)
+  /// Disciplina da linha (R2). Nula = sem disciplina (coordenação/apoio, reunião, não alocado).
+  disciplinaId String?
+  disciplina   Disciplina?    @relation("RateioDisciplina", fields: [disciplinaId], references: [id], onDelete: SetNull)
   /// Contratação de quem apontou NO MÊS (foto; o cache do usuário muda com o tempo). Nas linhas
   /// anteriores à R1 é o cache do usuário na data da migração — foto aproximada.
   contratacao Contratacao?
@@ -2468,11 +2496,12 @@ model RateioHora {
   custo       Decimal        @db.Decimal(12, 2)
   fechadoEm   DateTime       @default(now())
 
-  // Unicidade por pessoa × mês × natureza × projeto: índices únicos PARCIAIS só na migração
-  // 20261011120000 (o Prisma não expressa `WHERE projetoId IS [NOT] NULL`).
+  // Unicidade por pessoa × mês × natureza × projeto × disciplina: índice único por EXPRESSÃO
+  // (COALESCE dos nulos) só na migração 20261011150000 — o Prisma não expressa.
   @@index([projetoId, ano, mes])
   @@index([ano, mes])
   @@index([userId, ano, mes])
+  @@index([disciplinaId])
   @@map("rateio_hora")
 }
 
@@ -2489,6 +2518,8 @@ model FechamentoRateio {
   ano          Int
   mes          Int
   calculo      String
+  /// Soma das linhas no momento do fechamento (R3): base do aviso "alterado depois do fechamento".
+  custoTotal   Decimal  @default(0) @db.Decimal(14, 2)
   fechadoEm    DateTime @default(now())
   fechadoPorId String?
   fechadoPor   User?    @relation("FechamentoRateioAutor", fields: [fechadoPorId], references: [id], onDelete: SetNull)
@@ -2496,6 +2527,26 @@ model FechamentoRateio {
   @@unique([ano, mes])
   @@index([fechadoPorId])
   @@map("fechamento_rateio")
+}
+
+/// Histórico do fechamento do rateio (R3): fechou, reabriu (com motivo) e recalculou. Reabrir APAGA o
+/// cabeçalho e as linhas do mês — o que existia fica aqui, com o total e quem fez.
+model FechamentoRateioEvento {
+  id         String   @id @default(cuid())
+  ano        Int
+  mes        Int
+  /// "fechou" | "reabriu" | "recalculou"
+  tipo       String
+  motivo     String?
+  calculo    String?
+  custoTotal Decimal? @db.Decimal(14, 2)
+  autorId    String?
+  autor      User?    @relation("FechamentoRateioEventoAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  criadoEm   DateTime @default(now())
+
+  @@index([ano, mes])
+  @@index([autorId])
+  @@map("fechamento_rateio_evento")
 }
 
 /// Versão da tabela de encargos de uma contratação, valendo a partir de `vigenciaEm` (sempre dia 1º).
@@ -2588,6 +2639,9 @@ model Batida {
   /// `projetoId`. É o que faz a reconciliação de um dia editado (que recria as sessões a
   /// partir das batidas) preservar a tarefa em vez de perdê-la em silêncio.
   tarefaId  String?
+  /// Destino da sessão que esta batida abre (R2 do rateio). Nulo nas batidas antigas: vale o que o
+  /// `projetoId` diz (projeto ou sem projeto). Sem isto, editar o dia apagava a reunião.
+  tipoAlocacao TipoAlocacaoPonto?
 
   origem          OrigemBatida @default(app)
   editada         Boolean      @default(false)
@@ -2892,6 +2946,9 @@ model Disciplina {
   aprovacaoSolicitadaPorId String?
 
   responsaveis            DisciplinaResponsavel[]
+  responsaveisHistorico   DisciplinaResponsavelHistorico[]
+  sessoesTrabalho         SessaoTrabalho[]                 @relation("SessaoDisciplina")
+  rateiosHora             RateioHora[]                     @relation("RateioDisciplina")
   revisoes                RevisaoDisciplina[]
   uploads                 Upload[]
   pastas                  PastaProjeto[]
@@ -3145,6 +3202,23 @@ model DisciplinaResponsavel {
   @@unique([disciplinaId, userId])
   @@index([userId])
   @@map("disciplina_responsavel")
+}
+
+/// Quem foi responsável pela disciplina e quando (R5, decisão 13). Gravado por
+/// `substituirResponsaveis` em toda troca; `fim` nulo = responsável hoje. Base da disciplina de uma
+/// correção de ponto numa data passada.
+model DisciplinaResponsavelHistorico {
+  id           String     @id @default(cuid())
+  disciplinaId String
+  disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User       @relation("ResponsavelHistorico", fields: [userId], references: [id], onDelete: Cascade)
+  inicio       DateTime
+  fim          DateTime?
+
+  @@index([disciplinaId, inicio])
+  @@index([userId])
+  @@map("disciplina_responsavel_historico")
 }
 
 /// Log imutável de revisões (RV00, RV01…) por disciplina.
@@ -4957,6 +5031,25 @@ model EapDependencia {
   @@map("eap_dependencia")
 }
 
+/// Um passo da pilha de DESFAZER da EAP (Ctrl+Z), por projeto e por pessoa (as 20 últimas ações do plano).
+/// `antes` é a FOTO do plano inteiro antes da ação (`EstadoPlano`, `planejamento/desfazer/estado.ts`) e
+/// `depoisImpressao`, a impressão digital do plano logo depois dela: desfazer só vale se o plano de hoje ainda tem
+/// essa impressão (senão outra pessoa mexeu depois). Apagada ao aprovar o cronograma e ao fechar a revisão.
+model EapPassoDesfazer {
+  id              String   @id @default(cuid())
+  projetoId       String
+  projeto         Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rotulo          String
+  antes           Json
+  depoisImpressao String
+  createdAt       DateTime @default(now())
+
+  @@index([projetoId, userId, createdAt])
+  @@map("eap_passo_desfazer")
+}
+
 /// Histórico de mudança do código da EAP (Doc 02 §27). Como o código é mutável, é isto
 /// que permite reconstruir a estrutura de um cronograma numa data passada — necessário
 /// em projeto contratual e em auditoria.
@@ -6480,9 +6573,13 @@ model PranchaCatalogo {
   /// Validade por versão do padrão de nomenclatura (D11) — mesma regra de `DisciplinaCatalogo`.
   versaoDesde Int                      @default(1)
   versaoAte   Int?
-  /// Só em `categoria = tipo`: a revisão de um documento deste tipo só publica com o DWG (ciclo
-  /// documental). Padrão ligado; desliga-se nos tipos sem desenho. Modelo IFC é sempre isento.
+  /// LEGADO — sem leitura nem escrita desde `formatosExigidos` (2026-10-28). O DROP COLUMN sai num
+  /// deploy posterior, junto com a confirmação de que o servidor já aplicou a migração nova.
   exigeDwg    Boolean                  @default(true)
+  /// Só em `categoria = tipo`: os arquivos que a publicação exige (`dwg | pdf | excel | word |
+  /// word_ou_excel`, ver `uploads/ciclo/formatos-exigidos.ts`). Padrão só PDF; vazio = sem exigência.
+  /// Modelo IFC é sempre isento.
+  formatosExigidos String[]             @default(["pdf"])
   siglas      SiglaNomenclatura[]
 
   /// 3 relações NOMEADAS para o mesmo model (fase/tipo/tamanho do papel do documento) — sem
@@ -6671,7 +6768,15 @@ model FolhaPagamento {
   origemPdfPath String?
   origemPdfNome String?
 
-  holerites Holerite[]
+  /// Totais do relatório do contador (R4 do rateio): INSS e IRRF descontados dos funcionários e FGTS.
+  /// Gravados no import do PDF e editáveis antes de fechar; nulo = a parte não é lançada.
+  totalInssRetido Decimal? @db.Decimal(12, 2)
+  totalIrrfRetido Decimal? @db.Decimal(12, 2)
+  totalFgts       Decimal? @db.Decimal(12, 2)
+
+  holerites   Holerite[]
+  reaberturas FolhaReabertura[]
+  partes      FolhaLancamento[]
   createdAt DateTime   @default(now())
 
   @@unique([ano, mes, tipo])
@@ -6715,6 +6820,7 @@ model Holerite {
   itensAssinadosAntes  Json?
 
   itens HoleriteItem[]
+  versoes HoleriteVersao[]
 
   @@unique([folhaId, userId])
   /// `precisaAssinarHolerite` filtra por userId + assinadoEm null a cada troca de página —
@@ -6722,6 +6828,64 @@ model Holerite {
   @@index([userId, assinadoEm])
   @@index([assinanteId])
   @@map("holerite")
+}
+
+/// Cópia do holerite ASSINADO guardada antes de a folha ser reaberta (R4, decisão 17): reabrir cancela a
+/// assinatura e libera editar os itens; esta é a versão que a pessoa tinha assinado.
+model HoleriteVersao {
+  id          String   @id @default(cuid())
+  holeriteId  String
+  holerite    Holerite @relation(fields: [holeriteId], references: [id], onDelete: Cascade)
+  /// [{ descricao, tipo, valor }] como estavam na assinatura.
+  itens       Json
+  assinadoEm  DateTime
+  assinanteId String?
+  motivo      String
+  criadoEm    DateTime @default(now())
+
+  @@index([holeriteId])
+  @@map("holerite_versao")
+}
+
+/// Reabertura da folha com motivo (R4, decisão 17).
+model FolhaReabertura {
+  id       String         @id @default(cuid())
+  folhaId  String
+  folha    FolhaPagamento @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  motivo   String
+  autorId  String?
+  autor    User?          @relation("FolhaReaberturaAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  criadoEm DateTime       @default(now())
+
+  @@index([folhaId])
+  @@index([autorId])
+  @@map("folha_reabertura")
+}
+
+/// Contas a pagar que o fechamento da folha lança ALÉM do líquido (R4, decisão 21): bolsa, INSS e IRRF
+/// retidos, FGTS e benefícios. Uma por parte e rótulo; reabrir e fechar de novo atualiza a mesma conta.
+/// `lancamentoId` sem relação Prisma de propósito (cada relação nova em `Lancamento` pesa no tsc).
+model FolhaLancamento {
+  id           String         @id @default(cuid())
+  folhaId      String
+  folha        FolhaPagamento @relation(fields: [folhaId], references: [id], onDelete: Cascade)
+  parte        ParteFolha
+  /// Nome do benefício, ou "" para as outras partes.
+  rotulo       String         @default("")
+  lancamentoId String         @unique
+
+  @@unique([folhaId, parte, rotulo])
+  @@map("folha_lancamento")
+}
+
+enum ParteFolha {
+  bolsa
+  inss_retido
+  irrf_retido
+  fgts
+  beneficio
+  /// Taxa do agente de integração (IEL) dos estagiários contratados por ele.
+  taxa_agente
 }
 
 model HoleriteItem {
@@ -7045,6 +7209,8 @@ enum TipoControleRevisao {
   enviado_cliente
   bloqueio
   restricao
+  /// Revisão publicada que o cliente está analisando (2026-10-21). Um ativo por revisão.
+  em_revisao
 }
 
 enum EscopoBloqueio {
@@ -7352,6 +7518,11 @@ model DocumentoRevisao {
   /// Descrição da revisão ("Ajuste das cotas do pavimento tipo"). Único metadado digitado do ciclo;
   /// obrigatória para enviar para análise da R01 em diante (`numero >= 2`).
   descricao   String?
+  /// De onde veio a descrição: `carimbo` (lida do carimbo do PDF), `digitada` (escrita à mão) ou
+  /// `contestada` (digitada diferente do que o carimbo dizia). Nulo = sem descrição ou anterior a 2026-10-21.
+  descricaoOrigem String?
+  /// O que o carimbo dizia quando a descrição foi contestada (`descricaoOrigem = contestada`).
+  descricaoCarimbo String?
   /// Última versão (envio interno) desta revisão. Versão = ajuste interno enquanto a revisão está em
   /// andamento; revisão = a etapa que vai ao cliente. Incrementado no envio, de forma atômica.
   ultimaVersao Int                @default(1)
@@ -7768,6 +7939,23 @@ model GeracaoModeloFederado {
 
   @@index([projetoId, criadoEm])
   @@map("geracao_modelo_federado")
+}
+
+/// Modelo tirado da Compatibilização pela coordenação: some do painel de disciplinas, do realinhamento, do
+/// diff e do IFC federado (continua na aba Arquivos e na lista de conversões). Vale para a SÉRIE do arquivo
+/// (`serieDoModelo`): a revisão nova do mesmo arquivo continua fora até alguém incluir de volta.
+model ModeloCoordenacaoOculto {
+  id            String   @id @default(cuid())
+  projetoId     String
+  projeto       Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// `u:<disciplinaId>:<nome do arquivo em minúsculas>` (IFC de disciplina) ou `d:<documentoId>` (recebido).
+  serie         String
+  /// Denormalizado, sem FK (como os apontamentos): só para o histórico.
+  ocultadoPorId String
+  createdAt     DateTime @default(now())
+
+  @@unique([projetoId, serie])
+  @@map("modelo_coordenacao_oculto")
 }
 
 /// Visualizador DWG: estado da conversão DWG → DXF (via ODA File Converter,
@@ -9245,7 +9433,7 @@ model ControleRevisao {
 
   @@index([revisaoId, removidoEm])
   @@index([tipo, removidoEm])
-  // + índice parcial `controle_revisao_um_ativo` (um liberado_obra/enviado_cliente ativo por revisão).
+  // + índice parcial `controle_revisao_um_ativo` (um liberado_obra/enviado_cliente/em_revisao ativo por revisão).
   @@map("controle_revisao")
 }
 
@@ -9260,10 +9448,34 @@ model ConfigDocumentosProjeto {
   permitirPublicarComPendencias Boolean  @default(false)
   /// Dias em análise (compartilhado) até a revisão entrar no alerta de parada (A7).
   diasAlertaCompartilhado       Int      @default(7)
+  /// Publicar já envia ao cliente (2026-10-21).
+  enviarAoClienteAutomaticamente Boolean @default(true)
   updatedAt                     DateTime @updatedAt
   createdAt                     DateTime @default(now())
 
   @@map("config_documentos_projeto")
+}
+
+/// Dispensa de uma pendência do ciclo documental (tela /arquivos/pendencias). Valia só para o ESTADO em que
+/// foi dada: `chave` é a assinatura (modules/uploads/ciclo/pendencias.ts); mudou o estado, a pendência
+/// reaparece e a dispensa velha é encerrada pelo job diário (desfeitaPorId nulo = sistema).
+/// `alvoId` é a revisão (lixeira, análise parada) ou o documento (duas publicadas); escalar, sem FK, como
+/// DocumentoEvento — o histórico sobrevive ao documento. Uma dispensa ATIVA por alvo+tipo: índice parcial
+/// `dispensa_pendencia_ciclo_uma_ativa` (na migração — não representável aqui).
+model DispensaPendenciaCiclo {
+  id            String    @id @default(cuid())
+  alvoId        String
+  /// `publicada_com_lixeira` | `analise_parada` | `duas_publicadas`
+  tipo          String
+  chave         String
+  motivo        String
+  criadaPorId   String
+  criadaEm      DateTime  @default(now())
+  desfeitaEm    DateTime?
+  desfeitaPorId String?
+
+  @@index([alvoId, tipo])
+  @@map("dispensa_pendencia_ciclo")
 }
 
 model LeituraDocumento {

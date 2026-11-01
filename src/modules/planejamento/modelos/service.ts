@@ -135,6 +135,8 @@ export async function salvarModeloDeEap(p: {
   arquivoNome?: string | null;
   estrutura: unknown;
   respostas?: RespostasDaConferencia;
+  /** De onde veio o modelo: o arquivo do MS Project (padrão) ou a EAP de um projeto do sistema. */
+  origem?: "mspdi" | "projeto";
   autorId: string;
 }): Promise<{ id: string; totalLinhas: number; totalMarcos: number }> {
   const base = lerEstrutura(p.estrutura);
@@ -180,7 +182,7 @@ export async function salvarModeloDeEap(p: {
     return { id: p.id, totalLinhas, totalMarcos };
   }
   const criado = await prisma.modeloEap.create({
-    data: { ...dados, origem: "mspdi", autorId: p.autorId },
+    data: { ...dados, origem: p.origem ?? "mspdi", autorId: p.autorId },
     select: { id: true },
   });
   return { id: criado.id, totalLinhas, totalMarcos };

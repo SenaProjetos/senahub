@@ -830,7 +830,7 @@ async function smokeFolhaQuitaPrevisto(autorId: string) {
     check("o aviso diz de quanto para quanto", (r1.aviso ?? "").includes("passou de R$ 40.000,00 para R$ 25.500,00"), r1.aviso);
 
     // 2. Reabrir com a conta em aberto: nada é apagado nem revertido.
-    await reabrirFolhaNoBanco(folhaJul);
+    await reabrirFolhaNoBanco(folhaJul, "smoke: corrigir holerite", autorId);
     const s2 = await prisma.lancamento.findUnique({ where: { id: saldo.id }, select: { status: true, valor: true, excluidoEm: true } });
     check("reabrir não apaga nem reverte a conta da competência", s2?.excluidoEm === null && paraCentavos(s2.valor) === paraCentavos(25_500), s2);
 
@@ -841,7 +841,7 @@ async function smokeFolhaQuitaPrevisto(autorId: string) {
     check("folha já paga: nada nasce e o fechamento aponta a conta paga", r3.acao === "ja_paga" && r3.lancamentoId === saldo.id && contasJul === 1, { r3, contasJul });
     let recusou = "";
     try {
-      await reabrirFolhaNoBanco(folhaJul);
+      await reabrirFolhaNoBanco(folhaJul, "smoke: corrigir holerite", autorId);
     } catch (e) {
       recusou = (e as Error).message;
     }
@@ -851,7 +851,7 @@ async function smokeFolhaQuitaPrevisto(autorId: string) {
     //    5º dia útil de setembro: salário conta o sábado (1/9 é sábado: 1, 3, 4, 5, 6 → 06/09; o feriado de 7/9 já não entra).
     const folhaAgo = await folhaDe(8, "mensal", 30_000);
     const r4 = await fecharFolhaNoBanco(folhaAgo, autorId);
-    const c4 = await prisma.lancamento.findUnique({ where: { id: r4.lancamentoId }, select: { status: true, recorrenciaOrigemId: true, recorrenciaCompetencia: true } });
+    const c4 = await prisma.lancamento.findUnique({ where: { id: r4.lancamentoId ?? "" }, select: { status: true, recorrenciaOrigemId: true, recorrenciaCompetencia: true } });
     check("sem conta: nasce a conta da competência, em aberto", r4.acao === "criou" && c4?.status === "previsto", { r4, c4 });
     check("vence no 5º dia útil do mês seguinte, com o sábado contando (salário)", r4.vencimento === `${ano}-09-06`, r4.vencimento);
     check("nasce ligada à recorrência (o gerador não cria o mês de novo)", c4?.recorrenciaOrigemId === rec.id && c4.recorrenciaCompetencia === `${ano}-08`, c4);
@@ -862,6 +862,9 @@ async function smokeFolhaQuitaPrevisto(autorId: string) {
     check("o 13º cria a conta dele e não toca na da mensal", r5.acao === "criou" && r5.lancamentoId !== r4.lancamentoId, r5);
   } finally {
     const folhas = await prisma.folhaPagamento.findMany({ where: { ano }, select: { id: true } });
+    // Partes do fechamento (benefícios da tabela de encargos do banco de dev, se houver).
+    const partes = await prisma.folhaLancamento.findMany({ where: { folhaId: { in: folhas.map((f) => f.id) } }, select: { lancamentoId: true } });
+    await prisma.lancamento.deleteMany({ where: { id: { in: partes.map((p) => p.lancamentoId) }, excluidoEm: { not: undefined } } });
     for (const f of folhas) {
       await prisma.holeriteItem.deleteMany({ where: { holerite: { folhaId: f.id } } });
       await prisma.holerite.deleteMany({ where: { folhaId: f.id } });

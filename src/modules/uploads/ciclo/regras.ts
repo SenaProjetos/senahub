@@ -5,6 +5,7 @@
 import { contaComoTrabalho } from "@/modules/projetos/pendencias/helpers";
 import { ehDocumentoDeModelo } from "./escopo";
 import type { EstadoRevisao } from "./estados";
+import { formatosQueFaltam, resumoDosFormatos, rotuloDoFormato, type FormatoExigido } from "./formatos-exigidos";
 
 /** Arquivo que VALE na revisão: fora da lixeira e não substituído por versão mais nova. */
 export type ArquivoDaRevisao = { id: string; nome: string; ext: string; validado: boolean };
@@ -17,7 +18,13 @@ export type DecisaoPublicacao =
       ok: true;
       /** A3: publicar com pendências aplica restrição automática — `null` = sem pendência. */
       restricao: { motivo: string; abertos: number } | null;
+      /** Documento sem tipo publicado sem DWG com a confirmação da pessoa: vira evento no histórico. */
+      semDwgConfirmado?: true;
     };
+
+/** Mesma frase no servidor (ActionError) e na tela, que reconhece o caso e oferece a confirmação. */
+export const MOTIVO_SEM_DWG_SEM_TIPO =
+  "Esta revisão não tem DWG e o documento não tem um tipo que diga se ele é exigido. Se for um memorial, uma planilha ou outro documento sem desenho, confirme a publicação sem o DWG.";
 
 function plural(n: number, um: string, varios: string): string {
   return `${n} ${n === 1 ? um : varios}`;
@@ -34,22 +41,42 @@ export function decidirPublicacao(p: {
   arquivos: readonly ArquivoDaRevisao[];
   pendencias: readonly PendenciaParaGate[];
   permitirComPendencias: boolean;
-  /** O tipo do documento exige o DWG para publicar (padrão ligado). Modelo IFC é isento. */
-  exigirDwg?: boolean;
+  /**
+   * Arquivos que o tipo do documento exige para publicar (`formatosExigidos` do catálogo). Modelo IFC é
+   * isento. Ausente ou vazio = nada a exigir.
+   * `"confirmar"` = documento SEM tipo (nomenclatura do cliente, por exemplo): sem DWG, publica só com a
+   * confirmação da pessoa (`confirmarSemDwg`) — decisão do dono, 2026-10-21.
+   */
+  exigidos?: readonly FormatoExigido[] | "confirmar";
+  confirmarSemDwg?: boolean;
   /** Sigla do tipo, só para a mensagem. */
   siglaTipo?: string | null;
   justificativa?: string | null;
 }): DecisaoPublicacao {
   if (p.arquivos.length === 0) return { ok: false, motivo: "A revisão não tem arquivo para publicar." };
   const exts = p.arquivos.map((a) => a.ext);
-  if (p.exigirDwg && !ehDocumentoDeModelo(exts) && !exts.includes("dwg")) {
-    return {
-      ok: false,
-      motivo: p.siglaTipo
-        ? `Documentos do tipo ${p.siglaTipo} só publicam com o DWG: envie o DWG desta revisão.`
-        : "Esta revisão só publica com o DWG: envie o DWG (ou defina um tipo de documento que não exija).",
-    };
+  const modelo = ehDocumentoDeModelo(exts);
+  if (Array.isArray(p.exigidos) && !modelo) {
+    const faltam = formatosQueFaltam(p.exigidos, exts);
+    if (faltam.length > 0) {
+      const todos = resumoDosFormatos(p.exigidos);
+      const quais = faltam.map(rotuloDoFormato).join(" e ");
+      return {
+        ok: false,
+        motivo: p.siglaTipo
+          ? `Documentos do tipo ${p.siglaTipo} só publicam com ${todos}. Falta enviar: ${quais}.`
+          : `Esta revisão só publica com ${todos}. Falta enviar: ${quais}.`,
+      };
+    }
   }
+  const faltaDwg = p.exigidos === "confirmar" && !modelo && !exts.map((e) => e.toLowerCase()).includes("dwg");
+  // Sem tipo, a confirmação só é pedida depois de todo o resto estar certo (como a do carimbo):
+  // confirmar e cair noutro erro em seguida faria a pessoa confirmar duas vezes.
+  const concluir = (restricao: { motivo: string; abertos: number } | null): DecisaoPublicacao => {
+    if (!faltaDwg) return { ok: true, restricao };
+    if (!p.confirmarSemDwg) return { ok: false, motivo: MOTIVO_SEM_DWG_SEM_TIPO };
+    return { ok: true, restricao, semDwgConfirmado: true };
+  };
   const semValidacao = p.arquivos.filter((a) => !a.validado);
   if (semValidacao.length > 0) {
     return {
@@ -65,7 +92,7 @@ export function decidirPublicacao(p: {
       motivo: `Há ${plural(impeditivos.length, "apontamento impeditivo", "apontamentos impeditivos")} em aberto. Resolva antes de publicar.`,
     };
   }
-  if (abertos.length === 0) return { ok: true, restricao: null };
+  if (abertos.length === 0) return concluir(null);
   if (!p.permitirComPendencias) {
     return {
       ok: false,
@@ -75,10 +102,7 @@ export function decidirPublicacao(p: {
   if (!p.justificativa?.trim()) {
     return { ok: false, motivo: `Há ${plural(abertos.length, "apontamento", "apontamentos")} em aberto: informe a justificativa para publicar assim.` };
   }
-  return {
-    ok: true,
-    restricao: { motivo: `Publicado com ${plural(abertos.length, "apontamento pendente", "apontamentos pendentes")}`, abertos: abertos.length },
-  };
+  return concluir({ motivo: `Publicado com ${plural(abertos.length, "apontamento pendente", "apontamentos pendentes")}`, abertos: abertos.length });
 }
 
 /** A3, volta: a restrição automática dos apontamentos sai quando não sobra nenhum em aberto. */
@@ -97,6 +121,16 @@ export function decidirLiberacaoAutomatica(p: { liberarAutomaticamente: boolean;
   | "restricao" {
   if (!p.liberarAutomaticamente) return "nao_configurado";
   return p.temRestricao ? "restricao" : "liberar";
+}
+
+/**
+ * Ao publicar uma revisão, ela vai ao cliente por: (a) a opção do projeto de enviar sempre que publicar
+ * ("automatico"); (b) herança — a revisão anterior estava enviada ao cliente, então a nova também vai
+ * ("herdado"); ou (c) nenhum dos dois (`null`), e o envio fica manual.
+ */
+export function decidirEnvioAoCliente(p: { automatico: boolean; anteriorEnviada: boolean }): "automatico" | "herdado" | null {
+  if (p.automatico) return "automatico";
+  return p.anteriorEnviada ? "herdado" : null;
 }
 
 /**

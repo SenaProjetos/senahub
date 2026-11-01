@@ -73,6 +73,11 @@ next-env.d.ts
 # agendada do deploy roda como SYSTEM, cujo perfil não lê ~/.config/git/ignore — o arquivo
 # ficava invisível para quem olhava o `git status` e sujo para o deploy automático.
 /.claude/settings.local.json
+# estado local dos hooks (ex.: último commit visto) — cache por máquina, não é config.
+/.claude/hooks/state/
+# hook pessoal do Painel de Iniciativas — só na máquina do dono, fora do repositório.
+/.claude/hooks/atualizar-painel-iniciativas.ps1
+/.claude/hooks/painel-iniciativas-mapa.json
 /.codex/
 /.vscode/
 /m.mjs
@@ -98,3 +103,5 @@ reconciliacao-orfaos-*.json
 merge-documentos-*.json
 # prints da verificação em tela da auditoria final (docs/PROTOCOLO_AUDITORIA_FINAL.md §13)
 /prints-auditoria/
+# planilha modelo de importação de lançamentos (arquivo local do financeiro, não versionar)
+/docs/modelo-de-importacao-lancamentos-excel-1-.xls

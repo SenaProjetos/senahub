@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { cn } from "@/lib/utils";
 import { ACAO_ADICIONAR_SUB, acaoUnica } from "@/modules/projetos/nomenclatura/catalogo/acoes";
+import { resumoDosFormatos } from "@/modules/uploads/ciclo/formatos-exigidos";
 import type { AlvoCatalogo, LinhaCatalogo } from "@/modules/projetos/nomenclatura/catalogo/versao";
 import { SiglaOficial, SiglaSinonimo } from "./sigla-chips";
 
@@ -75,16 +76,20 @@ export function LinhaCatalogoItem({
           <SiglaSinonimo key={s} sigla={s} />
         ))}
       </span>
-      <span className="flex flex-wrap items-center gap-1.5 sm:w-40">
+      <span className="flex flex-wrap items-center gap-1.5 sm:w-52">
         <SituacaoBadge linha={linha} versao={versao} />
-        {/* Tipo de documento: se a publicação exige o DWG (ciclo documental). Texto, não só cor. */}
-        {linha.exigeDwg !== undefined && (
+        {/* Tipo de documento: os arquivos que a publicação exige (ciclo documental). Texto, não só cor. */}
+        {linha.formatosExigidos !== undefined && (
           <Badge
             variant="outline"
-            className={cn("text-[10px]", linha.exigeDwg ? "text-foreground" : "text-muted-foreground")}
-            title={linha.exigeDwg ? "A revisão só é publicada com o DWG" : "Publica sem DWG (ex.: memorial)"}
+            className="text-[10px] text-foreground"
+            title={
+              linha.formatosExigidos.length > 0
+                ? `A revisão só é publicada com: ${resumoDosFormatos(linha.formatosExigidos)}`
+                : "Publica com qualquer arquivo"
+            }
           >
-            {linha.exigeDwg ? "Exige DWG" : "Sem DWG"}
+            {linha.formatosExigidos.length > 0 ? `Exige ${resumoDosFormatos(linha.formatosExigidos)}` : "Sem exigência"}
           </Badge>
         )}
       </span>

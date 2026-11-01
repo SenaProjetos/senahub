@@ -5,7 +5,7 @@
  *
  * Contrato em docs/superpowers/specs/2026-10-08-ciclo-documental-iso19650.md.
  */
-import { CONTROLES_DE_PASTA, ROTULO_CONTROLE, ROTULO_ESTADO, type EstadoRevisao, type TipoControle } from "./estados";
+import { CONTROLES_SO_PUBLICADA, ROTULO_CONTROLE, ROTULO_ESTADO, type EstadoRevisao, type TipoControle } from "./estados";
 
 /** Operações que mudam o estado. `substituir` e `migrar` são só do sistema. */
 export type AcaoCiclo = "enviar_analise" | "devolver" | "publicar" | "arquivar" | "substituir";
@@ -96,8 +96,8 @@ export function motivoParaNaoAplicar(
 ): string | null {
   if (!r.participa) return MOTIVO_FORA_DO_CICLO_ACAO;
   if (r.estado === "arquivado") return "Revisão arquivada é somente leitura.";
-  if (CONTROLES_DE_PASTA.includes(tipo)) {
-    // I5 (e D1-c para o envio ao cliente): só revisão publicada vai para uma pasta do cliente.
+  if (CONTROLES_SO_PUBLICADA.includes(tipo)) {
+    // I5 (e D1-c para o envio ao cliente): só revisão publicada vai para uma pasta do cliente; "Em revisão" também.
     if (r.estado !== "publicado") return `Só uma revisão publicada pode ficar "${ROTULO_CONTROLE[tipo]}".`;
     if (r.ativos.some((c) => c.tipo === tipo)) return `Esta revisão já está "${ROTULO_CONTROLE[tipo]}".`;
   }

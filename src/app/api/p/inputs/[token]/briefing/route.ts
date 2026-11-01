@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@/generated/prisma/client";
-import { calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
-import { aplicarFormatosDoBriefing } from "@/modules/inputs/briefing-formato";
+import { gravarRespostasBriefing } from "@/modules/inputs/briefing-service";
 import { linkVigente } from "@/lib/link-publico";
 import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
@@ -38,27 +36,13 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
   const parsed = putSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 
-  const anterior = await prisma.briefingProjeto.findUnique({
-    where: { projetoId: projeto.id },
-    select: { status: true, respostasJson: true },
-  });
   // Só o e-mail/telefone que MUDOU é validado; o inválido já gravado segue salvando. `campos` leva a
   // mensagem por campo (chave da resposta) para a tela marcar o campo; `error` é o formato de sempre.
-  const formatos = aplicarFormatosDoBriefing(
-    parsed.data.respostas,
-    (anterior?.respostasJson ?? null) as Record<string, unknown> | null,
-  );
-  if (!formatos.ok) return NextResponse.json({ error: formatos.erro, campos: formatos.campos }, { status: 400 });
-  const respostas = formatos.respostas;
-  const status = calcularStatusBriefing(respostas);
-  const respostasJson = respostas as unknown as Prisma.InputJsonValue;
-  await prisma.briefingProjeto.upsert({
-    where: { projetoId: projeto.id },
-    create: { projetoId: projeto.id, respostasJson, status, preenchidoPor: "Cliente (link público)", preenchidoEm: new Date() },
-    update: { respostasJson, status, preenchidoPor: "Cliente (link público)", preenchidoEm: new Date() },
-  });
+  const r = await gravarRespostasBriefing(projeto.id, parsed.data.respostas, "Cliente (link público)");
+  if (!r.ok) return NextResponse.json({ error: r.erro, campos: r.campos }, { status: 400 });
+  const status = r.status;
   // Só a TRANSIÇÃO para completo fura a janela de 6 h; o resto é aviso de "mexeu".
-  const concluiu = status === "completo" && anterior?.status !== "completo";
+  const concluiu = status === "completo" && r.statusAnterior !== "completo";
   await notificarPreenchimentoInput(projeto.id, concluiu ? "completo" : "parcial");
   return NextResponse.json({ ok: true, status });
 }

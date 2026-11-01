@@ -26,6 +26,8 @@ export type ModeloRow = {
   versao: number;
   tamanho: number;
   enviadoEm: string;
+  /** Tirado da Compatibilização pela coordenação (some do painel, do diff e do federado). */
+  oculto: boolean;
   conversao: {
     status: string;
     progresso?: number | null;
@@ -111,7 +113,12 @@ export function ConversaoStatusView({
           const carregando = pendente === m.uploadId;
           return (
             <TableRow key={m.uploadId}>
-              <TableCell className="font-medium">{m.disciplinaNome}</TableCell>
+              <TableCell className="font-medium">
+                {m.disciplinaNome}
+                {m.oculto && (
+                  <span className="block text-xs font-normal text-muted-foreground">Fora da compatibilização</span>
+                )}
+              </TableCell>
               <TableCell className="max-w-[300px] truncate font-mono text-xs" title={m.nomeArquivo}>
                 {m.nomeArquivo}
               </TableCell>

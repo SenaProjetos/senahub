@@ -238,6 +238,17 @@ export type LinhaParaCard = LinhaForma & {
 };
 
 /**
+ * Título do card gerado da EAP (Fase A, A3): a sigla da FASE antes do nome. A mesma disciplina aparece em fases
+ * distintas ("Modelagem" no Básico e no Executivo) e, só com o nome, os dois cards ficam iguais no quadro, no ponto e
+ * em "Meu trabalho". Mora no título porque `sincronizarCards` é o único escritor dele — nenhuma tela precisa mudar.
+ * A sigla vem do catálogo na hora (nunca é gravada na linha), resolvida pela mesma fase que a EAP mostra.
+ */
+export function tituloDoCard(nome: string, faseSigla: string | null): string {
+  const sigla = faseSigla?.trim();
+  return sigla ? `${sigla} · ${nome}` : nome;
+}
+
+/**
  * A linha vira card? Só com cronograma APROVADO (D14: rascunho não gera card) e só
  * atividade da casa, com gente, ainda por fazer.
  *

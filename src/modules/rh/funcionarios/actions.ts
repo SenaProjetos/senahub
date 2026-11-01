@@ -11,7 +11,7 @@ import { removerArquivo } from "@/lib/storage";
 import { criarUsuarioComCredencial } from "@/lib/auth-admin";
 import { buscarCep } from "@/lib/cep";
 import { getSession } from "@/lib/session";
-import { aplicarVinculo } from "@/modules/usuarios/vinculo/service";
+import { aplicarVinculo, alinharInicioPelaAdmissao } from "@/modules/usuarios/vinculo/service";
 import { resolverClassificacao } from "@/modules/rh/catalogos/service";
 import { registrarAlteracaoContratual } from "@/modules/rh/contratual/service";
 import { normalizarConta, garantirPrincipal } from "@/modules/rh/contas/service";
@@ -280,43 +280,51 @@ export const editarCadastroFuncionario = defineAction(
     });
     const u = await prisma.user.findUnique({ where: { id: i.id }, select: { contratacao: true } });
     if (!u) throw new ActionError("Colaborador não encontrado.");
-    await prisma.user.update({
-      where: { id: i.id },
-      data: {
-        nomeCompleto: i.nomeCompleto || null,
-        cpf: i.cpf || null,
-        rg: i.rg || null,
-        pis: i.pis || null,
-        ctpsNumero: i.ctpsNumero || null,
-        ctpsSerie: i.ctpsSerie || null,
-        tituloEleitor: i.tituloEleitor || null,
-        cnh: i.cnh || null,
-        dataNascimento: dataOuNull(i.dataNascimento),
-        sexo: i.sexo || null,
-        estadoCivil: i.estadoCivil || null,
-        nacionalidade: i.nacionalidade || null,
-        enderecoCep: i.enderecoCep || null,
-        enderecoLogradouro: i.enderecoLogradouro || null,
-        enderecoNumero: i.enderecoNumero || null,
-        enderecoComplemento: i.enderecoComplemento || null,
-        enderecoBairro: i.enderecoBairro || null,
-        enderecoCidade: i.enderecoCidade || null,
-        enderecoUf: i.enderecoUf || null,
-        telefone: i.telefone || null,
-        telefoneEmergencia: i.telefoneEmergencia || null,
-        contatoEmergenciaNome: i.contatoEmergenciaNome || null,
-        emailPessoal: i.emailPessoal || null,
-        conselho: i.conselho || null,
-        registroProfissional: i.registroProfissional || null,
-        registroUf: i.registroUf || null,
-        dataAdmissao: dataOuNull(i.dataAdmissao),
-        // pjId só para prestador (PJ/RPA) — contratação desde a Onda F.
-        pjId: ehPrestador(u.contratacao) ? i.pjId || null : null,
-      },
+    const admissao = dataOuNull(i.dataAdmissao);
+    const vinculo = await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: i.id },
+        data: {
+          nomeCompleto: i.nomeCompleto || null,
+          cpf: i.cpf || null,
+          rg: i.rg || null,
+          pis: i.pis || null,
+          ctpsNumero: i.ctpsNumero || null,
+          ctpsSerie: i.ctpsSerie || null,
+          tituloEleitor: i.tituloEleitor || null,
+          cnh: i.cnh || null,
+          dataNascimento: dataOuNull(i.dataNascimento),
+          sexo: i.sexo || null,
+          estadoCivil: i.estadoCivil || null,
+          nacionalidade: i.nacionalidade || null,
+          enderecoCep: i.enderecoCep || null,
+          enderecoLogradouro: i.enderecoLogradouro || null,
+          enderecoNumero: i.enderecoNumero || null,
+          enderecoComplemento: i.enderecoComplemento || null,
+          enderecoBairro: i.enderecoBairro || null,
+          enderecoCidade: i.enderecoCidade || null,
+          enderecoUf: i.enderecoUf || null,
+          telefone: i.telefone || null,
+          telefoneEmergencia: i.telefoneEmergencia || null,
+          contatoEmergenciaNome: i.contatoEmergenciaNome || null,
+          emailPessoal: i.emailPessoal || null,
+          conselho: i.conselho || null,
+          registroProfissional: i.registroProfissional || null,
+          registroUf: i.registroUf || null,
+          dataAdmissao: admissao,
+          // pjId só para prestador (PJ/RPA) — contratação desde a Onda F.
+          pjId: ehPrestador(u.contratacao) ? i.pjId || null : null,
+        },
+      });
+      // Quem só teve um vínculo: admissão = início do vínculo (é por ele que o ponto apura).
+      const decisao = await alinharInicioPelaAdmissao(tx, i.id, admissao);
+      if (decisao.acao === "recusar") throw new ActionError(decisao.motivo);
+      return decisao;
     });
 
     rev();
-    return { id: i.id };
+    revalidatePath("/ponto/espelho");
+    return { id: i.id, inicioDoVinculoAlterado: vinculo.acao === "alterar" };
   },
 );
 

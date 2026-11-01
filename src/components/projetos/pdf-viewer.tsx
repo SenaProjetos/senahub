@@ -222,7 +222,6 @@ type Props = {
   documentStatus: DocumentStatus | null;
   /** Arquivos ativos da mesma DocumentoRevisao; legado sem revisão contém só o arquivo atual. */
   revisionFiles: RevisionFile[];
-  canViewCoordination: boolean;
   versaoAtual: boolean;
   validado: boolean;
   finalizada: boolean;
@@ -444,7 +443,7 @@ function CamposClassificacao({
 
 export function PdfViewer(props: Props) {
   const router = useRouter();
-  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, revisionId, documentStatus, revisionFiles, canViewCoordination, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pranchasNavegaveis, pinInicial, paginaInicial } = props;
+  const { uploadId, projetoId, disciplinaId, nomeArquivo, codigo, projetoNome, disciplinaNome, versao, revisionNumber, revisionId, documentStatus, revisionFiles, versaoAtual, validado, finalizada, podeValidar, ehResponsavel, ehAdmin, colunasTarefa, opcoesTarefa, responsaveisPadrao, temOutraRevisao, documentoId, pranchasParaReplicar, pranchasNavegaveis, pinInicial, paginaInicial } = props;
 
   const downloadUrl = `/api/uploads/${uploadId}/download?disposition=inline`;
   // Apontar é permitido mesmo com a entrega já validada — nesse caso o envio abre revisão
@@ -1955,13 +1954,9 @@ export function PdfViewer(props: Props) {
                 ) : (
                   <BadgeExtensao
                     key={file.id}
-                    projetoId={projetoId}
-                    uploadId={file.id}
                     nome={file.name}
                     ext={file.ext}
                     downloadUrl={file.downloadUrl}
-                    podeCoordenacao={canViewCoordination}
-                    showDwgViewer={false}
                   />
                 ),
               )}

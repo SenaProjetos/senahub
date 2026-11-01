@@ -10,6 +10,7 @@ import { obterProjetoMinimo, abasComConteudo } from "@/modules/projetos/queries"
 import type { AbaConfigItem } from "@/modules/projetos/abas";
 import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
+import { origemComercialDoProjeto } from "@/modules/comercial/vinculo/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
@@ -50,10 +51,15 @@ export default async function ProjetoLayout({
     podeArts,
     podeDiario,
     podeResultados,
+    podeEap,
+    podeProblemas,
     canalChat,
     modelosDoc,
     conteudoPorAba,
     tiposEmpreendimento,
+    podeComercialGerir,
+    podeComercialVer,
+    origemComercial,
   ] = await Promise.all([
     can(user, "projetos", "gerir"),
     can(user, "financeiro", "ver"),
@@ -69,6 +75,10 @@ export default async function ProjetoLayout({
     can(user, "projetos", "diario"),
     // Resultados (previsto × apontado): quem vê o cronograma com datas — a mesma regra da página.
     podeVerDatasDoPlanejamento(user),
+    // EAP (só consulta): o mesmo público da tela do Planejamento; editar continua lá.
+    can(user, "planejamento", "ver"),
+    // Problemas (pendências do projeto): quem enxerga arquivos; só interno (cliente do portal não vê).
+    can(user, "arquivos", "ver"),
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
     abasComConteudo(id),
@@ -78,7 +88,17 @@ export default async function ProjetoLayout({
       select: { id: true, nome: true },
       orderBy: [{ ordem: "asc" }, { nome: "asc" }],
     }),
+    can(user, "comercial", "gerir"),
+    can(user, "comercial", "ver"),
+    // De onde veio o projeto, do lado comercial (link com a ficha do funil).
+    origemComercialDoProjeto(id),
   ]);
+  // Linkar mexe no projeto e lê a ficha: exige `projetos:gerir` e `comercial:gerir`.
+  const vinculo = {
+    podeVincular: podeGerir && podeComercialGerir,
+    ficha: origemComercial.ficha,
+    criadoPeloAceite: origemComercial.criadoPeloAceite,
+  };
   // Item 12 (beta): editar todos os campos do projeto — só busca clientes se puder editar.
   const clientes = podeGerir ? await listarClientes({ incluirInativos: false }) : [];
 
@@ -146,6 +166,20 @@ export default async function ProjetoLayout({
         >
           · {projeto.cliente.nome}
         </Link>
+        {origemComercial.ficha &&
+          (podeComercialVer ? (
+            <Link
+              href={`/comercial/funil?card=NEGOCIACAO:${origemComercial.ficha.id}`}
+              title={`Ficha do funil comercial: ${origemComercial.ficha.titulo}`}
+              className="min-w-0 max-w-56 shrink-[3] truncate text-xs text-muted-foreground hover:underline"
+            >
+              · Ficha: {origemComercial.ficha.titulo}
+            </Link>
+          ) : (
+            <span className="min-w-0 max-w-56 shrink-[3] truncate text-xs text-muted-foreground">
+              · Ficha: {origemComercial.ficha.titulo}
+            </span>
+          ))}
         <Badge variant="outline" className="shrink-0">{TIPO_PROJETO_LABEL[projeto.tipo] ?? projeto.tipo}</Badge>
         <Badge variant="outline" className="shrink-0">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
         {diasAtraso > 0 && (
@@ -178,6 +212,7 @@ export default async function ProjetoLayout({
           podeGerir={podeGerir}
           modelosDoc={modelosDoc}
           motivoNaoConcluir={motivoNaoConcluir}
+          vinculo={vinculo}
         />
       </div>
 
@@ -191,11 +226,13 @@ export default async function ProjetoLayout({
             abasVisiveis={[
               "",
               "/disciplinas",
+              ...(podeEap ? ["/eap"] : []),
               "/inputs",
               ...(podeVerFinanceiro ? ["/financeiro"] : []),
               ...(podeResultados ? ["/resultados"] : []),
               ...(podeServicos ? ["/servicos"] : []),
               "/arquivos",
+              ...(podeProblemas && user.tipo === "interno" ? ["/problemas"] : []),
               ...(podeArts ? ["/arts"] : []),
               ...(podeCoordenacao ? ["/coordenacao"] : []),
               ...(podeCustos ? ["/custos"] : []),
@@ -214,6 +251,7 @@ export default async function ProjetoLayout({
             modelosDoc={modelosDoc}
             motivoNaoConcluir={motivoNaoConcluir}
             canalChatId={canalChat?.id ?? null}
+            vinculo={vinculo}
             editar={
               podeGerir
                 ? {

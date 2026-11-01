@@ -3,7 +3,7 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { paraDataUtc, planoDoProjeto } from "./agenda";
-import { ehEtapaDeTerceiro, escolherPrincipal, herdarResponsaveis, linhaGeraCard } from "./recursos";
+import { ehEtapaDeTerceiro, escolherPrincipal, herdarResponsaveis, linhaGeraCard, tituloDoCard } from "./recursos";
 
 /**
  * Recursos na linha (F5) — o lado com I/O das regras de `recursos.ts`.
@@ -94,7 +94,7 @@ export async function sincronizarPrincipal(db: Db, tarefaId: string): Promise<vo
  * Cards do projetista a partir da EAP (D24, D32 — "estrutura desce, progresso sobe").
  *
  * Só com cronograma APROVADO (D14). Linha elegível sem card ganha um, na primeira coluna do
- * quadro. Linha com card tem título, prazo, disciplina e responsáveis ACOMPANHANDO a EAP:
+ * quadro. Linha com card tem título (com a sigla da fase: `tituloDoCard`), prazo, disciplina e responsáveis ACOMPANHANDO a EAP:
  * são estrutura, e a EAP é a fonte — o card que o projetista editasse à parte divergiria
  * do cronograma na primeira reprogramação. Progresso e checklist são do card e não são
  * tocados.
@@ -130,6 +130,7 @@ export async function sincronizarCards(
         duracaoDias: true,
         disciplinaId: true,
         fimPrevisto: true,
+        etapa: { select: { sigla: true } },
         atribuicoes: { select: { userId: true, papel: true, principal: true } },
       },
     }),
@@ -183,11 +184,12 @@ export async function sincronizarCards(
       .map((a) => a.userId!);
     const unicas = [...new Set(pessoas)];
     const card = cardPorLinha.get(l.id);
+    const titulo = tituloDoCard(l.nome, l.etapa?.sigla ?? null);
 
     if (!card) {
       await db.tarefa.create({
         data: {
-          titulo: l.nome,
+          titulo,
           descricao: "Gerada do cronograma (EAP).",
           statusId: primeira.id,
           prazo: prazoDe(l),
@@ -207,7 +209,7 @@ export async function sincronizarCards(
     const saem = [...atuais].filter((u) => !unicas.includes(u));
     const prazo = prazoDe(l);
     const mudouCampo =
-      card.titulo !== l.nome ||
+      card.titulo !== titulo ||
       card.disciplinaId !== l.disciplinaId ||
       card.prazo?.toISOString().slice(0, 10) !== prazo.toISOString().slice(0, 10);
     if (!mudouCampo && entram.length === 0 && saem.length === 0) continue;
@@ -215,7 +217,7 @@ export async function sincronizarCards(
     await db.tarefa.update({
       where: { id: card.id },
       data: {
-        ...(mudouCampo ? { titulo: l.nome, prazo, disciplinaId: l.disciplinaId } : {}),
+        ...(mudouCampo ? { titulo, prazo, disciplinaId: l.disciplinaId } : {}),
         responsaveis: {
           ...(saem.length ? { deleteMany: { userId: { in: saem } } } : {}),
           ...(entram.length ? { create: entram.map((userId) => ({ userId })) } : {}),

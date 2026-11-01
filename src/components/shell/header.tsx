@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MobileNav } from "@/components/shell/mobile-nav";
 import { NotificationBell } from "@/components/notificacoes/notification-bell";
+import { AvisosAtalho } from "@/components/notificacoes/avisos-atalho";
 import { AgendaResumo } from "@/components/agenda/agenda-resumo";
 import { JornadaHeader } from "@/components/ponto/jornada-header";
 import { Breadcrumb } from "@/components/shell/breadcrumb";
@@ -43,6 +44,7 @@ export function Header({
   const globaisRef = useRef<HTMLDivElement>(null);
   const itensDoMenu = navItemsPara(nav).flatMap((g) => g.items);
   const temChat = itensDoMenu.some((i) => i.href === "/chat");
+  const temAvisos = itensDoMenu.some((i) => i.href === "/avisos");
   const temAjuda = itensDoMenu.some((i) => i.href === "/ajuda");
   const temGuias = itensDoMenu.some((i) => i.href === "/guias");
   const atalhos = {
@@ -135,6 +137,7 @@ export function Header({
               <ChatBadge className="absolute -right-0.5 -top-0.5 h-4 font-bold" />
             </button>
           ))}
+        {temAvisos && <AvisosAtalho chaveUsuario={user.email} />}
         <span data-tour="notificacoes" className="flex">
           <NotificationBell />
         </span>

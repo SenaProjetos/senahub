@@ -11,11 +11,14 @@ import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
 import { escalaContratacaoGrade, escalaUsuarioGrade, type DiaGrade } from "@/modules/rh/escalas/queries";
 import { acumuladoAte } from "@/modules/rh/banco/queries";
 import { esperadoPorDiaMes, somarEsperadoAte } from "@/modules/ponto/esperado";
+import { motivoSemJornada, type MotivoSemJornada } from "@/modules/ponto/motivo-sem-jornada";
 import { contextoApuracao } from "@/modules/ponto/apuracao";
 import { abatimentoParcial, expandirAbonos, type AbonoParcial, type AbonosDoMes } from "@/modules/ponto/abono";
 import {
   alocacoesDistintas,
   rotuloAlocacaoSemProjeto,
+  rotuloDaSessao,
+  selecaoDaAlocacaoPonto,
   type AlocacaoRecente,
   type TipoAlocacaoPonto,
 } from "@/modules/ponto/alocacao";
@@ -433,9 +436,13 @@ export async function registrosDiariosProjeto(projetoId: string): Promise<Regist
   return agruparRegistrosDiariosProjeto(sessoes, agora);
 }
 
-/** Projetos em que o usuário participa (para o seletor do ponto). */
+/**
+ * Projetos em que o usuário participa (para o seletor do ponto). `disciplinasDaPessoa` = quantas
+ * disciplinas do projeto ele responde hoje: com 2 ou mais, marcar horas exige escolher a tarefa
+ * (R2 do rateio) — a tela usa o número para pedir a tarefa antes de o servidor recusar.
+ */
 export async function projetosDoUsuario(userId: string) {
-  return prisma.projeto.findMany({
+  const projetos = await prisma.projeto.findMany({
     where: {
       situacao: "em_andamento",
       OR: [
@@ -447,9 +454,15 @@ export async function projetosDoUsuario(userId: string) {
         { tarefas: { some: { arquivada: false, status: { concluido: false }, responsaveis: { some: { userId } } } } },
       ],
     },
-    select: { id: true, codigo: true, nome: true },
+    select: {
+      id: true,
+      codigo: true,
+      nome: true,
+      _count: { select: { disciplinas: { where: { responsaveis: { some: { userId } } } } } },
+    },
     orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
   });
+  return projetos.map(({ _count, ...p }) => ({ ...p, disciplinasDaPessoa: _count.disciplinas }));
 }
 
 
@@ -661,6 +674,8 @@ export type BatidaDetalhe = {
   horario: Date;
   projeto: string | null;
   projetoId: string | null;
+  /** Valor do seletor de alocação desta batida (projeto, reunião ou reunião ligada a projeto). */
+  alocacao: string;
   geo: unknown;
   editada: boolean;
 };
@@ -691,6 +706,8 @@ export type DiaEspelhoDetalhe = {
   atrasoMin: number;
   /** Ausência parcial aprovada no dia (consulta/compromisso com horário) — justifica o atraso; só abate o esperado se abonada. */
   abonoParcial: AbonoParcial | null;
+  /** Dia trabalhado sem horas devidas (todo o trabalhado vira extra): por quê. */
+  semJornada: MotivoSemJornada | null;
   status: StatusDiaEspelho;
   batidas: BatidaDetalhe[];
   /** TODOS os ajustes do dia (mais recente primeiro) — histórico completo de edições. */
@@ -783,7 +800,7 @@ export async function espelhoDetalhado(
   const batidas = await prisma.batida.findMany({
     where: { userId, dia: { gte: diaIni, lt: diaFim } },
     orderBy: { horario: "asc" },
-    select: { id: true, tipo: true, horario: true, projetoId: true, geo: true, editada: true, dia: true },
+    select: { id: true, tipo: true, horario: true, projetoId: true, tipoAlocacao: true, geo: true, editada: true, dia: true },
   });
   const sessoes = await prisma.sessaoTrabalho.findMany({
     where: { userId, inicio: { gte: diaIni, lt: diaFim } },
@@ -915,19 +932,34 @@ export async function espelhoDetalhado(
       atrasado: atraso.atrasado,
       atrasoMin: atraso.atrasoMin,
       abonoParcial,
+      semJornada: motivoSemJornada({
+        dia: iso,
+        temBatidas,
+        controlaJornada: esp.controlaJornada,
+        devidasMin,
+        piso: ctxApuracao.piso,
+        teto: ctxApuracao.teto,
+        feriado: !!feriado,
+        ferias,
+        abonoInteiro: abonos.inteiros.has(iso),
+        gradeAtiva: grade.ativo,
+      }),
       status,
       batidas: bat.map((b) => {
         const sessao = sessaoPorInicio.get(b.horario.getTime());
+        // A batida guarda o destino desde a R2; a mais antiga cai na sessão que ela abriu.
+        const tipo: TipoAlocacaoPonto = b.tipoAlocacao ?? sessao?.tipoAlocacao ?? (b.projetoId ? "projeto" : "sem_projeto");
         return {
           id: b.id,
           tipo: b.tipo,
           horario: b.horario,
           projeto: b.projetoId
-            ? (projMap.get(b.projetoId) ?? null)
+            ? rotuloDaSessao(tipo, projMap.get(b.projetoId) ?? null)
             : sessao
               ? rotuloAlocacaoSemProjeto(sessao.tipoAlocacao)
               : null,
           projetoId: b.projetoId,
+          alocacao: selecaoDaAlocacaoPonto(b.projetoId, tipo),
           geo: b.geo,
           editada: b.editada,
         };

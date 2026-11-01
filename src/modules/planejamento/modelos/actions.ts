@@ -5,8 +5,11 @@ import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { aposMudarEap } from "../pos-eap";
+import { descartarPassos } from "../desfazer/service";
 import { estruturaModeloSchema } from "./estrutura";
 import { aplicarModeloNoProjeto, salvarEdicaoDoModelo, salvarModeloDeEap } from "./service";
+import { salvarEapDoProjetoComoModelo } from "./salvar-do-projeto-service";
+import { projetoVisivel } from "../queries";
 import { criarModelosDeDisciplina } from "./disciplina-service";
 
 /**
@@ -29,6 +32,37 @@ const respostasSchema = z
     percentuaisPorFase: z.record(z.string(), z.number().finite().min(0).max(100)).optional(),
   })
   .optional();
+
+/**
+ * "Salvar como modelo": a EAP de um projeto vira um modelo para os próximos (mesmo formato da importação). Leva estrutura,
+ * durações, marcos e predecessoras; não leva pessoas, horas, % nem datas fixadas. Devolve os avisos do que ficou de fora.
+ */
+export const salvarEapComoModelo = defineAction(
+  {
+    ...plan,
+    acao: "salvar-eap-como-modelo",
+    schema: z.object({
+      projetoId: z.string().min(1),
+      nome: z.string().trim().min(2, "Dê um nome ao modelo.").max(120, "O nome passa de 120 caracteres."),
+      descricao: z.string().max(500, "A descrição passa de 500 caracteres.").nullish(),
+      tipoEmpreendimentoId: z.string().min(1).nullish(),
+    }),
+    entidadeId: (d) => (d as { id?: string } | null)?.id,
+  },
+  async (i, { user }) => {
+    // O modelo fica visível a quem vê os modelos: a EAP lida tem de ser de um projeto que QUEM SALVA enxerga.
+    if (!(await projetoVisivel(user, i.projetoId))) throw new ActionError("Projeto não encontrado.");
+    const r = await salvarEapDoProjetoComoModelo({
+      projetoId: i.projetoId,
+      nome: i.nome,
+      descricao: i.descricao ?? null,
+      tipoEmpreendimentoId: i.tipoEmpreendimentoId ?? null,
+      autorId: user.id,
+    });
+    revalidatePath("/planejamento/modelos");
+    return r;
+  },
+);
 
 export const salvarModeloEap = defineAction(
   {
@@ -137,6 +171,8 @@ export const aplicarModeloEap = defineAction(
   },
   async (i, { user }) => {
     const r = await aplicarModeloNoProjeto({ projetoId: i.projetoId, modeloId: i.modeloId });
+    // Aplicar um modelo não tem desfazer: a pilha de antes não vale mais.
+    await descartarPassos(i.projetoId);
     // O modelo traz duração e vínculo; as datas são do motor, então reagenda na sequência (e, com
     // cronograma aprovado — que não é o caso de projeto novo —, sincroniza card e previsão).
     await aposMudarEap(i.projetoId, user.id);

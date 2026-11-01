@@ -6,6 +6,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import { resolverCaminho, removerArquivo } from "@/lib/storage";
+import { reservarCaminhoLivre } from "@/modules/uploads/arquivo-fisico";
 import { enfileirarConversao } from "@/modules/coordenacao/service";
 import { caminhoVersaoRealinhada } from "@/modules/coordenacao/realinhamento";
 import type { GeorrefParams } from "@/modules/coordenacao/georref";
@@ -111,12 +112,20 @@ export async function gravarGeorrefUpload(
   if (!/\.ifc$/i.test(upload.nomeArquivo)) throw new Error("O arquivo não é um modelo IFC.");
 
   const ultima = await prisma.upload.findFirst({
-    where: { disciplinaId: upload.disciplinaId, pacote: upload.pacote, nomeArquivo: upload.nomeArquivo },
+    // Vê lixeira e substituídas: o número entra no nome físico (ver uploads/arquivo-fisico.ts).
+    where: {
+      disciplinaId: upload.disciplinaId,
+      pacote: upload.pacote,
+      nomeArquivo: upload.nomeArquivo,
+      excluidoEm: { not: undefined },
+      substituidoPorId: { not: undefined },
+    },
     orderBy: { versao: "desc" },
     select: { versao: true },
   });
   const novaVersao = (ultima?.versao ?? 0) + 1;
-  const saidaRel = caminhoVersaoRealinhada(upload.caminho, novaVersao);
+  // Caminho reservado: o child nunca escreve por cima do arquivo de outra linha.
+  const { caminho: saidaRel } = await reservarCaminhoLivre((n) => caminhoVersaoRealinhada(upload.caminho, n), novaVersao);
   const { crsName, eastings, northings, orthogonalHeight, rotacaoGraus, escala } = input.params;
 
   const saida = await spawnFn([

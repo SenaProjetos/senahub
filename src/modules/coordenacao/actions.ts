@@ -13,9 +13,11 @@ import { rotuloItemApontamento } from "@/modules/coordenacao/helpers";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { getSession, type SessionUser } from "@/lib/session";
 import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
-import { versoesConvertidasDoUpload } from "@/modules/coordenacao/queries";
+import { modelosCoordenacao, versoesConvertidasDoUpload } from "@/modules/coordenacao/queries";
+import { veModelosDoProjeto } from "@/modules/coordenacao/acesso";
 import {
   converterModeloSchema,
+  modeloNaCompatibilizacaoSchema,
   realinharModeloSchema,
   criarApontamentoSchema,
   editarApontamentoSchema,
@@ -83,6 +85,40 @@ export const converterModelo = defineAction(
     if (projetoId) revalidatePath(`/projetos/${projetoId}/coordenacao`);
     // `sem_worker`: a linha ficou em `fila` mas não há dev:server/prod rodando os jobs.
     return { enfileirado: r.enfileirado, semWorker: !r.enfileirado && r.motivo === "sem_worker" };
+  },
+);
+
+/**
+ * Tira um modelo da Compatibilização ou devolve. A decisão vale para a SÉRIE do arquivo (`serieDoModelo`):
+ * a revisão nova do mesmo arquivo continua fora. Nada muda no arquivo, na conversão nem nos apontamentos.
+ */
+export const definirModeloNaCompatibilizacao = defineAction(
+  {
+    modulo: "coordenacao",
+    recurso: "coordenacao",
+    permissao: "gerir",
+    acao: "modelo-na-compatibilizacao",
+    entidade: "ModeloCoordenacaoOculto",
+    schema: modeloNaCompatibilizacaoSchema,
+    entidadeId: (_d, i) => i.modeloId,
+  },
+  async (input, { user }) => {
+    if (!(await veModelosDoProjeto(user, input.projetoId))) {
+      throw new ActionError("Você não participa deste projeto.");
+    }
+    const modelo = (await modelosCoordenacao(input.projetoId)).find((m) => m.uploadId === input.modeloId);
+    if (!modelo) throw new ActionError("Este modelo não existe mais — ele pode ter sido excluído. Recarregue a página.");
+    if (input.incluir) {
+      await prisma.modeloCoordenacaoOculto.deleteMany({ where: { projetoId: input.projetoId, serie: modelo.serie } });
+    } else {
+      // Dois cliques ao mesmo tempo: o segundo encontra a linha e não faz nada.
+      await prisma.modeloCoordenacaoOculto.createMany({
+        data: [{ projetoId: input.projetoId, serie: modelo.serie, ocultadoPorId: user.id }],
+        skipDuplicates: true,
+      });
+    }
+    revalidarCoordenacao(input.projetoId);
+    return { nomeArquivo: modelo.nomeArquivo, incluido: input.incluir };
   },
 );
 

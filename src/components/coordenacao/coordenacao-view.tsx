@@ -146,11 +146,12 @@ export function CoordenacaoView({
   // Snapshot recém-capturado aguardando marcação (seta/círculo/texto) antes de anexar.
   const [snapshotEditor, setSnapshotEditor] = useState<{ apontamentoId: string; blob: Blob } | null>(null);
 
-  // Só modelos já convertidos (têm .frag) entram em realinhamento — precisam da prévia.
+  // Só modelos já convertidos (têm .frag) entram em realinhamento — precisam da prévia. Os que a
+  // coordenação tirou da Compatibilização ficam de fora (aqui e no diff).
   const modelosRealinhaveis = useMemo(
     () =>
       modelos
-        .filter((m) => m.conversao?.status === "concluido")
+        .filter((m) => !m.oculto && m.conversao?.status === "concluido")
         .map((m) => ({
           uploadId: m.uploadId,
           nomeArquivo: m.nomeArquivo,
@@ -203,7 +204,7 @@ export function CoordenacaoView({
   const modelosDiff = useMemo(
     () =>
       modelos
-        .filter((m) => m.tipo === "upload" && m.conversao?.status === "concluido")
+        .filter((m) => !m.oculto && m.tipo === "upload" && m.conversao?.status === "concluido")
         .map((m) => ({ uploadId: m.uploadId, label: `${m.disciplinaNome} · ${m.nomeArquivo} (${rotuloRevisao(m.versao)})` })),
     [modelos],
   );

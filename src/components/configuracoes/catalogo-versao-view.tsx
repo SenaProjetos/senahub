@@ -6,16 +6,16 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileUp, Layers, Plus, Search, Shapes, Undo2 } from "lucide-react";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { alterarCatalogoNaVersao, definirExigeDwgTipo } from "@/modules/projetos/nomenclatura/catalogo/actions";
+import { alterarCatalogoNaVersao, definirFormatosExigidosTipo } from "@/modules/projetos/nomenclatura/catalogo/actions";
 import {
   ACAO_ADICIONAR_SUB,
   ACAO_EDITAR,
+  ACAO_FORMATOS_EXIGIDOS,
   ACAO_SIGLAS,
   ACAO_TIRAR,
-  ACAO_EXIGIR_DWG,
-  ACAO_DISPENSAR_DWG,
   itensDaLinhaCatalogo,
 } from "@/modules/projetos/nomenclatura/catalogo/acoes";
+import { resumoDosFormatos, type FormatoExigido } from "@/modules/uploads/ciclo/formatos-exigidos";
 import { fraseTirarCardEmUso } from "@/modules/projetos/nomenclatura/catalogo/versao";
 import { agruparCards, filtrarCatalogo, filtrarLinhas, opcoesDeVersao } from "@/modules/projetos/nomenclatura/catalogo/apresentacao";
 import type {
@@ -31,6 +31,7 @@ import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { ImportarCatalogoDialog } from "@/components/configuracoes/importar-catalogo-dialog";
 import { AdicionarItemDialog } from "@/components/configuracoes/catalogo/adicionar-item-dialog";
 import { useLapis, type CadastroCard } from "@/components/configuracoes/catalogo/use-lapis";
+import { FormatosExigidosDialog } from "@/components/configuracoes/catalogo/formatos-exigidos-dialog";
 import { LinhaCatalogoItem } from "@/components/configuracoes/catalogo/linha-catalogo";
 import { AbasCatalogo } from "@/components/configuracoes/catalogo/abas-catalogo";
 import { SeletorVersao } from "@/components/configuracoes/catalogo/seletor-versao";
@@ -56,7 +57,8 @@ type VersaoLista = { numero: number; nome: string; publicadaEm: Date | null; seq
 type Dialogo =
   | { tipo: "adicionar"; titulo: string; siglaObrigatoria: boolean; montar: (nome: string, sigla: string | null) => OperacaoTela }
   | { tipo: "siglas"; rotulo: string; alvo: AlvoCatalogo }
-  | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo };
+  | { tipo: "voltar"; nome: string; alvo: AlvoCatalogo }
+  | { tipo: "formatos"; nome: string; alvo: AlvoCatalogo; atuais: FormatoExigido[] };
 
 const ACAO_IMPORTAR = "importar";
 
@@ -152,16 +154,20 @@ export function CatalogoVersaoView({
       });
     } else if (acao.id === ACAO_EDITAR) lapis.abrir(linha.alvo, linha.nome);
     else if (acao.id === ACAO_TIRAR) void tirar(linha);
-    else if (acao.id === ACAO_EXIGIR_DWG || acao.id === ACAO_DISPENSAR_DWG) {
-      const exigeDwg = acao.id === ACAO_EXIGIR_DWG;
-      start(async () => {
-        const r = await definirExigeDwgTipo({ id: linha.alvo.id, exigeDwg });
-        if (r.ok) {
-          toast.success(exigeDwg ? `“${linha.nome}” passa a exigir o DWG para publicar.` : `“${linha.nome}” publica sem DWG.`);
-          router.refresh();
-        } else toast.error(r.error);
-      });
+    else if (acao.id === ACAO_FORMATOS_EXIGIDOS) {
+      setDialogo({ tipo: "formatos", alvo: linha.alvo, nome: linha.nome, atuais: linha.formatosExigidos ?? [] });
     }
+  }
+
+  function salvarFormatos(alvo: AlvoCatalogo, nome: string, formatosExigidos: FormatoExigido[]) {
+    start(async () => {
+      const r = await definirFormatosExigidosTipo({ id: alvo.id, formatosExigidos });
+      if (r.ok) {
+        toast.success(`“${nome}”: ${resumoDosFormatos(r.data.formatosExigidos)}.`);
+        setDialogo(null);
+        router.refresh();
+      } else toast.error(r.error);
+    });
   }
 
   function renderLinha(linha: LinhaCatalogo) {
@@ -398,6 +404,15 @@ export function CatalogoVersaoView({
           pending={pending}
           onFechar={() => setDialogo(null)}
           onSalvar={(op, transferencias) => executar([op], transferencias, `“${dialogo.nome}” voltou para a v${v}.`)}
+        />
+      )}
+      {dialogo?.tipo === "formatos" && (
+        <FormatosExigidosDialog
+          nome={dialogo.nome}
+          atuais={dialogo.atuais}
+          pending={pending}
+          onFechar={() => setDialogo(null)}
+          onSalvar={(formatos) => salvarFormatos(dialogo.alvo, dialogo.nome, formatos)}
         />
       )}
       {lapis.dialogo}

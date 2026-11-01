@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { ClipboardList } from "lucide-react";
 import { inputsPorToken } from "@/modules/inputs/queries";
-import { prePopularRespostas } from "@/modules/inputs/briefing-schema";
+import {
+  aplicarOcultos,
+  filtrarSecoes,
+  prePopularRespostas,
+  respostasVisiveis,
+} from "@/modules/inputs/briefing-schema";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { InputsPublicForm } from "@/components/inputs/inputs-public-form";
 import { BriefingPublico } from "@/components/inputs/briefing-public";
@@ -41,7 +46,14 @@ export default async function InputsPublicoPage({
   }));
 
   const disciplinas = projeto.disciplinas.map((d) => d.disciplinaTextoLegado);
-  const respostasBriefing = prePopularRespostas(
+  const ocultos = {
+    secoes: projeto.briefing?.secoesOcultas ?? [],
+    campos: projeto.briefing?.camposOcultos ?? [],
+  };
+  const secoesVisiveis = aplicarOcultos(filtrarSecoes(disciplinas), ocultos);
+  // Resposta de campo oculto não sai do servidor (a gravação mescla, então ela fica guardada).
+  const respostasBriefing = respostasVisiveis(
+    prePopularRespostas(
     (projeto.briefing?.respostasJson as Record<string, unknown> | null) ?? {},
     {
       nome: projeto.cliente?.nome,
@@ -49,6 +61,8 @@ export default async function InputsPublicoPage({
       telefone: projeto.cliente?.telefone,
       endereco: projeto.endereco ?? undefined,
     },
+    ),
+    secoesVisiveis,
   );
 
   return (
@@ -61,7 +75,18 @@ export default async function InputsPublicoPage({
         descricao="Preencha as informações abaixo. Suas respostas são salvas automaticamente."
       />
 
-      <BriefingPublico token={token} respostasIniciais={respostasBriefing} disciplinas={disciplinas} />
+      <BriefingPublico
+        token={token}
+        respostasIniciais={respostasBriefing}
+        disciplinas={disciplinas}
+        ocultos={ocultos}
+      />
+
+      {secoesVisiveis.length === 0 && itens.length === 0 && (
+        <p className="rounded-sm border bg-card p-6 text-center text-sm text-muted-foreground">
+          Não há nada para preencher neste formulário no momento. Aguarde o contato da equipe.
+        </p>
+      )}
 
       {itens.length > 0 && (
         <div>

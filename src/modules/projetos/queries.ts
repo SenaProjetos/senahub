@@ -10,12 +10,13 @@ import {
   CATEGORIA_TERCEIRIZADO,
   TAG_REEMBOLSO_ART,
 } from "@/modules/financeiro/custo/lancamento-custo";
-import { calcularRateioDoMes } from "@/modules/rh/rateio/queries";
+import { calcularRateioDoMes, corteCalculoNovo } from "@/modules/rh/rateio/queries";
 import { normalizar } from "@/lib/disciplinas-core";
 import { projetosPorCard } from "@/modules/projetos/cadastro-disciplina";
 import { disciplinaUsaPastas } from "@/modules/projetos/estrutura-tipo";
 import { prontidaoAprovacao, type Prontidao } from "@/modules/projetos/prontidao";
 import { separarRateioPorVinculo } from "@/modules/projetos/rateio-composicao";
+import { custoHorasDoProjeto } from "@/modules/projetos/custo-horas";
 import { semPublicacaoPorDisciplina } from "@/modules/uploads/ciclo/service";
 
 type Viewer = { id: string; ehSocio?: boolean } & EscopoDeDados;
@@ -476,16 +477,6 @@ export async function nomesUsuarios(ids: string[]) {
   return prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
 }
 
-/** Papéis já usados em equipes de outros projetos — sugestões p/ o autocomplete do "Papel". */
-export async function papeisUsados(): Promise<string[]> {
-  const rows = await prisma.projetoMembro.findMany({
-    where: { papel: { not: null } },
-    select: { papel: true },
-    distinct: ["papel"],
-  });
-  return rows.map((r) => r.papel!).filter(Boolean).sort();
-}
-
 /**
  * Margem econômica do projeto (vida inteira):
  * receitas confirmadas − despesas diretas confirmadas − custo de horas rateado.
@@ -508,7 +499,7 @@ export async function margemProjeto(projetoId: string) {
     }),
     prisma.rateioHora.findMany({
       where: { projetoId },
-      select: { custo: true, contratacao: true, user: { select: { contratacao: true } } },
+      select: { custo: true, natureza: true, contratacao: true, user: { select: { contratacao: true } } },
     }),
   ]);
 
@@ -574,30 +565,36 @@ export async function margemProjeto(projetoId: string) {
   }
 
   const rateioHoras = separarRateioPorVinculo(
-    rateios.map((rateio) => ({ custo: Number(rateio.custo), contratacao: rateio.contratacao ?? rateio.user.contratacao })),
+    rateios.map((rateio) => ({ custo: Number(rateio.custo), natureza: rateio.natureza, contratacao: rateio.contratacao ?? rateio.user.contratacao })),
   );
   const custoHoras = rateioHoras.total;
 
-  // P-26: estimativa do custo de horas do mês corrente (ainda não fechado).
-  // Só conta se o mês ainda não tem RateioHora (senão já está em `custoHoras`).
-  const agora = new Date();
-  const anoAtual = agora.getFullYear();
-  const mesAtual = agora.getMonth() + 1;
-  const mesFechado = await prisma.fechamentoRateio.findUnique({
-    where: { ano_mes: { ano: anoAtual, mes: mesAtual } },
-    select: { id: true },
-  });
-  let custoHorasMesCorrente = 0;
-  if (!mesFechado) {
-    const { linhas } = await calcularRateioDoMes(anoAtual, mesAtual);
-    custoHorasMesCorrente = linhas.filter((r) => r.projetoId === projetoId).reduce((s, r) => s + r.custoCent, 0) / 100;
+  // Decisão 18 do rateio: os meses com horas no projeto e ainda SEM fechamento entram como estimativa
+  // (antes valiam zero). O mês do fuso de São Paulo, igual ao recorte do cálculo.
+  const mesesComHoras = await prisma.$queryRaw<{ mes: string }[]>`
+    SELECT DISTINCT to_char("inicio" AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM') AS mes
+    FROM "sessao_trabalho" WHERE "projetoId" = ${projetoId}`;
+  const fechados = new Set(
+    (await prisma.fechamentoRateio.findMany({ select: { ano: true, mes: true } })).map((f) => `${f.ano}-${String(f.mes).padStart(2, "0")}`),
+  );
+  const abertosCent: Record<string, number> = {};
+  // Só do corte do cálculo novo em diante (mesmo recorte do alerta de mês aberto): cada mês aberto
+  // refaz o rateio da empresa inteira, e mês antigo nunca fechado multiplicaria isso a cada visita.
+  const corte = await corteCalculoNovo();
+  for (const { mes: m } of mesesComHoras) {
+    if (fechados.has(m) || m < corte) continue;
+    const [a, mm] = m.split("-").map(Number);
+    const { linhas } = await calcularRateioDoMes(a, mm);
+    abertosCent[m] = linhas.filter((r) => r.projetoId === projetoId).reduce((s, r) => s + r.custoCent, 0);
   }
+  const horas = custoHorasDoProjeto({ fechadasCent: Math.round(custoHoras * 100), abertosCent });
+  const custoHorasEstimadas = horas.estimativaCent / 100;
 
-  const margem = receitaConfirmada - despesaConfirmada - custoHoras;
+  const margem = receitaConfirmada - despesaConfirmada - custoHoras - custoHorasEstimadas;
   const margemPct = receitaConfirmada > 0 ? (margem / receitaConfirmada) * 100 : null;
-  // Resultado projetado: considera receita/despesa previstas + horas do mês corrente.
+  // Resultado projetado: considera também receita/despesa previstas.
   const margemProjetada =
-    receitaConfirmada + receitaPrevista - despesaConfirmada - despesaPrevista - custoHoras - custoHorasMesCorrente;
+    receitaConfirmada + receitaPrevista - despesaConfirmada - despesaPrevista - custoHoras - custoHorasEstimadas;
 
   return {
     receitaConfirmada,
@@ -607,7 +604,9 @@ export async function margemProjeto(projetoId: string) {
     despesaDiretaPrevista: despesaPrevista,
     custoHoras,
     rateioHoras,
-    custoHorasMesCorrente,
+    /** Estimativa dos meses ainda não fechados (já descontada da margem). */
+    custoHorasEstimadas,
+    mesesEstimados: horas.mesesEstimados,
     custo,
     margem,
     margemPct,
@@ -648,26 +647,30 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
  * Visão Geral e Histórico ficam fora: sempre relevantes.
  */
 export async function abasComConteudo(projetoId: string) {
-  const [inputs, financeiro, servicos, arquivos, arts, coordenacao, diario] =
+  const [inputs, financeiro, servicos, arquivos, problemas, arts, coordenacao, diario, eap] =
     await Promise.all([
-      prisma.inputProjeto.count({ where: { projetoId } }),
+      prisma.inputProjeto.count({ where: { projetoId, removidoEm: null } }),
       prisma.lancamento.count({ where: { projetoId } }),
       prisma.servicoTerceirizado.count({ where: { projetoId } }),
       prisma.upload.count({ where: { disciplina: { projetoId }, excluidoEm: null } }),
+      prisma.pendencia.count({ where: { projetoId, publicadoEm: { not: null }, excluidoEm: null } }),
       prisma.art.count({ where: { projetoId } }),
       prisma.upload.count({
         where: { disciplina: { projetoId }, nomeArquivo: { endsWith: ".ifc", mode: "insensitive" } },
       }),
       prisma.diarioEntrada.count({ where: { projetoId } }),
+      prisma.eapTarefa.count({ where: { projetoId } }),
     ]);
   return {
     "/inputs": inputs > 0,
     "/financeiro": financeiro > 0,
     "/servicos": servicos > 0,
     "/arquivos": arquivos > 0,
+    "/problemas": problemas > 0,
     "/arts": arts > 0,
     "/coordenacao": coordenacao > 0,
     "/diario": diario > 0,
+    "/eap": eap > 0,
   } as Record<string, boolean>;
 }
 

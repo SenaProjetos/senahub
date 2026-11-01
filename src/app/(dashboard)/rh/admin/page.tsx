@@ -36,8 +36,13 @@ export default async function RhAdminPage() {
   const bancoAno = agora.getMonth() === 0 ? agora.getFullYear() - 1 : agora.getFullYear();
   const mesCorrente = agora.getMonth() + 1;
   const anoCorrente = agora.getFullYear();
+  // Os dois meses fechados antes do alvo: o card mostra os 3 meses anteriores ao corrente.
+  const anteriores = [2, 1].map((n) => {
+    const d = new Date(bancoAno, bancoMes - 1 - n, 1);
+    return { ano: d.getFullYear(), mes: d.getMonth() + 1 };
+  });
 
-  const [abonos, ferias, alteracoesFerias, feriasVigentes, colaboradoresFerias, ultimoFechado, clima, climaSerie, feedbacksHumor, abertosCiclo, pendenciasCiclo, pessoasCiclo, modelos, competencias, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores] = await Promise.all([
+  const [abonos, ferias, alteracoesFerias, feriasVigentes, colaboradoresFerias, ultimoFechado, clima, climaSerie, feedbacksHumor, abertosCiclo, pendenciasCiclo, pessoasCiclo, modelos, competencias, nfs, nfsHistorico, fechamentos, saldoCorrente, inicioRecalculo, feedbacks, colaboradores, fechamentosAnteriores] = await Promise.all([
     abonosPendentes(),
     feriasPendentes(),
     alteracoesFeriasPendentes(),
@@ -59,6 +64,7 @@ export default async function RhAdminPage() {
     primeiroMesFechado(),
     listarFeedbacks(),
     colaboradoresInternos(),
+    Promise.all(anteriores.map(async (m) => ({ ...m, fechamentos: await fechamentosDoMes(m.ano, m.mes) }))),
   ]);
   return (
     <div className="space-y-6">
@@ -77,6 +83,7 @@ export default async function RhAdminPage() {
         ano={bancoAno}
         mes={bancoMes}
         fechamentos={fechamentos}
+        anteriores={fechamentosAnteriores}
         corrente={saldoCorrente}
         anoCorrente={anoCorrente}
         mesCorrente={mesCorrente}

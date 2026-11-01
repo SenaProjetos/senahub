@@ -34,7 +34,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   if (!projeto) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
 
   const itens = await prisma.inputProjeto.findMany({
-    where: { projetoId: projeto.id },
+    where: { projetoId: projeto.id, removidoEm: null },
     orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }],
     select: { id: true, disciplina: true, pergunta: true, resposta: true },
   });
@@ -59,9 +59,9 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
   const parsed = putSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 
-  // Só permite gravar respostas de inputs DESTE projeto.
+  // Só permite gravar respostas de inputs ATIVOS deste projeto (removida não recebe resposta).
   const ids = new Set(
-    (await prisma.inputProjeto.findMany({ where: { projetoId: projeto.id }, select: { id: true } })).map(
+    (await prisma.inputProjeto.findMany({ where: { projetoId: projeto.id, removidoEm: null }, select: { id: true } })).map(
       (i) => i.id,
     ),
   );
@@ -69,7 +69,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
 
   await prisma.$transaction(
     validas.map((r) =>
-      prisma.inputProjeto.update({ where: { id: r.id }, data: { resposta: r.resposta || null } }),
+      prisma.inputProjeto.updateMany({
+        where: { id: r.id, projetoId: projeto.id, removidoEm: null },
+        data: { resposta: r.resposta || null },
+      }),
     ),
   );
   // Avisa a equipe (janela de 6 h — o formulário salva sozinho a cada campo).

@@ -4,6 +4,8 @@ import { avisarContasAPagar, enviarCobrancasAoCliente, reservarAvisoInterno } fr
 import { addDays, differenceInCalendarDays, subMonths, getISOWeek } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
+import { corteCalculoNovo } from "@/modules/rh/rateio/queries";
+import { mesesAbertos } from "@/modules/rh/rateio/fechamento/regras";
 import { enviarPush } from "@/lib/push";
 import { emitParaCanal, emitParaUsuario, usuarioOnline } from "@/lib/socket";
 import { textoParaPreview } from "@/modules/chat/formatacao";
@@ -53,6 +55,7 @@ import { processarGeracao } from "@/modules/coordenacao/federado/service";
 import { executarConversaoDwg } from "@/modules/dwg/conversao";
 import { removerArquivo } from "@/lib/storage";
 import { limitePurga } from "@/modules/uploads/lixeira";
+import { removerArquivoDeUploadSemDono } from "@/modules/uploads/arquivo-fisico";
 import { executarImportacaoCusto } from "@/modules/custos/composicoes/service";
 import { dispatcharAviso } from "@/modules/notificacoes/avisos/service";
 import { Prisma } from "@/generated/prisma/client";
@@ -243,34 +246,29 @@ export async function alertaContasAPagar(): Promise<number> {
 }
 
 /**
- * Mensal: mês anterior tem sessões de trabalho com projeto mas o rateio NÃO foi
- * fechado → custo de horas ausente nas margens. Lembra os gestores de fechar.
+ * Mensal: TODOS os meses terminados desde o corte do cálculo novo (`rh.rateio.calculoNovoDesde`) que
+ * ainda não foram fechados (decisão 18 do rateio) — antes olhava só o mês anterior. Um aviso só, com
+ * a lista; mesma `tag` para a mesma lista, então não repete no mesmo dia.
  */
 export async function alertaRateioAberto(): Promise<number> {
   const ref = subMonths(new Date(), 1);
-  const ano = ref.getFullYear();
-  const mes = ref.getMonth() + 1;
-  const ini = new Date(ano, mes - 1, 1);
-  const fim = new Date(ano, mes, 1);
+  const ate = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}`;
+  const [corte, fechados] = await Promise.all([
+    corteCalculoNovo(),
+    prisma.fechamentoRateio.findMany({ select: { ano: true, mes: true } }),
+  ]);
+  const abertos = mesesAbertos({ corte, ate, fechados: fechados.map((f) => `${f.ano}-${String(f.mes).padStart(2, "0")}`) });
+  if (abertos.length === 0) return 0;
 
-  // Já fechado? O cabeçalho existe mesmo quando o mês não teve linha.
-  const fechado = await prisma.fechamentoRateio.findUnique({ where: { ano_mes: { ano, mes } }, select: { id: true } });
-  if (fechado) return 0;
-
-  // Há sessões com projeto a ratear no mês?
-  const sessoes = await prisma.sessaoTrabalho.count({
-    where: { inicio: { gte: ini, lt: fim }, projetoId: { not: null } },
-  });
-  if (sessoes === 0) return 0;
-
+  const rotulos = abertos.map((m) => `${m.slice(5)}/${m.slice(0, 4)}`);
   const ids = await destinatarios("gestao_operacional");
   await notificarMuitos(ids, {
     titulo: "Rateio de horas em aberto",
-    corpo: `${String(mes).padStart(2, "0")}/${ano}: ${sessoes} sessão(ões) com projeto ainda não rateadas. Feche o rateio para refletir o custo de horas nas margens.`,
-    href: "/ponto",
-    tag: `rateio-aberto-${ano}-${mes}`,
+    corpo: `Mês(es) sem fechamento: ${rotulos.join(", ")}. Feche o rateio para congelar o custo das horas nas margens.`,
+    href: "/rh/rateio",
+    tag: `rateio-aberto-${abertos.join("_")}`,
   });
-  return sessoes;
+  return abertos.length;
 }
 
 /**
@@ -1353,7 +1351,7 @@ export async function lembreteInputsCliente(): Promise<number> {
           },
         },
       },
-      inputs: { where: { resposta: null }, select: { id: true } },
+      inputs: { where: { resposta: null, removidoEm: null }, select: { id: true } },
     },
   });
 
@@ -1669,7 +1667,8 @@ export async function purgarLixeiraArquivos(): Promise<number> {
   for (const u of vencidos) {
     try {
       await prisma.upload.delete({ where: { id: u.id } });
-      await removerArquivo(u.caminho);
+      // Outra linha pode dividir o caminho (envio antigo sobre arquivo da lixeira): o arquivo fica.
+      await removerArquivoDeUploadSemDono(u.caminho);
       if (u.conversao?.caminhoFrag) await removerArquivo(u.conversao.caminhoFrag);
       if (u.conversaoDesenho?.caminhoDxf) await removerArquivo(u.conversaoDesenho.caminhoDxf);
       removidos++;

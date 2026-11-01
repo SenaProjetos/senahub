@@ -1,9 +1,9 @@
 "use client";
 
-import { Fragment, useRef, useState, useTransition } from "react";
+import { Fragment, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileX, Plus, Share2, Upload as UploadIcon } from "lucide-react";
+import { FileX, Plus, Share2, Upload as UploadIcon, X } from "lucide-react";
 
 import {
   adicionarVersaoDocumento,
@@ -37,14 +37,14 @@ import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useDropzone } from "@/lib/use-dropzone";
-import { cn, formatarData, rotuloRevisao } from "@/lib/utils";
+import { useEnvioArrasto } from "@/components/projetos/arquivos/zona-envio-arrasto";
+import { formatarData, rotuloRevisao } from "@/lib/utils";
 
 /**
  * Base Arquitetônica, Recebidos do cliente e Geral no formato de TABELA (reunião de 29/09/2026: "converter para a
@@ -61,6 +61,12 @@ const TEXTO_VAZIO: Record<AreaDocumento, { titulo: string; descricao: string }> 
     descricao: "Referência arquitetônica do projeto (ex.: base do arquiteto), visível a todas as disciplinas.",
   },
   geral: { titulo: "Sem arquivos gerais", descricao: "Contratos, memoriais, fotos e outros documentos do projeto." },
+};
+
+const DESTINO_DO_ENVIO: Record<AreaDocumento, string> = {
+  recebidos: "Os arquivos entram em Recebidos do cliente.",
+  base: "Os arquivos entram na Base Arquitetônica, visível a todas as disciplinas.",
+  geral: "",
 };
 
 const ROTULO_ENVIAR: Record<AreaDocumento, string> = { recebidos: "Enviar", base: "Enviar", geral: "Novo" };
@@ -196,16 +202,33 @@ export function TabelaAreaDocumentos({
     }
   }
 
-  // Arrastar-e-soltar: Recebidos e Base enviam direto; o Geral abre o formulário com o arquivo já escolhido.
-  const { arrastando, dropProps } = useDropzone((files) => {
+  // Arrastar-e-soltar sobre a área inteira (ZonaEnvioArrasto, no shell): Recebidos e Base abrem a confirmação
+  // da lista de arquivos (soltar sem querer publicaria na hora); o Geral abre o formulário com o arquivo já
+  // escolhido. O envio em andamento não aceita outro lote.
+  const [paraConfirmar, setParaConfirmar] = useState<File[] | null>(null);
+  const arrasto = useEnvioArrasto();
+  const soltos = arrasto?.soltos ?? null;
+  const consumirSoltos = arrasto?.consumir;
+  const loteTratado = useRef<number | null>(null);
+  useEffect(() => {
+    if (!soltos || loteTratado.current === soltos.chave) return;
+    loteTratado.current = soltos.chave;
+    consumirSoltos?.();
+    if (!podeGerir) return;
+    if (busy) {
+      toast.info("Aguarde o envio em andamento terminar.");
+      return;
+    }
     if (area === "geral") {
-      const f = files[0];
+      const f = soltos.arquivos[0];
       if (!f) return;
       setArquivoSolto(f);
       setForm({ nome: f.name, categoria: "outro", descricao: "" });
       setNovo(true);
-    } else void enviarNovos(files);
-  }, !podeGerir || busy);
+    } else setParaConfirmar(soltos.arquivos);
+    // `enviarNovos` é recriada a cada render; o lote é tratado uma vez só, pela chave acima.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soltos]);
 
   /**
    * O que cada item do menu faz (o descritor é `itensDeDocumentoArea`). O `confirm` vem ANTES de qualquer gravação e
@@ -273,7 +296,7 @@ export function TabelaAreaDocumentos({
   const vazio = TEXTO_VAZIO[area];
 
   return (
-    <div className={cn("space-y-2 rounded-sm transition-colors", arrastando && "bg-primary/5 ring-1 ring-primary")} {...(podeGerir ? dropProps : {})}>
+    <div className="space-y-2 rounded-sm">
       <input
         ref={fileVersao}
         type="file"
@@ -423,6 +446,52 @@ export function TabelaAreaDocumentos({
             </TableBody>
           </Table>
         </div>
+      )}
+
+      {area !== "geral" && (
+        <Dialog open={paraConfirmar !== null} onOpenChange={(o) => !o && setParaConfirmar(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Enviar {paraConfirmar?.length === 1 ? "este arquivo" : `estes ${paraConfirmar?.length ?? 0} arquivos`}?</DialogTitle>
+              <DialogDescription>{DESTINO_DO_ENVIO[area]}</DialogDescription>
+            </DialogHeader>
+            <ul className="max-h-[40svh] space-y-1 overflow-y-auto">
+              {(paraConfirmar ?? []).map((f, i) => (
+                <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-sm border px-2.5 py-1.5 text-sm">
+                  <IconeArquivo nome={f.name} />
+                  <span className="min-w-0 flex-1 truncate" title={f.name}>
+                    {f.name}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(f.size)}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-6 shrink-0"
+                    aria-label={`Tirar ${f.name} do envio`}
+                    onClick={() => setParaConfirmar((atual) => (atual && atual.length > 1 ? atual.filter((_, j) => j !== i) : null))}
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setParaConfirmar(null)}>
+                Cancelar
+              </Button>
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  const lote = paraConfirmar ?? [];
+                  setParaConfirmar(null);
+                  void enviarNovos(lote);
+                }}
+              >
+                Enviar {paraConfirmar?.length === 1 ? "1 arquivo" : `${paraConfirmar?.length ?? 0} arquivos`}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {area === "geral" && (

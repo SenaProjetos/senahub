@@ -89,7 +89,11 @@ export function EditarCadastroDialog({
         pjId: funcionario.prestador ? f.pjId : "",
       });
       if (res.ok) {
-        toast.success("Cadastro atualizado.");
+        toast.success(
+          res.data.inicioDoVinculoAlterado
+            ? "Cadastro atualizado. O início do vínculo passou para a nova data de admissão — o ponto já apura por ela."
+            : "Cadastro atualizado.",
+        );
         setOpen(false);
         router.refresh();
       } else setErro(res.error);

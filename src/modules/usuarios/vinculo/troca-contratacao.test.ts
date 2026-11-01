@@ -79,6 +79,28 @@ describe("validarTrocaContratacao", () => {
     });
   });
 
+  describe("início do novo vínculo", () => {
+    const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+    it("recusa começar antes do vínculo atual (o atual viraria vínculo de um dia)", () => {
+      expect(
+        validarTrocaContratacao({ ...base, dataInicio: d("2026-07-01"), inicioAtual: d("2026-07-03") }),
+      ).toMatch(/depois do início do vínculo atual \(03\/07\/2026\).*Admissão/);
+    });
+
+    it("recusa começar no mesmo dia do vínculo atual", () => {
+      expect(validarTrocaContratacao({ ...base, dataInicio: d("2026-07-03"), inicioAtual: d("2026-07-03") })).not.toBeNull();
+    });
+
+    it("aceita começar no dia seguinte", () => {
+      expect(validarTrocaContratacao({ ...base, dataInicio: d("2026-07-04"), inicioAtual: d("2026-07-03") })).toBeNull();
+    });
+
+    it("sem vínculo ativo não confere a data", () => {
+      expect(validarTrocaContratacao({ ...base, dataInicio: d("2020-01-01"), inicioAtual: null })).toBeNull();
+    });
+  });
+
   it("TETO_SEMANAL_HORAS só define teto para estágio e CLT", () => {
     expect(Object.keys(TETO_SEMANAL_HORAS).sort()).toEqual(["clt", "estagio"]);
   });

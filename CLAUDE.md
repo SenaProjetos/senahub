@@ -34,9 +34,12 @@ npm run smoke:inputs-link     # link público de inputs: janela da notificação
 npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-duplicata, cancelamento
 npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsáveis, cancelamento, total do lote
 npm run smoke:historico-documento  # histórico por documento: agrupamento atômico de acessos, corte de visibilidade, merge
+npm run smoke:lixeira-caminho     # "Arquivo indisponível no disco": contador de versão vê a lixeira; apagar arquivo de Upload só sem outra linha no mesmo caminho
 npm run smoke:status-documento     # status documental automático (só FORA do ciclo documental): Enviado/Aprovado/Correção pela chave, revisão vigente, evento automático
 npm run smoke:ciclo-documental     # ciclo ISO 19650: I1–I8, publicar arquiva a anterior e revoga a obra (A1), liberação automática (A2), apontamentos (A3), integridade corrige I5 (A7)
+npm run smoke:pendencias-ciclo     # pendências documentais: assinatura lida do banco, dispensa com evento, uma ativa por alvo, corrida de dois cliques, dispensa velha que não vale para ocorrência nova, job só avisa o aberto
 npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: revisão marcada na lista/árvore, contagem, validação desfeita
+npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
 npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um aberto por tipo (índice parcial), quem marca o quê, lembrete 1×/dia, recontratação
@@ -45,6 +48,12 @@ npm run smoke:desenvolvimento  # liderança única ativa, 1:1 compartilhado × p
 npm run smoke:documentos-validade  # documento com validade: aviso 60/30/7/vencido uma vez por faixa, renovar rearma
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta (atrasada não some), sugestão da atividade de hoje, validação, edição do dia, apontado × previsto
 npm run ensaio:eap [-- --refazer]  # (só banco de dev) projeto de ensaio estilo Arapiraca: etapas, EAP com gente, cronograma aprovado, cards e 1 usuário por perfil (senha Demo@2026); `ensaio:conferir` lê o que cada perfil enxerga
+npm run smoke:desfazer-eap  # Ctrl+Z da EAP: foto do plano, passo só se o plano mudou, mesmos ids e idCorporativo ao restaurar (linha, vínculo, pessoa, parcela de contrato), recusa se outra pessoa editou, pilha de 20, plano aprovado
+npm run smoke:salvar-linha-eap  # "Salvar" do painel da linha: várias mudanças = um passo de desfazer, término vence duração, início = alfinete, tudo ou nada, plano aprovado só nome e %
+npm run smoke:salvar-modelo-eap  # salvar a EAP de um projeto como modelo e aplicar o modelo salvo em outro (árvore, durações, marcos, vínculo, Externo; sem pessoas/%)
+npm run smoke:eap-datas  # datas digitadas na EAP: término → duração (sem restrição), início → restrição 'não iniciar antes de' (o motor respeita ou mantém a data real), agrupamento/marco recusados, 'mover junto' das restrições ao mudar o início do projeto
+npm run smoke:eap-lote  # EAP em lote: recuar/avançar/mover/excluir várias linhas (tudo ou nada, irmãs seguidas não se aninham), colar várias tarefas, copiar/colar bloco
+npm run smoke:disciplina-eap  # disciplina da linha da EAP: inserir acima herda do AGRUPAMENTO (não da vizinha), responsável só com disciplina, achado "disciplina diferente do agrupamento" e correção, fase no título do card
 npm run smoke:eap-integracao  # ponta a ponta: etapas padrão → modelo de EAP → aprovar → ponto sugere → bater → concluir card → verde/aviso → validar → enviar etapa (multifamiliar e unifamiliar)
 npm run smoke:conclusao-eap  # aviso ao gestor quando alguém conclui o card de uma atividade da EAP: coordenação (ou gestores), sem o autor, nunca card manual nem linha em 100%
 npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
@@ -61,7 +70,11 @@ npm run smoke:contabil              # integração contábil (M5): plano do cont
 npm run contabil:importar-plano     # importa/re-importa o plano do contador (CSV; sem argumento usa docs/financeiro/contabil/plano-de-contas-gama-2026-10.csv)
 npm run smoke:catalogo-nomenclatura # catálogo da versão: sigla que muda de dono (sinônimo/oficial), sair sem mexer em sigla, voltar escolhendo
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
-npm run smoke:ifc-federado         # IFC federado: child de verdade, R00/R01/R02 nunca repetida, trava de geração viva, arquivo sumido, unidade recusada, geração travada liberada, regra de leitura
+npm run smoke:ponto-disciplina     # rateio R2: disciplina na sessão, reunião ligada a projeto, quem pode marcar, tarefa obrigatória com 2+ disciplinas, correção do dia pelo responsável da data
+npm run smoke:rateio-fechamento    # rateio R3: fechar só mês terminado, reabrir com motivo (evento), recalcular mês antigo, divergência depois do fechamento
+npm run smoke:horas-disciplina     # rateio R5: orçado (linha de base) × planejado (EAP) × realizado (ponto), coordenador × projetista, reais só para quem vê custo
+npm run smoke:folha-financeiro     # folha R4: 7 contas no fechamento, guias no dia 20, mesma conta ao fechar de novo, parte que sai é cancelada, reabrir com motivo e versão assinada
+npm run smoke:ifc-federado         # IFC federado: child de verdade, modelo fora da compatibilização (série), R00/R01/R02 nunca repetida, trava de geração viva, arquivo sumido, unidade recusada, geração travada liberada, regra de leitura
 npm run verify:ifc-federado -- <projetoId>   # junta os IFCs vigentes de um projeto real (sem gravar) e confere IfcProduct do federado = soma dos modelos
 ```
 
@@ -540,6 +553,18 @@ while the revision is `em_andamento` (`ultimaVersao`, `Upload.versaoNaRevisao`);
 `enviado_cliente`/`liberado_obra` control, written only by the service (the public link reads them). Daily job
 `ciclo-documental-integridade` (A7). Deploy runs `scripts/migrar-ciclo-documental.ts` (read-only, then `--gravar`).
 
+**Pendências documentais** (`modules/uploads/ciclo/pendencias*.ts` + `varredura.ts`, tela `/arquivos/pendencias`, spec
+`docs/superpowers/specs/2026-10-15-pendencias-documentais-design.md`): job and screen read the SAME sweep (`violacoesDoCiclo`);
+the screen computes live, never writes. Each dismissable violation (trash I6, analysis stalled, two published — I5 is fixed by
+the job and only shows as history) has a TARGET (revision; the document for two published) and a SIGNATURE of its state
+(`assinaturaDaViolacao`). `DispensaPendenciaCiclo` stores the signature at dismissal: the state changes, the item comes back,
+and the job closes any dismissal that no longer matches (`dispensasObsoletas`), or a new occurrence with the old signature would
+inherit it. One ACTIVE dismissal per target+type (partial unique index — two simultaneous clicks end in P2002 → "já está
+dispensada"). Writes only in `pendencias-service.ts` (re-checks the signature inside the transaction, writes `DocumentoEvento`
+`pendencia_dispensada` / `pendencia_dispensa_desfeita`); `ciclo/service.ts` is untouched. Screen and actions gate on
+`notificacoes:gestao`, the audience of the notice (no new permission). The 06:20 notice is now a summary of OPEN items linking
+to the screen.
+
 **Accounting export (M5)** (`modules/financeiro/contabil/`, spec `docs/superpowers/specs/2026-10-07-integracao-contabil.md`):
 the SenaHub does NOT keep books — `gerarPartidas` (pure) DERIVES double-entry lines from the month's lançamentos at each
 export; the accountant (Alterdata) books them. Accounts are the accountant's **código reduzido** (`ContaContabil.reduzido`,
@@ -570,6 +595,9 @@ category and dates belong to the NF). Readers of what the bank moves use valor �
 by the net, each retained tax against the contato (D fornecedor / C imposto a recolher; D imposto a compensar / C cliente), the tax
 payable only on payment (D imposto a recolher / C banco); de-para `imposto_recolher|imposto_compensar` by tax. Partial unique
 indexes (one live tax per NF) back it in the DB. Smoke: `npm run smoke:retencoes`.
+Accounts with código reduzido `9101`–`9103` (ISS a recolher, ISS/INSS a compensar) are PROVISIONED by us (accountant agreed
+2026-11-01, spec §15) with classificações in his structure; he creates the real ones with the same classificação, and nothing
+changes here — never reuse the `9xxx` block for anything else.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),
@@ -638,6 +666,29 @@ versão de `TabelaEncargos` vigente no mês (uma por contratação, `vigenciaEm`
 `FechamentoRateio` é o cabeçalho do mês (`calculo` legado|v2): "o mês está fechado?" lê ele, nunca `rateioHora.findFirst`. Meses antes do
 corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. Verificação: `npm run smoke:rateio-custo-hora`.
 
+**Rateio de horas — R2 a R5** (planos `docs/superpowers/plans/2026-10-11-rateio-horas-r{2..5}-*.md`, decisões 25–27 do spec):
+- **Disciplina na sessão** (`ponto/destino-sessao.ts`, `disciplina-sessao.ts` puro): todo caminho que cria `SessaoTrabalho` passa por
+  `resolverDestinoDaSessao` — valida a tarefa, confere quem pode marcar (equipe, responsável de disciplina ou card aberto) e decide a
+  disciplina (a da tarefa; sem tarefa, a única da pessoa; 2+ exige tarefa AO VIVO, a correção do dia nunca falha). Reunião ligada a
+  projeto é `__reuniao_<tipo>:<projetoId>` (`alocacao.ts`), natureza `reuniao`, sem disciplina. A tela pede a tarefa antes
+  (`projetosDoUsuario` → `disciplinasDaPessoa`, `tarefaObrigatoria`).
+- **Fechar o mês** (`rh/rateio/fechamento/`: `regras.ts` puro, `service.ts`, `acoes.ts` descritor ADR-0002, `queries.ts` da tela
+  `/rh/rateio`): `FechamentoRateio` é o cabeçalho; reabrir APAGA cabeçalho e linhas e grava `FechamentoRateioEvento` com o motivo; só
+  mês terminado fecha; recalcular é só para mês fechado no cálculo antigo; mês de cálculo antigo não compara custo na divergência.
+- **Custo em reais só para quem pode** (`lib/custo-visivel.ts`): `podeVerCusto` = superusuário, sócio ou `ponto:custo`; a decisão é do
+  SERVIDOR (o dado sai nulo), nunca da tela. Horas por disciplina: `projetos/horas-disciplina-queries.ts`.
+- **Papel e responsáveis**: papel do membro em lista fixa (`projetos/papeis.ts`); `substituirResponsaveis` é o ÚNICO escritor de
+  `DisciplinaResponsavel` (grava `DisciplinaResponsavelHistorico`; guarda em `responsaveis-guarda.test.ts`).
+- **Folha → Financeiro** (`rh/folha/fechamento-service.ts` + `lancamentos-da-folha.ts` puro): o fechamento lança o líquido CLT (Salários),
+  bolsa, INSS/IRRF retidos e FGTS (dia 20 do mês seguinte, dia útil anterior; no 13º, INSS/IRRF no dia 20 do PRÓPRIO mês) e
+  benefícios e a taxa do agente (IEL, `taxa_agente` do custo do mês dos estagiários), todos `previsto`, ligados por `FolhaLancamento
+  (folhaId, parte, rotulo)`; fechar de novo atualiza a mesma conta aberta, conta paga não muda, parte que sai é cancelada pela máquina
+  N1. Fechar e reabrir travam a folha com `updateMany` condicionado ao status (dois cliques simultâneos não duplicam conta nem
+  reabertura). Reabrir exige motivo, recusa com qualquer conta paga, guarda `HoleriteVersao` + `FolhaReabertura` e MANTÉM
+  `FolhaPagamento.lancamentoId`: o fechamento seguinte atualiza essa conta (também no 13º), ou a cancela se a folha perdeu os CLT;
+  a conta do líquido escolhida vai para Salários. Responsável de disciplina sem período no histórico ganha um desde a criação da
+  disciplina na primeira troca (`substituirResponsaveis`); `disciplina.create` com `responsaveis` aninhado é barrado pela guarda.
+
 **Project health** (`modules/projetos/health.ts`) — pure `saudeProjeto(disciplinas, prazoFinal)` → `ok | atencao | critico` (returns `null` for non-`em_andamento`). Feeds the "Saúde" column in the projects list and the admin dashboard `CarteiraDashboard`. Same pattern as CPM/tokens: no I/O, unit-tested.
 
 **Ferramentas (engenharia)** (`modules/ferramentas/`) — calculators + drawing/memory generators following NBR norms. Layered, mostly pure:
@@ -652,6 +703,10 @@ corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. 
 - **Apontamentos (3D issues)** — mirror `Pendencia`: `ApontamentoCoordenacao` (denormalized, no FK) anchored to IfcGuids + camera (persisted in **IFC space**, Z-up), numbered per-project, workflow aberta|resolvida|fechada|descartada, spawn one Tarefa with a TarefaItem each (`enviarApontamentosCoordenacao`). Snapshot PNG via multipart route (`/api/coordenacao/snapshot`). Deep-link `?apontamento=N` restores camera+selection. Notifications use categoria `coordenacao`.
 - **BCF 2.1 export (`bcf/writer.ts`)** — pure, tested XML writer (like `lib/dxf.ts`): `bcf.version` + `{TopicGuid}/markup.bcf` + `viewpoint.bcfv` (+ `snapshot.png`), zipped via `archiver` in `bcf/exportar.ts`, served by `/api/coordenacao/bcf`. Camera vectors (direction/up) derived in the writer from position+target (viewer never rolls). `viewer/coords.ts` = pure three↔IFC axis conversion (Y-up↔Z-up), tested. Export-only in v1 (`bcfGuid` stored on each apontamento for future round-trip import).
 - **IFC federado** (`coordenacao/federado/`): junção no texto STEP em child process (`scripts/federar-ifc.ts`, job `gerar-ifc-federado`), vira `Documento` origem `modelo_federado` na pasta Modelo federado do Desenvolvimento; filtros por origem só via `documentos-cliente/origens.ts`. A revisão é 1 + gerações concluídas do projeto (nunca reaproveitada, mesmo excluindo versões); leitura = `coordenacao:ver` + enxergar o projeto, escrita só pelas ações do próprio federado.
+- **Modelo fora da compatibilização** (`ModeloCoordenacaoOculto`, ação `definirModeloNaCompatibilizacao`, `coordenacao:gerir`):
+  vale para a SÉRIE do arquivo (`serieDoModelo`: disciplina + nome, ou o Documento recebido), então a revisão nova continua fora.
+  `modelosCoordenacao` devolve todos com `oculto`; cada leitor decide — o painel, o realinhamento, o diff e
+  `candidatosDoProjeto` (federado) tiram; a lista de conversões e o Custos mostram.
 
 **Comercial / CRM (`modules/comercial/`)** — reforma F0-F7 **concluída** em 2026-09-02 (ver
 `docs/crm/06-progresso.md`, entrada mais recente). `docs/crm/` é o registro histórico da decisão:
@@ -667,6 +722,20 @@ toolbar fixa (`comercial/layout.tsx`), follow-ups em calendário e **proposta ex
 versão, sem link público, `Proposta.externa`). Decisões: `docs/adr/0004-funil-comercial-unico.md`
 e `docs/adr/0005-proposta-externa.md`; plano e desvios em
 `docs/superpowers/specs/2026-09-16-comercial-funil-unico.md`.
+
+**Link projeto × ficha** (`modules/comercial/vinculo/`, spec `docs/superpowers/specs/2026-10-15-vinculo-projeto-ficha-design.md`):
+o comercial não usa proposta, então o projeto nasce à mão em Projetos. O link grava `Projeto.negociacaoId` de uma ficha
+**Contratado do mesmo cliente** (1 ficha por projeto, vários projetos por ficha), preenche só campo VAZIO (valor, área, tipo de
+empreendimento, descrição com o resumo do histórico) e inclui o responsável como coordenador se ainda não for membro. Os anexos
+escolhidos (anexos do lead + PDF vigente de cada proposta) são COPIADOS — nunca compartilhados por caminho, porque excluir o anexo
+no funil apaga o arquivo — para a Geral do projeto (`Documento` origem `interno`, categoria "Comercial"), com
+`exibirEmRecebidos` por arquivo (desmarcado por padrão). `previaVinculo` é a regra única do que a tela mostra e do que o serviço
+grava, e o serviço a recalcula ao gravar (a action devolve à tela só `previaParaTela`, sem caminho/hash); a cópia acontece antes e
+uma transação grava o resto (falhou → apaga as cópias). `AnexoLead.caminho` vem do cliente: só vale em `comercial/leads/<arquivo>`
+(`caminhoAnexoLeadValido`, no schema do anexo, no remover e na lista do link) — fora disso seria arquivo de outro cliente.
+Disciplinas da ficha NÃO entram. Desfazer só zera `negociacaoId` e é recusado quando a proposta aceita do projeto é DESTA ficha
+(`Proposta.projetoId` + mesma `negociacaoId`: os dois caminhos andam juntos); aceite de proposta sem negociação não trava.
+Permissão: `comercial:gerir` + `projetos:gerir`, só interno; importar para o Geral dispensa `arquivos_gerais:gerir`.
 
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em
 `docs/superpowers/specs/2026-09-19-proposta-composta.md`) — a proposta montada NO sistema: modelo +

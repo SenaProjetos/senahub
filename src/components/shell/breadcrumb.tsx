@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { NAV_GROUPS } from "@/lib/nav-config";
 import { getFerramenta } from "@/modules/ferramentas/registry";
+import { ABA_LABEL } from "@/modules/projetos/abas";
 import { useRotuloDaBarra, type RotuloBarra } from "@/components/shell/rotulo-da-barra";
 
 /** Mapa href -> título, montado a partir do NAV_GROUPS (1º segmento). */
@@ -40,6 +41,8 @@ const ROTULO_POR_ROTA: Record<string, string> = {
   // Fora do menu (mora no sino), então HREF_TO_TITLE não a conhece.
   "/notificacoes": "Notificações",
   "/rh/gestao": "Gestão de pessoas",
+  // Segmento sem acento (URL): a trilha escreveria "Pendencias".
+  "/arquivos/pendencias": "Pendências documentais",
 };
 
 function capitalize(segment: string): string {
@@ -73,6 +76,9 @@ function buildCrumbs(pathname: string, rotulo: RotuloBarra | null): BreadcrumbIt
     } else if (index === 1 && segments[0] === "ferramentas") {
       // Slug da ferramenta → nome amigável do registry (nunca expor a chave crua).
       label = getFerramenta(segment)?.nome ?? capitalize(segment);
+    } else if (index === 2 && segments[0] === "projetos" && ("/" + segment) in ABA_LABEL) {
+      // Aba do projeto → o mesmo rótulo da faixa de abas ("EAP", "Diário", "Compatibilização"), não o segmento.
+      label = ABA_LABEL[("/" + segment) as keyof typeof ABA_LABEL];
     } else if (looksLikeId(segment)) {
       label = rotulo?.segmento === segment ? rotulo.nome : "Detalhe";
     } else {

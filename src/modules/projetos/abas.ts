@@ -5,11 +5,13 @@
  */
 export const ABAS_CONFIGURAVEIS = [
   "/disciplinas",
+  "/eap",
   "/inputs",
   "/financeiro",
   "/resultados",
   "/servicos",
   "/arquivos",
+  "/problemas",
   "/arts",
   "/coordenacao",
   "/custos",
@@ -22,11 +24,13 @@ export type AbaSuffix = (typeof ABAS_CONFIGURAVEIS)[number];
 export const ABA_LABEL: Record<"" | AbaSuffix, string> = {
   "": "Visão Geral",
   "/disciplinas": "Disciplinas",
+  "/eap": "EAP",
   "/inputs": "Inputs",
   "/financeiro": "Financeiro",
   "/resultados": "Resultados",
   "/servicos": "Serviços",
   "/arquivos": "Arquivos",
+  "/problemas": "Problemas",
   "/arts": "ARTs",
   "/coordenacao": "Compatibilização",
   "/custos": "Custos",

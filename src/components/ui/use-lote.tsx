@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -41,6 +41,7 @@ export function useLote() {
   const [progresso, setProgresso] = useState<{ feitos: number; total: number } | null>(null);
   const [relatorio, setRelatorio] = useState<RelatorioLote | null>(null);
   const [nomes, setNomes] = useState<[string, string]>(["item", "itens"]);
+  const [complemento, setComplemento] = useState<((r: RelatorioLote) => ReactNode) | null>(null);
 
   const executar = useCallback(
     async ({
@@ -51,6 +52,7 @@ export function useLote() {
       rotulo,
       confirmar,
       aoConcluir,
+      complemento: complementoDoLote,
     }: {
       ids: readonly string[];
       /** A action de UM item — a mesma que o menu usa quando há uma linha só. */
@@ -70,8 +72,14 @@ export function useLote() {
         destrutivo?: boolean;
       };
       aoConcluir?: (r: RelatorioLote) => void;
+      /**
+       * Bloco opcional embaixo da lista de falhas — para a falha que tem saída na própria tela (ex.:
+       * reenviar com uma confirmação). Quem refaz o lote a partir dele fecha este relatório sozinho.
+       */
+      complemento?: (r: RelatorioLote) => ReactNode;
     }): Promise<RelatorioLote | null> => {
       if (ids.length === 0) return null;
+      setRelatorio(null);
       if (acimaDoTeto(ids.length)) {
         toast.error(motivoAcimaDoTeto(ids.length));
         return null;
@@ -98,7 +106,11 @@ export function useLote() {
       setProgresso(null);
 
       if (loteSemFalhas(r)) toast.success(resumoDoLote(r, substantivo, verbo));
-      else setRelatorio(r); // falha precisa de lista, não de toast que some
+      else {
+        // falha precisa de lista, não de toast que some
+        setComplemento(() => complementoDoLote ?? null);
+        setRelatorio(r);
+      }
 
       router.refresh();
       aoConcluir?.(r);
@@ -114,7 +126,7 @@ export function useLote() {
           <DialogTitle>{relatorio && relatorio.concluidos > 0 ? "Concluído em parte" : "Não foi possível"}</DialogTitle>
           <DialogDescription>
             {relatorio
-              ? `${relatorio.concluidos} de ${relatorio.total} ${relatorio.total === 1 ? nomes[0] : nomes[1]} processados. O que falhou:`
+              ? `Feito em ${relatorio.concluidos} de ${relatorio.total} ${relatorio.total === 1 ? nomes[0] : nomes[1]}. O que falhou:`
               : null}
           </DialogDescription>
         </DialogHeader>
@@ -126,6 +138,7 @@ export function useLote() {
             </li>
           ))}
         </ul>
+        {relatorio && complemento?.(relatorio)}
         <DialogFooter>
           <Button onClick={() => setRelatorio(null)}>Entendi</Button>
         </DialogFooter>

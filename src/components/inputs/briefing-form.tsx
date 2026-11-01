@@ -33,7 +33,9 @@ export function BriefingForm({
   onSalvar: (respostas: Record<string, unknown>) => Promise<ResultadoSalvar>;
 }) {
   const [respostas, setRespostas] = useState<Record<string, unknown>>(respostasIniciais);
-  const [secaoAtiva, setSecaoAtiva] = useState(secoes[0]?.id ?? "");
+  const [secaoEscolhida, setSecaoAtiva] = useState(secoes[0]?.id ?? "");
+  // A seção escolhida pode ter sido ocultada (Personalizar): cai na primeira visível.
+  const secaoAtiva = secoes.some((s) => s.id === secaoEscolhida) ? secaoEscolhida : (secoes[0]?.id ?? "");
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [errosServidor, setErrosServidor] = useState<Record<string, string>>({});
   const [mensagemErro, setMensagemErro] = useState<string>();

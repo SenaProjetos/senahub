@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import {
   projetoVisivel,
@@ -18,6 +19,7 @@ import { valorAgregadoDoProjeto } from "@/modules/planejamento/valor-agregado-se
 import { previasDosModelos } from "@/modules/planejamento/modelos/service";
 import { opcoesParaGerarDisciplinas } from "@/modules/planejamento/modelos/disciplina-service";
 import { impedimentoParaApagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
+import { rotuloDoUltimoPasso } from "@/modules/planejamento/desfazer/service";
 import { paraDia } from "@/modules/planejamento/agenda";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { CHAVE_PREF_LARGURAS_GANTT, lerLarguras } from "@/modules/planejamento/gantt-larguras";
@@ -71,9 +73,14 @@ export default async function PlanejamentoProjetoPage({
   const previasModelos = podeGerir && tarefas.length === 0 ? await previasDosModelos(projetoId) : [];
   const opcoesDisciplinas = podeGerir ? await opcoesParaGerarDisciplinas(projetoId) : [];
   const impedimentoApagar = podeGerir && tarefas.length > 0 ? await impedimentoParaApagarEapDoProjeto(projetoId) : null;
+  const ultimoPasso = podeGerir ? await rotuloDoUltimoPasso(projetoId, user.id) : null;
+  // "Salvar como modelo": o tipo de empreendimento é opcional, mas a lista vem do servidor (só quem monta a EAP precisa).
+  const tiposEmpreendimento = podeGerir && tarefas.length > 0
+    ? await prisma.tipoEmpreendimento.findMany({ where: { ativo: true }, select: { id: true, nome: true }, orderBy: [{ ordem: "asc" }, { nome: "asc" }] })
+    : [];
 
   return (
-    <div className="space-y-6">
+    <div>
       <EapWorkspace
         projeto={projeto}
         tarefas={tarefas}
@@ -93,10 +100,16 @@ export default async function PlanejamentoProjetoPage({
         previasModelos={previasModelos}
         opcoesDisciplinas={opcoesDisciplinas}
         impedimentoApagar={impedimentoApagar}
+        ultimoPasso={ultimoPasso}
+        tiposEmpreendimento={tiposEmpreendimento}
         largurasColunas={lerLarguras(preferencias[CHAVE_PREF_LARGURAS_GANTT])}
+        indicadores={
+          <>
+            {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}
+            <PlanoVsReal dados={planoReal} />
+          </>
+        }
       />
-      {valorAgregado && <ValorAgregadoPainel dados={valorAgregado} />}
-      <PlanoVsReal dados={planoReal} />
     </div>
   );
 }

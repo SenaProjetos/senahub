@@ -65,14 +65,12 @@ type Carregado = { chave: string; linhas: LinhaDoc[]; projetos: ProjetoDaLinha[]
 export function TabelaGlobalArquivos({
   linhas,
   projetos,
-  podeCoordenacao,
   temFiltro,
   paginacao,
 }: {
   linhas: LinhaDoc[];
   /** Código e nome por id — a linha só carrega `projetoId`. */
   projetos: Map<string, ProjetoDaLinha>;
-  podeCoordenacao: boolean;
   temFiltro: boolean;
   /** A paginação mora aqui dentro para sumir na visão "Selecionados", que ignora as páginas. */
   paginacao?: { page: number; pageCount: number; pageSize: number; total: number };
@@ -266,7 +264,6 @@ export function TabelaGlobalArquivos({
                 key={linha.id}
                 linha={linha}
                 projeto={mapaProjetos.get(linha.projetoId)}
-                podeCoordenacao={podeCoordenacao}
                 marcada={selecao.marcado(linha.id)}
                 onMarcar={() => selecao.alternar(linha.id)}
                 menu={menuDaLinha(linha)}
@@ -351,12 +348,9 @@ export function TabelaGlobalArquivos({
                           {linha.arquivos.map((arquivo) => (
                             <BadgeExtensao
                               key={arquivo.id}
-                              projetoId={linha.projetoId}
-                              uploadId={arquivo.id}
                               nome={arquivo.nome}
                               ext={arquivo.ext}
                               downloadUrl={arquivo.downloadUrl}
-                              podeCoordenacao={podeCoordenacao}
                             />
                           ))}
                         </span>
@@ -479,14 +473,12 @@ function Validacao({ linha }: { linha: LinhaDoc }) {
 function CartaoGlobal({
   linha,
   projeto,
-  podeCoordenacao,
   marcada,
   onMarcar,
   menu,
 }: {
   linha: LinhaDoc;
   projeto: ProjetoDaLinha | undefined;
-  podeCoordenacao: boolean;
   marcada: boolean;
   onMarcar: () => void;
   menu: { itens: AcaoItem[]; onSelect: (item: AcaoItemAcao) => void; aoAbrir: (aberto: boolean) => void };
@@ -533,12 +525,9 @@ function CartaoGlobal({
         {linha.arquivos.map((arquivo) => (
           <BadgeExtensao
             key={arquivo.id}
-            projetoId={linha.projetoId}
-            uploadId={arquivo.id}
             nome={arquivo.nome}
             ext={arquivo.ext}
             downloadUrl={arquivo.downloadUrl}
-            podeCoordenacao={podeCoordenacao}
           />
         ))}
       </div>

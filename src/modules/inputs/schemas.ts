@@ -3,10 +3,26 @@ import { z } from "zod";
 export const adicionarInputSchema = z.object({
   projetoId: z.string().min(1),
   disciplina: z.string().optional(),
-  pergunta: z.string().min(1, "Informe a pergunta."),
+  pergunta: z.string().trim().min(1, "Informe a pergunta."),
 });
 
-export const removerInputSchema = z.object({ id: z.string().min(1) });
+/** Remover e restaurar: a pergunta é sempre deste projeto (o servidor confere). */
+export const removerInputSchema = z.object({ projetoId: z.string().min(1), id: z.string().min(1) });
+
+export const editarInputSchema = z.object({
+  projetoId: z.string().min(1),
+  id: z.string().min(1),
+  disciplina: z.string().optional(),
+  pergunta: z.string().trim().min(1, "Informe a pergunta."),
+});
+
+/** Ocultar/mostrar uma seção (`id`) ou um campo (`chave`) do briefing NESTE projeto. */
+export const visibilidadeBriefingSchema = z.object({
+  projetoId: z.string().min(1),
+  alvo: z.enum(["secao", "campo"]),
+  chave: z.string().min(1),
+  oculto: z.boolean(),
+});
 
 export const responderInputsSchema = z.object({
   projetoId: z.string().min(1),

@@ -3,7 +3,9 @@
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { textoRecursos, type LinhaGrade } from "@/modules/planejamento/gantt-linhas";
 import type { EscalaGantt } from "@/modules/planejamento/gantt-escala";
+import { geometriaDasBarras, geometriaDoAgrupamento } from "@/modules/planejamento/gantt-geometria";
 import { cn } from "@/lib/utils";
+import { dataCurta } from "@/lib/dias-iso";
 
 /**
  * A BARRA de uma linha no gráfico do Gantt, no molde do MS Project — a peça que o cronograma do projeto
@@ -65,6 +67,8 @@ export function BarraDaLinha({
       .filter(Boolean)
       .join(" · ") || undefined;
 
+  const barras = geometriaDasBarras(modo, ROW_H);
+  const grupo = geometriaDoAgrupamento(modo, ROW_H);
   const baseIni = t.inicioBaseline ? escala.x(t.inicioBaseline) : null;
   const baseFim = t.fimBaseline ? escala.xFim(t.fimBaseline) : null;
 
@@ -87,12 +91,12 @@ export function BarraDaLinha({
             />
           ) : l.temFilhos ? (
             <div title={titulo}>
-              <div className={cn("absolute", critica ? "bg-destructive" : "bg-foreground")} style={{ left: geo.x, width: geo.w, top: 8, height: 6 }} />
+              <div className={cn("absolute", critica ? "bg-destructive" : "bg-foreground")} style={{ left: geo.x, width: geo.w, top: grupo.barraTop, height: grupo.barraAltura }} />
               {[geo.x, geo.x + geo.w - 10].map((left) => (
                 <div
                   key={left}
-                  className={cn("absolute h-0 w-0 border-x-[5px] border-t-[6px] border-x-transparent", critica ? "border-t-destructive" : "border-t-foreground")}
-                  style={{ left, top: 14 }}
+                  className={cn("absolute h-0 w-0 border-x-[5px] border-x-transparent", critica ? "border-t-destructive" : "border-t-foreground")}
+                  style={{ left, top: grupo.pontaTop, borderTopWidth: grupo.pontaAltura }}
                 />
               ))}
             </div>
@@ -106,20 +110,22 @@ export function BarraDaLinha({
                     ? "border-destructive bg-destructive/20"
                     : "border-primary/50 bg-primary/25",
               )}
-              style={{ left: geo.x, width: geo.w, top: 7, height: 14 }}
+              style={{ left: geo.x, width: geo.w, top: barras.execTop, height: barras.execAltura }}
               title={titulo}
             >
               {!bloqueada && <div className={cn("h-full", critica ? "bg-destructive" : "bg-primary")} style={{ width: `${t.progresso}%` }} />}
             </div>
           )}
-          {modo === "controle" && baseIni != null && baseFim != null && !t.marco && (
+          {modo === "controle" && baseIni != null && baseFim != null && !t.marco && barras.baseTop != null && barras.baseAltura != null && (
             <div
-              // Sempre cinza escuro, fininho sob a barra grossa (reunião de 29/09/2026): a linha de base é a
-              // referência e não deve chamar atenção. O atraso já aparece na coluna Desvio, e ficar vermelho aqui
-              // competia com o caminho crítico.
-              className="absolute rounded-sm bg-muted-foreground"
-              style={{ left: baseIni, width: Math.max(escala.pxPorDia, baseFim - baseIni), top: 22, height: 4 }}
-              title="Linha de base"
+              // Base e execução com a MESMA espessura, uma faixa sobre a outra (reunião de 29/10/2026, opção B do
+              // mock aprovado pelo dono). Isso reverte a decisão de 29/09/2026 ("base fininha sob a barra grossa").
+              // Segue sempre cinza cheio — a referência não deve chamar atenção nem competir com o caminho crítico (o
+              // atraso aparece na coluna Desvio). Linha sem base mantém a faixa vazia: a espessura não alterna. No tema
+              // escuro o cinza cheio pesa mais que a execução: lá ele fica a 60%.
+              className="absolute rounded-sm bg-muted-foreground dark:bg-muted-foreground/60"
+              style={{ left: baseIni, width: Math.max(escala.pxPorDia, baseFim - baseIni), top: barras.baseTop, height: barras.baseAltura }}
+              title={`Linha de base: ${dataCurta(t.inicioBaseline)} a ${dataCurta(t.fimBaseline)}`}
             />
           )}
           <span

@@ -30,7 +30,7 @@ export function MargemCard({ margem }: { margem: Margem }) {
             <MargemDonut
               receitaConfirmada={margem.receitaConfirmada}
               despesaDireta={margem.despesaDireta}
-              custoHoras={margem.custoHoras}
+              custoHoras={margem.custoHoras + margem.custoHorasEstimadas}
               margem={margem.margem}
               margemPct={margem.margemPct}
             />
@@ -114,12 +114,12 @@ export function MargemCard({ margem }: { margem: Margem }) {
               <span className="font-mono">{brl(margem.custoHoras)}</span>
             </div>
           )}
-          {margem.custoHorasMesCorrente > 0 && (
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-muted-foreground">Custo de horas (mês corrente, estimado)</span>
-              <span className="font-mono text-muted-foreground">
-                ~ {brl(margem.custoHorasMesCorrente)}
+          {margem.custoHorasEstimadas > 0 && (
+            <div className="flex items-baseline justify-between gap-2" title={margem.mesesEstimados.map((m) => `${m.slice(5)}/${m.slice(0, 4)}`).join(", ")}>
+              <span className="text-muted-foreground">
+                Custo de horas (meses não fechados, estimado: {margem.mesesEstimados.length})
               </span>
+              <span className="font-mono text-muted-foreground">~ {brl(margem.custoHorasEstimadas)}</span>
             </div>
           )}
           <div className="flex items-baseline justify-between gap-2 border-t pt-1.5 font-medium">

@@ -21,8 +21,9 @@ import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { BadgeExtensao } from "@/components/projetos/arquivos/badge-extensao";
 import { useAcoesDocumento } from "@/components/projetos/arquivos/use-acoes-documento";
 import { PainelDocumentoDetalhe } from "@/components/projetos/arquivos/painel-documento-detalhe";
+import { EnvioAoClienteProvider } from "@/components/projetos/arquivos/ciclo-acao-dialog";
 import { TituloDocumento } from "@/components/projetos/arquivos/titulo-documento";
-import { SeloEstado, SeloNovo, SelosControles } from "@/components/projetos/arquivos/ciclo-selos";
+import { SeloDescricaoContestada, SeloEstado, SeloNovo, SeloRevisaoPedida, SelosControles } from "@/components/projetos/arquivos/ciclo-selos";
 import { Button } from "@/components/ui/button";
 import type { OpcaoFaseDocumento } from "@/components/projetos/arquivos/seletor-fases-documentos";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
@@ -288,6 +289,8 @@ function CartaoDocumento({
             <>
               <SeloEstado ciclo={linha.ciclo} />
               <SelosControles controles={linha.ciclo.controles} />
+              <SeloRevisaoPedida emRevisao={linha.emRevisao} numeroDaLinha={linha.ciclo.numero} />
+              <SeloDescricaoContestada ciclo={linha.ciclo} />
             </>
           ) : (
             linha.statusNome && <BadgeStatusDocumento linha={linha} />
@@ -311,12 +314,9 @@ function CartaoDocumento({
           {linha.arquivos.map((arquivo) => (
             <BadgeExtensao
               key={arquivo.id}
-              projetoId={projetoId}
-              uploadId={arquivo.id}
               nome={arquivo.nome}
               ext={arquivo.ext}
               downloadUrl={arquivo.downloadUrl}
-              podeCoordenacao={podeCoordenacao}
             />
           ))}
         </div>
@@ -386,6 +386,7 @@ export function TabelaDocumentos({
   fases,
   colunas,
   exclusoesPendentes,
+  envioAutomaticoAoCliente = false,
 }: {
   projetoId: string;
   linhas: LinhaDoc[];
@@ -410,6 +411,8 @@ export function TabelaDocumentos({
   colunas: Set<string>;
   /** Ids de Upload com pedido de exclusão pendente — sinal na linha do documento dono. */
   exclusoesPendentes: Set<string>;
+  /** O projeto envia ao cliente o que é publicado (o lote "Publicar" avisa). */
+  envioAutomaticoAoCliente?: boolean;
 }) {
   // Título recém-gravado, por documento: a linha muda na hora e o servidor confirma depois. Some quando
   // chega a página nova (padrão "derivar estado da prop": comparar durante o render, sem efeito).
@@ -473,6 +476,19 @@ export function TabelaDocumentos({
   // Documento, detalhes e as opcionais visíveis: o nome da pasta vai do Nº até antes das ações.
   const colunasDoNome = 2 + COLUNAS_OPCIONAIS.filter((c) => colunas.has(c)).length;
 
+  function paraControle(tipo: "liberado_obra" | "enviado_cliente" | "em_revisao") {
+    return documentosSelecionados
+      .filter(
+        (d) =>
+          d.ciclo.participa &&
+          d.ciclo.estado === "publicado" &&
+          d.ciclo.podeAlterarPasta &&
+          d.ciclo.revisaoId &&
+          !d.ciclo.controles.some((c) => c.tipo === tipo),
+      )
+      .map((d) => ({ revisaoId: d.ciclo.revisaoId!, nome: d.titulo ?? d.tituloPrancha ?? d.nome }));
+  }
+
   const selecaoAcoes = useAcoesSelecaoDocumentos({
     projetoId,
     selecionados,
@@ -487,6 +503,12 @@ export function TabelaDocumentos({
     paraPublicar: documentosSelecionados
       .filter((d) => d.ciclo.participa && d.ciclo.estado === "compartilhado" && d.ciclo.podePublicar && d.ciclo.revisaoId)
       .map((d) => ({ revisaoId: d.ciclo.revisaoId!, nome: d.titulo ?? d.tituloPrancha ?? d.nome })),
+    // Liberar para obra / enviar ao cliente: só revisão publicada, sem o controle já aplicado.
+    paraLiberarObra: paraControle("liberado_obra"),
+    paraEnviarCliente: paraControle("enviado_cliente"),
+    // "Em revisão": só a publicada ainda sem a marca (pensado para a pasta Compartilhado inteira).
+    paraMarcarEmRevisao: paraControle("em_revisao"),
+    envioAutomaticoAoCliente,
     podeExcluir,
     podeGerirListas,
     podeGerirLink,
@@ -560,16 +582,20 @@ export function TabelaDocumentos({
             description: "Envie o primeiro arquivo para começar.",
           };
     return (
-      <div className="rounded-md border border-border bg-card">
-        <EmptyState icon={temFiltroAtivo ? SearchX : FileX2} title={vazio.title} description={vazio.description} />
-        {/* Excluir a última linha cai aqui: o diálogo em curso não pode sumir no meio. */}
-        {acoes.portal}
-        {selecaoAcoes.portal}
-      </div>
+      <EnvioAoClienteProvider ativo={envioAutomaticoAoCliente}>
+        <div className="rounded-md border border-border bg-card">
+          <EmptyState icon={temFiltroAtivo ? SearchX : FileX2} title={vazio.title} description={vazio.description} />
+          {/* Excluir a última linha cai aqui: o diálogo em curso não pode sumir no meio. */}
+          {acoes.portal}
+          {selecaoAcoes.portal}
+        </div>
+      </EnvioAoClienteProvider>
     );
   }
 
   return (
+    // O diálogo do ciclo (do hook e do painel de detalhes) lê daqui se "Publicar" envia ao cliente.
+    <EnvioAoClienteProvider ativo={envioAutomaticoAoCliente}>
     <div className="space-y-3">
       <DicaMenuContexto />
 
@@ -750,6 +776,8 @@ export function TabelaDocumentos({
                     <div className="flex flex-wrap items-center gap-1">
                       <SeloEstado ciclo={l.ciclo} />
                       <SelosControles controles={l.ciclo.controles} />
+                      <SeloRevisaoPedida emRevisao={l.emRevisao} numeroDaLinha={l.ciclo.numero} />
+                      <SeloDescricaoContestada ciclo={l.ciclo} />
                     </div>
                   ) : (
                     <BadgeStatusDocumento linha={l} />
@@ -767,12 +795,9 @@ export function TabelaDocumentos({
                     {l.arquivos.map((arquivo) => (
                       <BadgeExtensao
                         key={arquivo.id}
-                        projetoId={projetoId}
-                        uploadId={arquivo.id}
                         nome={arquivo.nome}
                         ext={arquivo.ext}
                         downloadUrl={arquivo.downloadUrl}
-                        podeCoordenacao={podeCoordenacao}
                       />
                     ))}
                   </div>
@@ -854,5 +879,6 @@ export function TabelaDocumentos({
       {acoes.portal}
       {selecaoAcoes.portal}
     </div>
+    </EnvioAoClienteProvider>
   );
 }
