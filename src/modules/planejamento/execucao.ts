@@ -16,7 +16,12 @@ import type { StatusEap } from "@/generated/prisma/client";
 
 type Dia = string;
 
-export type EntradaExecucao = { inicioReal: Dia | null; fimReal: Dia | null };
+export type EntradaExecucao = {
+  inicioReal: Dia | null;
+  fimReal: Dia | null;
+  /** Ausente = o % não muda. Só vale sem término real; com término real é sempre 100. */
+  progresso?: number;
+};
 
 export type LinhaParaExecucao = {
   tipoEap: string;
@@ -61,6 +66,9 @@ const falha = (motivo: string): ResultadoExecucao => ({ ok: false, motivo });
  * - Início real sem término: `nin` vira `and`. Os status de fluxo (`agu`, `rev`, `apr`) ficam como
  *   estão — começar não os desfaz. Bloqueada continua bloqueada (e não conclui: desbloqueie antes).
  * - Nada no futuro: real é o que JÁ aconteceu.
+ * - % informado (Lote 7): avanço de quem acompanha, sem concluir — por isso 100 só pelo término real
+ *   ("marcar 100%" não diz que terminou como planejado). O status segue só as datas: % sem início real
+ *   não vira "em andamento" (o verificador acusaria "em andamento sem início real"). Marco não tem %.
  */
 export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecucao, hoje: Dia): ResultadoExecucao {
   if (linha.ehResumo) return falha("Linha de agrupamento: as datas reais vêm das atividades dentro dela.");
@@ -83,6 +91,12 @@ export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecuc
     return falha("O término real não pode ser antes do início real.");
   }
   if (fimReal != null && linha.status === "blq") return falha("Desbloqueie a linha antes de concluí-la.");
+  const pct = entrada.progresso;
+  if (pct !== undefined) {
+    if (marco) return falha("Marco não tem percentual: informe a data em que aconteceu.");
+    if (!Number.isInteger(pct) || pct < 0 || pct > 100) return falha("Percentual inválido.");
+    if (fimReal == null && pct === 100) return falha("Para marcar 100%, informe o término real.");
+  }
 
   let status: StatusEap = linha.status;
   let progresso = linha.progresso;
@@ -97,6 +111,7 @@ export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecuc
     }
     if (marco && linha.status === "con") progresso = 0;
   }
+  if (fimReal == null && pct !== undefined) progresso = pct;
   return { ok: true, inicioReal, fimReal, status, progresso, concluiu: status === "con" && linha.status !== "con" };
 }
 

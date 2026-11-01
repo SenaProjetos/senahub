@@ -98,3 +98,69 @@ describe("statusAoDesbloquear", () => {
     expect(statusAoDesbloquear({ inicioReal: "2026-10-01", fimReal: null })).toBe("and");
   });
 });
+
+describe("aplicarExecucao — percentual", () => {
+  const hoje = "2026-11-01";
+  const zero = atv({ progresso: 0 });
+
+  it("% parcial sem datas grava o % e não muda o status", () => {
+    expect(aplicarExecucao(zero, { inicioReal: null, fimReal: null, progresso: 40 }, hoje)).toMatchObject({
+      ok: true,
+      progresso: 40,
+      status: "nin",
+    });
+  });
+
+  it("% parcial com início real deixa em andamento", () => {
+    expect(aplicarExecucao(zero, { inicioReal: "2026-10-20", fimReal: null, progresso: 40 }, hoje)).toMatchObject({
+      ok: true,
+      progresso: 40,
+      status: "and",
+    });
+  });
+
+  it("término real ignora o % digitado", () => {
+    expect(aplicarExecucao(zero, { inicioReal: "2026-10-20", fimReal: "2026-10-30", progresso: 40 }, hoje)).toMatchObject({
+      ok: true,
+      progresso: 100,
+      status: "con",
+    });
+  });
+
+  it("100 sem término real é recusado", () => {
+    expect(aplicarExecucao(zero, { inicioReal: null, fimReal: null, progresso: 100 }, hoje)).toEqual({
+      ok: false,
+      motivo: "Para marcar 100%, informe o término real.",
+    });
+  });
+
+  it("percentual fora de 0–100 ou fracionado é recusado", () => {
+    for (const progresso of [-1, 101, 12.5]) {
+      expect(aplicarExecucao(zero, { inicioReal: null, fimReal: null, progresso }, hoje)).toEqual({
+        ok: false,
+        motivo: "Percentual inválido.",
+      });
+    }
+  });
+
+  it("sem progresso o % fica como estava (reabrir mantém 100)", () => {
+    expect(
+      aplicarExecucao(atv({ status: "con", progresso: 100 }), { inicioReal: "2026-10-20", fimReal: null }, hoje),
+    ).toMatchObject({ ok: true, progresso: 100, status: "and" });
+  });
+
+  it("bloqueada aceita o % sem sair do bloqueio", () => {
+    expect(aplicarExecucao(atv({ status: "blq", progresso: 0 }), { inicioReal: null, fimReal: null, progresso: 25 }, hoje)).toMatchObject({
+      ok: true,
+      progresso: 25,
+      status: "blq",
+    });
+  });
+
+  it("marco não aceita percentual", () => {
+    expect(aplicarExecucao(marco(), { inicioReal: null, fimReal: null, progresso: 50 }, hoje)).toEqual({
+      ok: false,
+      motivo: "Marco não tem percentual: informe a data em que aconteceu.",
+    });
+  });
+});
