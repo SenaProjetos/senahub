@@ -4977,6 +4977,10 @@ model EapTarefa {
   /// nunca digitado.
   progresso Int @default(0)
 
+  /// Lote 7: o que a tarefa de TERCEIRO custou (recurso "Externo"), digitado em "Atualizar tarefa".
+  /// É o Custo real dessa linha; nulo = nada digitado. Linha interna ignora este campo.
+  custoRealTerceiro Decimal? @db.Decimal(12, 2)
+
   predecessoras EapDependencia[] @relation("EapDependente")
   sucessoras    EapDependencia[] @relation("EapPredecessora")
   baselineLinhas EapBaselineLinha[]

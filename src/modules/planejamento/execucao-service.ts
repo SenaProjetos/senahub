@@ -5,6 +5,7 @@ import { ActionError } from "@/lib/action-error";
 import { paraDataUtc } from "./agenda";
 import { aplicarExecucao } from "./execucao";
 import { registrarProgresso } from "./progresso-historico-service";
+import { ehEtapaDeTerceiro } from "./recursos";
 
 /**
  * Fase ligada a um marco que acabou de ser concluído — o que a tela oferece aprovar (D31). Concluir o marco
@@ -32,6 +33,12 @@ export async function registrarExecucaoNaLinha(p: {
   hoje: string;
   /** Quem informou — vai para o histórico do % (decisão #17). */
   autorId?: string | null;
+  /** Lote 7: % informado sem concluir. Ausente = não muda. */
+  progresso?: number;
+  /** Lote 7: o que a tarefa de terceiro custou. Ausente = não muda; `null` = apaga. */
+  custoRealTerceiro?: number | null;
+  /** Quem chama diz se a pessoa vê financeiro — o valor é R$, como o resto do custo. */
+  verCusto?: boolean;
 }): Promise<{
   projetoId: string;
   nome: string;
@@ -49,14 +56,21 @@ export async function registrarExecucaoNaLinha(p: {
       progresso: true,
       disciplinaId: true,
       etapaId: true,
+      atribuicoes: { select: { papel: true } },
       _count: { select: { filhas: true } },
     },
   });
   if (!linha) throw new ActionError("Tarefa não encontrada.");
+  if (p.custoRealTerceiro !== undefined) {
+    if (!p.verCusto) throw new ActionError("Sem permissão para informar valores.");
+    if (!ehEtapaDeTerceiro(linha.atribuicoes)) {
+      throw new ActionError("Valor de terceiro só vale em tarefa com o recurso Externo.");
+    }
+  }
 
   const r = aplicarExecucao(
     { tipoEap: linha.tipoEap, ehResumo: linha._count.filhas > 0, status: linha.status, progresso: linha.progresso },
-    { inicioReal: p.inicioReal, fimReal: p.fimReal },
+    { inicioReal: p.inicioReal, fimReal: p.fimReal, progresso: p.progresso },
     p.hoje,
   );
   if (!r.ok) throw new ActionError(r.motivo);
@@ -71,6 +85,7 @@ export async function registrarExecucaoNaLinha(p: {
         fimReal: r.fimReal ? paraDataUtc(r.fimReal) : null,
         status: r.status,
         progresso: r.progresso,
+        ...(p.custoRealTerceiro !== undefined ? { custoRealTerceiro: p.custoRealTerceiro } : {}),
       },
     });
     await registrarProgresso(tx, {

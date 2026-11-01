@@ -189,6 +189,59 @@ async function main() {
     const seguinte = await progressoDoProjetoNaData(projeto.id, "2026-09-25", atuais);
     check("a sexta continua em 75 depois de a Data de Status virar 25/09", sexta.progresso.get(A.id) === 75, [...sexta.progresso]);
     check("e a nova Data de Status vê 95", seguinte.progresso.get(A.id) === 95, [...seguinte.progresso]);
+
+    // ── 5. Lote 7: % informado na execução e valor da tarefa de terceiro ───
+    const hojeL7 = "2026-09-30";
+    const erroDe = async (f: () => Promise<unknown>) => {
+      try {
+        await f();
+        return null;
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+    };
+    const ler = (id: string) =>
+      prisma.eapTarefa.findUniqueOrThrow({ where: { id }, select: { progresso: true, status: true, custoRealTerceiro: true } });
+
+    const interna = await nova("L7 interna", 3);
+    await registrarExecucaoNaLinha({ id: interna.id, inicioReal: null, fimReal: null, progresso: 35, hoje: hojeL7, autorId: admin.id });
+    const i1 = await ler(interna.id);
+    check("execução grava % parcial sem mudar o status", i1.progresso === 35 && i1.status === "nin", i1);
+    const histL7 = await prisma.eapProgressoRegistro.findFirst({
+      where: { tarefaId: interna.id },
+      orderBy: { em: "desc" },
+      select: { progresso: true, origem: true },
+    });
+    check("o % da execução entra no histórico com origem execucao", histL7?.progresso === 35 && histL7?.origem === "execucao", histL7);
+
+    const e100 = await erroDe(() =>
+      registrarExecucaoNaLinha({ id: interna.id, inicioReal: null, fimReal: null, progresso: 100, hoje: hojeL7 }),
+    );
+    check("100% sem término real é recusado", e100 === "Para marcar 100%, informe o término real.", e100);
+    check("e nada foi gravado", (await ler(interna.id)).progresso === 35);
+
+    const terceiro = await nova("L7 terceiro", 4);
+    await prisma.eapAtribuicao.create({ data: { tarefaId: terceiro.id, userId: null, papel: "ext", horasPrevistas: 0 } });
+    await registrarExecucaoNaLinha({ id: terceiro.id, inicioReal: null, fimReal: null, custoRealTerceiro: 1250.5, verCusto: true, hoje: hojeL7 });
+    check("valor de terceiro gravado", Number((await ler(terceiro.id)).custoRealTerceiro) === 1250.5);
+
+    await registrarExecucaoNaLinha({ id: terceiro.id, inicioReal: null, fimReal: null, progresso: 20, hoje: hojeL7 });
+    const t2 = await ler(terceiro.id);
+    check("salvar sem o campo não mexe no valor", Number(t2.custoRealTerceiro) === 1250.5 && t2.progresso === 20, t2);
+
+    const eSemFin = await erroDe(() =>
+      registrarExecucaoNaLinha({ id: terceiro.id, inicioReal: null, fimReal: null, custoRealTerceiro: 10, verCusto: false, hoje: hojeL7 }),
+    );
+    check("quem não vê financeiro não informa valor", eSemFin === "Sem permissão para informar valores.", eSemFin);
+    check("e o valor ficou intacto", Number((await ler(terceiro.id)).custoRealTerceiro) === 1250.5);
+
+    await registrarExecucaoNaLinha({ id: terceiro.id, inicioReal: null, fimReal: null, custoRealTerceiro: null, verCusto: true, hoje: hojeL7 });
+    check("null apaga o valor", (await ler(terceiro.id)).custoRealTerceiro === null);
+
+    const eInterna = await erroDe(() =>
+      registrarExecucaoNaLinha({ id: interna.id, inicioReal: null, fimReal: null, custoRealTerceiro: 10, verCusto: true, hoje: hojeL7 }),
+    );
+    check("linha interna recusa valor de terceiro", eInterna === "Valor de terceiro só vale em tarefa com o recurso Externo.", eInterna);
   } finally {
     const linhas = await prisma.eapTarefa.findMany({ where: { projetoId: projeto.id }, select: { id: true } });
     await prisma.eapProgressoRegistro.deleteMany({ where: { tarefaId: { in: linhas.map((l) => l.id) } } });

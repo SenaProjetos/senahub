@@ -1302,11 +1302,14 @@ export const registrarExecucao = defineAction(
       id: z.string().min(1),
       inicioReal: z.string().nullable(),
       fimReal: z.string().nullable(),
+      // Lote 7: ausente = não muda. As faixas e as recusas são da regra pura (`aplicarExecucao`).
+      progresso: z.number().optional(),
+      custoRealTerceiro: z.number().min(0).max(9_999_999_999).nullable().optional(),
     }),
     capturarAntes: (i) =>
       prisma.eapTarefa.findUnique({
         where: { id: i.id },
-        select: { status: true, progresso: true, inicioReal: true, fimReal: true },
+        select: { status: true, progresso: true, inicioReal: true, fimReal: true, custoRealTerceiro: true },
       }),
   },
   async (i, { user }) => {
@@ -1314,6 +1317,10 @@ export const registrarExecucao = defineAction(
       id: i.id,
       inicioReal: i.inicioReal,
       fimReal: i.fimReal,
+      progresso: i.progresso,
+      custoRealTerceiro: i.custoRealTerceiro,
+      // O valor do terceiro é R$: a mesma régua de quem vê o custo na EAP.
+      verCusto: i.custoRealTerceiro !== undefined ? await podeVerFinanceiro(user) : false,
       hoje: paraDia(inicioDoDiaUtc()),
       autorId: user.id,
     });
