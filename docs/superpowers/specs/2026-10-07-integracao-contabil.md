@@ -1,6 +1,6 @@
 # Integração contábil (M5) e retenções na NF
 
-**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3, C4 e C5 feitas (C4 em 2026-10-16, §14); C1 só no que o mock aprovou (ver §12 e §13); ISS a recolher e ISS/INSS a compensar provisionadas no nosso plano em 2026-11-01 (§15), aguardando o contador criar as contas reais
+**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3, C4 e C5 feitas (C4 em 2026-10-16, §14); C1 só no que o mock aprovou (ver §12 e §13); cinco contas que faltavam (ISS/INSS, cartão a pagar, adiantamento de sócios) criadas no nosso plano em 2026-11-01 (§15), aguardando o contador criar as reais; bloco Cartões do de-para aprovado (§6)
 
 Fecha as duas pendências que o plano do Financeiro deixou para o contador: a fase **M5 (integração contábil)** e as
 **retenções na NF** (decisão 5 de 2026-10-02). Base: as respostas do contador (GAMA CONTABIL, 2026-10-05 e 2026-10-07),
@@ -33,8 +33,9 @@ prancha "Integração contábil" do mock aprovado (artifact `GjR9EYC2HCt91NjFFCX
 - Só conta **analítica** (Tipo `A`) recebe lançamento; sintética (`S`) é grupo.
 - Há uma conta por cliente (`1.1.2.01.xxxx`) e "Clientes Diversos" (1659); fornecedores quase todos em "Fornecedores
   Diversos" (2142).
-- **Faltam** contas para o que o próprio contador pediu: ISS a compensar, INSS a compensar, ISS a recolher, adiantamento
-  de sócio, cartão de crédito a pagar, analíticas de aplicação (1.1.4 só tem sintéticas) e IR sobre aplicação.
+- **Faltavam** contas para o que o próprio contador pediu: ISS a compensar, INSS a compensar, ISS a recolher, adiantamento
+  de sócio, cartão de crédito a pagar, analíticas de aplicação (1.1.4 só tem sintéticas) e IR sobre aplicação. As cinco
+  primeiras foram criadas por nós em 2026-11-01, com autorização dele (§15); seguem faltando as de aplicação e a de IR.
 - **Nenhuma conta tem C.Cus = S**: centro de custo não está habilitado. Sem isso a hierarquia não entra no Alterdata.
 
 As faltas viram **pendências do de-para** (o arquivo sai com a conta em branco e o aviso, como no mock) até o contador
@@ -237,8 +238,8 @@ Verificação por fase: tsc (`NODE_OPTIONS=--max-old-space-size=8192`), lint sem
 ## 10. Perguntas que ainda estão com o contador
 
 1. ~~Arquivo/layout de importação do Alterdata~~ — chegou em 2026-10-13 (§13). Perguntas novas dele no §13.
-2. A importação usa o código reduzido? (premissa deste spec; o modelo dele usa números pequenos como `2` para o banco, o que é coerente, mas os códigos do exemplo não existem no plano da Sena)
-3. Criação das contas que faltam (§2).
+2. ~~A importação usa o código reduzido?~~ — não: a **classificação** (dono, 2026-10-16, §13).
+3. ~~Criação das contas que faltam (§2)~~ — ele autorizou criarmos; cinco criadas em 2026-11-01 (§15). Faltam as de aplicação de longo prazo e IR sobre aplicação.
 4. Habilitar centro de custo no plano; quem cria os códigos de centro e projeto.
 5. Pró-labore, FGTS/INSS e bolsa de estágio também ficam fora? Grupo 3.1.1 ou 3.1.2 para pessoal?
 6. Cliente novo: Clientes Diversos ou conta própria?
@@ -378,23 +379,26 @@ Vencimentos do contador: ISS dia 10, os demais dia 15 do mês seguinte ao pagame
 
 ## 15. Contas provisionadas (2026-11-01)
 
-O contador (GAMA CONTABIL) respondeu que podemos criar as 3 contas que faltavam no plano dele e que ele se adequa
-futuramente. Como a exportação usa a **classificação** (decisão de 2026-10-16, não o reduzido), provisionamos no nosso
-`plano-de-contas-gama-2026-10.csv` com classificações seguindo a estrutura dele e reduzidos internos num bloco 9xxx
-livre (nunca usado pelo plano real, só por este):
+O contador (GAMA CONTABIL) respondeu que podemos criar as contas que faltavam no plano dele e que ele se adequa
+futuramente. Como a exportação usa a **classificação** (decisão de 2026-10-16, não o reduzido), criamos no nosso
+`plano-de-contas-gama-2026-10.csv` contas com classificações seguindo a estrutura dele e reduzidos internos num bloco
+9xxx livre (só nosso, nunca usado pelo plano real):
 
-| Conta | Classificação | Reduzido (provisório) | Natureza |
-|---|---|---|---|
-| ISS a Recolher | `2.1.3.01.0006` | 9101 | C |
-| ISS a Compensar | `1.1.3.06.0002` | 9102 | D |
-| INSS a Compensar | `1.1.3.06.0003` | 9103 | D |
+| Conta | Classificação | Reduzido (nosso) | Natureza | Para quê |
+|---|---|---|---|---|
+| ISS a Recolher | `2.1.3.01.0006` | 9101 | C | ISS que retemos do fornecedor |
+| ISS a Compensar | `1.1.3.06.0002` | 9102 | D | ISS que o cliente retém na nossa nota |
+| INSS a Compensar | `1.1.3.06.0003` | 9103 | D | INSS que o cliente retém na nossa nota |
+| Cartão de Crédito a Pagar | `2.1.5.02.0005` | 9104 | C | contrapartida da compra no cartão da empresa |
+| Adiantamento de Sócios | `2.1.5.03.0001` | 9105 | C | cartão pessoal do sócio: a fatura é o reembolso que a empresa deve a ele (§1) |
 
-De-para (`imposto_recolher`/`iss` → 9101, `imposto_compensar`/`iss` → 9102, `imposto_compensar`/`inss` → 9103) seedado
-na migração `20261101120000_contabil_contas_provisorias_iss_inss`, no mesmo padrão da de `20261016120000`.
+A migração `20261101120000_contabil_contas_provisorias` grava o de-para dos impostos (`imposto_recolher`/`iss` → 9101,
+`imposto_compensar`/`iss` → 9102, `imposto_compensar`/`inss` → 9103) e liga os **cartões já cadastrados** pelo tipo
+(empresa → 9104, pessoal → 9105), sem sobrescrever de-para existente. Cartão criado depois se liga na aba De-para (bloco
+Cartões, acréscimo 1 do §6 aprovado pelo dono em 2026-11-01). Sem isso, mês com compra no cartão era recusado no layout
+do contador (conta em branco).
 
-**Repasse ao contador:** ele precisa criar as contas reais com exatamente essas classificações (nome e natureza
-livres pra ele, a importação do Alterdata casa pela classificação). Quando criar, não precisamos mudar nada do nosso
-lado — só confirmar que a classificação bate.
+**Repasse ao contador:** criar as contas reais com exatamente essas classificações (nome e natureza ficam a critério
+dele; a importação do Alterdata casa pela classificação). Quando criar, nada muda do nosso lado.
 
-**Pendência:** verificar com `npm run contabil:importar-plano` + `npm run smoke:contabil` + `npm run smoke:retencoes`
-depois do merge em `dev` (não roda sem checkout; feito por plumbing direto na branch em 2026-11-01).
+**Deploy:** `prisma migrate deploy` + `npm run contabil:importar-plano` (re-importa o plano com as cinco contas).

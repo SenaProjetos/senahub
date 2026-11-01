@@ -595,7 +595,7 @@ category and dates belong to the NF). Readers of what the bank moves use valor �
 by the net, each retained tax against the contato (D fornecedor / C imposto a recolher; D imposto a compensar / C cliente), the tax
 payable only on payment (D imposto a recolher / C banco); de-para `imposto_recolher|imposto_compensar` by tax. Partial unique
 indexes (one live tax per NF) back it in the DB. Smoke: `npm run smoke:retencoes`.
-Accounts with código reduzido `9101`–`9103` (ISS a recolher, ISS/INSS a compensar) are PROVISIONED by us (accountant agreed
+Accounts with código reduzido `9101`–`9105` (ISS a recolher, ISS/INSS a compensar, cartão a pagar, adiantamento de sócios) are PROVISIONED by us (accountant agreed
 2026-11-01, spec §15) with classificações in his structure; he creates the real ones with the same classificação, and nothing
 changes here — never reuse the `9xxx` block for anything else.
 

@@ -222,7 +222,9 @@ classificacao;reduzido;nome;tipo;natureza;centro_custo
 2.1.5.02.0002;2338;Água a Pagar;A;C;N
 2.1.5.02.0003;2352;Telefones a Pagar;A;C;N
 2.1.5.02.0004;3353;Aluguéis a Pagar;A;C;N
+2.1.5.02.0005;9104;Cartão de Crédito a Pagar;A;C;N
 2.1.5.03;2359;Outras Obrigações;S;C;N
+2.1.5.03.0001;9105;Adiantamento de Sócios;A;C;N
 2.1.5.04;3416;Dividendos;S;C;N
 2.1.5.04.0001;3423;Dividendos a Pagar;A;C;N
 2.2;2366;Passivel Exigivel a Longo Prazo;S;C;N
