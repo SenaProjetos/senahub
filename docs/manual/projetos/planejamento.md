@@ -74,7 +74,8 @@ Se você usa o MS Project, isto será familiar:
 | Data de status | **Data de Status** (botão **Apurar**) |
 | Atualizar projeto → Reprogramar trabalho não concluído para iniciar após | **Apurar** faz isso sozinho (veja abaixo) |
 | Caminho crítico e folga total | **Caminho crítico** (folga 0) e **folga** |
-| Atualizar tarefas | **Atualizar tarefa** (início e término reais) |
+| Atualizar tarefas | **Atualizar tarefa** (início e término reais e % concluído) |
+| Tabela Controle / Variação | Visões **Controle** (colunas de execução real) e **Variação** (comparação com a linha de base) |
 | Recursos, trabalho | **Recursos** da linha: pessoa ou perfil, papel e **horas previstas** |
 | Custo | **Custo previsto** (só para quem vê o financeiro) |
 | Valor agregado (COTA, COTR, CRTR) | [Valor Agregado](valor-agregado.md) (VP, VA, CR) |
@@ -104,8 +105,8 @@ De cima para baixo, quatro coisas — o resto fica guardado até você pedir:
    cronograma**), a **situação** com a ação dela (**rascunho → Aprovar cronograma**; **aprovado · BL-xx → Revisar**),
    a **Data de Status** e o **Início** do projeto (o lápis abre um balão para mudar) e o **custo previsto**. Com a
    revisão aberta, uma segunda linha amarela traz **Cancelar revisão** e **Fechar com nova linha de base…**.
-3. **Barra de ferramentas** (uma só): a **visão** (**Gantt**, **Controle** e **Indicadores**), **Comparar com** (no
-   Controle), os **filtros**, o **período**, a **escala**, **Hoje**, recolher/expandir tudo, **Desfazer** e
+3. **Barra de ferramentas** (uma só): a **visão** (**Gantt**, **Controle**, **Variação** e **Indicadores**), **Comparar
+   com** (no Controle e no Variação), os **filtros**, o **período**, a **escala**, **Hoje**, recolher/expandir tudo, **Desfazer** e
    **Compacta**.
 4. **Tabela e gráfico**, ocupando o resto da tela (rola por dentro). Selecionou linhas? A barra de estrutura
    (setas, copiar/colar, excluir) aparece flutuando no pé do quadro.
@@ -344,7 +345,9 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
   datas, linha de base e **Desvio**, com a barra da linha de base — **cinza**, da mesma espessura da barra de
   execução, uma sobre a outra; linha sem linha de base mostra só a execução. O modo **Gantt** não muda). Com mais de uma versão da linha de base, **Comparar com** escolhe qual delas o
   controle desenha e usa no Desvio (veja **Nova linha de base**, abaixo). As linhas de **agrupamento** têm um
-  fundo um pouco mais escuro que as tarefas, para a estrutura saltar aos olhos.
+  fundo um pouco mais escuro que as tarefas, para a estrutura saltar aos olhos. O **Controle** também mostra o
+  que **já aconteceu** e o **Variação** só a comparação com a linha de base — veja **Execução real e Variação**,
+  abaixo.
 - **Filtros:** **Todas**, **A validar**, **Atrasadas**, **Críticas**, **Bloqueadas**, com a quantidade em cada um.
   **Período:** **tudo** ou os **próximos 7, 15 ou 30 dias** (só o que começa ou termina no período).
   **Ver na tabela**, no painel de saúde, filtra as linhas de um achado (o filtro aparece como "Achado: …" e sai no ×). Com filtro ativo a tela mostra só
@@ -376,7 +379,7 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
   - Cada gravação recalcula o cronograma; várias em sequência entram na fila e são gravadas uma de cada vez.
 - **Menu da linha** (botão direito, ou o botão **⋯** da coluna Ações): **Informações da tarefa** (a janela
   completa), **Inserir tarefa acima**, **Recuar**, **Avançar**, **Mover para cima**, **Mover para baixo**,
-  **Atualizar tarefa (datas reais)**, **Gerar tarefa no kanban** e **Excluir tarefa**. Os mesmos comandos têm
+  **Atualizar tarefa (datas reais e %)**, **Gerar tarefa no kanban** e **Excluir tarefa**. Os mesmos comandos têm
   atalho, com a linha selecionada: **Insert** (inserir acima), **Delete** (excluir), **Alt+Shift+→** (recuar),
   **Alt+Shift+←** (avançar), **Alt+Shift+↑** e **Alt+Shift+↓** (mover).
   - **Inserir acima** cria uma tarefa de 1 dia, no mesmo nível, na disciplina da linha; o nome já abre para
@@ -395,20 +398,31 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
     dele. Não se solta uma tarefa dentro dela mesma. Com filtro ligado não há alça (use o menu). A
     **disciplina** da tarefa não muda com o lugar: troque no painel da linha, se for o caso.
   - **Excluir** pede confirmação e diz quantas subtarefas vão junto; os cards já gerados ficam no quadro.
-- **Compacta:** ligado, esconde as colunas secundárias (Disciplina, Recursos e Custo) para dar espaço ao gráfico;
-  desligado, mostra todas as colunas, inclusive o **Custo** (só quem vê o
-  financeiro). **✓** marca a linha concluída.
+- **Compacta:** ligado (o padrão), esconde as colunas secundárias — Disciplina, Recursos e Custo no Gantt;
+  **Trab. real**, **Custo real**, **Início base** e **Término base** no Controle — para dar espaço ao gráfico;
+  desligado, mostra todas as colunas, inclusive o **Custo** e o **Custo real** (só quem vê o financeiro). No
+  **Variação** as colunas de base aparecem sempre. **✓** marca a linha concluída.
 - **Largura das colunas:** arraste a **borda direita do cabeçalho** de qualquer coluna para alargar ou
   estreitar (mínimo 44 px, máximo 640 px). Com o teclado, foque a borda e use **←** e **→**. **Duplo clique**
   na borda devolve aquela coluna ao tamanho padrão, e **Larguras padrão** (ao lado de Compacta) devolve
   todas. A escolha é **sua**: fica guardada na sua conta e vale em qualquer cronograma e no editor de modelo.
 
-### Datas reais: Atualizar tarefa
+### Datas reais e %: Atualizar tarefa
 
-Na coluna **Ações**, o botão de calendário abre **Atualizar tarefa** (como no MS Project):
+Na coluna **Ações**, o botão de calendário (ou **Atualizar tarefa (datas reais e %)** no menu da linha) abre
+**Atualizar tarefa** (como no MS Project). É a tela de **quem acompanha** o cronograma: não precisa da permissão
+de montar a EAP, e funciona com o plano aprovado e travado.
 
 - **Atividade:** informe o **início real** e, ao terminar, o **término real**. O término conclui a
   atividade (100%); apagá-lo a reabre, sem inventar o percentual de volta.
+- **% concluído:** registra o avanço **sem concluir** — serve para a tarefa geral ou de terceiro, que não tem
+  horas no ponto, e para o projeto antigo que você está pondo em dia. Vai de 0 a 99: **100% só pelo término
+  real**, porque "terminou" é uma data, não um número. Com o término real preenchido o campo fica travado em 100.
+  Informar o % não muda a situação da tarefa (sem início real ela continua "não iniciada"); fica no histórico do
+  % que o Valor Agregado lê. Marco não tem percentual.
+- **Quanto custou (terceiro):** só na tarefa com o recurso **Externo** e só para quem vê o financeiro. É o
+  **Custo real** dessa tarefa (veja abaixo). Quem não vê o financeiro não vê o campo, e salvar não mexe no
+  valor que já estava lá.
 - **Marco:** uma data só — o dia em que aconteceu. **Reabrir** desfaz.
 - Data real **no futuro** não é aceita. Linha de agrupamento, suspensa, cancelada ou arquivada não
   recebe datas reais.
@@ -424,6 +438,26 @@ Na coluna **Ações**, o botão de calendário abre **Atualizar tarefa** (como n
   parcela de contrato ligada, o financeiro é avisado de que dá para **faturar**.
 
 Exige `cronograma:executado`.
+
+### Execução real e Variação
+
+No **Controle**, depois do **% concl.**, ficam as colunas do que **já aconteceu** (como no MS Project):
+
+| Coluna | O que mostra |
+| --- | --- |
+| **Iníc. real** / **Térm. real** | As datas informadas em **Atualizar tarefa**. |
+| **Dur. real** | Dias úteis do início real até o término real — ou até hoje, se não terminou. |
+| **Dur. rest.** | Dias úteis de hoje até o término previsto. **0 em vermelho** = o término previsto já passou e a tarefa não foi concluída. |
+| **Trab. real** | Horas apontadas no **ponto** nos cards da tarefa. Tarefa de terceiro mostra "—" (não se mede pelo ponto). |
+| **Custo real** | Horas apontadas × custo/hora de **quem apontou** (em Recursos) ou, na tarefa de terceiro, o valor digitado. **parcial** = alguém apontou horas sem custo/hora cadastrado: o número soma o que se sabe. Só para quem vê o financeiro. |
+
+No agrupamento, **Trab. real** e **Custo real** somam as tarefas de dentro. "—" quer dizer que não há o que
+medir (sem início real, marco, terceiro).
+
+O **Variação** é a mesma tela só com a comparação com a linha de base: **Início**, **Término**, **Início base**,
+**Término base**, **Var. início** e **Var. término** (dias corridos; vermelho = depois da base, verde = antes,
+"no prazo" = igual). As barras são as do Controle, nada se edita nesta visão, e **Comparar com** escolhe a versão
+da base. Só aparece quando o cronograma já tem linha de base.
 
 ### Data de Status e Apurar
 
@@ -553,9 +587,10 @@ plano volta a travar. É o que responde, no fim do projeto, "por que o prazo and
 | Ver a lista de projetos e a **estrutura** da EAP (sem datas) | `planejamento:ver` |
 | Ver as **datas**: Gantt, prazos, linha de base, Cronograma geral, Saúde, Valor Agregado, exportar Excel e PDF | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
 | Montar e editar a EAP (tarefas, dependências, restrição, bloqueio, recursos, reagendar, aplicar ao projeto) | `planejamento:gerir` |
-| Definir a Data de Status (**Apurar**) e **Atualizar tarefa** (datas reais) | `cronograma:executado` |
+| Definir a Data de Status (**Apurar**) e **Atualizar tarefa** (datas reais e % concluído) | `cronograma:executado` |
 | **Aprovar** o cronograma, **Revisar planejamento** e criar **Nova linha de base** | `cronograma:aprovar` |
 | Ver a coluna **Custo** e o valor em R$ do Valor Agregado | acesso ao financeiro (`financeiro:ver` ou sócio) |
+| Ver o **Custo real** e informar o valor da tarefa de terceiro (em **Atualizar tarefa**) | acesso ao financeiro + `cronograma:executado` para informar |
 | Aprovar a **fase** a partir do marco concluído | `aprovacoes:disciplina` |
 
 Quem pode **montar** a EAP (`planejamento:gerir`) precisa também poder **informar o andamento**

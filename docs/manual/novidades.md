@@ -20,6 +20,19 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Cronograma: % na execução, colunas do realizado e visão Variação (novembro/2026)
+
+- **Atualizar tarefa registra o %:** quem acompanha o cronograma agora informa o **% concluído** de qualquer tarefa
+  no mesmo lugar das datas reais, sem precisar da permissão de montar a EAP — útil em tarefa geral ou de terceiro e
+  em projeto antigo. **100% só com o término real**: marcar 100% não diz quando terminou.
+- **Tarefa de terceiro com valor:** na tarefa com o recurso **Externo**, quem vê o financeiro informa **quanto ela
+  custou**; o valor vira o Custo real dela.
+- **Colunas do realizado no Controle:** **Iníc. real**, **Térm. real**, **Dur. real**, **Dur. rest.** (0 em vermelho
+  quando o prazo já passou), **Trab. real** (horas do ponto) e **Custo real** (horas × custo/hora, ou o valor do
+  terceiro; "parcial" quando falta o custo/hora de alguém). Trab. e Custo real aparecem desligando **Compacta**.
+- **Visão Variação:** ao lado de Gantt e Controle, só a comparação com a linha de base — Início, Término, as datas
+  da base e a variação de início e de término em dias.
+
 ## Refinos da EAP: disciplina do agrupamento, datas com calendário e Gantt de controle (outubro/2026)
 
 - **Disciplina do agrupamento leva o que está dentro:** ao trocar a disciplina de uma tarefa-mãe no painel da linha, as
