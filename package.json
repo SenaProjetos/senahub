@@ -67,6 +67,7 @@
     "smoke:duplicar-projeto": "tsx --tsconfig tsconfig.server.json scripts/smoke-duplicar-projeto.ts",
     "smoke:editar-cronograma": "tsx --tsconfig tsconfig.server.json scripts/smoke-editar-cronograma.ts",
     "smoke:progresso-historico": "tsx --tsconfig tsconfig.server.json scripts/smoke-progresso-historico.ts",
+    "smoke:execucao-real": "tsx --tsconfig tsconfig.server.json scripts/smoke-execucao-real.ts",
     "smoke:modelo-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-modelo-eap.ts",
     "smoke:modelo-disciplina": "tsx --tsconfig tsconfig.server.json scripts/smoke-modelo-disciplina.ts",
     "smoke:status-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-status-documento.ts",

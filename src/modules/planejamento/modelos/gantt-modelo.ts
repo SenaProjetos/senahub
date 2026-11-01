@@ -85,6 +85,12 @@ export function linhasDoGantt(
       contextoArquivos: null,
       custo: null,
       custoMotivo: null,
+      duracaoReal: null,
+      duracaoRestante: null,
+      trabalhoReal: null,
+      custoReal: null,
+      custoRealParcial: false,
+      custoRealTerceiro: null,
     };
   });
 }

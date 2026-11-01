@@ -55,6 +55,7 @@ npm run smoke:eap-datas  # datas digitadas na EAP: término → duração (sem r
 npm run smoke:eap-lote  # EAP em lote: recuar/avançar/mover/excluir várias linhas (tudo ou nada, irmãs seguidas não se aninham), colar várias tarefas, copiar/colar bloco
 npm run smoke:disciplina-eap  # disciplina da linha da EAP: inserir acima herda do AGRUPAMENTO (não da vizinha), responsável só com disciplina, achado "disciplina diferente do agrupamento" e correção, fase no título do card
 npm run smoke:eap-integracao  # ponta a ponta: etapas padrão → modelo de EAP → aprovar → ponto sugere → bater → concluir card → verde/aviso → validar → enviar etapa (multifamiliar e unifamiliar)
+npm run smoke:execucao-real   # realizado por linha da EAP: Trab./Custo real (parcial sem custo/hora, terceiro digitado, soma no agrupamento), Dur. real/rest., quem não vê financeiro/datas
 npm run smoke:conclusao-eap  # aviso ao gestor quando alguém conclui o card de uma atividade da EAP: coordenação (ou gestores), sem o autor, nunca card manual nem linha em 100%
 npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
 npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma

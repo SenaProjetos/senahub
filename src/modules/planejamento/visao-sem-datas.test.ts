@@ -23,6 +23,8 @@ const linha = {
   folgaLivre: 1,
   conflitoRestricao: true,
   reprogramada: true,
+  duracaoReal: 4,
+  duracaoRestante: 6,
 };
 
 describe("semDatasDaLinha (decisão #3)", () => {
@@ -42,6 +44,12 @@ describe("semDatasDaLinha (decisão #3)", () => {
     expect(r.folgaLivre).toBe(0);
     expect(r.conflitoRestricao).toBe(false);
     expect(r.reprogramada).toBe(false);
+  });
+
+  it("tira a duração real e a restante (são as datas reais ditas em dias)", () => {
+    const r = semDatasDaLinha(linha);
+    expect(r.duracaoReal).toBeNull();
+    expect(r.duracaoRestante).toBeNull();
   });
 
   it("mantém a estrutura: nome, duração, avanço, situação, pessoas", () => {

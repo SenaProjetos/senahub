@@ -22,6 +22,9 @@ type LinhaComDatas = {
   folgaLivre: number;
   conflitoRestricao: boolean;
   reprogramada: boolean;
+  /** Lote 7: as datas reais ditas em dias. */
+  duracaoReal: number | null;
+  duracaoRestante: number | null;
 };
 
 /**
@@ -45,5 +48,7 @@ export function semDatasDaLinha<T extends LinhaComDatas>(linha: T): T {
     folgaLivre: 0,
     conflitoRestricao: false,
     reprogramada: false,
+    duracaoReal: null,
+    duracaoRestante: null,
   };
 }

@@ -7,7 +7,16 @@ import { progressoDoStatus } from "@/modules/projetos/status";
 import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso, diaEstaNaFaixa, minutosDisponiveisNoDia, percentualAlocadoNoDia } from "@/modules/planejamento/disponibilidade";
-import { montarCalendario, planoDoProjeto, type PlanoDoProjeto } from "@/modules/planejamento/agenda";
+import { montarCalendario, paraDia, planoDoProjeto, type PlanoDoProjeto } from "@/modules/planejamento/agenda";
+import { inicioDoDiaUtc } from "@/lib/data";
+import {
+  custoRealDaFolha,
+  duracaoReal,
+  duracaoRestante,
+  somaNaArvore,
+  trabalhoRealDaFolha,
+  type ValorReal,
+} from "@/modules/planejamento/execucao-real";
 import type { Prisma } from "@/generated/prisma/client";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
@@ -57,6 +66,8 @@ type EapTarefaComRelacoes = Prisma.EapTarefaGetPayload<{ include: typeof INCLUDE
 type ApoioDaLinha = {
   /** Minutos apontados no ponto, por linha (via card gerado dela). */
   apontadoMin: Map<string, number>;
+  /** Os mesmos minutos, por pessoa — o Custo real multiplica cada um pela taxa de quem apontou (Lote 7). */
+  apontadoPorPessoa: Map<string, Map<string, number>>;
   /** Checklist do card gerado da linha. */
   checklist: Map<string, { feitos: number; total: number }>;
   /** Linha → dia (`YYYY-MM-DD`) em que o card dela foi concluído; só entra se TODO card da linha está concluído. */
@@ -65,7 +76,13 @@ type ApoioDaLinha = {
   arquivosPorDisciplina: Map<string, number>;
 };
 
-const SEM_APOIO: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), cardConcluidoEm: new Map(), arquivosPorDisciplina: new Map() };
+const SEM_APOIO: ApoioDaLinha = {
+  apontadoMin: new Map(),
+  apontadoPorPessoa: new Map(),
+  checklist: new Map(),
+  cardConcluidoEm: new Map(),
+  arquivosPorDisciplina: new Map(),
+};
 
 async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaId: string | null }[]): Promise<ApoioDaLinha> {
   const linhaIds = linhas.map((l) => l.id);
@@ -77,7 +94,7 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
     }),
     prisma.sessaoTrabalho.findMany({
       where: { tarefa: { eapTarefaId: { in: linhaIds } } },
-      select: { inicio: true, fim: true, tarefa: { select: { eapTarefaId: true } } },
+      select: { userId: true, inicio: true, fim: true, tarefa: { select: { eapTarefaId: true } } },
     }),
     // A unidade é o DOCUMENTO (`DocumentoDisciplina`), não o upload: cada versão e cada
     // extensão é um upload, e contá-los inflaria o número (mesma regra da contagem por fase
@@ -95,7 +112,13 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
         }),
   ]);
 
-  const apoio: ApoioDaLinha = { apontadoMin: new Map(), checklist: new Map(), cardConcluidoEm: new Map(), arquivosPorDisciplina: new Map() };
+  const apoio: ApoioDaLinha = {
+    apontadoMin: new Map(),
+    apontadoPorPessoa: new Map(),
+    checklist: new Map(),
+    cardConcluidoEm: new Map(),
+    arquivosPorDisciplina: new Map(),
+  };
   const abertos = new Set<string>();
   for (const c of cards) {
     if (c.eapTarefaId) {
@@ -109,10 +132,101 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
   const agora = new Date();
   for (const ss of sessoes) {
     const id = ss.tarefa?.eapTarefaId;
-    if (id) apoio.apontadoMin.set(id, (apoio.apontadoMin.get(id) ?? 0) + minutosSessao(ss.inicio, ss.fim ?? agora));
+    if (!id) continue;
+    const minutos = minutosSessao(ss.inicio, ss.fim ?? agora);
+    apoio.apontadoMin.set(id, (apoio.apontadoMin.get(id) ?? 0) + minutos);
+    const porPessoa = apoio.apontadoPorPessoa.get(id) ?? new Map<string, number>();
+    porPessoa.set(ss.userId, (porPessoa.get(ss.userId) ?? 0) + minutos);
+    apoio.apontadoPorPessoa.set(id, porPessoa);
   }
   for (const a of arquivos) apoio.arquivosPorDisciplina.set(a.disciplinaId, a._count._all);
   return apoio;
+}
+
+/** O realizado de uma linha (Lote 7). `custo`/`terceiro` só existem para quem vê financeiro. */
+type RealizadoDaLinha = {
+  duracaoReal: number | null;
+  duracaoRestante: number | null;
+  trabalho: ValorReal;
+  custo: ValorReal | null;
+  terceiro: number | null;
+};
+
+/**
+ * Dur. real/rest., Trab. real e Custo real de cada linha (Lote 7) — regras em `execucao-real.ts`. O
+ * Custo real usa o custo/hora de quem APONTOU (não só de quem está atribuído) e, como o previsto, é
+ * taxa de remuneração: sem `verCusto` nem é calculado.
+ */
+async function realizadoDasLinhas(
+  tarefas: readonly EapTarefaComRelacoes[],
+  plano: PlanoDoProjeto | null,
+  apoio: ApoioDaLinha,
+  verCusto: boolean,
+): Promise<Map<string, RealizadoDaLinha>> {
+  const hoje = paraDia(inicioDoDiaUtc());
+  const pais = new Set(tarefas.map((t) => t.parentId).filter((id): id is string => id != null));
+  const quemApontou = [...new Set([...apoio.apontadoPorPessoa.values()].flatMap((m) => [...m.keys()]))];
+  const custoHora = new Map(
+    verCusto && quemApontou.length
+      ? (
+          await prisma.recurso.findMany({
+            where: { userId: { in: quemApontou }, custoHora: { not: null } },
+            select: { userId: true, custoHora: true },
+          })
+        ).map((r) => [r.userId, Number(r.custoHora)] as const)
+      : [],
+  );
+
+  const trabalhoFolhas = new Map<string, ValorReal>();
+  const custoFolhas = new Map<string, ValorReal>();
+  for (const t of tarefas) {
+    if (pais.has(t.id)) continue;
+    const deTerceiro = ehEtapaDeTerceiro(t.atribuicoes);
+    trabalhoFolhas.set(t.id, trabalhoRealDaFolha({ deTerceiro, minutos: apoio.apontadoMin.get(t.id) ?? 0 }));
+    if (verCusto) {
+      custoFolhas.set(
+        t.id,
+        custoRealDaFolha({
+          deTerceiro,
+          custoRealTerceiro: t.custoRealTerceiro == null ? null : Number(t.custoRealTerceiro),
+          minutosPorPessoa: apoio.apontadoPorPessoa.get(t.id) ?? new Map(),
+          custoHora,
+        }),
+      );
+    }
+  }
+  const trabalho = somaNaArvore(tarefas, trabalhoFolhas);
+  const custo = verCusto ? somaNaArvore(tarefas, custoFolhas) : null;
+
+  const real = new Map<string, RealizadoDaLinha>();
+  for (const t of tarefas) {
+    const agendada = plano?.resultado.linhas.get(t.id);
+    const marco = t.tipoEap === "mrc";
+    real.set(t.id, {
+      duracaoReal: plano
+        ? duracaoReal(
+            { marco, inicioReal: t.inicioReal ? iso(t.inicioReal) : null, fimReal: t.fimReal ? iso(t.fimReal) : null, hoje },
+            plano.calendario,
+          )
+        : null,
+      duracaoRestante: plano
+        ? duracaoRestante(
+            {
+              marco,
+              status: t.status,
+              progresso: agendada?.progresso ?? t.progresso,
+              fimPrevisto: agendada?.fim ?? iso(t.fimPrevisto),
+              hoje,
+            },
+            plano.calendario,
+          )
+        : null,
+      trabalho: trabalho.get(t.id) ?? { valor: null, parcial: false },
+      custo: custo ? (custo.get(t.id) ?? { valor: null, parcial: false }) : null,
+      terceiro: verCusto && t.custoRealTerceiro != null ? Number(t.custoRealTerceiro) : null,
+    });
+  }
+  return real;
 }
 
 /**
@@ -125,6 +239,8 @@ function mapearTarefaDTO(
   apoio: ApoioDaLinha = SEM_APOIO,
   /** F7.1: só vem para quem vê financeiro; ausente = a linha sai sem custo (nulo). */
   custo?: CustoLinha,
+  /** Lote 7: ausente (Painel Mestre) = tudo do realizado sai nulo. */
+  real?: RealizadoDaLinha,
 ) {
   const agendada = plano?.resultado.linhas.get(t.id);
   const apontadoMin = apoio.apontadoMin.get(t.id) ?? 0;
@@ -222,6 +338,19 @@ function mapearTarefaDTO(
     custo: custo?.custo ?? null,
     /** Por que não há custo (só quando o viewer vê custo e ele é desconhecido). */
     custoMotivo: custo?.motivo ?? null,
+    // ── Lote 7: o realizado (colunas do Gantt de controle) ──
+    /** Dias úteis do início real até o término real ou hoje. */
+    duracaoReal: real?.duracaoReal ?? null,
+    /** Dias úteis de hoje até o término previsto; 0 = concluída ou vencida. */
+    duracaoRestante: real?.duracaoRestante ?? null,
+    /** Horas do ponto; agrupamento = soma; `null` = não se mede (terceiro). */
+    trabalhoReal: real?.trabalho.valor ?? null,
+    /** `null` para quem não vê financeiro. */
+    custoReal: real?.custo?.valor ?? null,
+    /** Alguém apontou horas sem custo/hora cadastrado. */
+    custoRealParcial: real?.custo?.parcial ?? false,
+    /** O valor digitado da tarefa de terceiro; `null` para quem não vê financeiro. */
+    custoRealTerceiro: real?.terceiro ?? null,
   };
 }
 
@@ -317,9 +446,10 @@ export async function eapDoProjeto(
   // caminho crítico corretos mesmo antes de alguém clicar em "reagendar".
   const [plano, apoio] = await Promise.all([planoDoProjeto(projetoId), carregarApoioDasLinhas(tarefas)]);
   const custos = opcoes.verCusto ? await custosDoProjeto(plano, tarefas) : null;
+  const realizado = await realizadoDasLinhas(tarefas, plano, apoio, opcoes.verCusto ?? false);
   return {
     tarefas: tarefas.map((t) => {
-      const dto = mapearTarefaDTO(t, plano, apoio, custos?.porLinha.get(t.id));
+      const dto = mapearTarefaDTO(t, plano, apoio, custos?.porLinha.get(t.id), realizado.get(t.id));
       return opcoes.verDatas ? dto : semDatasDaLinha(dto);
     }),
     /** `null` = o viewer não vê custo (a coluna nem aparece). */
