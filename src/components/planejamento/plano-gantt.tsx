@@ -34,6 +34,8 @@ import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
 import { criarCalendario, diasUteisEntre } from "@/lib/calendario-trabalho";
 import { dataCurta, diasEntre } from "@/lib/dias-iso";
 import { lerDataDigitada, mascaraDataDigitando } from "@/modules/planejamento/datas-linha";
+import { diasDeVariacao } from "@/modules/planejamento/execucao-real";
+import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
 import { brl, cn } from "@/lib/utils";
 import { useAlturaRestante } from "@/lib/use-altura-restante";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
@@ -173,7 +175,9 @@ type Coluna = {
   render: (l: Linha) => ReactNode;
 };
 
-const diasDeDesvio = (t: EapTarefaDTO) => (t.fimBaseline && t.fimPrevisto ? diasEntre(t.fimBaseline, t.fimPrevisto) : null);
+const diasDeDesvio = (t: EapTarefaDTO) => diasDeVariacao(t.fimBaseline, t.fimPrevisto);
+
+const SEM_VALOR = <span className="text-xs text-muted-foreground">—</span>;
 
 function zoomInicial(tarefas: EapTarefaDTO[]): ZoomGantt {
   const ini = tarefas.map((t) => t.inicioPrevisto).filter(Boolean).sort();
@@ -758,6 +762,83 @@ export function PlanoGantt({
         );
       },
     };
+    // ── Lote 7: o realizado (só leitura; "—" = não se mede) ──
+    const inicioReal: Coluna = {
+      id: "inicioReal",
+      rotulo: "Iníc. real",
+      w: 84,
+      render: (l) => (l.t.inicioReal ? <span className="font-mono text-xs">{dataCurta(l.t.inicioReal)}</span> : SEM_VALOR),
+    };
+    const fimReal: Coluna = {
+      id: "fimReal",
+      rotulo: "Térm. real",
+      w: 84,
+      render: (l) => (l.t.fimReal ? <span className="font-mono text-xs">{dataCurta(l.t.fimReal)}</span> : SEM_VALOR),
+    };
+    const duracaoReal: Coluna = {
+      id: "duracaoReal",
+      rotulo: "Dur. real",
+      w: 72,
+      alinhar: "right",
+      render: (l) => (l.t.duracaoReal == null ? SEM_VALOR : <span className="font-mono text-xs">{l.t.duracaoReal}d</span>),
+    };
+    const duracaoRestante: Coluna = {
+      id: "duracaoRestante",
+      rotulo: "Dur. rest.",
+      w: 72,
+      alinhar: "right",
+      render: (l) => {
+        const d = l.t.duracaoRestante;
+        if (d == null) return SEM_VALOR;
+        // 0 numa linha que não terminou = o término previsto já passou: não pode parecer "pronta".
+        const vencida = d === 0 && l.t.status !== "con" && l.t.progresso < 100;
+        return (
+          <span
+            className={cn("font-mono text-xs", vencida && "font-semibold text-destructive")}
+            title={vencida ? "O término previsto já passou e a tarefa não foi concluída" : undefined}
+          >
+            {d}d
+          </span>
+        );
+      },
+    };
+    const trabalhoReal: Coluna = {
+      id: "trabalhoReal",
+      rotulo: "Trab. real",
+      w: 84,
+      alinhar: "right",
+      secundaria: true,
+      render: (l) =>
+        l.t.trabalhoReal == null ? (
+          <span className="text-xs text-muted-foreground" title={l.t.deTerceiro ? "Tarefa de terceiro: não se mede pelo ponto" : undefined}>
+            —
+          </span>
+        ) : (
+          <span className="font-mono text-xs" title="Horas apontadas no ponto">
+            {rotuloHoras(l.t.trabalhoReal)}
+          </span>
+        ),
+    };
+    const custoReal: Coluna = {
+      id: "custoReal",
+      rotulo: "Custo real",
+      w: 112,
+      alinhar: "right",
+      secundaria: true,
+      render: (l) =>
+        l.t.custoReal == null ? (
+          SEM_VALOR
+        ) : (
+          <span className="flex items-center justify-end gap-1 font-mono text-xs">
+            {brl(l.t.custoReal)}
+            {l.t.custoRealParcial && (
+              <span className="text-[9px] uppercase text-warning" title="Alguém apontou horas nesta linha sem custo/hora cadastrado em Recursos">
+                parcial
+              </span>
+            )}
+          </span>
+        ),
+    };
     const acoesCol: Coluna | null =
       acoes || menuDe
         ? {
@@ -782,7 +863,11 @@ export function PlanoGantt({
 
     if (!verDatas) cs.push(codigo, nome, disciplina, duracao, progresso, predecessoras, recursos);
     else if (modo === "planejamento") cs.push(codigo, nome, disciplina, duracao, inicio, termino, predecessoras, recursos);
-    else cs.push(codigo, nome, progresso, inicio, termino, inicioBase, terminoBase, desvio);
+    else {
+      cs.push(codigo, nome, progresso, inicioReal, fimReal, duracaoReal, duracaoRestante, trabalhoReal);
+      if (mostrarCusto) cs.push(custoReal);
+      cs.push(inicio, termino, inicioBase, terminoBase, desvio);
+    }
     if (mostrarCusto && (modo === "planejamento" || !verDatas)) cs.push(custo);
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
