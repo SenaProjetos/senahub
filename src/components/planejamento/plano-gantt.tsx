@@ -846,7 +846,7 @@ export function PlanoGantt({
     const custoReal: Coluna = {
       id: "custoReal",
       rotulo: "Custo real",
-      w: 112,
+      w: 136,
       alinhar: "right",
       secundaria: true,
       render: (l) =>
@@ -887,7 +887,10 @@ export function PlanoGantt({
 
     if (!verDatas) cs.push(codigo, nome, disciplina, duracao, progresso, predecessoras, recursos);
     else if (modo === "planejamento") cs.push(codigo, nome, disciplina, duracao, inicio, termino, predecessoras, recursos);
-    else if (conjuntoDeColunas === "variacao") cs.push(codigo, nome, inicio, termino, inicioBase, terminoBase, varInicio, varTermino);
+    // No Variação a base é o assunto: não some com a "Compacta".
+    else if (conjuntoDeColunas === "variacao") {
+      cs.push(codigo, nome, inicio, termino, { ...inicioBase, secundaria: false }, { ...terminoBase, secundaria: false }, varInicio, varTermino);
+    }
     else {
       cs.push(codigo, nome, progresso, inicioReal, fimReal, duracaoReal, duracaoRestante, trabalhoReal);
       if (mostrarCusto) cs.push(custoReal);
