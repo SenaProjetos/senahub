@@ -126,6 +126,8 @@ classificacao;reduzido;nome;tipo;natureza;centro_custo
 1.1.3.05.0002;1771;13º Salário;A;D;N
 1.1.3.06;1778;Tributos a Recuperar/Compensar;S;D;N
 1.1.3.06.0001;1785;Tributos pagos a maior;A;D;N
+1.1.3.06.0002;9102;ISS a Compensar;A;D;N
+1.1.3.06.0003;9103;INSS a Compensar;A;D;N
 1.1.4;1792;Aplicações Financeiras;S;D;N
 1.1.4.01;1799;Aplicações Financeiras Rend. Pós-Fixados;S;D;N
 1.1.4.02;1806;Aplicações Financeiras Rend. Prefixados;S;D;N
@@ -195,6 +197,7 @@ classificacao;reduzido;nome;tipo;natureza;centro_custo
 2.1.3.01.0003;2205;IE a Recolher;A;C;N
 2.1.3.01.0004;3486;Simples a Recolher;A;C;N
 2.1.3.01.0005;4256;Parcelamento Simples Nacional;A;C;N
+2.1.3.01.0006;9101;ISS a Recolher;A;C;N
 2.1.4;2212;Obrigações Trabalhistas e Previdenciárias;S;C;N
 2.1.4.01;2219;Obrigações Com Pessoal;S;C;N
 2.1.4.01.0001;2226;Salários e Ordenados;A;C;N

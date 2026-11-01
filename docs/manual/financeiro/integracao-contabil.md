@@ -87,12 +87,12 @@ bloqueada até você escolher; o que depende de conta que o contador ainda vai c
 
 ## O que ainda depende do contador
 
-- Contas que faltam no plano dele (ISS/INSS a compensar, ISS a recolher, adiantamento de sócio, cartão a pagar,
-  aplicações) e a habilitação de centro de custo.
+- Contas que faltam no plano dele (adiantamento de sócio, cartão a pagar, aplicações) e a habilitação de centro de custo.
 - Que o Alterdata aceite as três colunas extras à direita (`centro de custo`, `projeto` e `chave de acesso`); se recusar, o primeiro teste de
   importação mostra, e tiramos as colunas.
-- As contas de **ISS a recolher**, **ISS a compensar** e **INSS a compensar** (retenções na nota): enquanto não existirem no plano
-  dele, o layout do contador não exporta o mês em que houver retenção desses impostos.
+- As contas de **ISS a recolher** (2.1.3.01.0006), **ISS a compensar** (1.1.3.06.0002) e **INSS a compensar**
+  (1.1.3.06.0003): o contador autorizou criarmos no nosso plano de referência e ele se adequa quando criar as contas
+  reais no Alterdata — a classificação é o contrato, não o reduzido interno (9101/9102/9103, provisório).
 
 ## Retenções na nota
 

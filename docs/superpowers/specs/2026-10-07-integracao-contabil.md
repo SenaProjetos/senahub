@@ -1,6 +1,6 @@
 # Integração contábil (M5) e retenções na NF
 
-**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3, C4 e C5 feitas (C4 em 2026-10-16, §14); C1 só no que o mock aprovou (ver §12 e §13); faltam no plano do contador as contas de ISS a recolher e ISS/INSS a compensar
+**Data:** 2026-10-07 · **Branch:** `feat/integracao-contabil` (de `dev`) · **Status:** C0, C2, C3, C4 e C5 feitas (C4 em 2026-10-16, §14); C1 só no que o mock aprovou (ver §12 e §13); ISS a recolher e ISS/INSS a compensar provisionadas no nosso plano em 2026-11-01 (§15), aguardando o contador criar as contas reais
 
 Fecha as duas pendências que o plano do Financeiro deixou para o contador: a fase **M5 (integração contábil)** e as
 **retenções na NF** (decisão 5 de 2026-10-02). Base: as respostas do contador (GAMA CONTABIL, 2026-10-05 e 2026-10-07),
@@ -263,7 +263,7 @@ Verificação por fase: tsc (`NODE_OPTIONS=--max-old-space-size=8192`), lint sem
 | Folha CLT | — | Não exportar |
 | Padrão clientes / fornecedores | 1659 / 2142 | Clientes Diversos / Fornecedores Diversos |
 | Contas bancárias | 3395 · 3402 · 3941 · 11 | Caixa Econômica · Santander · Itaú · Caixa (o dono liga cada conta) |
-| IRRF / PIS / COFINS / CSLL / INSS a recolher | 2163 · 2177 · 2184 · 2170 · 2254 | (ISS a recolher falta no plano) |
+| IRRF / PIS / COFINS / CSLL / INSS a recolher | 2163 · 2177 · 2184 · 2170 · 2254 | ISS a recolher: 9101 (provisório, §15) |
 
 ## 12. O que foi feito (2026-10-07)
 
@@ -365,8 +365,9 @@ Vencimentos do contador: ISS dia 10, os demais dia 15 do mês seguinte ao pagame
   contra a contrapartida (conta a pagar: D fornecedor / C imposto a recolher; conta a receber: D imposto a compensar /
   C cliente); a conta do imposto não se reconhece de novo — só o recolhimento, D imposto a recolher / C banco. De-para por
   imposto (`imposto_recolher` / `imposto_compensar`, bloco "Impostos retidos → conta contábil" na aba De-para); a migração
-  já liga IRRF, INSS, PIS, COFINS e CSLL a recolher às contas do plano dele. **Faltam no plano dele: ISS a recolher, ISS a
-  compensar e INSS a compensar** — enquanto faltarem, o layout do contador não exporta mês com retenção desses impostos.
+  já liga IRRF, INSS, PIS, COFINS e CSLL a recolher às contas do plano dele. **ISS a recolher, ISS a compensar e INSS a
+  compensar** foram provisionadas no nosso plano em 2026-11-01 (§15) — o contador autorizou criarmos as contas e disse
+  que se adequa quando criar as reais no Alterdata.
 - **Defesa no banco:** índices únicos parciais (um imposto por nota, vivo) na conta a recolher e no acessório.
 - **Fora (decisão do mock):** cálculo por alíquota, DAS e compensação no DAS (contador); retenção em compra no cartão, em
   título recorrente, de produção (projetista) e de ART; vencimento em fim de semana não anda sozinho (a tela avisa).
@@ -374,3 +375,26 @@ Vencimentos do contador: ISS dia 10, os demais dia 15 do mês seguinte ao pagame
   imposto ser pago, o livre fica maior pelo retido (a conta do imposto, P1, aparece no planejador). Ao pagar o imposto, fecha.
 - **Verificação:** `npm run smoke:retencoes` (criar, parcial e desconto recusados, pagar, data corrigida, contabilidade,
   estorno recusado com imposto pago, cobrança pelo líquido, conciliação do recebível, desconciliar, nascida paga).
+
+## 15. Contas provisionadas (2026-11-01)
+
+O contador (GAMA CONTABIL) respondeu que podemos criar as 3 contas que faltavam no plano dele e que ele se adequa
+futuramente. Como a exportação usa a **classificação** (decisão de 2026-10-16, não o reduzido), provisionamos no nosso
+`plano-de-contas-gama-2026-10.csv` com classificações seguindo a estrutura dele e reduzidos internos num bloco 9xxx
+livre (nunca usado pelo plano real, só por este):
+
+| Conta | Classificação | Reduzido (provisório) | Natureza |
+|---|---|---|---|
+| ISS a Recolher | `2.1.3.01.0006` | 9101 | C |
+| ISS a Compensar | `1.1.3.06.0002` | 9102 | D |
+| INSS a Compensar | `1.1.3.06.0003` | 9103 | D |
+
+De-para (`imposto_recolher`/`iss` → 9101, `imposto_compensar`/`iss` → 9102, `imposto_compensar`/`inss` → 9103) seedado
+na migração `20261101120000_contabil_contas_provisorias_iss_inss`, no mesmo padrão da de `20261016120000`.
+
+**Repasse ao contador:** ele precisa criar as contas reais com exatamente essas classificações (nome e natureza
+livres pra ele, a importação do Alterdata casa pela classificação). Quando criar, não precisamos mudar nada do nosso
+lado — só confirmar que a classificação bate.
+
+**Pendência:** verificar com `npm run contabil:importar-plano` + `npm run smoke:contabil` + `npm run smoke:retencoes`
+depois do merge em `dev` (não roda sem checkout; feito por plumbing direto na branch em 2026-11-01).
