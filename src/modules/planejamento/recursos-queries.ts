@@ -60,8 +60,8 @@ export type PessoaCarga = {
   /** O mesmo, por projeto. */
   rascunhoPorProjeto: Record<string, Record<string, number>>;
   /**
-   * Disciplinas das linhas de projetos APROVADOS em que a pessoa tem atribuição (nome do catálogo, ou o
-   * texto legado quando a disciplina ainda não aponta para o catálogo). Alimenta o filtro de `/recursos`.
+   * Disciplinas das linhas de projetos APROVADOS em que a pessoa tem carga nas semanas pedidas (nome do
+   * catálogo, ou o texto legado quando a disciplina ainda não aponta para o catálogo). Alimenta o filtro de `/recursos`.
    */
   disciplinas: string[];
 };
@@ -313,13 +313,16 @@ export async function cargaDaEquipe(
   }));
 
   // ── Saída ───────────────────────────────────────────────────────────────
+  // Disciplinas de quem tem carga nelas dentro das semanas pedidas (as mesmas de `porProjeto`): linha já
+  // concluída ou fora da janela não faz a pessoa aparecer no filtro por disciplina.
+  const nomeDaDisciplina = new Map(
+    linhasDb.map((l) => [l.id, l.disciplina?.catalogo?.nome ?? l.disciplina?.disciplinaTextoLegado ?? null] as const),
+  );
   const disciplinasPorUser = new Map<string, Set<string>>();
-  for (const l of linhasDb) {
-    const nome = l.disciplina?.catalogo?.nome ?? l.disciplina?.disciplinaTextoLegado ?? null;
-    if (!nome) continue;
-    for (const a of l.atribuicoes) {
-      if (a.userId) disciplinasPorUser.set(a.userId, (disciplinasPorUser.get(a.userId) ?? new Set()).add(nome));
-    }
+  for (const pc of parcelas) {
+    const nome = pc.linhaId ? nomeDaDisciplina.get(pc.linhaId) : null;
+    if (!nome || !semanas.includes(pc.semana)) continue;
+    disciplinasPorUser.set(pc.userId, (disciplinasPorUser.get(pc.userId) ?? new Set()).add(nome));
   }
   const redondo = (h: number) => Math.round(h * 10) / 10;
   const saida: PessoaCarga[] = usuarios.map((u) => {

@@ -120,9 +120,13 @@ function montarHeatmap(
   linhas: Linha[],
   calculadaDe: (userId: string) => ReadonlyMap<string, number>,
   periodo: PeriodoHeatmap,
+  janelaFim: string,
 ) {
   const hoje = hojeLocalIso();
-  const colunas = periodo === "meses" ? colunasMeses(hoje, MESES_NO_MAPA) : colunasPorPeriodo(periodo, hoje);
+  // Meses: no mínimo 4 (as 12 semanas da carga) e, se a janela vai além (férias distantes), até o mês dela.
+  const mesesAteAJanela = (Number(janelaFim.slice(0, 4)) - Number(hoje.slice(0, 4))) * 12 + Number(janelaFim.slice(5, 7)) - Number(hoje.slice(5, 7)) + 1;
+  const meses = Math.min(13, Math.max(MESES_NO_MAPA, Number.isFinite(mesesAteAJanela) ? mesesAteAJanela : 0));
+  const colunas = periodo === "meses" ? colunasMeses(hoje, meses) : colunasPorPeriodo(periodo, hoje);
   const matriz = linhas.map((l) => {
     const pessoais = ausenciasPessoais(l.indisponibilidades);
     const calculada = calculadaDe(l.userId);
@@ -202,6 +206,11 @@ export function RecursosMatrix({
   const [janelaIni, setJanelaIni] = useState(janelaInicial?.de ?? hojeIso);
   const [janelaFim, setJanelaFim] = useState(janelaInicial?.ate ?? daqui90);
 
+  const sinaisPorUser = useMemo(
+    () => Object.fromEntries(linhas.filter((l) => l.projetosSemCronograma.length > 0).map((l) => [l.userId, l.projetosSemCronograma])),
+    [linhas],
+  );
+
   // Índice de quem pode ser filtrado: todos os que a carga planejada conhece (inclui quem não tem recurso).
   const indice = useMemo<PessoaFiltravel[]>(
     () =>
@@ -209,9 +218,16 @@ export function RecursosMatrix({
         userId: p.userId,
         nome: p.nome,
         disciplinas: p.disciplinas,
-        projetoIds: [...new Set([...Object.keys(p.porProjeto), ...Object.keys(p.rascunhoPorProjeto)])],
+        // Inclui os projetos sem cronograma aprovado (o selo): quem está neles não some ao filtrar o projeto.
+        projetoIds: [
+          ...new Set([
+            ...Object.keys(p.porProjeto),
+            ...Object.keys(p.rascunhoPorProjeto),
+            ...(sinaisPorUser[p.userId] ?? []).map((x) => x.id),
+          ]),
+        ],
       })),
-    [cargaPlanejada.pessoas],
+    [cargaPlanejada.pessoas, sinaisPorUser],
   );
   const disciplinasOpcoes = useMemo(
     () => [...new Set(indice.flatMap((p) => p.disciplinas))].sort((a, b) => a.localeCompare(b)),
@@ -231,16 +247,16 @@ export function RecursosMatrix({
     [passam, soSobrecarregados],
   );
 
-  const sinaisPorUser = useMemo(
-    () => Object.fromEntries(linhas.filter((l) => l.projetosSemCronograma.length > 0).map((l) => [l.userId, l.projetosSemCronograma])),
-    [linhas],
-  );
 
   const linhasFiltradas = useMemo(() => {
     const base = linhas.filter((l) => visivel(l.userId, sobreJanela));
     if (filtros.projetoId == null) return base;
     // Com um projeto escolhido, a linha mostra só a carga dele.
-    return base.map((l) => ({ ...l, calculadas: (l.calculadas ?? []).filter((c) => c.projetoId === filtros.projetoId) }));
+    return base.map((l) => ({
+      ...l,
+      calculadas: (l.calculadas ?? []).filter((c) => c.projetoId === filtros.projetoId),
+      projetosSemCronograma: l.projetosSemCronograma.filter((x) => x.id === filtros.projetoId),
+    }));
   }, [linhas, visivel, sobreJanela, filtros.projetoId]);
   const cargaRealFiltrada = useMemo(
     () => ({ ...cargaSemanal, linhas: cargaSemanal.linhas.filter((l) => visivel(l.userId, sobreReal)) }),
@@ -260,8 +276,8 @@ export function RecursosMatrix({
     [cargaPlanejada],
   );
   const heat = useMemo(
-    () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map(), periodoHeat),
-    [linhasFiltradas, calculadaPorUser, periodoHeat],
+    () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map(), periodoHeat, janelaFim),
+    [linhasFiltradas, calculadaPorUser, periodoHeat, janelaFim],
   );
 
   const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
@@ -414,8 +430,8 @@ export function RecursosMatrix({
 
       {!janelaValida && (
         <p role="alert" className="text-xs text-destructive">
-          Janela de análise inválida: o fim precisa ser depois do início, com no máximo 400 dias. Enquanto isso, o
-          filtro “Só sobrecarregados” e os avisos de janela não encontram ninguém.
+          Janela de análise inválida: o fim precisa ser depois do início, com no máximo 400 dias. Enquanto isso, os
+          avisos de janela e o filtro “Só sobrecarregados” (exceto na Carga real) não encontram ninguém.
         </p>
       )}
 
@@ -695,7 +711,7 @@ function HeatmapView({
                       style={{ background: heatColor(c.pct, l.capacidadePct) }}
                       title={`${l.nome} · ${colunas.find((x) => x.chave === c.chave)?.titulo ?? c.chave} — ${c.pct}% planejado (${ratio}% da capacidade)${
                         c.diasAusente > 0
-                          ? ` · ${c.motivosAusencia.join(", ")} em ${c.diasAusente} dia(s)${c.conflitoAusencia ? " com alocação — revisar" : ""}`
+                          ? ` · ${c.motivosAusencia.join(", ")} em ${c.diasAusente} dia(s)${c.conflitoAusencia ? " com carga — revisar" : ""}`
                           : ""
                       }`}
                     >
@@ -898,7 +914,7 @@ function NovoRecursoDialog({
               onChange={(e) => setCapacidade(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              1 = jornada cheia; 0,5 = meio período. As alocações em % valem sobre a capacidade da pessoa: 100% é tudo o
+              1 = jornada cheia; 0,5 = meio período. A carga em % vale sobre a capacidade da pessoa: 100% é tudo o
               que ela dedica a projetos.
             </p>
           </div>

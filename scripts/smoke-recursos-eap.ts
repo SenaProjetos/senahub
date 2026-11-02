@@ -395,6 +395,12 @@ async function main() {
     check("carga: quem está só em linha aprovada entra na equipe", pessoaA != null);
     check("carga: 80 h contra 40 h na semana das paralelas", pessoaA?.carga["2026-W41"] === 80 && pessoaA?.capacidade["2026-W41"] === 40, pessoaA);
     check("carga: traz a disciplina da linha atribuída (Lote 2: filtro por disciplina)", pessoaA?.disciplinas.includes("Elétrica") === true, pessoaA?.disciplinas);
+    const foraDaJanela = await cargaDaEquipe({ hoje: "2026-12-07", semanas: 2 });
+    check(
+      "carga: linha fora das semanas pedidas não põe a disciplina no filtro",
+      foraDaJanela.pessoas.find((p) => p.userId === pjA.id)?.disciplinas.length === 0,
+      foraDaJanela.pessoas.find((p) => p.userId === pjA.id)?.disciplinas,
+    );
     const listado = carga.sobrecargas.find((so) => so.userId === pjA.id && so.semana === "2026-W41");
     check("sobrecarga acusada com o excesso", listado?.excesso === 40, listado && { excesso: listado.excesso });
     check(

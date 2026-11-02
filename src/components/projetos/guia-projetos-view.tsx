@@ -392,10 +392,10 @@ export function GuiaProjetosView() {
         <div>
           <h3 className="font-semibold">Antes de prometer prazo, olhe a carga</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            A matriz de <strong className="text-foreground">Recursos</strong> mostra quem está alocado
-            em quê e quanto do tempo de cada pessoa já está comprometido. Alocação tem{" "}
-            <strong className="text-foreground">período</strong>: começa e termina, e duas alocações
-            da mesma pessoa não podem se sobrepor no mesmo intervalo.
+            A tela de <strong className="text-foreground">Recursos</strong> mostra quem está escalado
+            em quê e quanto do tempo de cada pessoa já está comprometido. A carga vem das{" "}
+            <strong className="text-foreground">EAPs</strong> dos projetos: para mudá-la, atribua a pessoa
+            e as horas na atividade do cronograma.
           </p>
         </div>
         <Dica>

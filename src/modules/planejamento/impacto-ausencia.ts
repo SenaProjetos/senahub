@@ -118,6 +118,6 @@ export function textoDoImpacto(dados: {
   const ferias = dados.tipo === "ferias";
   return {
     titulo: `${ferias ? "Férias afetam" : "Ausência afeta"} alocação: ${dados.nome}`,
-    corpo: `${oque} de ${dados.nome} ${ferias ? "aprovadas" : "aprovada"} ${periodo}. No período há alocação em ${itens.join(", ")}. Revise a alocação em Recursos — nada foi alterado automaticamente.`,
+    corpo: `${oque} de ${dados.nome} ${ferias ? "aprovadas" : "aprovada"} ${periodo}. No período há alocação em ${itens.join(", ")}. Ajuste a carga na EAP do projeto — nada foi alterado automaticamente.`,
   };
 }

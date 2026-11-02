@@ -28,7 +28,7 @@ export function SinalSemCronograma({ projetos, detalhado = false }: { projetos: 
       {projetos.map((p) => (
         <Link
           key={p.id}
-          href={`/projetos/${p.id}/eap`}
+          href={`/planejamento/${p.id}`}
           title={`${p.nome} — sem cronograma aprovado; não soma horas. Abrir a EAP.`}
           aria-label={`${formatarCodigo(p.codigo)} ${p.nome}, sem cronograma aprovado: abrir a EAP`}
           className="inline-flex items-center gap-1 rounded-sm border border-dashed border-warning/50 px-1.5 py-0.5 font-mono text-[11px] text-warning hover:bg-warning/10"

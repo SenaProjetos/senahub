@@ -251,7 +251,7 @@ function SobrecargaItem({
       </p>
       {origem && (
         <p className="mt-0.5 text-[11px] text-muted-foreground">
-          Maior parcela: {origem.linhaId ? `“${linhaNome(origem.linhaId)}” em ` : "alocação digitada em "}
+          Maior parcela: {origem.linhaId ? `“${linhaNome(origem.linhaId)}” em ` : ""}
           {nomeProjeto(origem.projetoId)} ({Math.round(origem.horas * 10) / 10}h).
         </p>
       )}
@@ -302,7 +302,7 @@ function LinkEap({
   if (!projetoId) return null;
   return (
     <Link
-      href={`/projetos/${projetoId}/eap`}
+      href={`/planejamento/${projetoId}`}
       aria-label={`Abrir a EAP de ${nomeProjeto(projetoId)}`}
       className="text-primary underline-offset-2 hover:underline"
     >
