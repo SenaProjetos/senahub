@@ -58,6 +58,11 @@ export type PessoaCarga = {
   rascunho: Record<string, number>;
   /** O mesmo, por projeto. */
   rascunhoPorProjeto: Record<string, Record<string, number>>;
+  /**
+   * Disciplinas das linhas de projetos APROVADOS em que a pessoa tem atribuição (nome do catálogo, ou o
+   * texto legado quando a disciplina ainda não aponta para o catálogo). Alimenta o filtro de `/recursos`.
+   */
+  disciplinas: string[];
 };
 
 /**
@@ -110,7 +115,16 @@ function segundaDaSemana(dia: Dia): Dia {
 }
 
 export async function cargaDaEquipe(
-  opcoes: { semanas?: number; hoje?: Dia; sugestaoDe?: { userId: string; semana: string } } = {},
+  opcoes: {
+    semanas?: number;
+    hoje?: Dia;
+    sugestaoDe?: { userId: string; semana: string };
+    /**
+     * `false` ignora a alocação DIGITADA (`Alocacao`): `/recursos` é só leitura das EAPs (Lote 2). Os demais
+     * leitores (RH gestão, aviso de ausência) seguem com o padrão, que a soma como sempre.
+     */
+    incluirDigitada?: boolean;
+  } = {},
 ): Promise<CargaDaEquipe> {
   const nSemanas = opcoes.semanas ?? 12;
   const inicio = segundaDaSemana(opcoes.hoje ?? diaLocal(new Date()));
@@ -139,7 +153,7 @@ export async function cargaDaEquipe(
         nome: true,
         inicioReal: true,
         disciplinaId: true,
-        disciplina: { select: { disciplinaId: true, catalogo: { select: { nome: true } } } },
+        disciplina: { select: { disciplinaId: true, disciplinaTextoLegado: true, catalogo: { select: { nome: true } } } },
         atribuicoes: { select: { id: true, userId: true, papel: true, horasPrevistas: true } },
       },
     }),
@@ -174,17 +188,19 @@ export async function cargaDaEquipe(
   );
   const [recursos, alocacoes] = await Promise.all([
     prisma.recurso.findMany({ where: { ativo: true }, select: { userId: true, capacidade: true } }),
-    prisma.alocacao.findMany({
-      where: {
-        projetoId: { notIn: aprovados },
-        recurso: { ativo: true },
-        AND: [
-          { OR: [{ inicio: null }, { inicio: { lte: new Date(`${fim}T00:00:00Z`) } }] },
-          { OR: [{ fim: null }, { fim: { gte: new Date(`${inicio}T00:00:00Z`) } }] },
-        ],
-      },
-      select: { projetoId: true, percentual: true, inicio: true, fim: true, recurso: { select: { userId: true } } },
-    }),
+    opcoes.incluirDigitada === false
+      ? Promise.resolve([])
+      : prisma.alocacao.findMany({
+          where: {
+            projetoId: { notIn: aprovados },
+            recurso: { ativo: true },
+            AND: [
+              { OR: [{ inicio: null }, { inicio: { lte: new Date(`${fim}T00:00:00Z`) } }] },
+              { OR: [{ fim: null }, { fim: { gte: new Date(`${inicio}T00:00:00Z`) } }] },
+            ],
+          },
+          select: { projetoId: true, percentual: true, inicio: true, fim: true, recurso: { select: { userId: true } } },
+        }),
   ]);
   const multiplicador = new Map(recursos.map((r) => [r.userId, Number(r.capacidade)]));
   const userIds = [...new Set([...recursos.map((r) => r.userId), ...idsNasLinhas])];
@@ -296,6 +312,14 @@ export async function cargaDaEquipe(
   }));
 
   // ── Saída ───────────────────────────────────────────────────────────────
+  const disciplinasPorUser = new Map<string, Set<string>>();
+  for (const l of linhasDb) {
+    const nome = l.disciplina?.catalogo?.nome ?? l.disciplina?.disciplinaTextoLegado ?? null;
+    if (!nome) continue;
+    for (const a of l.atribuicoes) {
+      if (a.userId) disciplinasPorUser.set(a.userId, (disciplinasPorUser.get(a.userId) ?? new Set()).add(nome));
+    }
+  }
   const redondo = (h: number) => Math.round(h * 10) / 10;
   const saida: PessoaCarga[] = usuarios.map((u) => {
     const carga: Record<string, number> = {};
@@ -331,6 +355,7 @@ export async function cargaDaEquipe(
       rascunhoPorProjeto: Object.fromEntries(
         Object.entries(rascunhoPorProjeto).map(([p, m]) => [p, Object.fromEntries(Object.entries(m).map(([s, h]) => [s, redondo(h)]))]),
       ),
+      disciplinas: [...(disciplinasPorUser.get(u.id) ?? [])].sort((x, y) => x.localeCompare(y)),
     };
   });
 

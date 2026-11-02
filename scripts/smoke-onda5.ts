@@ -124,14 +124,20 @@ async function main() {
 
   // 7) Meio período (capacidade 0,5): o % é da capacidade DELA (decisão #2) — 60% não é superalocação,
   //    60% + 60% é. E a taxa (custo/hora) só sai para quem vê o financeiro (decisão #15).
-  const recurso = await prisma.recurso.create({ data: { userId: admin.id, capacidade: 0.5, custoHora: 55 } });
+  // Usuário descartável: o admin do banco de dev pode já ser um recurso (userId é único).
+  const pessoaTeste = await prisma.user.create({
+    data: { name: `${tag}_pessoa`, email: `${tag}-pessoa@teste.local`, tipo: "interno", contratacao: "pj", emailVerified: false },
+  });
+  const recurso = await prisma.recurso.create({ data: { userId: pessoaTeste.id, capacidade: 0.5, custoHora: 55 } });
   const aloc = await prisma.alocacao.create({
     data: { recursoId: recurso.id, projetoId: projeto.id, percentual: 60 },
   });
   const matriz = await matrizRecursos({ verCusto: true });
   const linha = matriz.linhas.find((l) => l.recursoId === recurso.id);
-  check("matriz: meio período tem capacidade de 100% (a dela) e 60% alocado", linha?.capacidadePct === 100 && linha?.totalAlocado === 60);
-  check("60% da capacidade dela NÃO é superalocação", linha?.superalocado === false);
+  check("matriz: meio período tem capacidade de 100% (a dela)", linha?.capacidadePct === 100);
+  // Lote 2: /recursos é só leitura e lê as EAPs — a alocação digitada não aparece nem soma.
+  check("matriz: a alocação digitada não soma (60% gravado, carga 0)", linha?.totalAlocado === 0 && linha?.alocadoHoje === 0);
+  check("matriz: o DTO não traz alocações digitadas", linha != null && !("alocacoes" in linha));
   check("quem vê o financeiro recebe o custo/hora", linha?.custoHora === 55);
   const semCusto = await matrizRecursos({ verCusto: false });
   check(
@@ -143,12 +149,23 @@ async function main() {
   });
   const matriz2 = await matrizRecursos({ verCusto: true });
   const linha2 = matriz2.linhas.find((l) => l.recursoId === recurso.id);
-  check("120% da capacidade dela é superalocação", linha2?.totalAlocado === 120 && linha2?.superalocado === true);
+  check("120% digitado também não vira superalocação (só as EAPs contam)", linha2?.totalAlocado === 0 && linha2?.superalocado === false);
+
+  // Projeto ativo sem cronograma aprovado: a pessoa ganha o sinal, sem horas somadas.
+  const membro = await prisma.projetoMembro.create({ data: { projetoId: projeto.id, userId: pessoaTeste.id } });
+  const matriz3 = await matrizRecursos({ verCusto: true });
+  const linha3 = matriz3.linhas.find((l) => l.recursoId === recurso.id);
+  check(
+    "membro de projeto sem cronograma aprovado recebe o sinal, sem somar carga",
+    linha3?.projetosSemCronograma.some((p) => p.id === projeto.id) === true && linha3?.totalAlocado === 0,
+  );
+  await prisma.projetoMembro.delete({ where: { id: membro.id } });
 
   // Limpeza
   await prisma.alocacao.delete({ where: { id: aloc2.id } });
   await prisma.alocacao.delete({ where: { id: aloc.id } });
   await prisma.recurso.delete({ where: { id: recurso.id } });
+  await prisma.user.delete({ where: { id: pessoaTeste.id } });
   await prisma.projeto.delete({ where: { id: projeto.id } }); // cascata: EAP, dependências, disciplina
   await prisma.cliente.delete({ where: { id: cliente.id } });
 

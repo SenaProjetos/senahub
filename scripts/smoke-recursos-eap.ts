@@ -394,6 +394,7 @@ async function main() {
     const pessoaA = carga.pessoas.find((p) => p.userId === pjA.id);
     check("carga: quem está só em linha aprovada entra na equipe", pessoaA != null);
     check("carga: 80 h contra 40 h na semana das paralelas", pessoaA?.carga["2026-W41"] === 80 && pessoaA?.capacidade["2026-W41"] === 40, pessoaA);
+    check("carga: traz a disciplina da linha atribuída (Lote 2: filtro por disciplina)", pessoaA?.disciplinas.includes("Elétrica") === true, pessoaA?.disciplinas);
     const listado = carga.sobrecargas.find((so) => so.userId === pjA.id && so.semana === "2026-W41");
     check("sobrecarga acusada com o excesso", listado?.excesso === 40, listado && { excesso: listado.excesso });
     check(
@@ -425,6 +426,21 @@ async function main() {
     check("rascunho: projeto listado como em rascunho, não como calculado", cargaRasc.projetosEmRascunho.includes(projeto.id) && !cargaRasc.projetosCalculados.includes(projeto.id));
     check("rascunho: as 80 h aparecem à parte e NÃO entram na carga", pessoaR?.rascunho["2026-W41"] === 80 && (pessoaR?.carga["2026-W41"] ?? 0) === 0, pessoaR && { r: pessoaR.rascunho, c: pessoaR.carga });
     check("rascunho: não acusa sobrecarga", !cargaRasc.sobrecargas.some((so) => so.userId === pjA.id));
+
+    // Lote 2: a tela de leitura ignora a alocação DIGITADA (que segue valendo para os demais leitores).
+    const recursoA = await prisma.recurso.findUniqueOrThrow({ where: { userId: pjA.id }, select: { id: true } });
+    await prisma.alocacao.create({ data: { recursoId: recursoA.id, projetoId: projeto.id, percentual: 50 } });
+    const comDigitada = await cargaDaEquipe({ hoje: "2026-10-05", semanas: 6 });
+    const semDigitada = await cargaDaEquipe({ hoje: "2026-10-05", semanas: 6, incluirDigitada: false });
+    check(
+      "incluirDigitada (padrão) soma a alocação digitada do projeto sem cronograma aprovado",
+      (comDigitada.pessoas.find((p) => p.userId === pjA.id)?.carga["2026-W41"] ?? 0) === 20,
+    );
+    check(
+      "incluirDigitada:false ignora a alocação digitada",
+      (semDigitada.pessoas.find((p) => p.userId === pjA.id)?.carga["2026-W41"] ?? 0) === 0,
+    );
+    await prisma.alocacao.deleteMany({ where: { recursoId: recursoA.id } });
     await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { aprovado: true } });
 
     // ── 6. Atividade que virou agrupamento ─────────────────────────────────

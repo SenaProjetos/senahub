@@ -17,7 +17,6 @@ import {
   gravarSaude,
   replanejar,
 } from "@/modules/planejamento/service";
-import { faixaTemPeriodoValido, haConflitoDeFaixa } from "@/modules/planejamento/alocacao-faixas";
 import { sincronizarPrazoDisciplina } from "@/modules/projetos/etapas-service";
 import { planejarAplicacao } from "@/modules/planejamento/aplicacao";
 import { herdarResponsaveisNoProjeto, sincronizarCards } from "@/modules/planejamento/recursos-service";
@@ -1162,16 +1161,6 @@ const recursoSchema = z.object({
   cor: opt(z.string()),
   ativo: z.boolean().default(true),
 });
-const alocacaoSchema = z.object({
-  id: z.string().min(1).optional(),
-  recursoId: z.string().min(1),
-  projetoId: z.string().min(1),
-  percentual: z.number().int().min(1, "Mínimo 1%.").max(100, "Máximo 100% por projeto."),
-  inicio: opt(z.string()),
-  fim: opt(z.string()),
-  observacao: opt(z.string()),
-});
-
 /**
  * Cria/atualiza o recurso de uma pessoa (capacidade, custo/hora, cor).
  *
@@ -1201,81 +1190,6 @@ export const salvarRecurso = defineAction(
     });
     revRecursos();
     return { id: r.id };
-  },
-);
-
-export const salvarAlocacao = defineAction(
-  {
-    ...rec,
-    acao: "salvar-alocacao",
-    entidade: "Alocacao",
-    schema: alocacaoSchema,
-    capturarAntes: async (i) => i.id
-      ? prisma.alocacao.findUnique({ where: { id: i.id } })
-      : null,
-  },
-  async (i) => {
-    // Projeto com cronograma APROVADO é calculado pelas linhas (D17): a alocação digitada
-    // dele não entra em conta nenhuma. Gravar seria aceitar um número que não faz nada.
-    const cronograma = await prisma.cronogramaProjeto.findUnique({
-      where: { projetoId: i.projetoId },
-      select: { aprovado: true },
-    });
-    if (cronograma?.aprovado) {
-      throw new ActionError(
-        "Este projeto tem cronograma aprovado: a alocação vem das horas das pessoas nas linhas da EAP, não daqui.",
-      );
-    }
-    const faixa = { id: i.id, inicio: i.inicio || null, fim: i.fim || null };
-    if (!faixaTemPeriodoValido(faixa)) {
-      throw new ActionError("Fim não pode ser antes do início.");
-    }
-    if (i.id) {
-      const atual = await prisma.alocacao.findUnique({
-        where: { id: i.id },
-        select: { recursoId: true, projetoId: true },
-      });
-      if (!atual || atual.recursoId !== i.recursoId || atual.projetoId !== i.projetoId) {
-        throw new ActionError("Alocação não encontrada.");
-      }
-    }
-
-    const existentes = await prisma.alocacao.findMany({
-      where: {
-        recursoId: i.recursoId,
-        projetoId: i.projetoId,
-        ...(i.id ? { id: { not: i.id } } : {}),
-      },
-      select: { id: true, inicio: true, fim: true },
-    });
-    if (haConflitoDeFaixa(faixa, existentes.map((a) => ({
-      id: a.id,
-      inicio: a.inicio?.toISOString().slice(0, 10) ?? null,
-      fim: a.fim?.toISOString().slice(0, 10) ?? null,
-    })))) {
-      throw new ActionError("Já existe uma faixa para este projeto que se sobrepõe ao período informado.");
-    }
-
-    const dados = {
-      percentual: i.percentual,
-      inicio: i.inicio ? new Date(i.inicio) : null,
-      fim: i.fim ? new Date(i.fim) : null,
-      observacao: i.observacao || null,
-    };
-    const a = i.id
-      ? await prisma.alocacao.update({ where: { id: i.id }, data: dados })
-      : await prisma.alocacao.create({ data: { recursoId: i.recursoId, projetoId: i.projetoId, ...dados } });
-    revRecursos();
-    return { id: a.id };
-  },
-);
-
-export const removerAlocacao = defineAction(
-  { ...rec, acao: "remover-alocacao", entidade: "Alocacao", schema: idSchema },
-  async (i) => {
-    await prisma.alocacao.delete({ where: { id: i.id } });
-    revRecursos();
-    return { id: i.id };
   },
 );
 

@@ -21,6 +21,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { ehEtapaDeTerceiro, ROTULO_PAPEL } from "@/modules/planejamento/recursos";
 import { percentualDaCapacidade } from "@/modules/planejamento/heatmap-recursos";
+import { projetosSemCronogramaPorPessoa } from "@/modules/planejamento/recursos-filtros";
 import { semDatasDaLinha } from "@/modules/planejamento/visao-sem-datas";
 import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/progresso-sugerido";
 import { minutosSessao } from "@/modules/ponto/format";
@@ -716,28 +717,22 @@ function inicioDaSemana(dia: string): string {
 }
 
 /**
- * Matriz de recursos: pessoas (recursos) × projetos.
- * P-29: superalocação considera só as alocações ATIVAS hoje (respeita inicio/fim).
+ * Matriz de recursos: pessoas (recursos) × projetos, SÓ LEITURA das EAPs (Lote 2, 2026-11-02).
  * P-30: capacidade efetiva desconta ausências de hoje (férias/abono aprovados, feriado).
  *
- * F5 (D17) — a matriz vira CÁLCULO nos projetos com cronograma aprovado: o percentual sai
- * das horas das atribuições na semana corrente, sobre a semana útil da pessoa (a mesma
- * régua do "50%" digitado). A alocação digitada desses projetos continua listada, marcada
- * `substituidaPeloCronograma`, e SAI da soma — senão a mesma hora contaria duas vezes (os
- * "50% na matriz e 120% nas tarefas" da Q17). Projeto sem cronograma aprovado segue com a
- * alocação digitada, como sempre.
+ * O percentual sai das horas das atribuições nas linhas dos projetos com cronograma aprovado, na
+ * semana corrente, sobre a semana útil da pessoa (régua: 100 = tudo o que ela dedica a projeto).
+ * A alocação digitada (`Alocacao`) NÃO é lida aqui: não aparece nem soma. Quem tem projeto ativo
+ * sem cronograma aprovado ganha `projetosSemCronograma` — um sinal, sem horas e sem sobrecarga.
  */
 export async function matrizRecursos(opcoes: { verCusto: boolean }) {
   const hojeIso = diaLocal(new Date());
 
-  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriados, carga] = await Promise.all([
+  const [recursos, projetos, usuariosSemRecurso, ferias, abonos, feriados, carga, semCronograma] = await Promise.all([
     prisma.recurso.findMany({
       where: { ativo: true },
       include: {
         user: { select: { id: true, name: true, contratacao: true, image: true } },
-        alocacoes: {
-          include: { projeto: { select: { id: true, codigo: true, nome: true } } },
-        },
       },
     }),
     prisma.projeto.findMany({
@@ -759,8 +754,35 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
       select: { userId: true, dataInicio: true, dataFim: true },
     }),
     prisma.feriado.findMany({ select: { data: true, nome: true } }),
-    cargaDaEquipe({ semanas: 1, hoje: hojeIso }),
+    cargaDaEquipe({ semanas: 1, hoje: hojeIso, incluirDigitada: false }),
+    prisma.projeto.findMany({
+      where: { situacao: "em_andamento", OR: [{ cronograma: { is: null } }, { cronograma: { aprovado: false } }] },
+      select: {
+        id: true,
+        codigo: true,
+        nome: true,
+        membros: { select: { userId: true } },
+        disciplinas: { select: { responsaveis: { select: { userId: true } } } },
+        // Mesma regra do seletor do ponto (`projetosDoUsuario`): quem só tem atividade aberta no projeto também conta.
+        tarefas: {
+          where: { arquivada: false, status: { concluido: false } },
+          select: { responsaveis: { select: { userId: true } } },
+        },
+      },
+    }),
   ]);
+  const sinaisPorUser = projetosSemCronogramaPorPessoa(
+    semCronograma.map((p) => ({
+      id: p.id,
+      codigo: p.codigo,
+      nome: p.nome,
+      userIds: [
+        ...p.membros.map((m) => m.userId),
+        ...p.disciplinas.flatMap((d) => d.responsaveis.map((r) => r.userId)),
+        ...p.tarefas.flatMap((t) => t.responsaveis.map((r) => r.userId)),
+      ],
+    })),
+  );
 
   const calculados = new Set(carga.projetosCalculados);
   const semanaAtual = carga.semanas[0];
@@ -778,12 +800,6 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
     }
   }
   const feriadoHoje = feriados.find((feriado) => iso(feriado.data) === hojeIso)?.nome ?? null;
-
-  const ativaHoje = (a: { inicio: Date | null; fim: Date | null }) =>
-    diaEstaNaFaixa(hojeIso, {
-      inicio: a.inicio ? iso(a.inicio) : null,
-      fim: a.fim ? iso(a.fim) : null,
-    });
 
   const linhas = recursos
     .map((r) => {
@@ -828,9 +844,7 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
           };
         })
         .filter((c) => c.horasSemana > 0);
-      const alocadoHoje =
-        r.alocacoes.filter((a) => ativaHoje(a) && !calculados.has(a.projetoId)).reduce((s, a) => s + a.percentual, 0) +
-        calculadas.reduce((s, c) => s + (c.percentual ?? 0), 0);
+      const alocadoHoje = calculadas.reduce((s, c) => s + (c.percentual ?? 0), 0);
       const motivoAusencia = feriadoHoje ? `feriado (${feriadoHoje})` : (ausenciaPorUser.get(r.user.id) ?? null);
       const ausente = motivoAusencia != null;
       const capacidadeEfetivaPct = ausente ? 0 : capacidadePct;
@@ -866,19 +880,10 @@ export async function matrizRecursos(opcoes: { verCusto: boolean }) {
         alocadoHoje,
         // P-29: superalocação avalia a carga de HOJE contra a capacidade — zerada só por ausência pessoal.
         superalocado: alocadoHoje > (ausentePessoal ? 0 : capacidadePct),
-        alocacoes: r.alocacoes.map((a) => ({
-          id: a.id,
-          projetoId: a.projetoId,
-          projetoCodigo: a.projeto.codigo,
-          projetoNome: a.projeto.nome,
-          percentual: a.percentual,
-          inicio: a.inicio ? iso(a.inicio) : null,
-          fim: a.fim ? iso(a.fim) : null,
-          ativaHoje: ativaHoje(a),
-          observacao: a.observacao,
-          /** Projeto com cronograma aprovado: esta alocação digitada não conta mais (D17). */
-          substituidaPeloCronograma: calculados.has(a.projetoId),
-        })),
+        /** Disciplinas das EAPs aprovadas em que ela tem atribuição — filtro da tela. */
+        disciplinas: cargaPessoa?.disciplinas ?? [],
+        /** Projetos ativos sem cronograma aprovado em que ela está: só um sinal, nunca soma. */
+        projetosSemCronograma: sinaisPorUser.get(r.user.id) ?? [],
         /** Alocação calculada das linhas: aprovado (D17) e, marcada `rascunho`, a EAP ainda não aprovada. */
         calculadas: [...calculadas, ...emRascunho],
       };

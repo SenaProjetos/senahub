@@ -230,7 +230,7 @@ export const sugestoesDaSobrecarga = defineAction(
     schema: z.object({ userId: z.string().min(1), semana: z.string().regex(/^\d{4}-W\d{2}$/, "Semana inválida.") }),
   },
   async (i) => {
-    const carga = await cargaDaEquipe({ semanas: 12, sugestaoDe: { userId: i.userId, semana: i.semana } });
+    const carga = await cargaDaEquipe({ semanas: 12, incluirDigitada: false, sugestaoDe: { userId: i.userId, semana: i.semana } });
     const s = carga.sobrecargas.find((x) => x.userId === i.userId && x.semana === i.semana);
     // Sumiu entre a listagem e o clique (alguém corrigiu): diz isso em vez de "sem sugestão".
     if (!s) throw new ActionError("Essa sobrecarga já não existe — a carga mudou desde que a tela abriu.");
