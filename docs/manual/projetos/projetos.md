@@ -557,6 +557,26 @@ continuam como eram até você ligar a opção neles.
 **Documento Obsoleto ou Arquivado não aparece em link nenhum** (de disciplinas ou do projeto inteiro): ele foi
 aposentado, e o cliente não pode seguir baixando como se valesse.
 
+### E-mail de acompanhamento ao cliente (aba Arquivos)
+
+No **⋯** da barra de **Arquivos**, **E-mail de acompanhamento** monta e envia ao cliente um e-mail padrão
+com o que já foi enviado a ele. Só aparece para quem gere o projeto (`projetos:gerir`) e é um envio **manual**:
+nada sai sozinho.
+
+- **Destinatários:** os contatos do cliente do projeto que têm e-mail (quem pediu para não receber contato
+  fica de fora) e um campo para digitar outro e-mail. O primeiro contato já vem marcado.
+- **O que vai na lista:** as revisões com a marca **Enviado ao cliente**. As marcadas **depois do último
+  e-mail** aparecem como "Novos desde o último e-mail", já marcadas; as que já foram avisadas aparecem como
+  "Já enviados antes", desmarcadas. Você escolhe o que entra e pode acrescentar uma **observação**.
+- **Conversa encadeada:** o assunto é sempre o mesmo ("Acompanhamento — código nome do projeto") e cada
+  e-mail responde ao anterior, então a caixa do cliente agrupa tudo numa conversa só.
+- **Cópia e respostas:** com **Receber uma cópia** ligado, você recebe o e-mail em cópia oculta (o envio
+  pelo sistema não aparece na sua pasta de enviados), e a resposta do cliente chega para o seu e-mail.
+- **Registro:** cada envio fica guardado no projeto (quem, quando, para quem, o que foi listado), em
+  **Envios anteriores**. Se o servidor de e-mail recusar, nada é registrado e a lista de "novos" não muda.
+- O texto do e-mail é um modelo editável em **Configurações → E-mails** ("Acompanhamento do projeto").
+- Sem o envio de e-mail configurado no servidor (SMTP), o botão fica desativado com um aviso.
+
 ### Ciclo da revisão: em andamento, em análise, publicado, arquivado (aba Arquivos)
 
 As pranchas, memoriais e modelos IFC do projeto (o "pacote A") seguem o ciclo de vida da **ISO 19650**. Quem tem um

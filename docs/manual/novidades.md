@@ -20,6 +20,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## E-mail de acompanhamento ao cliente (novembro/2026)
+
+- **Novo botão no ⋯ de Arquivos:** **E-mail de acompanhamento** envia ao cliente do projeto uma lista do que já foi enviado
+  a ele, escolhida por você, com uma observação opcional.
+- **Conversa só:** cada e-mail responde ao anterior (mesmo assunto), então a caixa do cliente mostra tudo junto. Você recebe uma
+  cópia oculta e as respostas do cliente chegam para o seu e-mail.
+- **Novos desde o último:** o sistema separa o que foi enviado depois do último e-mail e deixa já marcado.
+- **Registro:** cada envio fica guardado no projeto. O texto é um modelo editável em Configurações → E-mails.
+
 ## Recursos: tela só de leitura, com filtros (novembro/2026)
 
 - **Só leitura:** a tela de **Recursos** deixou de alocar pessoa por projeto. Ela mostra a **capacidade × carga** de cada
