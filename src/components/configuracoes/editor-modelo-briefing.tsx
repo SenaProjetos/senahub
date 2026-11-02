@@ -223,13 +223,19 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
         </CardContent>
       </Card>
 
-      <Tabs value={aba} onValueChange={(v) => setAba(v as "editar" | "previa")}>
+      <Tabs
+        value={aba}
+        onValueChange={(v) => {
+          setFocarNova(null); // a pergunta recém-criada não pode roubar o foco de novo ao voltar para Editar
+          setAba(v as "editar" | "previa");
+        }}
+      >
         <TabsList aria-label="Modo do editor" activateOnFocus>
           <TabsTrigger value="editar">Editar</TabsTrigger>
           <TabsTrigger value="previa">Pré-visualizar</TabsTrigger>
         </TabsList>
         <TabsContent value="previa" className="mt-3 text-base">
-        previa.length === 0 ? (
+        {previa.length === 0 ? (
           <EmptyState
             icon={FileQuestion}
             title={modelo.esquemaValido ? "Nenhuma pergunta ainda" : "Formulário ilegível"}
@@ -254,7 +260,7 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
             <BriefingForm key={JSON.stringify(previa)} respostasIniciais={{}} secoes={previa} previa onSalvar={async () => ({ ok: true })} />
             </CardContent>
           </Card>
-        )
+        )}
         </TabsContent>
         <TabsContent value="editar" className="mt-3 text-base">
         <div className="space-y-3">

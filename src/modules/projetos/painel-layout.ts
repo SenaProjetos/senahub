@@ -171,22 +171,40 @@ export function normalizarLayoutPainelProjeto(
     salvos.set(item.id, item);
   }
 
-  const normalizado = padrao.map((base) => {
+  const normalizadoSalvos = padrao.flatMap((base): ItemLayoutPainelProjeto[] => {
     const salvo = salvos.get(base.id);
-    if (!salvo) return base;
+    if (!salvo) return [];
     const limites = LIMITES_POR_PAINEL[base.id];
     const w = limitar(inteiro(salvo.w, base.w), limites.minW, limites.maxW);
     const h = limitar(inteiro(salvo.h, base.h), limites.minH, limites.maxH);
-    return {
-      id: base.id,
-      x: limitar(inteiro(salvo.x, base.x), 0, COLUNAS - w),
-      y: limitar(inteiro(salvo.y, base.y), 0, 200),
-      w,
-      h,
-    };
+    return [
+      {
+        id: base.id,
+        x: limitar(inteiro(salvo.x, base.x), 0, COLUNAS - w),
+        y: limitar(inteiro(salvo.y, base.y), 0, 200),
+        w,
+        h,
+      },
+    ];
   });
 
-  return temSobreposicao(normalizado) ? padrao : normalizado;
+  // Só a sobreposição do que a PESSOA salvou derruba a personalização.
+  if (temSobreposicao(normalizadoSalvos)) return padrao;
+
+  // Painel que ainda não estava no layout salvo ocupa a posição padrão; se ela colidir com algo que
+  // a pessoa moveu, desce para depois de tudo — um painel novo nunca descarta a personalização inteira.
+  const colocados = [...normalizadoSalvos];
+  const resultado = padrao.map((base) => {
+    const salvo = colocados.find((item) => item.id === base.id);
+    if (salvo) return salvo;
+    let novo = base;
+    if (colocados.some((item) => itensSobrepostos(novo, item))) {
+      novo = { ...base, y: Math.max(...colocados.map((item) => item.y + item.h)) };
+    }
+    colocados.push(novo);
+    return novo;
+  });
+  return resultado;
 }
 
 export function criarLayoutPainelProjeto(itens: ItemLayoutPainelProjeto[]): LayoutPainelProjeto {

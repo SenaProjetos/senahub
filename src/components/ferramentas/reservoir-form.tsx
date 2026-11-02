@@ -249,9 +249,9 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
           )}
           {st.rtiModo !== "nenhuma" && doisReservatorios && (
             <div className="space-y-1.5">
-              <Label>Fica no reservatório</Label>
+              <Label htmlFor="h01-rti-em">Fica no reservatório</Label>
               <Select value={st.rtiEm} onValueChange={(v) => v && set("rtiEm")(v)}>
-                <SelectTrigger aria-label="Reservatório da reserva técnica de incêndio"><SelectValue /></SelectTrigger>
+                <SelectTrigger id="h01-rti-em" aria-label="Fica no reservatório da reserva técnica de incêndio"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="superior">Superior</SelectItem>
                   <SelectItem value="inferior">Inferior</SelectItem>

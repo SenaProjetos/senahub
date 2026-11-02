@@ -205,11 +205,18 @@ export const salvarNecessidade = defineAction(
       observacao: z.string().trim().max(300, "A observação aceita até 300 caracteres.").nullable().optional(),
     }),
     entidadeId: (d) => (d as { id: string }).id,
+    // Na edição, o nível e a observação de antes ficam no log.
+    capturarAntes: (i) =>
+      prisma.necessidadeHabilidade.findUnique({
+        where: { projetoId_habilidadeId: { projetoId: i.projetoId, habilidadeId: i.habilidadeId } },
+        select: { projetoId: true, habilidadeId: true, nivelMinimo: true, observacao: true },
+      }),
   },
   async (i, { user }) => {
     await exigirProjeto(user, i.projetoId);
     const habilidade = await prisma.habilidade.findUnique({ where: { id: i.habilidadeId }, select: { publicada: true } });
-    if (!habilidade?.publicada) throw new ActionError(MOTIVO_NAO_PUBLICADA);
+    if (!habilidade) throw new ActionError("Competência não encontrada.");
+    if (!habilidade.publicada) throw new ActionError(MOTIVO_NAO_PUBLICADA);
     const r = await prisma.necessidadeHabilidade.upsert({
       where: { projetoId_habilidadeId: { projetoId: i.projetoId, habilidadeId: i.habilidadeId } },
       create: { projetoId: i.projetoId, habilidadeId: i.habilidadeId, nivelMinimo: i.nivelMinimo, observacao: i.observacao || null },
@@ -222,12 +229,21 @@ export const salvarNecessidade = defineAction(
 );
 
 export const removerNecessidade = defineAction(
-  { ...doProjeto, acao: "remover-necessidade-habilidade", schema: z.object({ id: z.string().min(1) }), entidadeId: (_d, i) => i.id },
+  {
+    ...doProjeto,
+    acao: "remover-necessidade-habilidade",
+    schema: z.object({ id: z.string().min(1) }),
+    entidadeId: (_d, i) => i.id,
+    // Depois de apagada, a linha do log ainda diz de qual projeto, competência e nível era.
+    capturarAntes: (i) =>
+      prisma.necessidadeHabilidade.findUnique({ where: { id: i.id }, select: { projetoId: true, habilidadeId: true, nivelMinimo: true, observacao: true } }),
+  },
   async (i, { user }) => {
     const n = await prisma.necessidadeHabilidade.findUnique({ where: { id: i.id }, select: { projetoId: true } });
     if (!n) throw new ActionError("Esta necessidade já foi removida.");
     await exigirProjeto(user, n.projetoId);
-    await prisma.necessidadeHabilidade.delete({ where: { id: i.id } });
+    const r = await prisma.necessidadeHabilidade.deleteMany({ where: { id: i.id } });
+    if (r.count !== 1) throw new ActionError("Esta necessidade já foi removida.");
     revProjeto(n.projetoId);
     return { id: i.id };
   },

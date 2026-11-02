@@ -34,6 +34,14 @@ export function CompetenciasDoProjeto({ projetoId, dados, podeEditar }: Props) {
 
   const usadas = new Set(dados.necessidades.map((n) => n.habilidadeId));
   const disponiveis = dados.catalogo.filter((h) => !usadas.has(h.id));
+  const motivoSemOpcao =
+    disponiveis.length > 0
+      ? null
+      : dados.catalogo.length === 0
+        ? "Nenhuma competência publicada pelo RH ainda."
+        : "Todas as competências publicadas já estão neste projeto.";
+  const abrirNova = () => setEdicao({ habilidadeId: "", nivelMinimo: "3", observacao: "", existente: null });
+  const falhaDeRede = () => toast.error("Não foi possível concluir. Verifique a conexão e tente de novo.");
 
   async function executar(n: NecessidadeDoProjeto, item: AcaoItemAcao) {
     if (item.id === ACAO_NECESSIDADE_EDITAR) {
@@ -50,24 +58,35 @@ export function CompetenciasDoProjeto({ projetoId, dados, podeEditar }: Props) {
     });
     if (!ok) return;
     startTransition(async () => {
-      const r = await removerNecessidade({ id: n.id });
-      if (r.ok) toast.success("Competência removida do projeto.");
-      else toast.error(r.error);
+      try {
+        const r = await removerNecessidade({ id: n.id });
+        if (r.ok) {
+          toast.success("Competência removida do projeto.");
+          // A linha removida leva o foco junto: devolve ao botão Adicionar do cartão.
+          requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`competencias-adicionar-${projetoId}`)?.focus()));
+        } else toast.error(r.error);
+      } catch {
+        falhaDeRede();
+      }
     });
   }
 
   function salvar(e: Edicao) {
     startTransition(async () => {
-      const r = await salvarNecessidade({
-        projetoId,
-        habilidadeId: e.habilidadeId,
-        nivelMinimo: Number(e.nivelMinimo),
-        observacao: e.observacao.trim() || null,
-      });
-      if (r.ok) {
-        toast.success("Competência salva.");
-        setEdicao(null);
-      } else toast.error(r.error);
+      try {
+        const r = await salvarNecessidade({
+          projetoId,
+          habilidadeId: e.habilidadeId,
+          nivelMinimo: Number(e.nivelMinimo),
+          observacao: e.observacao.trim() || null,
+        });
+        if (r.ok) {
+          toast.success("Competência salva.");
+          setEdicao(null);
+        } else toast.error(r.error);
+      } catch {
+        falhaDeRede();
+      }
     });
   }
 
@@ -80,25 +99,26 @@ export function CompetenciasDoProjeto({ projetoId, dados, podeEditar }: Props) {
             <CardDescription>Nível mínimo exigido e quem já cobre. A folga no período fica em Recursos.</CardDescription>
           </div>
           {podeEditar && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={disponiveis.length === 0}
-              title={disponiveis.length === 0 ? "Todas as competências publicadas já estão neste projeto." : undefined}
-              onClick={() => setEdicao({ habilidadeId: "", nivelMinimo: "3", observacao: "", existente: null })}
-            >
+            <Button id={`competencias-adicionar-${projetoId}`} type="button" size="sm" variant="outline" disabled={motivoSemOpcao !== null} onClick={abrirNova}>
               <Plus aria-hidden className="mr-1.5 size-3.5" /> Adicionar
             </Button>
           )}
         </div>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-auto">
+        {podeEditar && motivoSemOpcao && <p className="mb-2 text-xs text-muted-foreground">{motivoSemOpcao}</p>}
         {dados.necessidades.length === 0 ? (
           <EmptyState
             icon={UserCheck}
             title="Nenhuma competência exigida"
             description={podeEditar ? "Adicione as competências que o projeto precisa para o RH e a coordenação enxergarem lacunas." : undefined}
+            action={
+              podeEditar && !motivoSemOpcao ? (
+                <Button type="button" size="sm" onClick={abrirNova}>
+                  <Plus aria-hidden className="mr-1.5 size-3.5" /> Adicionar
+                </Button>
+              ) : undefined
+            }
           />
         ) : (
           <ul className="space-y-2" aria-label="Competências exigidas pelo projeto">

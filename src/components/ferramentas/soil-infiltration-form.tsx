@@ -177,6 +177,8 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
       if (item.id === ACAO_FURO_REMOVER) return a.length > 1 ? a.filter((f) => f.chave !== chave) : a;
       return a;
     });
+    // A linha removida leva o foco junto: devolve ao botão de adicionar furo.
+    if (item.id === ACAO_FURO_REMOVER) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById("h04-add-furo")?.focus()));
   }
 
   const porPercolacao = g.origemCi === "percolacao";
@@ -247,6 +249,7 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-xs font-medium text-muted-foreground">Furos do teste de percolação</h3>
               <Button
+                id="h04-add-furo"
                 type="button"
                 variant="outline"
                 size="sm"

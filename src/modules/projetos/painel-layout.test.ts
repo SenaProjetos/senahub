@@ -88,6 +88,52 @@ describe("layout do painel de projeto", () => {
     expect(layout.find((item) => item.id === "cronograma")).toEqual(layoutPadraoPainelProjeto(["cronograma"])[0]);
   });
 
+  it("painel novo que colidiria com o layout salvo desce para depois de tudo, sem descartar a personalização", () => {
+    // A pessoa esticou "acessos" até ocupar a faixa onde "competencias" nasce (x 0–11, y 49).
+    const layout = normalizarLayoutPainelProjeto(
+      {
+        versao: 5,
+        itens: [
+          { id: "acessos", x: 0, y: 40, w: 12, h: 16 },
+          { id: "indicadores", x: 0, y: 5, w: 17, h: 5 },
+        ],
+      },
+      ["indicadores", "acessos", "competencias"],
+    );
+
+    expect(layout.find((item) => item.id === "acessos")).toMatchObject({ x: 0, y: 40, w: 12, h: 16 });
+    expect(layout.find((item) => item.id === "indicadores")).toMatchObject({ x: 0, y: 5 });
+    const nova = layout.find((item) => item.id === "competencias");
+    expect(nova?.y).toBe(56); // abaixo de acessos (40 + 16)
+    for (const [i, a] of layout.entries()) {
+      for (const b of layout.slice(i + 1)) {
+        expect(a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y, `${a.id} × ${b.id}`).toBe(false);
+      }
+    }
+  });
+
+  it("painel novo sem colisão fica na posição padrão", () => {
+    const layout = normalizarLayoutPainelProjeto(
+      { versao: 5, itens: [{ id: "indicadores", x: 0, y: 5, w: 17, h: 5 }] },
+      ["indicadores", "competencias"],
+    );
+    expect(layout.find((item) => item.id === "competencias")).toEqual(layoutPadraoPainelProjeto(["competencias"])[0]);
+  });
+
+  it("layout salvo com sobreposição própria continua caindo no padrão", () => {
+    const layout = normalizarLayoutPainelProjeto(
+      {
+        versao: 5,
+        itens: [
+          { id: "indicadores", x: 0, y: 5, w: 17, h: 5 },
+          { id: "cronograma", x: 0, y: 6, w: 8, h: 7 },
+        ],
+      },
+      ["indicadores", "cronograma"],
+    );
+    expect(layout).toEqual(layoutPadraoPainelProjeto(["indicadores", "cronograma"]));
+  });
+
   // `normalizarLayoutPainelProjeto` cai no padrão quando o layout salvo se sobrepõe, mas não
   // valida o próprio padrão: um arranjo inicial inválido quebraria a grade de todo mundo em
   // silêncio. Como `layoutPadraoPainelProjeto` só REMOVE itens, checar todos cobre todo
