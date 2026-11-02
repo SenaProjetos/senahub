@@ -4,6 +4,7 @@ import {
   ausenciasPessoais,
   diasDaJanela,
   folgaNaJanela,
+  colunasMeses,
   colunasPorPeriodo,
   percentualCalculadoPorSemana,
   percentualDaCapacidade,
@@ -191,5 +192,15 @@ describe("folgaNaJanela", () => {
 
   it("ausente na janela toda não tem folga", () => {
     expect(folgaNaJanela(dias, 100, () => 0, semCronograma, () => true)).toEqual({ pico: 0, folga: 0, diasAusente: 7 });
+  });
+});
+
+describe("colunasMeses", () => {
+  it("começa no mês de hoje e traz todos os dias de cada mês", () => {
+    const colunas = colunasMeses("2026-11-02", 4);
+    expect(colunas.map((c) => c.chave)).toEqual(["2026-11", "2026-12", "2027-01", "2027-02"]);
+    expect(colunas.map((c) => c.dias.length)).toEqual([30, 31, 31, 28]);
+    expect(colunas[0].rotulo).toBe("nov/26");
+    expect(colunas[0].dias[0]).toBe("2026-11-01");
   });
 });

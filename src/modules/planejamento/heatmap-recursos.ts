@@ -90,6 +90,31 @@ export function colunasPorPeriodo(periodo: Exclude<PeriodoHeatmap, "meses">, hoj
   });
 }
 
+const MESES_CURTOS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"] as const;
+
+/**
+ * Colunas mensais a partir do mês de `hoje`: quatro meses cobrem as 12 semanas que a carga calculada
+ * das EAPs alcança. Calculado em UTC — `new Date(ano, mes, 1)` local perderia o dia 1.
+ */
+export function colunasMeses(hoje: string, quantidade: number): ColunaHeatmap[] {
+  const ano = Number(hoje.slice(0, 4));
+  const mes = Number(hoje.slice(5, 7)) - 1;
+  return Array.from({ length: quantidade }, (_, i) => {
+    const inicio = new Date(Date.UTC(ano, mes + i, 1));
+    const total = new Date(Date.UTC(ano, mes + i + 1, 0)).getUTCDate();
+    const a = inicio.getUTCFullYear();
+    const m = inicio.getUTCMonth();
+    const chave = `${a}-${String(m + 1).padStart(2, "0")}`;
+    const rotulo = `${MESES_CURTOS[m]}/${String(a).slice(2)}`;
+    return {
+      chave,
+      rotulo,
+      titulo: rotulo,
+      dias: Array.from({ length: total }, (_, d) => `${chave}-${String(d + 1).padStart(2, "0")}`),
+    };
+  });
+}
+
 export type PicoDoMes = { total: number; digitada: number; calculada: number };
 
 /**
