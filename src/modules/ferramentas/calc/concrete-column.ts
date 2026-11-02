@@ -18,6 +18,7 @@
 
 import { z } from "zod";
 import { parametrosConcreto, ACOS } from "./concrete-beam-flexure";
+import { fmtFixo } from "../memoria";
 
 const ES = 21000; // kN/cm² (210 GPa)
 
@@ -242,7 +243,7 @@ export function calcular(input: EntradaPilarInput): ResultadoPilar {
   let situacao: "ok" | "revisar" = viavel ? "ok" : "revisar";
   if (viavel && AsNec > As4pct) {
     situacao = "revisar";
-    alertas.push(`As (${AsNec.toFixed(2)} cm²) excede 4% Ac (${As4pct.toFixed(2)} cm²): só admissível em regiões de emenda — revisar a seção.`);
+    alertas.push(`As (${fmtFixo(AsNec, 2)} cm²) excede 4% Ac (${fmtFixo(As4pct, 2)} cm²): só admissível em regiões de emenda — revisar a seção.`);
   }
   if (AsNec <= AsMin + 1e-6 && interacaoDe(AsMin) <= 1) {
     alertas.push("Armadura mínima governa.");

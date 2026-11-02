@@ -10,9 +10,19 @@ import {
 } from "@/components/ui/select";
 import { DIAMETROS_PVC, type DimensionamentoMotor, type TrechoResultado } from "@/modules/ferramentas/calc/hidraulica";
 import { fmtNum } from "@/modules/ferramentas/memoria";
+import { Prop } from "./prop";
+
+export { Prop };
 
 /** Texto do formulário → número (aceita vírgula). Vazio dá NaN, que nunca passa em `> 0`. */
 export const num = (v: string) => (v.trim() === "" ? NaN : Number(v.replace(",", ".")));
+
+/** Campo que falta ou está fora da faixa: o `id` é o do input; `valor` é o que a pessoa digitou. */
+export type Pendencia = { id: string; texto: string; valor: string };
+export const pend = (id: string, valor: string, texto: string): Pendencia => ({ id, texto, valor });
+export const textoDasPendencias = (falta: Pendencia[]) => falta.map((f) => f.texto).join(", ");
+/** Só campo JÁ digitado e errado é `aria-invalid`: o formulário vazio não nasce todo marcado como inválido. */
+export const invalidosDigitados = (falta: Pendencia[]) => new Set(falta.filter((f) => f.valor.trim() !== "").map((f) => f.id));
 
 export const texto = (v: unknown, padrao: string) => (v != null ? String(v) : padrao);
 export const percentual = (v: unknown, padrao: string) =>
@@ -53,15 +63,6 @@ export function SelectDn({
   );
 }
 
-export function Prop({ simbolo, valor, un, destaque }: { simbolo: string; valor: string; un: string; destaque?: boolean }) {
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <span className="italic text-muted-foreground">{simbolo} =</span>
-      <span className={`font-mono ${destaque ? "font-semibold" : "font-medium"}`}>{valor}</span>
-      <span className="text-xs text-muted-foreground">{un}</span>
-    </div>
-  );
-}
 
 export function BlocoTrecho({ nome, t, automatico }: { nome: string; t: TrechoResultado; automatico: boolean }) {
   return (

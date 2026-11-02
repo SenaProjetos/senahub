@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { memoriaDoCalculo } from "@/modules/ferramentas/queries";
 import { renderMemoriaHtml } from "@/modules/ferramentas/memoria/render-html";
 import { htmlParaPdf } from "@/modules/ferramentas/memoria/render-pdf";
-import { slugCalculo } from "@/modules/ferramentas/export-util";
+import { respostaDeErroDeExportacao, slugCalculo } from "@/modules/ferramentas/export-util";
 
 /** PDF da memória de cálculo (puppeteer + setContent). */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -15,12 +15,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     if (!res) return new Response("Cálculo não encontrado.", { status: 404 });
     html = renderMemoriaHtml(res.doc);
     nome = slugCalculo(res.calc.titulo);
-  } catch {
-    return new Response("Não autorizado.", { status: 401 });
+  } catch (e) {
+    return respostaDeErroDeExportacao(e);
   }
 
   const pdf = await htmlParaPdf(html);
-  if (!pdf) return new Response("CHROME_PATH não configurado.", { status: 503 });
+  if (!pdf) return new Response("Não foi possível gerar o PDF neste servidor. Avise a equipe de TI.", { status: 503 });
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",

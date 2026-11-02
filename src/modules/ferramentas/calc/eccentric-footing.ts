@@ -21,6 +21,7 @@ import { ACOS } from "./concrete-beam-flexure";
 import { calcular as calcularViga } from "./concrete-beam-flexure";
 import { calcular as calcularSapata } from "./footing";
 import { armaduraFaixa } from "./slab-bares";
+import { fmtFixo } from "../memoria";
 
 const acoEnum = z.enum(["CA-25", "CA-50", "CA-60"]);
 
@@ -123,10 +124,10 @@ function calcularIsolada(v: z.infer<typeof isoladaSchema>): ResultadoIsolada {
     const xM = 3 * (aM / 2 - e / 100);
     sigmaMax = xM > 0 ? (2 * v.nk) / (bM * xM) : Infinity;
     sigmaMin = 0;
-    alertas.push(`Excentricidade e (${e.toFixed(1)} cm) > a/6 (${emax.toFixed(1)} cm): há descolamento (diagrama triangular).`);
+    alertas.push(`Excentricidade e (${fmtFixo(e, 1)} cm) > a/6 (${fmtFixo(emax, 1)} cm): há descolamento (diagrama triangular).`);
   }
   const sigmaOk = sigmaMax <= v.sigmaAdm * 1.001;
-  if (!sigmaOk) alertas.push(`σmax (${sigmaMax.toFixed(0)} kPa) > σadm (${v.sigmaAdm} kPa): aumentar a base ou reduzir a excentricidade.`);
+  if (!sigmaOk) alertas.push(`σmax (${fmtFixo(sigmaMax, 0)} kPa) > σadm (${v.sigmaAdm} kPa): aumentar a base ou reduzir a excentricidade.`);
 
   // Armadura: flexão no balanço com a pressão do lado mais carregado (conservador), σ de cálculo.
   const d = v.h - v.dLinha;
@@ -173,7 +174,7 @@ function calcularViga2(v: z.infer<typeof vigaSchema>): ResultadoViga {
   let b1 = arred5((areaReq1 / a1M) * 100); // cm
   b1 = Math.max(b1, v.ap1 + 10);
   const sigma1 = (r1 * 1.05) / (a1M * (b1 / 100));
-  if (sigma1 > v.sigmaAdm * 1.001) alertas.push(`σ1 (${sigma1.toFixed(0)} kPa) > σadm — aumentar a sapata de divisa.`);
+  if (sigma1 > v.sigmaAdm * 1.001) alertas.push(`σ1 (${fmtFixo(sigma1, 0)} kPa) > σadm — aumentar a sapata de divisa.`);
 
   // Sapata interna: via E21 (concêntrica, carga R2).
   const hSap2 = Math.max(30, arred5(v.ap1));

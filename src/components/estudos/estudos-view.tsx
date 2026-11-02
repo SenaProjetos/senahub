@@ -75,7 +75,7 @@ export function EstudosView({ projetoId, estudos, podeEditar, emValidacao }: Pro
       {podeEditar && noLimite && <p className="text-xs text-muted-foreground">{MOTIVO_LIMITE_ESTUDOS}</p>}
 
       {emValidacao && (
-        <p role="status" className="flex items-start gap-2 rounded-md border border-warning/40 p-3 text-sm text-warning">
+        <p role="status" className="flex items-start gap-2 rounded-md border border-warning/40 p-3 text-sm text-warning-text">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           <span>
             <strong className="font-semibold">Motor em validação.</strong> {AVISO_EM_VALIDACAO} Só quem gere as ferramentas vê esta aba por enquanto.

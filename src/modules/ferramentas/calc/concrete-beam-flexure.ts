@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import { fmtFixo } from "../memoria";
 
 const ES = 21000; // módulo de elasticidade do aço, kN/cm² (210 GPa)
 
@@ -205,11 +206,11 @@ export function calcular(input: EntradaFlexaoInput): ResultadoFlexao {
   let situacao: "ok" | "revisar" = "ok";
   if (dupla) alertas.push("Seção exige armadura dupla (As'). Considere aumentar a altura para economia de aço.");
   if (As < AsMin) {
-    alertas.push(`As calculado (${As.toFixed(2)} cm²) < As,mín (${AsMin.toFixed(2)} cm²): adotar As,mín.`);
+    alertas.push(`As calculado (${fmtFixo(As, 2)} cm²) < As,mín (${fmtFixo(AsMin, 2)} cm²): adotar As,mín.`);
   }
   if (As + AsLinha > AsMax) {
     situacao = "revisar";
-    alertas.push(`As + As' (${(As + AsLinha).toFixed(2)} cm²) excede As,máx = 4% Ac (${AsMax.toFixed(2)} cm²): redimensionar a seção.`);
+    alertas.push(`As + As' (${fmtFixo((As + AsLinha), 2)} cm²) excede As,máx = 4% Ac (${fmtFixo(AsMax, 2)} cm²): redimensionar a seção.`);
   }
   if (dominio === "4") {
     situacao = "revisar";

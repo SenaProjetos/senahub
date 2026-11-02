@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createRequire } from "node:module";
 import { memoriaDoCalculo } from "@/modules/ferramentas/queries";
 import { preencherWorkbookMemoria } from "@/modules/ferramentas/memoria/render-xlsx";
-import { slugCalculo } from "@/modules/ferramentas/export-util";
+import { respostaDeErroDeExportacao, slugCalculo } from "@/modules/ferramentas/export-util";
 
 const require = createRequire(import.meta.url);
 // exceljs é CommonJS — evita problema de default export no Turbopack.
@@ -24,7 +24,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         "Content-Disposition": `attachment; filename="${slugCalculo(res.calc.titulo)}.xlsx"`,
       },
     });
-  } catch {
-    return new Response("Não autorizado.", { status: 401 });
+  } catch (e) {
+    return respostaDeErroDeExportacao(e);
   }
 }

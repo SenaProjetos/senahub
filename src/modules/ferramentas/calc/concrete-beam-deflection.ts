@@ -6,6 +6,8 @@
  * (coeficiente 5/48 sobre Ma·L²/(Ecs·Ieq)). Flecha diferida por fluência: δ∞ = δi·(1+αf).
  */
 
+import { fmtFixo } from "../memoria";
+
 const ES = 21000; // kN/cm² (210 GPa)
 
 type SecaoDefl =
@@ -138,7 +140,7 @@ export function calcularFlecha(p: ParamsFlecha): ResultadoFlecha {
   const alertas: string[] = [];
   if (situacao === "revisar") {
     alertas.push(
-      `Flecha total (${flechaTotal.toFixed(2)} cm) excede o limite L/250 (${limite.toFixed(2)} cm): aumentar a altura ou a armadura.`,
+      `Flecha total (${fmtFixo(flechaTotal, 2)} cm) excede o limite L/250 (${fmtFixo(limite, 2)} cm): aumentar a altura ou a armadura.`,
     );
   }
 

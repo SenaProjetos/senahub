@@ -109,6 +109,23 @@ export function montarCarga(l: Linha, nome: string): ResultadoCarga {
   };
 }
 
+/**
+ * Campos da linha que já foram digitados e estão errados (para `aria-invalid`). Campo vazio não conta,
+ * exceto a potência quando a pessoa já descreveu a carga: sem ela a linha não entra no cálculo.
+ */
+export function camposInvalidos(l: Linha): Set<keyof Linha> {
+  const invalidos = new Set<keyof Linha>();
+  const digitado = (v: string) => v.trim() !== "";
+  const q = num(l.quantidade);
+  if (digitado(l.quantidade) && !(Number.isInteger(q) && q > 0)) invalidos.add("quantidade");
+  if ((digitado(l.potenciaW) || digitado(l.descricao)) && !(num(l.potenciaW) > 0)) invalidos.add("potenciaW");
+  if (digitado(l.tensaoV) && !(num(l.tensaoV) > 0)) invalidos.add("tensaoV");
+  if (digitado(l.fp) && !(num(l.fp) > 0 && num(l.fp) <= 1)) invalidos.add("fp");
+  if (digitado(l.rendimento) && !(num(l.rendimento) > 0 && num(l.rendimento) <= 1)) invalidos.add("rendimento");
+  if (digitado(l.fdPct) && !(num(l.fdPct) / 100 > 0 && num(l.fdPct) / 100 <= 1)) invalidos.add("fdPct");
+  return invalidos;
+}
+
 type Condicoes = Omit<EntradaDemandaInput, "cargas">;
 export type ResultadoCondicoes = { condicoes: Condicoes; erro?: undefined } | { condicoes?: undefined; erro: string };
 

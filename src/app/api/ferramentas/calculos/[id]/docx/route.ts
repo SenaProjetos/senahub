@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { Packer } from "docx";
 import { memoriaDoCalculo } from "@/modules/ferramentas/queries";
 import { renderMemoriaDocx } from "@/modules/ferramentas/memoria/render-docx";
-import { slugCalculo } from "@/modules/ferramentas/export-util";
+import { respostaDeErroDeExportacao, slugCalculo } from "@/modules/ferramentas/export-util";
 
 /** Memória de cálculo em Word (.docx). */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -17,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         "Content-Disposition": `attachment; filename="${slugCalculo(res.calc.titulo)}.docx"`,
       },
     });
-  } catch {
-    return new Response("Não autorizado.", { status: 401 });
+  } catch (e) {
+    return respostaDeErroDeExportacao(e);
   }
 }

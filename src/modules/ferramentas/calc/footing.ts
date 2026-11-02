@@ -16,6 +16,7 @@ import { z } from "zod";
 import { ACOS } from "./concrete-beam-flexure";
 import { armaduraFaixa } from "./slab-bares";
 import { calcular as calcularPuncao, type ResultadoPuncao } from "./punching";
+import { fmtFixo } from "../memoria";
 
 export const entradaSchema = z.object({
   nk: z.number().positive(), // kN — carga característica do pilar
@@ -85,7 +86,7 @@ export function calcular(input: EntradaSapataInput): ResultadoSapata {
   const area = (a / 100) * (b / 100); // m²
   const sigmaSolo = nkTotal / area; // kPa
   const sigmaOk = sigmaSolo <= v.sigmaAdm * 1.001;
-  if (!sigmaOk) alertas.push(`σsolo (${sigmaSolo.toFixed(0)} kPa) > σadm (${v.sigmaAdm} kPa): aumentar a base.`);
+  if (!sigmaOk) alertas.push(`σsolo (${fmtFixo(sigmaSolo, 0)} kPa) > σadm (${v.sigmaAdm} kPa): aumentar a base.`);
 
   // 2. Rigidez (22.6.1).
   const d = v.h - v.dLinha;

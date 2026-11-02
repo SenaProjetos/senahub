@@ -61,7 +61,14 @@ export const salvarCalculo = defineAction(
     }
 
     // Recalcula no servidor — não confia no resultado que veio do cliente.
-    const resultado = calcular(i.ferramenta, i.entradas);
+    let resultado: ReturnType<typeof calcular>;
+    try {
+      resultado = calcular(i.ferramenta, i.entradas);
+    } catch (e) {
+      // Entrada que o motor recusa (arquivo importado corrompido, campo fora da faixa): diz o que é.
+      if (e instanceof z.ZodError) throw new ActionError(`Dados inválidos: ${e.issues[0]?.message ?? "confira os campos."}`);
+      throw e;
+    }
     const snapshot = snapshotParaSalvar(
       i.ferramenta,
       i.titulo,

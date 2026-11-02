@@ -59,6 +59,7 @@ import {
 } from "@/modules/ferramentas/acoes-carga";
 import { novaLinha, type Linha } from "@/modules/ferramentas/carga-linha";
 import { fmtNum } from "@/modules/ferramentas/memoria";
+import { AlertaCalculo } from "@/components/ferramentas/alerta-calculo";
 
 type Alteracao = { id: string; quando: Date; quem: string; oQue: string };
 
@@ -275,7 +276,7 @@ export function EstudoEditor({ projetoId, estudo, conteudoInicial, podeEditar, e
           />
         </div>
         {!podeEditar && <Badge variant="outline">Somente leitura</Badge>}
-        {podeEditar && alterado && <Badge variant="outline" className="border-warning/40 text-warning">Alterações não salvas</Badge>}
+        {podeEditar && alterado && <Badge variant="outline" className="border-warning/40 text-warning-text">Alterações não salvas</Badge>}
         {podeEditar && (
           <Button
             type="button"
@@ -297,7 +298,7 @@ export function EstudoEditor({ projetoId, estudo, conteudoInicial, podeEditar, e
       </p>
 
       {emValidacao && (
-        <p role="status" className="flex items-start gap-2 rounded-md border border-warning/40 p-3 text-sm text-warning">
+        <p role="status" className="flex items-start gap-2 rounded-md border border-warning/40 p-3 text-sm text-warning-text">
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           <span>
             <strong className="font-semibold">Motor em validação.</strong> {AVISO_EM_VALIDACAO} Só quem gere as ferramentas vê esta aba por enquanto.
@@ -475,13 +476,13 @@ export function EstudoEditor({ projetoId, estudo, conteudoInicial, podeEditar, e
       </fieldset>
 
       {erro && (
-        <p id="est-erro" role="status" className="rounded-lg border border-dashed border-warning/40 p-4 text-sm text-warning">
+        <p id="est-erro" role="status" className="rounded-lg border border-dashed border-warning/40 p-4 text-sm text-warning-text">
           {erro}
         </p>
       )}
 
       {!montagem.erro && !total && (
-        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Lance ao menos uma carga para ver a demanda do estudo.</p>
+        <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Lance ao menos uma carga para ver a demanda do estudo.</p>
       )}
 
       {resultado && total && (
@@ -557,7 +558,7 @@ export function EstudoEditor({ projetoId, estudo, conteudoInicial, podeEditar, e
             <Prop simbolo="I total" valor={fmtNum(total.correnteTotalA, 1)} un="A" destaque />
           </div>
           {total.alertas.map((al) => (
-            <p key={al} className="text-xs text-warning">{al}</p>
+            <AlertaCalculo key={al}>{al}</AlertaCalculo>
           ))}
 
           <CollapsibleSection titulo="Corrente por carga" descricao="Ib de projeto e Ib′ corrigida por FCT × FCA, para comparar com a capacidade de condução.">

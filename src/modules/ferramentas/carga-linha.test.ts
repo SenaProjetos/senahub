@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { calcular } from "./calc/electrical-demand";
-import { geralInicial, linhaDeCarga, linhasIniciais, montarCarga, montarCondicoes, montarEntrada, novaLinha } from "./carga-linha";
+import { camposInvalidos, geralInicial, linhaDeCarga, linhasIniciais, montarCarga, montarCondicoes, montarEntrada, novaLinha } from "./carga-linha";
 
 const valida = () => novaLinha({ descricao: "Chuveiro", potenciaW: "5500", tensaoV: "220" });
 
@@ -51,6 +51,25 @@ describe("montarCondicoes / montarEntrada", () => {
 
   it("a primeira carga com problema é a que a tela cita (numerada pela posição)", () => {
     expect(montarEntrada([valida(), novaLinha()], geralInicial()).erro).toBe("Carga 2: informe a potência unitária em W.");
+  });
+});
+
+describe("camposInvalidos (aria-invalid)", () => {
+  it("linha nova e vazia não vem marcada como inválida", () => {
+    expect(camposInvalidos(novaLinha()).size).toBe(0);
+  });
+
+  it("só marca o que foi digitado e está fora da regra", () => {
+    const l = novaLinha({ descricao: "Forno", potenciaW: "2000", fp: "1,2", rendimento: "0", fdPct: "150", quantidade: "1,5" });
+    expect([...camposInvalidos(l)].sort()).toEqual(["fdPct", "fp", "quantidade", "rendimento"]);
+  });
+
+  it("descrita sem potência: a potência é sinalizada", () => {
+    expect([...camposInvalidos(novaLinha({ descricao: "Chuveiro" }))]).toEqual(["potenciaW"]);
+  });
+
+  it("linha válida não tem campo inválido", () => {
+    expect(camposInvalidos(valida()).size).toBe(0);
   });
 });
 

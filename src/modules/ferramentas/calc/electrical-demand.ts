@@ -16,6 +16,7 @@
  */
 
 import { z } from "zod";
+import { fmtFixo } from "../memoria";
 
 /** Tabela 40 — fator de correção de temperatura ambiente (referência 30 °C). */
 export const FCT_TABELA = {
@@ -137,7 +138,7 @@ export function calcular(input: EntradaDemandaInput): ResultadoDemanda {
   const fca = e.fcaManual ?? fatorAgrupamento(e.circuitosAgrupados);
   const fator = fct * fca;
   if (fator < 0.5) {
-    alertas.push(`FCT × FCA = ${fator.toFixed(2)}: a corrente corrigida dobra a de projeto. Reveja o agrupamento ou a temperatura.`);
+    alertas.push(`FCT × FCA = ${fmtFixo(fator, 2)}: a corrente corrigida dobra a de projeto. Reveja o agrupamento ou a temperatura.`);
   }
 
   const linhas: LinhaDemanda[] = e.cargas.map((c) => {

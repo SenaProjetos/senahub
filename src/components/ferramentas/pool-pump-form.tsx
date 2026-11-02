@@ -14,7 +14,8 @@ import {
 import { calcular, CHAVES_USO, FORMAS, USOS, type EntradaPiscinaInput } from "@/modules/ferramentas/calc/pool-pump";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
-import { BlocoMotor, BlocoTrecho, Prop, SelectDn, num, percentual, texto } from "./hidraulica-campos";
+import { BlocoMotor, BlocoTrecho, Pendencia, Prop, SelectDn, invalidosDigitados, num, pend, percentual, texto, textoDasPendencias } from "./hidraulica-campos";
+import { AlertaCalculo } from "./alerta-calculo";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -65,23 +66,23 @@ function estadoInicial(e?: Record<string, unknown>): Estado {
 }
 
 /** Campos que faltam ou estão fora da faixa, nomeados para a orientação da tela. */
-function pendencias(st: Estado): string[] {
-  const p: string[] = [];
+function pendencias(st: Estado): Pendencia[] {
+  const p: Pendencia[] = [];
   const dentro = (v: string, min: number, max: number) => num(v) >= min && num(v) <= max;
   if (st.forma === "volume") {
-    if (!(num(st.volume) > 0)) p.push("volume");
+    if (!(num(st.volume) > 0)) p.push(pend("h03-vol", st.volume, "volume"));
   } else {
     if (st.forma === "retangular") {
-      if (!(num(st.comprimento) > 0)) p.push("comprimento da piscina");
-      if (!(num(st.largura) > 0)) p.push("largura da piscina");
-    } else if (!(num(st.diametro) > 0)) p.push("diâmetro da piscina");
-    if (!(num(st.profundidade) > 0)) p.push("profundidade média");
+      if (!(num(st.comprimento) > 0)) p.push(pend("h03-comp", st.comprimento, "comprimento da piscina"));
+      if (!(num(st.largura) > 0)) p.push(pend("h03-larg", st.largura, "largura da piscina"));
+    } else if (!(num(st.diametro) > 0)) p.push(pend("h03-diam", st.diametro, "diâmetro da piscina"));
+    if (!(num(st.profundidade) > 0)) p.push(pend("h03-prof", st.profundidade, "profundidade média"));
   }
-  if (st.horas.trim() !== "" && !(num(st.horas) > 0 && num(st.horas) <= 24)) p.push("tempo de recirculação (até 24 h)");
-  if (!(num(st.compSuccao) > 0)) p.push("comprimento da sucção");
-  if (!(num(st.compRetorno) > 0)) p.push("comprimento do retorno");
-  if (!dentro(st.coef, 60, 160)) p.push("coeficiente C (60 a 160)");
-  if (!dentro(st.rendimento, 10, 95)) p.push("rendimento (10 a 95 %)");
+  if (st.horas.trim() !== "" && !(num(st.horas) > 0 && num(st.horas) <= 24)) p.push(pend("h03-horas", st.horas, "tempo de recirculação (até 24 h)"));
+  if (!(num(st.compSuccao) > 0)) p.push(pend("h03-ls", st.compSuccao, "comprimento da sucção"));
+  if (!(num(st.compRetorno) > 0)) p.push(pend("h03-lr", st.compRetorno, "comprimento do retorno"));
+  if (!dentro(st.coef, 60, 160)) p.push(pend("h03-coef", st.coef, "coeficiente C (60 a 160)"));
+  if (!dentro(st.rendimento, 10, 95)) p.push(pend("h03-eta", st.rendimento, "rendimento (10 a 95 %)"));
   return p;
 }
 
@@ -123,9 +124,10 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
 
   const set = (k: keyof Estado) => (v: string) => setSt((a) => ({ ...a, [k]: v }));
 
+  const invalidos = useMemo(() => invalidosDigitados(pendencias(st)), [st]);
   const { entrada, resultado, orientacao } = useMemo(() => {
     const falta = pendencias(st);
-    if (falta.length > 0) return { entrada: null, resultado: null, orientacao: `Falta informar ou corrigir: ${falta.join(", ")}.` };
+    if (falta.length > 0) return { entrada: null, resultado: null, orientacao: `Falta informar ou corrigir: ${textoDasPendencias(falta)}.` };
     const e = montarEntrada(st);
     try {
       return { entrada: e, resultado: calcular(e), orientacao: null };
@@ -156,29 +158,29 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
             <>
               <div className="space-y-1.5">
                 <Label htmlFor="h03-comp">Comprimento (m)</Label>
-                <Input id="h03-comp" type="number" step="0.1" value={st.comprimento} onChange={(e) => set("comprimento")(e.target.value)} className="font-mono" />
+                <Input id="h03-comp" aria-invalid={invalidos.has("h03-comp") || undefined} type="number" step="0.1" value={st.comprimento} onChange={(e) => set("comprimento")(e.target.value)} className="font-mono" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="h03-larg">Largura (m)</Label>
-                <Input id="h03-larg" type="number" step="0.1" value={st.largura} onChange={(e) => set("largura")(e.target.value)} className="font-mono" />
+                <Input id="h03-larg" aria-invalid={invalidos.has("h03-larg") || undefined} type="number" step="0.1" value={st.largura} onChange={(e) => set("largura")(e.target.value)} className="font-mono" />
               </div>
             </>
           )}
           {st.forma === "circular" && (
             <div className="space-y-1.5">
               <Label htmlFor="h03-diam">Diâmetro (m)</Label>
-              <Input id="h03-diam" type="number" step="0.1" value={st.diametro} onChange={(e) => set("diametro")(e.target.value)} className="font-mono" />
+              <Input id="h03-diam" aria-invalid={invalidos.has("h03-diam") || undefined} type="number" step="0.1" value={st.diametro} onChange={(e) => set("diametro")(e.target.value)} className="font-mono" />
             </div>
           )}
           {st.forma === "volume" ? (
             <div className="space-y-1.5">
               <Label htmlFor="h03-vol">Volume (m³)</Label>
-              <Input id="h03-vol" type="number" value={st.volume} onChange={(e) => set("volume")(e.target.value)} className="font-mono" />
+              <Input id="h03-vol" aria-invalid={invalidos.has("h03-vol") || undefined} type="number" value={st.volume} onChange={(e) => set("volume")(e.target.value)} className="font-mono" />
             </div>
           ) : (
             <div className="space-y-1.5">
               <Label htmlFor="h03-prof">Profundidade média (m)</Label>
-              <Input id="h03-prof" type="number" step="0.1" value={st.profundidade} onChange={(e) => set("profundidade")(e.target.value)} className="font-mono" />
+              <Input id="h03-prof" aria-invalid={invalidos.has("h03-prof") || undefined} type="number" step="0.1" value={st.profundidade} onChange={(e) => set("profundidade")(e.target.value)} className="font-mono" />
             </div>
           )}
           <div className="space-y-1.5">
@@ -194,7 +196,7 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h03-horas">Tempo de recirculação (h)</Label>
-            <Input id="h03-horas" type="number" step="0.5" value={st.horas} onChange={(e) => set("horas")(e.target.value)} className="font-mono" placeholder={uso ? String(uso.horas) : ""} />
+            <Input id="h03-horas" aria-invalid={invalidos.has("h03-horas") || undefined} type="number" step="0.5" value={st.horas} onChange={(e) => set("horas")(e.target.value)} className="font-mono" placeholder={uso ? String(uso.horas) : ""} />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -207,7 +209,7 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h03-ls">Sucção: comprimento (m)</Label>
-            <Input id="h03-ls" type="number" step="0.1" value={st.compSuccao} onChange={(e) => set("compSuccao")(e.target.value)} className="font-mono" />
+            <Input id="h03-ls" aria-invalid={invalidos.has("h03-ls") || undefined} type="number" step="0.1" value={st.compSuccao} onChange={(e) => set("compSuccao")(e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h03-les">Sucção: comprimento equivalente das conexões (m)</Label>
@@ -216,7 +218,7 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
           <SelectDn id="h03-dns" rotulo="Diâmetro da sucção" valor={st.dnSuccao} onChange={set("dnSuccao")} adotado={resultado?.succao.dn ?? null} />
           <div className="space-y-1.5">
             <Label htmlFor="h03-lr">Retorno: comprimento (m)</Label>
-            <Input id="h03-lr" type="number" step="0.1" value={st.compRetorno} onChange={(e) => set("compRetorno")(e.target.value)} className="font-mono" />
+            <Input id="h03-lr" aria-invalid={invalidos.has("h03-lr") || undefined} type="number" step="0.1" value={st.compRetorno} onChange={(e) => set("compRetorno")(e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h03-ler">Retorno: comprimento equivalente das conexões (m)</Label>
@@ -225,7 +227,7 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
           <SelectDn id="h03-dnr" rotulo="Diâmetro do retorno" valor={st.dnRetorno} onChange={set("dnRetorno")} adotado={resultado?.retorno.dn ?? null} />
           <div className="space-y-1.5">
             <Label htmlFor="h03-coef">Coeficiente C (Hazen-Williams)</Label>
-            <Input id="h03-coef" type="number" value={st.coef} onChange={(e) => set("coef")(e.target.value)} className="font-mono" />
+            <Input id="h03-coef" aria-invalid={invalidos.has("h03-coef") || undefined} type="number" value={st.coef} onChange={(e) => set("coef")(e.target.value)} className="font-mono" />
           </div>
         </div>
       </section>
@@ -247,7 +249,7 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h03-eta">Rendimento (%)</Label>
-            <Input id="h03-eta" type="number" value={st.rendimento} onChange={(e) => set("rendimento")(e.target.value)} className="font-mono" />
+            <Input id="h03-eta" aria-invalid={invalidos.has("h03-eta") || undefined} type="number" value={st.rendimento} onChange={(e) => set("rendimento")(e.target.value)} className="font-mono" />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -256,7 +258,7 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
       </section>
 
       {!resultado && orientacao && (
-        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>
+        <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>
       )}
 
       {resultado && (
@@ -277,7 +279,7 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
           </div>
           <BlocoMotor m={resultado.motor} />
           {resultado.alertas.map((a) => (
-            <p key={a} className="text-xs text-warning">{a}</p>
+            <AlertaCalculo key={a}>{a}</AlertaCalculo>
           ))}
         </div>
       )}

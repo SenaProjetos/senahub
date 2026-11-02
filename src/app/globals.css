@@ -45,6 +45,10 @@
   --color-warning-foreground: var(--warning-foreground);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  /* Variantes para TEXTO PEQUENO sobre fundo claro/escuro/muted: contraste AA (>= 4,5:1) medido em background, card e muted. */
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-info-text: var(--info-text);
   /* Status de disciplina (identidade do sistema) */
   --color-status-aguardando: var(--status-aguardando);
   --color-status-andamento: var(--status-andamento);
@@ -97,6 +101,9 @@
   --warning-foreground: #ffffff;
   --info: #2e7d96;
   --info-foreground: #ffffff;
+  --success-text: #387059;
+  --warning-text: #816124;
+  --info-text: #286e84;
   --status-aguardando: #6a5bb8;
   --status-andamento: #2e7d96;
   --status-revisao: #b0507a;
@@ -151,6 +158,9 @@
   --warning-foreground: #0d1428;
   --info: #4e9bb0;
   --info-foreground: #0d1428;
+  --success-text: #62a587;
+  --warning-text: #c29a4b;
+  --info-text: #52a3b9;
   --status-aguardando: #8b7fc7;
   --status-andamento: #4e9bb0;
   --status-revisao: #c76e94;

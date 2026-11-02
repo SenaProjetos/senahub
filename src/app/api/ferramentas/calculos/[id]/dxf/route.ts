@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { abrirCalculo } from "@/modules/ferramentas/queries";
 import { desenharDxf } from "@/modules/ferramentas/dxf";
-import { slugCalculo } from "@/modules/ferramentas/export-util";
+import { respostaDeErroDeExportacao, slugCalculo } from "@/modules/ferramentas/export-util";
 
 /** DXF do desenho da ferramenta (dispatcher por ferramenta). */
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         "Content-Disposition": `attachment; filename="${slugCalculo(calc.titulo)}.dxf"`,
       },
     });
-  } catch {
-    return new Response("Não autorizado.", { status: 401 });
+  } catch (e) {
+    return respostaDeErroDeExportacao(e);
   }
 }

@@ -21,11 +21,12 @@ import {
 } from "@/modules/ferramentas/calc/reservoir";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
+import { percentual, texto } from "./hidraulica-campos";
+import { Prop } from "./prop";
+import { AlertaCalculo } from "./alerta-calculo";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
-const s = (v: unknown, d: string) => (v != null ? String(v) : d);
-const pct = (v: unknown, d: string) => (typeof v === "number" ? String(Math.round(v * 1000) / 10) : d);
 
 type Estado = {
   ocupacao: string;
@@ -46,22 +47,36 @@ type Estado = {
 
 function estadoInicial(e?: Record<string, unknown>): Estado {
   return {
-    ocupacao: s(e?.ocupacao, "residencia_media"),
-    unidades: s(e?.unidades, ""),
-    consumo: s(e?.consumoLitrosDia, ""),
-    dias: s(e?.diasReserva, "2"),
-    sistema: s(e?.sistema, "inferior_superior"),
-    fracaoInferior: pct(e?.fracaoInferior, "60"),
-    rtiModo: s(e?.rtiModo, "nenhuma"),
-    rtiVolume: s(e?.rtiVolumeM3, ""),
-    rtiHidrantes: s(e?.rtiHidrantes, ""),
-    rtiVazao: s(e?.rtiVazaoLMin, ""),
-    rtiMinutos: s(e?.rtiMinutos, ""),
-    rtiEm: s(e?.rtiEm, "superior"),
-    alturaInferior: s(e?.alturaUtilInferiorM, ""),
-    alturaSuperior: s(e?.alturaUtilSuperiorM, ""),
+    ocupacao: texto(e?.ocupacao, "residencia_media"),
+    unidades: texto(e?.unidades, ""),
+    consumo: texto(e?.consumoLitrosDia, ""),
+    dias: texto(e?.diasReserva, "2"),
+    sistema: texto(e?.sistema, "inferior_superior"),
+    fracaoInferior: percentual(e?.fracaoInferior, "60"),
+    rtiModo: texto(e?.rtiModo, "nenhuma"),
+    rtiVolume: texto(e?.rtiVolumeM3, ""),
+    rtiHidrantes: texto(e?.rtiHidrantes, ""),
+    rtiVazao: texto(e?.rtiVazaoLMin, ""),
+    rtiMinutos: texto(e?.rtiMinutos, ""),
+    rtiEm: texto(e?.rtiEm, "superior"),
+    alturaInferior: texto(e?.alturaUtilInferiorM, ""),
+    alturaSuperior: texto(e?.alturaUtilSuperiorM, ""),
   };
 }
+
+/** Campo do esquema do motor → id do input, para marcar `aria-invalid` no campo que o erro cita. */
+const CAMPO_DO_ESQUEMA: Record<string, string> = {
+  unidades: "h01-unidades",
+  diasReserva: "h01-dias",
+  consumoLitrosDia: "h01-consumo",
+  fracaoInferior: "h01-fracao",
+  alturaUtilInferiorM: "h01-hinf",
+  alturaUtilSuperiorM: "h01-hsup",
+  rtiVolumeM3: "h01-rti",
+  rtiHidrantes: "h01-hid",
+  rtiVazaoLMin: "h01-vaz",
+  rtiMinutos: "h01-min",
+};
 
 function montarEntrada(st: Estado): EntradaReservatorioInput | null {
   const n = (v: string) => Number(v.replace(",", "."));
@@ -95,15 +110,23 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
   const set = (k: keyof Estado) => (v: string) => setSt((a) => ({ ...a, [k]: v }));
 
   const entrada = useMemo(() => montarEntrada(st), [st]);
-  const { resultado, orientacao } = useMemo(() => {
-    if (!entrada) return { resultado: null, orientacao: "Informe a quantidade de unidades e os dias de reserva." };
+  const { resultado, orientacao, invalidos } = useMemo(() => {
+    // `aria-invalid` só no campo já digitado e errado (o formulário vazio não nasce todo marcado).
+    const digitadoErrado = (v: string) => v.trim() !== "" && !(Number(v.replace(",", ".")) > 0);
+    const invalidosBase = new Set([
+      ...(digitadoErrado(st.unidades) ? ["h01-unidades"] : []),
+      ...(digitadoErrado(st.dias) ? ["h01-dias"] : []),
+    ]);
+    if (!entrada) return { resultado: null, orientacao: "Informe a quantidade de unidades e os dias de reserva.", invalidos: invalidosBase };
     try {
-      return { resultado: calcular(entrada), orientacao: null };
+      return { resultado: calcular(entrada), orientacao: null, invalidos: invalidosBase };
     } catch (e) {
       // As mensagens do esquema já dizem o que falta ("Informe o consumo por unidade.").
-      return { resultado: null, orientacao: e instanceof ZodError ? (e.issues[0]?.message ?? null) : "Não foi possível calcular." };
+      if (!(e instanceof ZodError)) return { resultado: null, orientacao: "Não foi possível calcular.", invalidos: invalidosBase };
+      const dosIssues = e.issues.map((i) => CAMPO_DO_ESQUEMA[String(i.path[0])]).filter((id): id is string => !!id);
+      return { resultado: null, orientacao: e.issues[0]?.message ?? null, invalidos: new Set([...invalidosBase, ...dosIssues]) };
     }
-  }, [entrada]);
+  }, [entrada, st.unidades, st.dias]);
 
   const ocup = st.ocupacao === "personalizado" ? null : OCUPACOES[st.ocupacao as keyof typeof OCUPACOES];
   const doisReservatorios = st.sistema === "inferior_superior";
@@ -127,12 +150,13 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h01-unidades">Quantidade{ocup ? ` (${ocup.unidade})` : ""}</Label>
-            <Input id="h01-unidades" type="number" value={st.unidades} onChange={(e) => set("unidades")(e.target.value)} className="font-mono" />
+            <Input id="h01-unidades" aria-invalid={invalidos.has("h01-unidades") || undefined} type="number" value={st.unidades} onChange={(e) => set("unidades")(e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h01-consumo">Consumo (L/dia por unidade)</Label>
             <Input
               id="h01-consumo"
+              aria-invalid={invalidos.has("h01-consumo") || undefined}
               type="number"
               value={st.consumo}
               placeholder={ocup ? String(ocup.litrosPorDia) : "informe"}
@@ -151,7 +175,7 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h01-dias">Dias de reserva</Label>
-            <Input id="h01-dias" type="number" step="0.5" value={st.dias} onChange={(e) => set("dias")(e.target.value)} className="font-mono" />
+            <Input id="h01-dias" aria-invalid={invalidos.has("h01-dias") || undefined} type="number" step="0.5" value={st.dias} onChange={(e) => set("dias")(e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label>Sistema</Label>
@@ -167,7 +191,7 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
           {doisReservatorios && (
             <div className="space-y-1.5">
               <Label htmlFor="h01-fracao">Parcela no inferior (%)</Label>
-              <Input id="h01-fracao" type="number" value={st.fracaoInferior} onChange={(e) => set("fracaoInferior")(e.target.value)} className="font-mono" />
+              <Input id="h01-fracao" aria-invalid={invalidos.has("h01-fracao") || undefined} type="number" value={st.fracaoInferior} onChange={(e) => set("fracaoInferior")(e.target.value)} className="font-mono" />
             </div>
           )}
         </div>
@@ -175,13 +199,13 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
           {st.sistema !== "somente_superior" && (
             <div className="space-y-1.5">
               <Label htmlFor="h01-hinf">Altura útil do inferior (m)</Label>
-              <Input id="h01-hinf" type="number" step="0.1" value={st.alturaInferior} onChange={(e) => set("alturaInferior")(e.target.value)} className="font-mono" placeholder="opcional" />
+              <Input id="h01-hinf" aria-invalid={invalidos.has("h01-hinf") || undefined} type="number" step="0.1" value={st.alturaInferior} onChange={(e) => set("alturaInferior")(e.target.value)} className="font-mono" placeholder="opcional" />
             </div>
           )}
           {st.sistema !== "somente_inferior" && (
             <div className="space-y-1.5">
               <Label htmlFor="h01-hsup">Altura útil do superior (m)</Label>
-              <Input id="h01-hsup" type="number" step="0.1" value={st.alturaSuperior} onChange={(e) => set("alturaSuperior")(e.target.value)} className="font-mono" placeholder="opcional" />
+              <Input id="h01-hsup" aria-invalid={invalidos.has("h01-hsup") || undefined} type="number" step="0.1" value={st.alturaSuperior} onChange={(e) => set("alturaSuperior")(e.target.value)} className="font-mono" placeholder="opcional" />
             </div>
           )}
         </div>
@@ -204,22 +228,22 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
           {st.rtiModo === "informada" && (
             <div className="space-y-1.5">
               <Label htmlFor="h01-rti">Volume (m³)</Label>
-              <Input id="h01-rti" type="number" value={st.rtiVolume} onChange={(e) => set("rtiVolume")(e.target.value)} className="font-mono" />
+              <Input id="h01-rti" aria-invalid={invalidos.has("h01-rti") || undefined} type="number" value={st.rtiVolume} onChange={(e) => set("rtiVolume")(e.target.value)} className="font-mono" />
             </div>
           )}
           {st.rtiModo === "calculada" && (
             <>
               <div className="space-y-1.5">
                 <Label htmlFor="h01-hid">Hidrantes simultâneos</Label>
-                <Input id="h01-hid" type="number" value={st.rtiHidrantes} onChange={(e) => set("rtiHidrantes")(e.target.value)} className="font-mono" />
+                <Input id="h01-hid" aria-invalid={invalidos.has("h01-hid") || undefined} type="number" value={st.rtiHidrantes} onChange={(e) => set("rtiHidrantes")(e.target.value)} className="font-mono" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="h01-vaz">Vazão por hidrante (L/min)</Label>
-                <Input id="h01-vaz" type="number" value={st.rtiVazao} onChange={(e) => set("rtiVazao")(e.target.value)} className="font-mono" />
+                <Input id="h01-vaz" aria-invalid={invalidos.has("h01-vaz") || undefined} type="number" value={st.rtiVazao} onChange={(e) => set("rtiVazao")(e.target.value)} className="font-mono" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="h01-min">Tempo de funcionamento (min)</Label>
-                <Input id="h01-min" type="number" value={st.rtiMinutos} onChange={(e) => set("rtiMinutos")(e.target.value)} className="font-mono" />
+                <Input id="h01-min" aria-invalid={invalidos.has("h01-min") || undefined} type="number" value={st.rtiMinutos} onChange={(e) => set("rtiMinutos")(e.target.value)} className="font-mono" />
               </div>
             </>
           )}
@@ -242,7 +266,7 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
       </section>
 
       {!resultado && orientacao && (
-        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>
+        <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>
       )}
 
       {resultado && (
@@ -257,7 +281,7 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
             {resultado.superior && <Reservatorio nome="Superior" d={resultado.superior} />}
           </div>
           {resultado.alertas.map((a) => (
-            <p key={a} className="text-xs text-warning">{a}</p>
+            <AlertaCalculo key={a}>{a}</AlertaCalculo>
           ))}
         </div>
       )}
@@ -295,12 +319,3 @@ function Reservatorio({ nome, d }: { nome: string; d: ReservatorioDimensionado }
   );
 }
 
-function Prop({ simbolo, valor, un, destaque }: { simbolo: string; valor: string; un: string; destaque?: boolean }) {
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <span className="italic text-muted-foreground">{simbolo} =</span>
-      <span className={`font-mono ${destaque ? "font-semibold" : "font-medium"}`}>{valor}</span>
-      <span className="text-xs text-muted-foreground">{un}</span>
-    </div>
-  );
-}

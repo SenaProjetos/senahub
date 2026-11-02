@@ -3,6 +3,8 @@
  * Puro. Unidades: kN, cm, kN/cm². Composto pela ferramenta E01 (não é tool standalone).
  */
 
+import { fmtFixo } from "../memoria";
+
 /** Resistência média à tração do concreto fctm (MPa) — NBR 6118 8.2.5. */
 export function fctmMPa(fck: number): number {
   return fck <= 50 ? 0.3 * Math.pow(fck, 2 / 3) : 2.12 * Math.log(1 + 0.11 * fck);
@@ -65,7 +67,7 @@ export function calcularCisalhamento(p: ParamsCisalhamento): ResultadoCisalhamen
   let situacao: "ok" | "revisar" = "ok";
   if (Vsd > vRd2) {
     situacao = "revisar";
-    alertas.push(`VSd (${Vsd.toFixed(1)} kN) > VRd2 (${vRd2.toFixed(1)} kN): biela comprimida rompe — aumentar bw ou fck.`);
+    alertas.push(`VSd (${fmtFixo(Vsd, 1)} kN) > VRd2 (${fmtFixo(vRd2, 1)} kN): biela comprimida rompe — aumentar bw ou fck.`);
   }
   if (aswS <= aswSmin) {
     alertas.push("Cortante baixo: adotar a armadura transversal mínima.");

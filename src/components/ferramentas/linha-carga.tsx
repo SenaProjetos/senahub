@@ -9,7 +9,10 @@ import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { LIGACOES } from "@/modules/ferramentas/calc/electrical-demand";
-import type { Linha } from "@/modules/ferramentas/carga-linha";
+import { camposInvalidos, type Linha } from "@/modules/ferramentas/carga-linha";
+import { Prop } from "./prop";
+
+export { Prop };
 
 /**
  * Uma linha de carga elétrica (descrição + potência, tensão, ligação, fp, rendimento e fator de
@@ -39,6 +42,7 @@ export function LinhaCarga({
 }) {
   // Id pela posição, não pela `chave`: o contador da chave difere entre servidor e cliente (hidratação).
   const id = `${idPrefixo}-${numero}`;
+  const invalidos = camposInvalidos(linha);
   const campo = (k: keyof Linha, rotulo: string, opc?: { step?: string }) => (
     <div className="space-y-1">
       <Label htmlFor={`${id}-${k}`} className="text-xs">{rotulo}</Label>
@@ -48,6 +52,7 @@ export function LinhaCarga({
         step={opc?.step}
         value={linha[k] as string}
         aria-label={contexto ? `${rotulo} da carga ${numero} (${contexto})` : undefined}
+        aria-invalid={invalidos.has(k) || undefined}
         onChange={(e) => onChange(k, e.target.value)}
         className="font-mono"
       />
@@ -91,16 +96,5 @@ export function LinhaCarga({
         {extra}
       </div>
     </LinhaComMenu>
-  );
-}
-
-/** Uma grandeza do resultado: "símbolo = valor unidade". */
-export function Prop({ simbolo, valor, un, destaque }: { simbolo: string; valor: string; un: string; destaque?: boolean }) {
-  return (
-    <div className="flex items-baseline gap-1.5">
-      <span className="italic text-muted-foreground">{simbolo} =</span>
-      <span className={`font-mono ${destaque ? "font-semibold" : "font-medium"}`}>{valor}</span>
-      <span className="text-xs text-muted-foreground">{un}</span>
-    </div>
   );
 }

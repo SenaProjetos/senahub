@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 import { camadaSptSchema, camadasAteProfundidade, nMedioPonderado } from "./spt-shared";
+import { fmtFixo } from "../memoria";
 
 /** 1 kgf/cm² = 98,0665 kPa. */
 const KGFCM2_KPA = 98.0665;
@@ -94,8 +95,8 @@ export function calcular(input: EntradaSapataSptInput): ResultadoSapataSpt {
   const perfilInsuficiente = profundidadePerfil < bulboM;
   if (perfilInsuficiente) {
     alertas.push(
-      `A sondagem informada cobre ${profundidadePerfil.toFixed(1)} m abaixo da cota de apoio, ` +
-        `menos que o bulbo de tensões (${bulboM.toFixed(1)} m): verificação parcial.`,
+      `A sondagem informada cobre ${fmtFixo(profundidadePerfil, 1)} m abaixo da cota de apoio, ` +
+        `menos que o bulbo de tensões (${fmtFixo(bulboM, 1)} m): verificação parcial.`,
     );
   }
   const dentro = camadasAteProfundidade(v.camadas, bulboM);
@@ -104,8 +105,8 @@ export function calcular(input: EntradaSapataSptInput): ResultadoSapataSpt {
   const bulboOk = sigmaAdmBulboKpa >= sigmaAdmKpa * 0.999;
   if (!bulboOk) {
     alertas.push(
-      `σadm no bulbo de tensões (${sigmaAdmBulboKpa.toFixed(0)} kPa) < σadm na cota de apoio ` +
-        `(${sigmaAdmKpa.toFixed(0)} kPa): redimensionar a base com a tensão do bulbo.`,
+      `σadm no bulbo de tensões (${fmtFixo(sigmaAdmBulboKpa, 0)} kPa) < σadm na cota de apoio ` +
+        `(${fmtFixo(sigmaAdmKpa, 0)} kPa): redimensionar a base com a tensão do bulbo.`,
     );
   }
 

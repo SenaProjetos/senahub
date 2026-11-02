@@ -48,8 +48,8 @@ describe("corrente-demanda no service", () => {
   it("painel traz demanda e corrente total", () => {
     const r = calcular("corrente-demanda", demanda);
     // demanda = 5500 + 1000/0,92·0,92... P_abs 1000 W × 0,8 = 800 W → 6,3 kW
-    expect(r.campos["Instalada (kW)"]).toBe("6.5");
-    expect(r.campos["Demandada (kW)"]).toBe("6.3");
+    expect(r.campos["Instalada (kW)"]).toBe("6,5");
+    expect(r.campos["Demandada (kW)"]).toBe("6,3");
     expect(r.campos.FCT).toBe("1");
   });
 
@@ -87,8 +87,8 @@ describe("bomba-recalque no service", () => {
     expect(r.campos["Vazão (m³/h)"]).toBe("5");
     expect(r.campos.Recalque).toBe("DN40");
     expect(r.campos.Sucção).toBe("DN50");
-    expect(r.campos["Hm (mca)"]).toBe("23.02");
-    expect(r.campos["Motor (cv)"]).toBe("1.5");
+    expect(r.campos["Hm (mca)"]).toBe("23,02");
+    expect(r.campos["Motor (cv)"]).toBe("1,5");
   });
 
   it("memória sai com o selo, as hipóteses e a nota do NPSH", () => {
@@ -164,9 +164,9 @@ describe("esgoto-infiltracao no service", () => {
   it("painel traz Ci, área, profundidade e a situação do lençol", () => {
     const r = calcular("esgoto-infiltracao", esgoto);
     expect(r.campos["Volume (L/dia)"]).toBe("750");
-    expect(r.campos["Ci adotado (L/m²·dia)"]).toBe("21.8");
-    expect(r.campos["Área necessária (m²)"]).toBe("34.4");
-    expect(r.campos["Profundidade útil (m)"]).toBe("4.57");
+    expect(r.campos["Ci adotado (L/m²·dia)"]).toBe("21,8");
+    expect(r.campos["Área necessária (m²)"]).toBe("34,4");
+    expect(r.campos["Profundidade útil (m)"]).toBe("4,57");
     expect(r.campos["Lençol"]).toBe("não respeitado");
   });
 

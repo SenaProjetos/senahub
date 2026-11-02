@@ -22,6 +22,7 @@ import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { CondicoesInstalacao } from "./condicoes-instalacao";
 import { LinhaCarga, Prop } from "./linha-carga";
+import { AlertaCalculo } from "./alerta-calculo";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -118,7 +119,7 @@ export function ElectricalDemandForm({ initialEntradas, onSalvo }: Props) {
       <CondicoesInstalacao geral={geral} onChange={setGeral} idPrefixo="e01" numeracao={2} />
 
       {!resultado && (
-        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+        <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
           {orientacao}
         </p>
       )}
@@ -158,7 +159,7 @@ export function ElectricalDemandForm({ initialEntradas, onSalvo }: Props) {
             <Prop simbolo="I total" valor={fmtNum(resultado.correnteTotalA, 1)} un="A" destaque />
           </div>
           {resultado.alertas.map((a) => (
-            <p key={a} className="text-xs text-warning">{a}</p>
+            <AlertaCalculo key={a}>{a}</AlertaCalculo>
           ))}
         </div>
       )}

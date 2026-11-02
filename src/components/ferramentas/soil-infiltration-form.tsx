@@ -34,7 +34,8 @@ import {
 } from "@/modules/ferramentas/acoes-furo";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
-import { Prop, num, texto } from "./hidraulica-campos";
+import { Pendencia, Prop, invalidosDigitados, num, pend, texto, textoDasPendencias } from "./hidraulica-campos";
+import { AlertaCalculo } from "./alerta-calculo";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -85,25 +86,25 @@ function geralInicial(e?: Record<string, unknown>): Geral {
 }
 
 /** Campos que faltam ou estão fora da faixa, nomeados para a orientação da tela. */
-function pendencias(furos: Furo[], g: Geral): string[] {
-  const p: string[] = [];
+function pendencias(furos: Furo[], g: Geral): Pendencia[] {
+  const p: Pendencia[] = [];
   if (g.contribuicao === "pessoas") {
     const n = num(g.pessoas);
-    if (!(Number.isInteger(n) && n > 0)) p.push("número de pessoas (inteiro)");
-    if (!(num(g.contribuicaoPessoa) > 0)) p.push("contribuição por pessoa");
-  } else if (!(num(g.volume) > 0)) p.push("volume diário");
+    if (!(Number.isInteger(n) && n > 0)) p.push(pend("h04-pessoas", g.pessoas, "número de pessoas (inteiro)"));
+    if (!(num(g.contribuicaoPessoa) > 0)) p.push(pend("h04-cpessoa", g.contribuicaoPessoa, "contribuição por pessoa"));
+  } else if (!(num(g.volume) > 0)) p.push(pend("h04-vol", g.volume, "volume diário"));
   if (g.origemCi === "percolacao") {
     furos.forEach((f, i) => {
-      if (!(num(f.tempoMin) > 0)) p.push(`tempo do furo ${i + 1}`);
-      if (!(num(f.rebaixamentoCm) > 0)) p.push(`rebaixamento do furo ${i + 1}`);
+      if (!(num(f.tempoMin) > 0)) p.push(pend(`h04-furo-${i + 1}-tempo`, f.tempoMin, `tempo do furo ${i + 1}`));
+      if (!(num(f.rebaixamentoCm) > 0)) p.push(pend(`h04-furo-${i + 1}-rebaixamento`, f.rebaixamentoCm, `rebaixamento do furo ${i + 1}`));
     });
-  } else if (!(num(g.ciInformado) > 0)) p.push("coeficiente de infiltração");
-  if (!(num(g.diametro) > 0)) p.push("diâmetro do sumidouro");
+  } else if (!(num(g.ciInformado) > 0)) p.push(pend("h04-ci", g.ciInformado, "coeficiente de infiltração"));
+  if (!(num(g.diametro) > 0)) p.push(pend("h04-diam", g.diametro, "diâmetro do sumidouro"));
   const un = num(g.unidades);
-  if (!(Number.isInteger(un) && un >= 1 && un <= 20)) p.push("unidades (1 a 20)");
-  if (!(num(g.topo) >= 0)) p.push("profundidade do topo");
-  if (g.nivelAgua.trim() !== "" && !(num(g.nivelAgua) > 0)) p.push("nível d'água");
-  if (!(num(g.distanciaMinima) > 0)) p.push("distância mínima ao lençol");
+  if (!(Number.isInteger(un) && un >= 1 && un <= 20)) p.push(pend("h04-un", g.unidades, "unidades (1 a 20)"));
+  if (!(num(g.topo) >= 0)) p.push(pend("h04-topo", g.topo, "profundidade do topo"));
+  if (g.nivelAgua.trim() !== "" && !(num(g.nivelAgua) > 0)) p.push(pend("h04-na", g.nivelAgua, "nível d'água"));
+  if (!(num(g.distanciaMinima) > 0)) p.push(pend("h04-dist", g.distanciaMinima, "distância mínima ao lençol"));
   return p;
 }
 
@@ -139,9 +140,10 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
   const [g, setGeral] = useState<Geral>(() => geralInicial(initialEntradas));
   const [salvarOpen, setSalvarOpen] = useState(false);
 
+  const invalidos = useMemo(() => invalidosDigitados(pendencias(furos, g)), [furos, g]);
   const { entrada, resultado, orientacao } = useMemo(() => {
     const falta = pendencias(furos, g);
-    if (falta.length > 0) return { entrada: null, resultado: null, orientacao: `Falta informar ou corrigir: ${falta.join(", ")}.` };
+    if (falta.length > 0) return { entrada: null, resultado: null, orientacao: `Falta informar ou corrigir: ${textoDasPendencias(falta)}.` };
     const e = montarEntrada(furos, g);
     try {
       return { entrada: e, resultado: calcular(e), orientacao: null };
@@ -200,17 +202,17 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
             <>
               <div className="space-y-1.5">
                 <Label htmlFor="h04-pessoas">Pessoas</Label>
-                <Input id="h04-pessoas" type="number" value={g.pessoas} onChange={(e) => setG("pessoas", e.target.value)} className="font-mono" />
+                <Input id="h04-pessoas" aria-invalid={invalidos.has("h04-pessoas") || undefined} type="number" value={g.pessoas} onChange={(e) => setG("pessoas", e.target.value)} className="font-mono" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="h04-cpessoa">Contribuição (L por pessoa por dia)</Label>
-                <Input id="h04-cpessoa" type="number" value={g.contribuicaoPessoa} onChange={(e) => setG("contribuicaoPessoa", e.target.value)} className="font-mono" />
+                <Input id="h04-cpessoa" aria-invalid={invalidos.has("h04-cpessoa") || undefined} type="number" value={g.contribuicaoPessoa} onChange={(e) => setG("contribuicaoPessoa", e.target.value)} className="font-mono" />
               </div>
             </>
           ) : (
             <div className="space-y-1.5">
               <Label htmlFor="h04-vol">Volume diário (L/dia)</Label>
-              <Input id="h04-vol" type="number" value={g.volume} onChange={(e) => setG("volume", e.target.value)} className="font-mono" />
+              <Input id="h04-vol" aria-invalid={invalidos.has("h04-vol") || undefined} type="number" value={g.volume} onChange={(e) => setG("volume", e.target.value)} className="font-mono" />
             </div>
           )}
         </div>
@@ -236,7 +238,7 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
           {!porPercolacao && (
             <div className="space-y-1.5">
               <Label htmlFor="h04-ci">Coeficiente (L/m²·dia)</Label>
-              <Input id="h04-ci" type="number" value={g.ciInformado} onChange={(e) => setG("ciInformado", e.target.value)} className="font-mono" />
+              <Input id="h04-ci" aria-invalid={invalidos.has("h04-ci") || undefined} type="number" value={g.ciInformado} onChange={(e) => setG("ciInformado", e.target.value)} className="font-mono" />
             </div>
           )}
         </div>
@@ -266,11 +268,11 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
                         <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <Label htmlFor={`${id}-tempo`} className="text-xs">Furo {i + 1}: tempo (min)</Label>
-                            <Input id={`${id}-tempo`} type="number" value={f.tempoMin} onChange={(e) => setFuro(f.chave, "tempoMin", e.target.value)} className="font-mono" />
+                            <Input id={`${id}-tempo`} aria-invalid={invalidos.has(`${id}-tempo`) || undefined} type="number" value={f.tempoMin} onChange={(e) => setFuro(f.chave, "tempoMin", e.target.value)} className="font-mono" />
                           </div>
                           <div className="space-y-1">
                             <Label htmlFor={`${id}-rebaixamento`} className="text-xs">Rebaixamento (cm)</Label>
-                            <Input id={`${id}-rebaixamento`} type="number" step="0.1" value={f.rebaixamentoCm} onChange={(e) => setFuro(f.chave, "rebaixamentoCm", e.target.value)} className="font-mono" />
+                            <Input id={`${id}-rebaixamento`} aria-invalid={invalidos.has(`${id}-rebaixamento`) || undefined} type="number" step="0.1" value={f.rebaixamentoCm} onChange={(e) => setFuro(f.chave, "rebaixamentoCm", e.target.value)} className="font-mono" />
                           </div>
                         </div>
                         <BotaoAcoes itens={itens} onSelect={(item) => void executar(f.chave, item)} rotulo={`Ações do furo ${i + 1}`} />
@@ -293,23 +295,23 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h04-diam">Diâmetro (m)</Label>
-            <Input id="h04-diam" type="number" step="0.1" value={g.diametro} onChange={(e) => setG("diametro", e.target.value)} className="font-mono" />
+            <Input id="h04-diam" aria-invalid={invalidos.has("h04-diam") || undefined} type="number" step="0.1" value={g.diametro} onChange={(e) => setG("diametro", e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h04-un">Unidades</Label>
-            <Input id="h04-un" type="number" min={1} value={g.unidades} onChange={(e) => setG("unidades", e.target.value)} className="font-mono" />
+            <Input id="h04-un" aria-invalid={invalidos.has("h04-un") || undefined} type="number" min={1} value={g.unidades} onChange={(e) => setG("unidades", e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h04-topo">Profundidade do topo (m)</Label>
-            <Input id="h04-topo" type="number" step="0.1" value={g.topo} onChange={(e) => setG("topo", e.target.value)} className="font-mono" />
+            <Input id="h04-topo" aria-invalid={invalidos.has("h04-topo") || undefined} type="number" step="0.1" value={g.topo} onChange={(e) => setG("topo", e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h04-na">Nível d&apos;água na sondagem (m, opcional)</Label>
-            <Input id="h04-na" type="number" step="0.1" value={g.nivelAgua} onChange={(e) => setG("nivelAgua", e.target.value)} className="font-mono" />
+            <Input id="h04-na" aria-invalid={invalidos.has("h04-na") || undefined} type="number" step="0.1" value={g.nivelAgua} onChange={(e) => setG("nivelAgua", e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h04-dist">Distância mínima ao lençol (m)</Label>
-            <Input id="h04-dist" type="number" step="0.1" value={g.distanciaMinima} onChange={(e) => setG("distanciaMinima", e.target.value)} className="font-mono" />
+            <Input id="h04-dist" aria-invalid={invalidos.has("h04-dist") || undefined} type="number" step="0.1" value={g.distanciaMinima} onChange={(e) => setG("distanciaMinima", e.target.value)} className="font-mono" />
           </div>
           <div className="flex items-center gap-2 self-end pb-2">
             <Switch id="h04-fundo" checked={g.fundo} onCheckedChange={(v) => setG("fundo", v)} />
@@ -365,11 +367,11 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
             <div className="grid grid-cols-1 min-[440px]:grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 border-t pt-3">
               <Prop simbolo="H máx. no lençol" valor={fmtNum(resultado.limite.profundidadeMaximaM, 2)} un="m" />
               <Prop simbolo="Folga" valor={fmtNum(resultado.limite.folgaM, 2)} un="m" />
-              <Prop simbolo="Lençol" valor={resultado.limite.cabe ? "respeitado" : "não respeitado"} un="" destaque />
+              <Prop simbolo="Lençol" valor={resultado.limite.cabe ? "respeitado" : "não respeitado"} un="" destaque tom={resultado.limite.cabe ? "ok" : "alerta"} />
             </div>
           )}
           {resultado.alertas.map((a) => (
-            <p key={a} className="text-xs text-warning">{a}</p>
+            <AlertaCalculo key={a}>{a}</AlertaCalculo>
           ))}
         </div>
       )}

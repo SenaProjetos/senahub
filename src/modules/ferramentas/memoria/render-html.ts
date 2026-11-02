@@ -3,10 +3,11 @@
  * Usado pelo PDF (puppeteer `setContent`) e por uma eventual prévia em tela. Puro, sem Next.
  */
 
+import { fmtNum } from "./index";
 import type { MemoriaDoc, MemoriaIdentificacao, MemoriaSecao, MemoriaValor } from "./types";
 
 function esc(v: string | number): string {
-  return String(v)
+  return (typeof v === "number" ? fmtNum(v, 6) : String(v))
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")

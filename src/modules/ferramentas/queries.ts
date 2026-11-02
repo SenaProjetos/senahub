@@ -5,7 +5,7 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { parseListParams } from "@/lib/list-params";
 import { montarMemoria } from "./service";
-import { ferramentaVisivel, getFerramenta } from "./registry";
+import { FERRAMENTAS, ferramentaVisivel, getFerramenta, situacaoValidacao } from "./registry";
 
 type RawParams = Record<string, string | string[] | undefined>;
 
@@ -97,9 +97,13 @@ export async function listarCalculos(params: RawParams, ferramenta?: string) {
     defaultDir: "desc",
   });
 
+  // Calculadora em validação: quem não gere as ferramentas não vê nem os cálculos antigos dela.
+  const emValidacao = podeGerir ? [] : FERRAMENTAS.filter((f) => situacaoValidacao(f) === "em_validacao").map((f) => f.key);
+
   const where = {
     ...(podeGerir ? {} : { autorId: user.id }),
     ...(ferramenta ? { ferramenta } : {}),
+    ...(emValidacao.length ? { NOT: { ferramenta: { in: emValidacao } } } : {}),
     ...(q ? { titulo: { contains: q, mode: "insensitive" as const } } : {}),
   };
 

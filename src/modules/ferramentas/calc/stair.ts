@@ -16,6 +16,7 @@ import { z } from "zod";
 import { ACOS } from "./concrete-beam-flexure";
 import { armaduraFaixa } from "./slab-bares";
 import { moduloSecante } from "./concrete-beam-deflection";
+import { fmtFixo } from "../memoria";
 
 const GAMA_C = 25; // kN/m³ (concreto armado)
 const ES = 21000; // kN/cm²
@@ -185,7 +186,7 @@ export function calcular(input: EntradaEscadaInput): ResultadoEscada {
   const flechaImediata = (COEF_FLECHA[v.vinculacao] * wEq / 100 * Lcm ** 4) / (ecsKNcm2 * ieq); // cm (wEq/100 → kN/cm)
   const flechaTotal = flechaImediata * (1 + v.alphaF);
   const flechaLimite = Lcm / 250;
-  if (flechaTotal > flechaLimite) alertas.push(`Flecha total (${flechaTotal.toFixed(2)} cm) excede L/250 (${flechaLimite.toFixed(2)} cm).`);
+  if (flechaTotal > flechaLimite) alertas.push(`Flecha total (${fmtFixo(flechaTotal, 2)} cm) excede L/250 (${fmtFixo(flechaLimite, 2)} cm).`);
 
   return {
     alphaGraus,

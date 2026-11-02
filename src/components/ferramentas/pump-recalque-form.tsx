@@ -15,7 +15,8 @@ import { calcular, ORIGENS_CONSUMO, type EntradaRecalqueInput } from "@/modules/
 import { CHAVES_OCUPACAO, OCUPACOES } from "@/modules/ferramentas/calc/reservoir";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
-import { BlocoMotor, BlocoTrecho, Prop, SelectDn, num, percentual, texto } from "./hidraulica-campos";
+import { BlocoMotor, BlocoTrecho, Pendencia, Prop, SelectDn, invalidosDigitados, num, pend, percentual, texto, textoDasPendencias } from "./hidraulica-campos";
+import { AlertaCalculo } from "./alerta-calculo";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -60,20 +61,20 @@ function estadoInicial(e?: Record<string, unknown>): Estado {
 }
 
 /** Campos que faltam ou estão fora da faixa, nomeados para a orientação da tela. */
-function pendencias(st: Estado): string[] {
-  const p: string[] = [];
+function pendencias(st: Estado): Pendencia[] {
+  const p: Pendencia[] = [];
   const dentro = (v: string, min: number, max: number) => num(v) >= min && num(v) <= max;
   if (st.origem === "ocupacao") {
-    if (!(num(st.unidades) > 0)) p.push("quantidade de unidades");
-    if (st.ocupacao === "personalizado" && !(num(st.consumo) > 0)) p.push("consumo por unidade");
-  } else if (!(num(st.consumoDiario) > 0)) p.push("consumo diário");
-  if (!(num(st.horas) > 0 && num(st.horas) <= 24)) p.push("horas de funcionamento (até 24)");
-  if (!dentro(st.alturaSuccao, -50, 50)) p.push("altura de sucção (−50 a 50 m)");
-  if (!(num(st.alturaRecalque) > 0)) p.push("altura de recalque");
-  if (!(num(st.compSuccao) > 0)) p.push("comprimento da sucção");
-  if (!(num(st.compRecalque) > 0)) p.push("comprimento do recalque");
-  if (!dentro(st.coef, 60, 160)) p.push("coeficiente C (60 a 160)");
-  if (!dentro(st.rendimento, 10, 95)) p.push("rendimento (10 a 95 %)");
+    if (!(num(st.unidades) > 0)) p.push(pend("h02-unidades", st.unidades, "quantidade de unidades"));
+    if (st.ocupacao === "personalizado" && !(num(st.consumo) > 0)) p.push(pend("h02-consumo", st.consumo, "consumo por unidade"));
+  } else if (!(num(st.consumoDiario) > 0)) p.push(pend("h02-cd", st.consumoDiario, "consumo diário"));
+  if (!(num(st.horas) > 0 && num(st.horas) <= 24)) p.push(pend("h02-horas", st.horas, "horas de funcionamento (até 24)"));
+  if (!dentro(st.alturaSuccao, -50, 50)) p.push(pend("h02-hs", st.alturaSuccao, "altura de sucção (−50 a 50 m)"));
+  if (!(num(st.alturaRecalque) > 0)) p.push(pend("h02-hr", st.alturaRecalque, "altura de recalque"));
+  if (!(num(st.compSuccao) > 0)) p.push(pend("h02-ls", st.compSuccao, "comprimento da sucção"));
+  if (!(num(st.compRecalque) > 0)) p.push(pend("h02-lr", st.compRecalque, "comprimento do recalque"));
+  if (!dentro(st.coef, 60, 160)) p.push(pend("h02-coef", st.coef, "coeficiente C (60 a 160)"));
+  if (!dentro(st.rendimento, 10, 95)) p.push(pend("h02-eta", st.rendimento, "rendimento (10 a 95 %)"));
   return p;
 }
 
@@ -110,9 +111,10 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
 
   const set = (k: keyof Estado) => (v: string) => setSt((a) => ({ ...a, [k]: v }));
 
+  const invalidos = useMemo(() => invalidosDigitados(pendencias(st)), [st]);
   const { entrada, resultado, orientacao } = useMemo(() => {
     const falta = pendencias(st);
-    if (falta.length > 0) return { entrada: null, resultado: null, orientacao: `Falta informar ou corrigir: ${falta.join(", ")}.` };
+    if (falta.length > 0) return { entrada: null, resultado: null, orientacao: `Falta informar ou corrigir: ${textoDasPendencias(falta)}.` };
     const e = montarEntrada(st);
     try {
       return { entrada: e, resultado: calcular(e), orientacao: null };
@@ -156,12 +158,13 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="h02-unidades">Quantidade{ocup ? ` (${ocup.unidade})` : ""}</Label>
-                <Input id="h02-unidades" type="number" value={st.unidades} onChange={(e) => set("unidades")(e.target.value)} className="font-mono" />
+                <Input id="h02-unidades" aria-invalid={invalidos.has("h02-unidades") || undefined} type="number" value={st.unidades} onChange={(e) => set("unidades")(e.target.value)} className="font-mono" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="h02-consumo">Consumo (L/dia por unidade)</Label>
                 <Input
                   id="h02-consumo"
+                  aria-invalid={invalidos.has("h02-consumo") || undefined}
                   type="number"
                   value={st.consumo}
                   placeholder={ocup ? String(ocup.litrosPorDia) : "informe"}
@@ -173,12 +176,12 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
           ) : (
             <div className="space-y-1.5">
               <Label htmlFor="h02-cd">Consumo diário (L/dia)</Label>
-              <Input id="h02-cd" type="number" value={st.consumoDiario} onChange={(e) => set("consumoDiario")(e.target.value)} className="font-mono" placeholder="valor da calculadora de reservatórios" />
+              <Input id="h02-cd" aria-invalid={invalidos.has("h02-cd") || undefined} type="number" value={st.consumoDiario} onChange={(e) => set("consumoDiario")(e.target.value)} className="font-mono" placeholder="valor da calculadora de reservatórios" />
             </div>
           )}
           <div className="space-y-1.5">
             <Label htmlFor="h02-horas">Funcionamento da bomba (h/dia)</Label>
-            <Input id="h02-horas" type="number" step="0.5" value={st.horas} onChange={(e) => set("horas")(e.target.value)} className="font-mono" />
+            <Input id="h02-horas" aria-invalid={invalidos.has("h02-horas") || undefined} type="number" step="0.5" value={st.horas} onChange={(e) => set("horas")(e.target.value)} className="font-mono" />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -191,19 +194,19 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h02-hs">Altura de sucção (m)</Label>
-            <Input id="h02-hs" type="number" step="0.1" value={st.alturaSuccao} onChange={(e) => set("alturaSuccao")(e.target.value)} className="font-mono" placeholder="negativa se afogada" />
+            <Input id="h02-hs" aria-invalid={invalidos.has("h02-hs") || undefined} type="number" step="0.1" value={st.alturaSuccao} onChange={(e) => set("alturaSuccao")(e.target.value)} className="font-mono" placeholder="negativa se afogada" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h02-hr">Altura de recalque (m)</Label>
-            <Input id="h02-hr" type="number" step="0.1" value={st.alturaRecalque} onChange={(e) => set("alturaRecalque")(e.target.value)} className="font-mono" />
+            <Input id="h02-hr" aria-invalid={invalidos.has("h02-hr") || undefined} type="number" step="0.1" value={st.alturaRecalque} onChange={(e) => set("alturaRecalque")(e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h02-coef">Coeficiente C (Hazen-Williams)</Label>
-            <Input id="h02-coef" type="number" value={st.coef} onChange={(e) => set("coef")(e.target.value)} className="font-mono" />
+            <Input id="h02-coef" aria-invalid={invalidos.has("h02-coef") || undefined} type="number" value={st.coef} onChange={(e) => set("coef")(e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h02-ls">Sucção: comprimento (m)</Label>
-            <Input id="h02-ls" type="number" step="0.1" value={st.compSuccao} onChange={(e) => set("compSuccao")(e.target.value)} className="font-mono" />
+            <Input id="h02-ls" aria-invalid={invalidos.has("h02-ls") || undefined} type="number" step="0.1" value={st.compSuccao} onChange={(e) => set("compSuccao")(e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h02-les">Sucção: comprimento equivalente das conexões (m)</Label>
@@ -212,7 +215,7 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
           <SelectDn id="h02-dns" rotulo="Diâmetro da sucção" valor={st.dnSuccao} onChange={set("dnSuccao")} adotado={resultado?.succao.dn ?? null} />
           <div className="space-y-1.5">
             <Label htmlFor="h02-lr">Recalque: comprimento (m)</Label>
-            <Input id="h02-lr" type="number" step="0.1" value={st.compRecalque} onChange={(e) => set("compRecalque")(e.target.value)} className="font-mono" />
+            <Input id="h02-lr" aria-invalid={invalidos.has("h02-lr") || undefined} type="number" step="0.1" value={st.compRecalque} onChange={(e) => set("compRecalque")(e.target.value)} className="font-mono" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="h02-ler">Recalque: comprimento equivalente das conexões (m)</Label>
@@ -230,14 +233,14 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h02-eta">Rendimento (%)</Label>
-            <Input id="h02-eta" type="number" value={st.rendimento} onChange={(e) => set("rendimento")(e.target.value)} className="font-mono" />
+            <Input id="h02-eta" aria-invalid={invalidos.has("h02-eta") || undefined} type="number" value={st.rendimento} onChange={(e) => set("rendimento")(e.target.value)} className="font-mono" />
           </div>
         </div>
         <p className="text-xs text-muted-foreground">Use o rendimento da curva da bomba escolhida quando houver. O NPSH disponível não é calculado.</p>
       </section>
 
       {!resultado && orientacao && (
-        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>
+        <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>
       )}
 
       {resultado && (
@@ -258,7 +261,7 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
           </div>
           <BlocoMotor m={resultado.motor} />
           {resultado.alertas.map((a) => (
-            <p key={a} className="text-xs text-warning">{a}</p>
+            <AlertaCalculo key={a}>{a}</AlertaCalculo>
           ))}
         </div>
       )}

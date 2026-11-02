@@ -18,6 +18,7 @@
 
 import { z } from "zod";
 import { camadaSptSchema, type CamadaSpt, type TipoSolo } from "./spt-shared";
+import { fmtFixo } from "../memoria";
 
 /** Coeficientes de Teixeira & Godoy (1996) por tipo de solo: Es = α·K·N (K em MPa). */
 const ALFA_K: Record<TipoSolo, { alpha: number; K: number }> = {
@@ -250,7 +251,7 @@ function calcularFatias(v: z.infer<typeof fatiasSchema>): ResultadoFatias {
   const somaCamadas = v.camadas.reduce((s, c) => s + c.espessuraM, 0);
   if (somaCamadas < 6 * v.bM) {
     alertas.push(
-      `Perfil informado (${somaCamadas.toFixed(1)} m) < 6B (${(6 * v.bM).toFixed(1)} m): as fatias mais ` +
+      `Perfil informado (${fmtFixo(somaCamadas, 1)} m) < 6B (${fmtFixo((6 * v.bM), 1)} m): as fatias mais ` +
         "profundas usam o Es da última camada — informar sondagem mais profunda.",
     );
   }

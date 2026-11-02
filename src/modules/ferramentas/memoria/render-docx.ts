@@ -16,10 +16,14 @@ import {
   BorderStyle,
 } from "docx";
 import type { MemoriaDoc, MemoriaSecao, MemoriaTabela, MemoriaValor } from "./types";
+import { fmtNum } from "./index";
 
 function dataBR(iso: string): string {
   return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
+
+/** Número cru sai com vírgula decimal; texto já formatado passa direto. */
+const textoDe = (v: string | number): string => (typeof v === "number" ? fmtNum(v, 6) : String(v));
 
 function valorParagrafo(v: MemoriaValor): Paragraph {
   const runs: TextRun[] = [];
@@ -27,7 +31,7 @@ function valorParagrafo(v: MemoriaValor): Paragraph {
   if (v.simbolo) runs.push(new TextRun({ text: ` (${v.simbolo})`, italics: true }));
   const expr = [v.formula, v.substituicao].filter(Boolean).join(" = ");
   if (expr) runs.push(new TextRun({ text: ` = ${expr}`, color: "666666" }));
-  runs.push(new TextRun({ text: ` = ${v.valor}`, bold: true }));
+  runs.push(new TextRun({ text: ` = ${textoDe(v.valor)}`, bold: true }));
   if (v.unidade) runs.push(new TextRun({ text: ` ${v.unidade}` }));
   return new Paragraph({ children: runs, spacing: { after: 60 } });
 }
@@ -46,7 +50,7 @@ function tabelaDocx(t: MemoriaTabela): Table {
     (l) =>
       new TableRow({
         children: l.map(
-          (c) => new TableCell({ children: [new Paragraph(String(c))] }),
+          (c) => new TableCell({ children: [new Paragraph(textoDe(c))] }),
         ),
       }),
   );

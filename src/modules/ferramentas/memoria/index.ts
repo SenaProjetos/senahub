@@ -40,10 +40,15 @@ export function montarMemoriaBase(args: MontarBaseArgs): MemoriaDoc {
   };
 }
 
-/** Formata um número para a memória: até `casas` decimais, sem zeros supérfluos, separador pt-BR opcional. */
+/** Formata um número para tela e memória: até `casas` decimais, sem zeros supérfluos, vírgula decimal (pt-BR). */
 export function fmtNum(n: number, casas = 2): string {
   if (!Number.isFinite(n)) return "—";
   const fixed = n.toFixed(casas);
   const limpo = fixed.includes(".") ? fixed.replace(/0+$/, "").replace(/\.$/, "") : fixed;
-  return limpo === "-0" ? "0" : limpo;
+  return (limpo === "-0" ? "0" : limpo).replace(".", ",");
+}
+
+/** `n.toFixed(casas)` com vírgula decimal (pt-BR) — para textos de alerta, que mostram sempre as mesmas casas. */
+export function fmtFixo(n: number, casas: number): string {
+  return n.toFixed(casas).replace(".", ",");
 }

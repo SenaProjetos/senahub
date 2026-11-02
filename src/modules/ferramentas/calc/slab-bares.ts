@@ -17,6 +17,7 @@
 import { z } from "zod";
 import { parametrosConcreto, ACOS } from "./concrete-beam-flexure";
 import { moduloSecante } from "./concrete-beam-deflection";
+import { fmtFixo } from "../memoria";
 
 const ES = 21000; // kN/cm² (210 GPa)
 
@@ -261,8 +262,8 @@ export function calcular(input: EntradaLajeInput): ResultadoLaje {
   const flechaImediata = flechaImediataBruta * (ic / ieq);
   const flechaTotal = flechaImediata * (1 + v.alphaF);
   const flechaLimite = lx / 250; // cm
-  if (fissura) alertas.push(`Seção fissurada (Ma=${maServ.toFixed(2)} > Mr=${mr.toFixed(2)} kN·m/m): flecha corrigida por Branson (Ieq).`);
-  if (flechaTotal > flechaLimite) alertas.push(`Flecha total (${flechaTotal.toFixed(2)} cm) excede o limite L/250 (${flechaLimite.toFixed(2)} cm).`);
+  if (fissura) alertas.push(`Seção fissurada (Ma=${fmtFixo(maServ, 2)} > Mr=${fmtFixo(mr, 2)} kN·m/m): flecha corrigida por Branson (Ieq).`);
+  if (flechaTotal > flechaLimite) alertas.push(`Flecha total (${fmtFixo(flechaTotal, 2)} cm) excede o limite L/250 (${fmtFixo(flechaLimite, 2)} cm).`);
 
   return {
     lambda,
