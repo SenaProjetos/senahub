@@ -144,3 +144,50 @@ describe("bomba-piscina no service", () => {
     expect(parse(ruim, "bomba-piscina").ok).toBe(false);
   });
 });
+
+const esgoto = {
+  contribuicao: "pessoas",
+  pessoas: 5,
+  contribuicaoLPessoaDia: 150,
+  furos: [
+    { tempoMin: 10, rebaixamentoCm: 1 },
+    { tempoMin: 40, rebaixamentoCm: 2 },
+    { tempoMin: 30, rebaixamentoCm: 3 },
+  ],
+  diametroM: 1.2,
+  unidades: 2,
+  profundidadeTopoM: 0.5,
+  nivelAguaM: 6,
+};
+
+describe("esgoto-infiltracao no service", () => {
+  it("painel traz Ci, área, profundidade e a situação do lençol", () => {
+    const r = calcular("esgoto-infiltracao", esgoto);
+    expect(r.campos["Volume (L/dia)"]).toBe("750");
+    expect(r.campos["Ci adotado (L/m²·dia)"]).toBe("21.8");
+    expect(r.campos["Área necessária (m²)"]).toBe("34.4");
+    expect(r.campos["Profundidade útil (m)"]).toBe("4.57");
+    expect(r.campos["Lençol"]).toBe("não respeitado");
+  });
+
+  it("memória traz o selo, a tabela de furos, a nota da NBR 17076 e a seção da sondagem", () => {
+    const doc = montarMemoria("esgoto-infiltracao", esgoto, { titulo: "Teste" });
+    expect(doc.subtitulo).toContain("EM VALIDAÇÃO");
+    const texto = textoDe(doc);
+    expect(texto).toContain("Teste de percolação");
+    expect(texto).toContain("NBR 17076:2024");
+    expect(texto).toContain("Sondagem");
+  });
+
+  it("memória sem sondagem não tem a seção do lençol", () => {
+    const doc = montarMemoria("esgoto-infiltracao", { ...esgoto, nivelAguaM: undefined }, { titulo: "Teste" });
+    expect(textoDe(doc)).not.toContain("Sondagem: nível");
+  });
+
+  it("arquivo .shcalc faz o ciclo e recusa entrada incompleta", () => {
+    const json = serializar({ ferramenta: "esgoto-infiltracao", versaoCalc: 1, titulo: "E", entradas: esgoto });
+    expect(parse(json, "esgoto-infiltracao").ok).toBe(true);
+    const ruim = serializar({ ferramenta: "esgoto-infiltracao", versaoCalc: 1, titulo: "E", entradas: { ...esgoto, furos: [] } });
+    expect(parse(ruim, "esgoto-infiltracao").ok).toBe(false);
+  });
+});

@@ -52,7 +52,7 @@ describe("catálogo", () => {
   });
 
   it("as calculadoras de instalações exigem validação do engenheiro", () => {
-    for (const key of ["reservatorios", "corrente-demanda", "bomba-recalque", "bomba-piscina"]) {
+    for (const key of ["reservatorios", "corrente-demanda", "bomba-recalque", "bomba-piscina", "esgoto-infiltracao"]) {
       const f = FERRAMENTAS.find((x) => x.key === key);
       expect(f?.exigeValidacao, key).toBe(true);
     }

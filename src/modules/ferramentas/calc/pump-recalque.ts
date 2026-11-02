@@ -39,32 +39,32 @@ export const ORIGENS_CONSUMO = {
   consumo_diario: "Consumo diário informado",
 } as const;
 
-const dnSchema = z.number().refine((v) => (CHAVES_DN as number[]).includes(v), { message: "Diâmetro fora do catálogo." });
+const dnSchema = z.number({ error: "Informe um número válido." }).refine((v) => (CHAVES_DN as number[]).includes(v), { message: "Diâmetro fora do catálogo." });
 
 export const entradaSchema = z
   .object({
-    origem: z.enum(["ocupacao", "consumo_diario"]).default("ocupacao"),
-    ocupacao: z.enum([...CHAVES_OCUPACAO, "personalizado"]).default("residencia_media"),
-    unidades: z.number().positive().optional(),
+    origem: z.enum(["ocupacao", "consumo_diario"], { error: "Opção inválida." }).default("ocupacao"),
+    ocupacao: z.enum([...CHAVES_OCUPACAO, "personalizado"], { error: "Opção inválida." }).default("residencia_media"),
+    unidades: z.number({ error: "Informe um número válido." }).positive().optional(),
     /** L/dia por unidade — obrigatório em "personalizado"; nas demais substitui o valor da tabela. */
-    consumoLitrosDia: z.number().positive().optional(),
+    consumoLitrosDia: z.number({ error: "Informe um número válido." }).positive().optional(),
     /** Consumo diário total (L/dia), quando a origem é "consumo_diario". */
-    consumoDiarioL: z.number().positive().optional(),
-    horasFuncionamento: z.number().positive("Informe as horas de funcionamento.").max(24, "O funcionamento vai até 24 h por dia.").default(6),
+    consumoDiarioL: z.number({ error: "Informe um número válido." }).positive().optional(),
+    horasFuncionamento: z.number({ error: "Informe um número válido." }).positive("Informe as horas de funcionamento.").max(24, "O funcionamento vai até 24 h por dia.").default(6),
     /** Eixo da bomba acima (+) ou abaixo (−, afogada) do nível mínimo da água, em m. */
-    alturaSuccaoM: z.number().min(-50, "A altura de sucção vai de −50 a 50 m.").max(50, "A altura de sucção vai de −50 a 50 m."),
+    alturaSuccaoM: z.number({ error: "Informe um número válido." }).min(-50, "A altura de sucção vai de −50 a 50 m.").max(50, "A altura de sucção vai de −50 a 50 m."),
     /** Do eixo da bomba até o ponto de descarga no reservatório superior, em m. */
-    alturaRecalqueM: z.number().positive(),
-    comprimentoSuccaoM: z.number().positive(),
-    comprimentoRecalqueM: z.number().positive(),
+    alturaRecalqueM: z.number({ error: "Informe um número válido." }).positive(),
+    comprimentoSuccaoM: z.number({ error: "Informe um número válido." }).positive(),
+    comprimentoRecalqueM: z.number({ error: "Informe um número válido." }).positive(),
     /** Comprimento equivalente das conexões e registros, em m. */
-    leqSuccaoM: z.number().min(0).default(0),
-    leqRecalqueM: z.number().min(0).default(0),
+    leqSuccaoM: z.number({ error: "Informe um número válido." }).min(0).default(0),
+    leqRecalqueM: z.number({ error: "Informe um número válido." }).min(0).default(0),
     /** Sem DN, adota o sugerido. */
     dnRecalque: dnSchema.optional(),
     dnSuccao: dnSchema.optional(),
-    coeficienteHW: z.number().min(60, "O coeficiente C vai de 60 a 160.").max(160, "O coeficiente C vai de 60 a 160.").default(140),
-    rendimento: z.number().min(0.1, "O rendimento vai de 10 % a 95 %.").max(0.95, "O rendimento vai de 10 % a 95 %.").default(0.6),
+    coeficienteHW: z.number({ error: "Informe um número válido." }).min(60, "O coeficiente C vai de 60 a 160.").max(160, "O coeficiente C vai de 60 a 160.").default(140),
+    rendimento: z.number({ error: "Informe um número válido." }).min(0.1, "O rendimento vai de 10 % a 95 %.").max(0.95, "O rendimento vai de 10 % a 95 %.").default(0.6),
   })
   .superRefine((e, ctx) => {
     if (e.origem === "ocupacao") {

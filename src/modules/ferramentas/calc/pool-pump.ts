@@ -44,34 +44,34 @@ export const FORMAS = {
   volume: "Volume informado",
 } as const;
 
-const dnSchema = z.number().refine((v) => (CHAVES_DN as number[]).includes(v), { message: "Diâmetro fora do catálogo." });
+const dnSchema = z.number({ error: "Informe um número válido." }).refine((v) => (CHAVES_DN as number[]).includes(v), { message: "Diâmetro fora do catálogo." });
 
 export const entradaSchema = z
   .object({
-    forma: z.enum(["retangular", "circular", "volume"]).default("retangular"),
-    comprimentoM: z.number().positive().optional(),
-    larguraM: z.number().positive().optional(),
-    diametroM: z.number().positive().optional(),
-    profundidadeMediaM: z.number().positive().optional(),
-    volumeM3: z.number().positive().optional(),
-    uso: z.enum(CHAVES_USO).default("residencial"),
+    forma: z.enum(["retangular", "circular", "volume"], { error: "Opção inválida." }).default("retangular"),
+    comprimentoM: z.number({ error: "Informe um número válido." }).positive().optional(),
+    larguraM: z.number({ error: "Informe um número válido." }).positive().optional(),
+    diametroM: z.number({ error: "Informe um número válido." }).positive().optional(),
+    profundidadeMediaM: z.number({ error: "Informe um número válido." }).positive().optional(),
+    volumeM3: z.number({ error: "Informe um número válido." }).positive().optional(),
+    uso: z.enum(CHAVES_USO, { error: "Opção inválida." }).default("residencial"),
     /** Substitui o tempo do uso. */
-    horasRecirculacao: z.number().positive("Informe o tempo de recirculação.").max(24, "A recirculação vai até 24 h.").optional(),
-    comprimentoSuccaoM: z.number().positive(),
-    comprimentoRetornoM: z.number().positive(),
-    leqSuccaoM: z.number().min(0).default(0),
-    leqRetornoM: z.number().min(0).default(0),
+    horasRecirculacao: z.number({ error: "Informe um número válido." }).positive("Informe o tempo de recirculação.").max(24, "A recirculação vai até 24 h.").optional(),
+    comprimentoSuccaoM: z.number({ error: "Informe um número válido." }).positive(),
+    comprimentoRetornoM: z.number({ error: "Informe um número válido." }).positive(),
+    leqSuccaoM: z.number({ error: "Informe um número válido." }).min(0).default(0),
+    leqRetornoM: z.number({ error: "Informe um número válido." }).min(0).default(0),
     /** Sem DN, adota o menor que respeita o limite de velocidade. */
     dnSuccao: dnSchema.optional(),
     dnRetorno: dnSchema.optional(),
     /** Filtro, pré-filtro, aquecedor etc., em mca, pelo fabricante. */
-    perdaEquipamentosMca: z.number().min(0).default(0),
+    perdaEquipamentosMca: z.number({ error: "Informe um número válido." }).min(0).default(0),
     /** Pressão a manter nos dispositivos de retorno, em mca. */
-    pressaoRetornoMca: z.number().min(0).default(0),
+    pressaoRetornoMca: z.number({ error: "Informe um número válido." }).min(0).default(0),
     /** m³/h por m² de filtro; só com ela sai a área filtrante. */
-    taxaFiltracao: z.number().positive().optional(),
-    coeficienteHW: z.number().min(60, "O coeficiente C vai de 60 a 160.").max(160, "O coeficiente C vai de 60 a 160.").default(140),
-    rendimento: z.number().min(0.1, "O rendimento vai de 10 % a 95 %.").max(0.95, "O rendimento vai de 10 % a 95 %.").default(0.5),
+    taxaFiltracao: z.number({ error: "Informe um número válido." }).positive().optional(),
+    coeficienteHW: z.number({ error: "Informe um número válido." }).min(60, "O coeficiente C vai de 60 a 160.").max(160, "O coeficiente C vai de 60 a 160.").default(140),
+    rendimento: z.number({ error: "Informe um número válido." }).min(0.1, "O rendimento vai de 10 % a 95 %.").max(0.95, "O rendimento vai de 10 % a 95 %.").default(0.5),
   })
   .superRefine((e, ctx) => {
     const falta = (campo: string, msg: string) => ctx.addIssue({ code: "custom", path: [campo], message: msg });

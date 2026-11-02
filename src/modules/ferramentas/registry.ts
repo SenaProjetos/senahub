@@ -25,6 +25,7 @@ import {
   PlugZap,
   ArrowUpFromLine,
   Waves,
+  Shovel,
   type LucideIcon,
 } from "lucide-react";
 
@@ -291,6 +292,18 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     exportaveis: ["pdf", "docx", "xlsx"],
     exigeValidacao: true,
     icon: Waves,
+  },
+  {
+    key: "esgoto-infiltracao",
+    nome: "Destino Final do Esgoto",
+    descricao:
+      "Sumidouro pelo teste de percolação: coeficiente de infiltração por furo, área necessária, profundidade por unidade e verificação do nível d'água da sondagem.",
+    disciplina: "Hidrossanitário",
+    tipo: "rapida",
+    norma: "NBR 17076:2024",
+    exportaveis: ["pdf", "docx", "xlsx"],
+    exigeValidacao: true,
+    icon: Shovel,
   },
   {
     key: "corrente-demanda",

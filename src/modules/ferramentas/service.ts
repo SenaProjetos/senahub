@@ -55,6 +55,12 @@ import {
   FORMAS as FORMAS_PISCINA,
   USOS as USOS_PISCINA,
 } from "./calc/pool-pump";
+import {
+  calcular as calcularInfiltracao,
+  entradaSchema as infiltracaoSchema,
+  CONTRIBUICOES,
+  ORIGENS_CI,
+} from "./calc/soil-infiltration";
 import type { DimensionamentoMotor, TrechoResultado } from "./calc/hidraulica";
 import { getFerramenta, situacaoValidacao } from "./registry";
 
@@ -293,6 +299,18 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         alertas: r.alertas,
       };
     }
+    case "esgoto-infiltracao": {
+      const r = calcularInfiltracao(infiltracaoSchema.parse(entradas));
+      const campos: Record<string, string | number> = {
+        "Volume (L/dia)": fmtNum(r.volumeDiarioL, 0),
+        "Ci adotado (L/m²·dia)": fmtNum(r.ciAdotado, 1),
+        "Área necessária (m²)": fmtNum(r.areaNecessariaM2, 1),
+        "Profundidade útil (m)": fmtNum(r.profundidadeUtilM, 2),
+        "Profundidade do fundo (m)": fmtNum(r.profundidadeFundoM, 2),
+      };
+      if (r.limite) campos["Lençol"] = r.limite.cabe ? "respeitado" : "não respeitado";
+      return { campos, alertas: r.alertas };
+    }
     case "combinacoes-acoes": {
       const r = calcularCombos(combosSchema.parse(entradas));
       return {
@@ -475,6 +493,8 @@ export function montarMemoria(
       return memoriaBombaRecalque(entradas, base);
     case "bomba-piscina":
       return memoriaBombaPiscina(entradas, base);
+    case "esgoto-infiltracao":
+      return memoriaEsgotoInfiltracao(entradas, base);
     case "combinacoes-acoes":
       return memoriaCombinacoesAcoes(entradas, base);
     case "pilar-concreto":
@@ -1199,6 +1219,87 @@ function memoriaBombaPiscina(entradas: Record<string, unknown>, base: BaseArgs):
       },
     ],
   });
+}
+
+function memoriaEsgotoInfiltracao(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = infiltracaoSchema.parse(entradas);
+  const r = calcularInfiltracao(e);
+
+  const linhasEntrada: (string | number)[][] = [["Contribuição", CONTRIBUICOES[e.contribuicao]]];
+  if (e.contribuicao === "pessoas") {
+    linhasEntrada.push(
+      ["Pessoas", fmtNum(e.pessoas ?? 0, 0)],
+      ["Contribuição por pessoa (L/pessoa·dia)", fmtNum(e.contribuicaoLPessoaDia ?? 0, 1)],
+    );
+  }
+  linhasEntrada.push(
+    ["Volume diário (L/dia)", fmtNum(r.volumeDiarioL, 0)],
+    ["Origem do coeficiente de infiltração", ORIGENS_CI[e.origemCi]],
+    ["Diâmetro do sumidouro (m)", fmtNum(e.diametroM, 2)],
+    ["Unidades", fmtNum(e.unidades, 0)],
+    ["Área do fundo", e.considerarFundo ? "conta" : "não conta (só a parede lateral)"],
+    ["Profundidade do topo (m)", fmtNum(e.profundidadeTopoM, 2)],
+    ["Nível d'água na sondagem (m)", e.nivelAguaM != null ? fmtNum(e.nivelAguaM, 2) : "não informado"],
+    ["Distância mínima ao lençol (m)", fmtNum(e.distanciaMinimaLencolM, 2)],
+  );
+
+  const secoes: MemoriaDoc["secoes"] = [
+    { titulo: "Dados de entrada", tabelas: [{ colunas: ["Parâmetro", "Valor"], linhas: linhasEntrada }] },
+  ];
+
+  if (e.origemCi === "percolacao") {
+    secoes.push({
+      titulo: "Teste de percolação",
+      tabelas: [
+        {
+          colunas: ["Furo", "Tempo (min)", "Rebaixamento (cm)", "t (min/cm)", "Taxa (min/m)", "Ci (L/m²·dia)"],
+          linhas: e.furos.map((f, i) => {
+            const c = r.furos[i];
+            return [i + 1, fmtNum(f.tempoMin, 1), fmtNum(f.rebaixamentoCm, 1), fmtNum(c.minPorCm, 2), fmtNum(c.minPorM, 0), fmtNum(c.ci, 2)];
+          }),
+        },
+      ],
+      notas: [
+        "t = tempo ÷ rebaixamento (minutos para o nível baixar 1 cm). Ci = 490 ÷ (t + 2,5). Para sumidouro adota-se o menor Ci dos furos.",
+      ],
+    });
+  }
+
+  secoes.push({
+    titulo: "Área de infiltração e sumidouro",
+    valores: [
+      { simbolo: "V", descricao: "Volume diário de esgoto", valor: fmtNum(r.volumeDiarioL, 0), unidade: "L/dia" },
+      { simbolo: "Ci", descricao: "Coeficiente de infiltração adotado", valor: fmtNum(r.ciAdotado, 2), unidade: "L/m²·dia" },
+      { simbolo: "A", descricao: "Área de infiltração necessária", valor: fmtNum(r.areaNecessariaM2, 2), unidade: "m²", formula: "V ÷ Ci" },
+      { simbolo: "A_un", descricao: "Área por unidade", valor: fmtNum(r.areaPorUnidadeM2, 2), unidade: "m²", formula: "A ÷ unidades" },
+      { simbolo: "H", descricao: "Profundidade útil por unidade", valor: fmtNum(r.profundidadeUtilM, 2), unidade: "m", formula: "A_un ÷ (π · D)" },
+      { simbolo: "Fundo", descricao: "Profundidade do fundo", valor: fmtNum(r.profundidadeFundoM, 2), unidade: "m", formula: "topo + H" },
+    ],
+  });
+
+  const notas: string[] = [
+    "A NBR 7229:1993 e a NBR 13969:1997 foram substituídas pela NBR 17076:2024. Esta calculadora usa critérios de prática de projeto e das normas antigas, a conferir na NBR 17076:2024.",
+    "Fora do escopo: vala de infiltração, filtro anaeróbio, camada impenetrável e distâncias a poços, divisas e edificações.",
+    ...r.alertas,
+  ];
+  if (r.limite) {
+    secoes.push({
+      titulo: "Sondagem: nível d'água",
+      valores: [
+        { simbolo: "H_max", descricao: "Profundidade útil máxima acima do lençol", valor: fmtNum(r.limite.profundidadeMaximaM, 2), unidade: "m", formula: "nível d'água − distância mínima − topo" },
+        { simbolo: "Folga", descricao: "Nível d'água − fundo", valor: fmtNum(r.limite.folgaM, 2), unidade: "m" },
+        { simbolo: "Situação", descricao: "Distância mínima ao lençol", valor: r.limite.cabe ? "respeitada" : "não respeitada" },
+        ...(r.limite.unidadesParaCaber != null
+          ? [{ simbolo: "n", descricao: "Unidades iguais para caber acima do lençol", valor: fmtNum(r.limite.unidadesParaCaber, 0) }]
+          : []),
+      ],
+      notas,
+    });
+  } else {
+    secoes[secoes.length - 1].notas = notas;
+  }
+
+  return montarMemoriaBase({ ...base, secoes });
 }
 
 function memoriaReservatorios(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {

@@ -31,6 +31,7 @@ import { ReservoirForm } from "./reservoir-form";
 import { ElectricalDemandForm } from "./electrical-demand-form";
 import { PumpRecalqueForm } from "./pump-recalque-form";
 import { PoolPumpForm } from "./pool-pump-form";
+import { SoilInfiltrationForm } from "./soil-infiltration-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -85,6 +86,8 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <PumpRecalqueForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "bomba-piscina":
       return <PoolPumpForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "esgoto-infiltracao":
+      return <SoilInfiltrationForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }
