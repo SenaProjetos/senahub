@@ -3,16 +3,18 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import Link from "next/link";
 import { AlertTriangle, CalendarClock, Lightbulb, UserRoundCheck, Users } from "lucide-react";
-import { aplicarSugestaoRecurso, sugestoesDaSobrecarga } from "@/modules/planejamento/recursos-actions";
+import { sugestoesDaSobrecarga } from "@/modules/planejamento/recursos-actions";
 import type { CargaDaEquipe, SobrecargaComSugestao } from "@/modules/planejamento/recursos-queries";
-import type { SugestaoAtraso, SugestaoTroca, Sugestoes } from "@/modules/planejamento/sugestoes-recursos";
+import type { Sugestoes } from "@/modules/planejamento/sugestoes-recursos";
+import type { ProjetoRef } from "@/modules/planejamento/recursos-filtros";
+import { SinalSemCronograma } from "@/components/recursos/sinal-sem-cronograma";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { formatarData } from "@/lib/utils";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 
 function wkLabel(wk: string) {
   // "2026-W23" → "Sem 23/26"
@@ -35,16 +37,22 @@ function heatCarga(horas: number, capacidade: number) {
  * projetos com cronograma aprovado, contra a capacidade de cada semana. Diferente da "Carga
  * real", que é o que o ponto registrou.
  *
- * Só sugere e aplica com um clique — nunca nivela sozinha (D18). Antes de aplicar, confirma:
- * a sugestão foi calculada com a tela aberta e o mundo pode ter mudado.
+ * Só lê (Lote 2): as sugestões (D18) dizem o que atrasar ou passar, e o link abre a EAP do projeto,
+ * onde a correção se faz. Nada é aplicado daqui.
  */
 export function CargaPlanejadaView({
   carga,
-  podeGerir,
+  sinaisPorUser,
+  pessoasVisiveis,
 }: {
   carga: CargaDaEquipe;
-  podeGerir: boolean;
+  /** Projetos ativos sem cronograma aprovado por pessoa — só um sinal, sem horas. */
+  sinaisPorUser: Record<string, ProjetoRef[]>;
+  /** Filtros da tela; `null` = todas as pessoas. */
+  pessoasVisiveis: ReadonlySet<string> | null;
 }) {
+  const pessoas = pessoasVisiveis ? carga.pessoas.filter((p) => pessoasVisiveis.has(p.userId)) : carga.pessoas;
+  const sobrecargas = pessoasVisiveis ? carga.sobrecargas.filter((s) => pessoasVisiveis.has(s.userId)) : carga.sobrecargas;
   const nomeDe = new Map(carga.pessoas.map((p) => [p.userId, p.nome]));
   const nomeProjeto = (id: string) => {
     const p = carga.rotulos.projetos[id];
@@ -70,17 +78,17 @@ export function CargaPlanejadaView({
         Horas previstas nas linhas dos projetos com cronograma aprovado ({carga.projetosCalculados.length}).
         {carga.projetosEmRascunho.length > 0 &&
           ` Em cinza, à parte, o que ${carga.projetosEmRascunho.length} cronograma(s) em rascunho já prevê — só soma depois de aprovar.`}
-        Projetos sem cronograma aprovado entram pela alocação digitada, convertida em horas.
+        Projeto sem cronograma aprovado não soma horas: a pessoa recebe o selo “sem cronograma”.
       </p>
 
-      {carga.sobrecargas.length > 0 && (
+      {sobrecargas.length > 0 && (
         <section className="space-y-2">
           <h3 className="flex items-center gap-1.5 text-sm font-semibold">
             <AlertTriangle className="size-4 text-destructive" />
-            {carga.sobrecargas.length} semana(s) acima da capacidade
+            {sobrecargas.length} semana(s) acima da capacidade
           </h3>
           <ul className="space-y-2">
-            {carga.sobrecargas.map((s) => (
+            {sobrecargas.map((s) => (
               <SobrecargaItem
                 key={`${s.userId}:${s.semana}`}
                 s={s}
@@ -88,7 +96,7 @@ export function CargaPlanejadaView({
                 nomeDe={(id) => nomeDe.get(id) ?? "—"}
                 nomeProjeto={nomeProjeto}
                 linhaNome={(id) => carga.rotulos.linhas[id]?.nome ?? "linha"}
-                podeGerir={podeGerir}
+                linhaProjetoId={(id) => carga.rotulos.linhas[id]?.projetoId}
               />
             ))}
           </ul>
@@ -108,12 +116,20 @@ export function CargaPlanejadaView({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {carga.pessoas.map((p) => (
+            {pessoas.length === 0 && (
+              <tr>
+                <td colSpan={carga.semanas.length + 1} className="px-3 py-6 text-center text-xs text-muted-foreground">
+                  Nenhum resultado para os filtros.
+                </td>
+              </tr>
+            )}
+            {pessoas.map((p) => (
               <tr key={p.userId}>
                 <td className="sticky left-0 z-10 bg-background px-3 py-2 font-medium">
                   <div className="flex items-center gap-2">
                     <AvatarUsuario nome={p.nome} image={p.image} size="sm" className="size-6 shrink-0" />
                     {p.nome}
+                    <SinalSemCronograma projetos={sinaisPorUser[p.userId] ?? []} />
                   </div>
                 </td>
                 {carga.semanas.map((wk) => {
@@ -192,18 +208,16 @@ function SobrecargaItem({
   nomeDe,
   nomeProjeto,
   linhaNome,
-  podeGerir,
+  linhaProjetoId,
 }: {
   s: SobrecargaComSugestao;
   nome: string;
   nomeDe: (userId: string) => string;
   nomeProjeto: (projetoId: string) => string;
   linhaNome: (linhaId: string) => string;
-  podeGerir: boolean;
+  linhaProjetoId: (linhaId: string) => string | undefined;
 }) {
   const router = useRouter();
-  const confirm = useConfirm();
-  const [pending, start] = useTransition();
   // Sugestões sob demanda: cada uma roda o motor de novo (ver `SobrecargaComSugestao`). A
   // listagem vem sem elas e só quem clica paga o cálculo.
   const [sugestoes, setSugestoes] = useState<Sugestoes | null>(null);
@@ -221,43 +235,6 @@ function SobrecargaItem({
   }
   const atrasar = sugestoes?.atrasar ?? null;
   const passar = sugestoes?.passar ?? null;
-
-  async function aplicarAtraso(a: SugestaoAtraso) {
-    const ok = await confirm({
-      title: `Atrasar “${linhaNome(a.linhaId)}”?`,
-      description: `O início passa para ${formatarData(a.novoInicio)} (+${a.diasUteis} dia(s) útil(eis)). ${
-        a.criaRestricao ? "A linha ganha a data fixada (alfinete). " : ""
-      }O término do projeto não muda.`,
-      confirmLabel: "Atrasar",
-    });
-    if (!ok) return;
-    start(async () => {
-      const r = await aplicarSugestaoRecurso({ tipo: "atrasar", linhaId: a.linhaId, novoInicio: a.novoInicio });
-      if (r.ok) toast.success("Início adiado. O cronograma foi recalculado.");
-      else toast.error(r.error);
-      router.refresh();
-    });
-  }
-
-  async function aplicarTroca(t: SugestaoTroca) {
-    const ok = await confirm({
-      title: `Passar “${linhaNome(t.linhaId)}” para ${nomeDe(t.paraUserId)}?`,
-      description: `${t.horas}h saem de ${nomeDe(t.deUserId)} e vão inteiras para ${nomeDe(t.paraUserId)}. O card do projetista acompanha.`,
-      confirmLabel: "Passar",
-    });
-    if (!ok) return;
-    start(async () => {
-      const r = await aplicarSugestaoRecurso({
-        tipo: "passar",
-        atribuicaoId: t.atribuicaoId,
-        deUserId: t.deUserId,
-        paraUserId: t.paraUserId,
-      });
-      if (r.ok) toast.success("Atribuição passada.");
-      else toast.error(r.error);
-      router.refresh();
-    });
-  }
 
   const origem = s.parcelas.find((p) => p.linhaId != null) ?? s.parcelas[0];
 
@@ -278,33 +255,47 @@ function SobrecargaItem({
         </p>
       )}
 
-      {podeGerir && sugestoes == null && (
+      {sugestoes == null && (
         <Button size="sm" variant="outline" className="mt-2" disabled={buscando} onClick={buscarSugestoes}>
           <Lightbulb className="size-3.5" /> {buscando ? "Calculando…" : "Ver sugestões"}
         </Button>
       )}
-      {podeGerir && (atrasar || passar) && (
-        <div className="mt-2 flex flex-wrap gap-2">
+      {(atrasar || passar) && (
+        <ul className="mt-2 space-y-1 text-xs">
           {atrasar && (
-            <Button size="sm" variant="outline" disabled={pending} onClick={() => aplicarAtraso(atrasar)}>
-              <CalendarClock className="size-3.5" /> Atrasar “{linhaNome(atrasar.linhaId)}” em {atrasar.diasUteis} dia(s)
-              {atrasar.resolve ? "" : " (alivia)"}
-            </Button>
+            <li className="flex flex-wrap items-center gap-1.5">
+              <CalendarClock className="size-3.5 shrink-0" />
+              Atrasar “{linhaNome(atrasar.linhaId)}” em {atrasar.diasUteis} dia(s) útil(eis), para{" "}
+              {formatarData(atrasar.novoInicio)}
+              {atrasar.resolve ? " (resolve)" : " (alivia)"}.
+              <LinkEap projetoId={linhaProjetoId(atrasar.linhaId)} />
+            </li>
           )}
           {passar && (
-            <Button size="sm" variant="outline" disabled={pending} onClick={() => aplicarTroca(passar)}>
-              <UserRoundCheck className="size-3.5" /> Passar “{linhaNome(passar.linhaId)}” para {nomeDe(passar.paraUserId)}
-              {passar.resolve ? "" : " (alivia)"}
-            </Button>
+            <li className="flex flex-wrap items-center gap-1.5">
+              <UserRoundCheck className="size-3.5 shrink-0" />
+              Passar “{linhaNome(passar.linhaId)}” para {nomeDe(passar.paraUserId)}
+              {passar.resolve ? " (resolve)" : " (alivia)"}.
+              <LinkEap projetoId={linhaProjetoId(passar.linhaId)} />
+            </li>
           )}
-        </div>
+        </ul>
       )}
-      {podeGerir && sugestoes != null && !atrasar && !passar && (
+      {sugestoes != null && !atrasar && !passar && (
         <p className="mt-2 text-[11px] text-muted-foreground">
           Nenhuma correção automática cabe sem mexer no prazo do projeto ou sobrecarregar outra pessoa — decisão de
           coordenação.
         </p>
       )}
     </li>
+  );
+}
+
+function LinkEap({ projetoId }: { projetoId: string | undefined }) {
+  if (!projetoId) return null;
+  return (
+    <Link href={`/projetos/${projetoId}/eap`} className="text-primary underline-offset-2 hover:underline">
+      Abrir a EAP
+    </Link>
   );
 }

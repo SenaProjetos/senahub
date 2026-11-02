@@ -248,6 +248,11 @@ export function RecursosMatrix({
     [cargaSemanal, visivel, sobreReal],
   );
 
+  const planejadaVisiveis = useMemo(
+    () => new Set(cargaPlanejada.pessoas.filter((p) => visivel(p.userId, sobreJanela)).map((p) => p.userId)),
+    [cargaPlanejada.pessoas, visivel, sobreJanela],
+  );
+
   const calculadaPorUser = useMemo(
     () =>
       new Map(
@@ -401,7 +406,7 @@ export function RecursosMatrix({
       {vista === "carga" ? (
         <CargaRealView cargaSemanal={cargaRealFiltrada} sinais={sinaisPorUser} vazio={vazio} />
       ) : vista === "planejada" ? (
-        <CargaPlanejadaView carga={cargaPlanejada} podeGerir={podeGerir} />
+        <CargaPlanejadaView carga={cargaPlanejada} sinaisPorUser={sinaisPorUser} pessoasVisiveis={planejadaVisiveis} />
       ) : vista === "heatmap" ? (
         <HeatmapView
           colunas={heat.colunas}
