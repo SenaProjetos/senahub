@@ -12,9 +12,28 @@
  *
  * Datas em `YYYY-MM-DD` (dia-calendário, comparável como texto).
  */
+import { z } from "zod";
 import type { StatusEap } from "@/generated/prisma/client";
 
 type Dia = string;
+
+/**
+ * Entrada da action `registrarExecucao` (aqui porque arquivo `"use server"` só exporta função
+ * assíncrona, e o teste confere as mensagens). Lote 7: `progresso` e `custoRealTerceiro` ausentes =
+ * não mudam. As faixas e as recusas são da regra pura (`aplicarExecucao`); aqui só o tipo e o teto.
+ */
+export const registrarExecucaoSchema = z.object({
+  id: z.string().min(1),
+  inicioReal: z.string().nullable(),
+  fimReal: z.string().nullable(),
+  progresso: z.number({ error: "Percentual inválido." }).optional(),
+  custoRealTerceiro: z
+    .number({ error: "Valor inválido." })
+    .min(0, "O valor não pode ser negativo.")
+    .max(9_999_999_999, "Valor alto demais.")
+    .nullable()
+    .optional(),
+});
 
 export type EntradaExecucao = {
   inicioReal: Dia | null;
@@ -123,4 +142,27 @@ export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecuc
 export function statusAoDesbloquear(p: { inicioReal: Dia | null; fimReal: Dia | null }): StatusEap {
   if (p.fimReal) return "con";
   return p.inicioReal ? "and" : "nin";
+}
+
+/**
+ * O "antes" da auditoria de `registrarExecucao`, já legível: o `sanitize` da auditoria percorre
+ * objeto por objeto, então um `Date` viraria `{}` e um `Decimal` os dígitos internos dele. Datas em
+ * `YYYY-MM-DD` e o valor do terceiro em número (mesmo jeito de `financeiro/lancamentos`).
+ */
+export function fotoDaExecucao(l: {
+  status: StatusEap;
+  progresso: number;
+  inicioReal: Date | null;
+  fimReal: Date | null;
+  /** `Decimal` do Prisma (ou número). */
+  custoRealTerceiro: { toString(): string } | number | null;
+}) {
+  const dia = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  return {
+    status: l.status,
+    progresso: l.progresso,
+    inicioReal: dia(l.inicioReal),
+    fimReal: dia(l.fimReal),
+    custoRealTerceiro: l.custoRealTerceiro != null ? Number(l.custoRealTerceiro.toString()) : null,
+  };
 }

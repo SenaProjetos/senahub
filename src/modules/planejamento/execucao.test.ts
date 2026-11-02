@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { aplicarExecucao, statusAoDesbloquear, type LinhaParaExecucao } from "./execucao";
+import { Prisma } from "@/generated/prisma/client";
+import { sanitize } from "@/lib/audit";
+import { aplicarExecucao, fotoDaExecucao, registrarExecucaoSchema, statusAoDesbloquear, type LinhaParaExecucao } from "./execucao";
 
 const HOJE = "2026-10-20";
 const atv = (extra: Partial<LinhaParaExecucao> = {}): LinhaParaExecucao => ({
@@ -162,5 +164,38 @@ describe("aplicarExecucao — percentual", () => {
       ok: false,
       motivo: "Marco não tem percentual: informe a data em que aconteceu.",
     });
+  });
+});
+
+describe("fotoDaExecucao (o 'antes' da auditoria)", () => {
+  it("valor do terceiro e datas reais chegam legíveis depois do sanitize", () => {
+    const foto = fotoDaExecucao({
+      status: "and",
+      progresso: 40,
+      inicioReal: new Date("2026-10-20T00:00:00.000Z"),
+      fimReal: null,
+      custoRealTerceiro: new Prisma.Decimal("1250.50"),
+    });
+    expect(sanitize(foto)).toEqual({ status: "and", progresso: 40, inicioReal: "2026-10-20", fimReal: null, custoRealTerceiro: 1250.5 });
+  });
+});
+
+describe("registrarExecucaoSchema", () => {
+  const base = { id: "l1", inicioReal: null, fimReal: null };
+  const msg = (x: unknown) => {
+    const r = registrarExecucaoSchema.safeParse(x);
+    return r.success ? null : r.error.issues[0].message;
+  };
+  it("valor do terceiro: mensagens em português", () => {
+    expect(msg({ ...base, custoRealTerceiro: -1 })).toBe("O valor não pode ser negativo.");
+    expect(msg({ ...base, custoRealTerceiro: 10_000_000_000 })).toBe("Valor alto demais.");
+    expect(msg({ ...base, custoRealTerceiro: "x" })).toBe("Valor inválido.");
+  });
+  it("percentual que não é número: mensagem em português", () => {
+    expect(msg({ ...base, progresso: "x" })).toBe("Percentual inválido.");
+  });
+  it("campos novos são opcionais (chamadas antigas continuam valendo)", () => {
+    expect(registrarExecucaoSchema.safeParse(base).success).toBe(true);
+    expect(registrarExecucaoSchema.safeParse({ ...base, custoRealTerceiro: null }).success).toBe(true);
   });
 });

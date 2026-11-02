@@ -6,7 +6,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { paraDataUtc, paraDia } from "@/modules/planejamento/agenda";
-import { statusAoDesbloquear } from "@/modules/planejamento/execucao";
+import { fotoDaExecucao, registrarExecucaoSchema, statusAoDesbloquear } from "@/modules/planejamento/execucao";
 import { registrarExecucaoNaLinha } from "@/modules/planejamento/execucao-service";
 import { inicioDoDiaUtc } from "@/lib/data";
 import { notificarMuitos } from "@/lib/notificar";
@@ -1298,19 +1298,14 @@ export const registrarExecucao = defineAction(
     permissao: "executado",
     acao: "registrar-execucao",
     entidade: "EapTarefa",
-    schema: z.object({
-      id: z.string().min(1),
-      inicioReal: z.string().nullable(),
-      fimReal: z.string().nullable(),
-      // Lote 7: ausente = não muda. As faixas e as recusas são da regra pura (`aplicarExecucao`).
-      progresso: z.number().optional(),
-      custoRealTerceiro: z.number().min(0).max(9_999_999_999).nullable().optional(),
-    }),
-    capturarAntes: (i) =>
-      prisma.eapTarefa.findUnique({
+    schema: registrarExecucaoSchema,
+    capturarAntes: async (i) => {
+      const l = await prisma.eapTarefa.findUnique({
         where: { id: i.id },
         select: { status: true, progresso: true, inicioReal: true, fimReal: true, custoRealTerceiro: true },
-      }),
+      });
+      return l ? fotoDaExecucao(l) : null;
+    },
   },
   async (i, { user }) => {
     const { projetoId, nome, status, fase, parcelasAFaturar } = await registrarExecucaoNaLinha({
