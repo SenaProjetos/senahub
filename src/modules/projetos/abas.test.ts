@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aplicarConfigAbas, abasParaEdicao, ordenarPorAtividade, ABAS_CONFIGURAVEIS } from "./abas";
+import { aplicarConfigAbas, abasParaEdicao, ordenarPorAtividade, ABAS_CONFIGURAVEIS, ABA_LABEL } from "./abas";
 
 const TODAS = ["", ...ABAS_CONFIGURAVEIS];
 
@@ -39,6 +39,12 @@ describe("ABAS_CONFIGURAVEIS", () => {
     const i = ABAS_CONFIGURAVEIS.indexOf("/arquivos");
     expect(i).toBeGreaterThanOrEqual(0);
     expect(ABAS_CONFIGURAVEIS[i + 1]).toBe("/problemas");
+  });
+
+  it('"/estudos" vem logo depois de "/inputs" na ordem padrão e tem rótulo', () => {
+    const i = ABAS_CONFIGURAVEIS.indexOf("/inputs");
+    expect(ABAS_CONFIGURAVEIS[i + 1]).toBe("/estudos");
+    expect(ABA_LABEL["/estudos"]).toBe("Estudos");
   });
 });
 

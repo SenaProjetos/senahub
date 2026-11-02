@@ -54,7 +54,7 @@ export const LIGACOES = {
 } as const;
 
 export const cargaSchema = z.object({
-  descricao: z.string().min(1).max(120),
+  descricao: z.string().min(1, "Descreva a carga.").max(120, "A descrição da carga aceita até 120 caracteres."),
   quantidade: z.number().int().positive().default(1),
   /** Potência nominal unitária, em W. */
   potenciaW: z.number().positive(),
@@ -67,28 +67,36 @@ export const cargaSchema = z.object({
   ligacao: z.enum(["mono", "tri"]).default("mono"),
 });
 
-export const entradaSchema = z
-  .object({
-    cargas: z.array(cargaSchema).min(1).max(200),
-    isolacao: z.enum(["PVC", "EPR"]).default("PVC"),
-    temperaturaC: z.number().default(30),
-    circuitosAgrupados: z.number().int().positive().default(1),
-    /** Substitui o fator da tabela quando informado (ex.: método de instalação fora da linha considerada). */
-    fctManual: z.number().gt(0).max(1.5).optional(),
-    fcaManual: z.number().gt(0).max(1).optional(),
-    /** Alimentação geral, para a corrente total da demanda. */
-    alimentacaoTensaoV: z.number().positive().default(220),
-    alimentacaoLigacao: z.enum(["mono", "tri"]).default("tri"),
-  })
-  .superRefine((e, ctx) => {
-    if (e.fctManual == null && !(e.temperaturaC in FCT_TABELA[e.isolacao])) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["temperaturaC"],
-        message: `Temperatura fora da Tabela 40 para ${ISOLACOES[e.isolacao]}. Use um valor da tabela ou informe o FCT.`,
-      });
-    }
-  });
+/** Condições de instalação e alimentação geral (tudo da entrada, menos a lista de cargas). */
+export const condicoesSchema = z.object({
+  isolacao: z.enum(["PVC", "EPR"]).default("PVC"),
+  temperaturaC: z.number().default(30),
+  circuitosAgrupados: z.number().int().positive().default(1),
+  /** Substitui o fator da tabela quando informado (ex.: método de instalação fora da linha considerada). */
+  fctManual: z.number().gt(0).max(1.5).optional(),
+  fcaManual: z.number().gt(0).max(1).optional(),
+  /** Alimentação geral, para a corrente total da demanda. */
+  alimentacaoTensaoV: z.number().positive().default(220),
+  alimentacaoLigacao: z.enum(["mono", "tri"]).default("tri"),
+});
+
+/** Regra compartilhada com o Estudos do projeto: sem FCT manual, a temperatura tem de estar na Tabela 40. */
+export function validarTemperatura(
+  e: Pick<z.infer<typeof condicoesSchema>, "fctManual" | "temperaturaC" | "isolacao">,
+  ctx: z.RefinementCtx,
+): void {
+  if (e.fctManual == null && !(e.temperaturaC in FCT_TABELA[e.isolacao])) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["temperaturaC"],
+      message: `Temperatura fora da Tabela 40 para ${ISOLACOES[e.isolacao]}. Use um valor da tabela ou informe o FCT.`,
+    });
+  }
+}
+
+export const entradaSchema = condicoesSchema
+  .extend({ cargas: z.array(cargaSchema).min(1).max(200) })
+  .superRefine(validarTemperatura);
 
 export type EntradaDemanda = z.infer<typeof entradaSchema>;
 export type EntradaDemandaInput = z.input<typeof entradaSchema>;

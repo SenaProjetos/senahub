@@ -19,15 +19,20 @@ export const MOTIVO_LISTA_CHEIA = `A lista já tem o máximo de ${MAX_CARGAS} ca
 export const MOTIVO_PRIMEIRA = "Esta já é a primeira carga.";
 export const MOTIVO_ULTIMA = "Esta já é a última carga.";
 
-export function itensDeCarga(ctx: { indice: number; total: number }): AcaoItem[] {
+/**
+ * `total` = cargas da lista em que a linha está. No Estudos a lista é um ambiente, mas o limite vale
+ * para o estudo todo (`totalGeral`) e um ambiente pode ficar sem carga (`permiteVazia`).
+ */
+export function itensDeCarga(ctx: { indice: number; total: number; totalGeral?: number; permiteVazia?: boolean }): AcaoItem[] {
   const { indice, total } = ctx;
+  const totalGeral = ctx.totalGeral ?? total;
   return [
     {
       tipo: "acao",
       id: ACAO_CARGA_DUPLICAR,
       rotulo: "Duplicar carga",
       icone: CopyPlus,
-      desabilitado: total >= MAX_CARGAS ? MOTIVO_LISTA_CHEIA : undefined,
+      desabilitado: totalGeral >= MAX_CARGAS ? MOTIVO_LISTA_CHEIA : undefined,
     },
     { tipo: "acao", id: ACAO_CARGA_SUBIR, rotulo: "Mover para cima", icone: ArrowUp, desabilitado: indice <= 0 ? MOTIVO_PRIMEIRA : undefined },
     {
@@ -44,7 +49,7 @@ export function itensDeCarga(ctx: { indice: number; total: number }): AcaoItem[]
       rotulo: "Remover carga",
       icone: Trash2,
       variant: "destructive",
-      desabilitado: total <= 1 ? MOTIVO_ULTIMA_CARGA : undefined,
+      desabilitado: !ctx.permiteVazia && total <= 1 ? MOTIVO_ULTIMA_CARGA : undefined,
       confirmar: {
         titulo: "Remover esta carga?",
         descricao: "A linha sai do cálculo. Dá para digitá-la de novo, mas o desfazer não existe.",

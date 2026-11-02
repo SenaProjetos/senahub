@@ -19,6 +19,17 @@ function acao(itens: ReturnType<typeof itensDeCarga>, id: string) {
   return item;
 }
 
+describe("itensDeCarga — lista que faz parte de um total maior (Estudos)", () => {
+  it("o limite vale para o total geral, não só para a lista", () => {
+    const itens = itensDeCarga({ indice: 0, total: 3, totalGeral: MAX_CARGAS });
+    expect(acao(itens, ACAO_CARGA_DUPLICAR).desabilitado).toBe(MOTIVO_LISTA_CHEIA);
+  });
+
+  it("um ambiente pode ficar sem carga: a última pode ser removida", () => {
+    expect(acao(itensDeCarga({ indice: 0, total: 1, permiteVazia: true }), ACAO_CARGA_REMOVER).desabilitado).toBeUndefined();
+  });
+});
+
 describe("itensDeCarga", () => {
   it("linha do meio: tudo habilitado", () => {
     const itens = itensDeCarga({ indice: 1, total: 3 });

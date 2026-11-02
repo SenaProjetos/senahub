@@ -225,6 +225,8 @@ model User {
   ajustesPonto                  AjustePonto[]               @relation("AjustePontoUsuario")
   ajustesPontoEditados          AjustePonto[]               @relation("AjustePontoEditor")
   diarioEntradas                DiarioEntrada[]             @relation("DiarioAutor")
+  estudosCriados                EstudoProjeto[]             @relation("EstudoCriador")
+  estudosAtualizados            EstudoProjeto[]             @relation("EstudoAtualizador")
   alertasPontoEnviados          AlertaPontoEnviado[]
   alertasLicitacaoEnviados      AlertaLicitacaoEnviado[]
   automacoesComerciaisEnviadas  AutomacaoComercialEnviada[]
@@ -1300,6 +1302,7 @@ model Projeto {
   riscos                  RiscoProjeto[]
   calculosFerramenta      CalculoFerramenta[]
   diarioEntradas          DiarioEntrada[]
+  estudos                 EstudoProjeto[]
   arts                    Art[]
   apontamentosCoordenacao ApontamentoCoordenacao[]
   orcamentosCusto         CustoOrcamento[]
@@ -9689,4 +9692,27 @@ model EmailAcompanhamento {
 
   @@index([projetoId, enviadoEm])
   @@map("email_acompanhamento")
+}
+
+/// Estudo de um projeto (Lote 5d, aba Estudos). Por ora só `cargas_eletricas`: levantamento de
+/// cargas por ambiente, calculado pelo MESMO motor da calculadora "Corrente e demanda". O conteúdo
+/// inteiro é um documento JSON validado por Zod (`modules/estudos/conteudo.ts`); `versao` é a trava
+/// otimista (gravar = tudo ou nada). Não guarda resultado de cálculo: só as entradas.
+model EstudoProjeto {
+  id              String   @id @default(cuid())
+  projetoId       String
+  projeto         Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  tipo            String   @default("cargas_eletricas")
+  nome            String
+  conteudo        Json
+  versao          Int      @default(1)
+  criadoPorId     String
+  criadoPor       User     @relation("EstudoCriador", fields: [criadoPorId], references: [id])
+  atualizadoPorId String
+  atualizadoPor   User     @relation("EstudoAtualizador", fields: [atualizadoPorId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([projetoId, createdAt])
+  @@map("estudo_projeto")
 }

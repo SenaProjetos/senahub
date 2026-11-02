@@ -143,6 +143,8 @@ antigos usam o padrão sem migração. Texto original do pedido preservado:
 Reservatórios, Corrente e demanda — ambos "em validação", só visíveis a quem tem `ferramentas:gerir`); 5b bombas,
 5c esgoto e 5d Estudos (no projeto) pendentes. Texto original do pedido preservado abaixo:
 
+**Atualização 02/11/2026:** 5a, 5b, 5c e **5d implementados** (5d: aba Estudos, [desenho](2026-11-02-lote5d-estudos-design.md)). O Lote 5 só vai à equipe depois da validação do engenheiro.
+
 - **Calculadoras (pedido):** pré-dimensionamento de reservatórios inferior e superior (com reserva
   de incêndio); destino final de esgoto (sumidouro/filtro, a partir do teste de percolação e da
   sondagem); corrente, corrente corrigida e carga demandada; bomba de recalque; bomba de piscina.

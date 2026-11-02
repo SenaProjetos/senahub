@@ -62,6 +62,21 @@ A seleção do condutor (Tabelas 36 a 39) **não** faz parte desta calculadora.
 
 Os mesmos casos estão em `calc/electrical-demand.test.ts`.
 
+### 5. Adendo — uso do mesmo motor na aba Estudos do projeto
+
+A aba **Estudos** (`/projetos/[id]/estudos`) roda este mesmo motor sobre o levantamento de cargas de um projeto.
+Não há fórmula nova, mas há duas agregações para o engenheiro conhecer:
+
+| Item | Como é feito | Conferir |
+|---|---|---|
+| Lista do estudo | os ambientes são achatados numa lista só ("Ambiente — carga"), com as mesmas condições de instalação para todas as cargas | ☐ |
+| Subtotal por ambiente | o motor é rodado só nas cargas do ambiente, com as mesmas condições; potência instalada, demandada e aparente (kVA) dos ambientes somam exatamente ao total; fator de potência médio e corrente total saem dos totais | ☐ |
+| Subtotal por tipo de ponto | soma das potências das linhas do motor por rótulo (iluminação, tomada de uso geral/específico, outro); o rótulo não altera a conta | ☐ |
+| Fator de demanda | continua só por linha, digitado; o estudo guarda a **fonte** (tabela da concessionária) e ela sai na memória | ☐ |
+| Resultado | **não é gravado**: só as entradas. Ao validar, os estudos já criados passam a mostrar números do motor validado | ☐ |
+
+Enquanto esta calculadora estiver em validação, a aba Estudos só aparece para quem tem `ferramentas:gerir`.
+
 ## Resultado
 
 ☐ Validada sem ressalvas  ☐ Validada com os ajustes anotados acima  ☐ Reprovada

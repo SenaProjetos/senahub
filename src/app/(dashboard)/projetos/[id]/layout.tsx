@@ -10,6 +10,7 @@ import { obterProjetoMinimo, abasComConteudo } from "@/modules/projetos/queries"
 import type { AbaConfigItem } from "@/modules/projetos/abas";
 import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
+import { liberacaoDosEstudos } from "@/modules/estudos/queries";
 import { origemComercialDoProjeto } from "@/modules/comercial/vinculo/queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -53,6 +54,8 @@ export default async function ProjetoLayout({
     podeResultados,
     podeEap,
     podeProblemas,
+    podeFerramentas,
+    liberacaoEstudos,
     canalChat,
     modelosDoc,
     conteudoPorAba,
@@ -79,6 +82,9 @@ export default async function ProjetoLayout({
     can(user, "planejamento", "ver"),
     // Problemas (pendências do projeto): quem enxerga arquivos; só interno (cliente do portal não vê).
     can(user, "arquivos", "ver"),
+    // Estudos (levantamento de cargas): usa as calculadoras; com o motor em validação só quem gere as ferramentas vê.
+    can(user, "ferramentas", "usar"),
+    liberacaoDosEstudos(user),
     canalDoProjeto(id),
     modelosPorFonte("projeto"),
     abasComConteudo(id),
@@ -93,6 +99,7 @@ export default async function ProjetoLayout({
     // De onde veio o projeto, do lado comercial (link com a ficha do funil).
     origemComercialDoProjeto(id),
   ]);
+  const podeEstudos = user.tipo === "interno" && podeFerramentas && liberacaoEstudos.liberado;
   // Linkar mexe no projeto e lê a ficha: exige `projetos:gerir` e `comercial:gerir`.
   const vinculo = {
     podeVincular: podeGerir && podeComercialGerir,
@@ -228,6 +235,7 @@ export default async function ProjetoLayout({
               "/disciplinas",
               ...(podeEap ? ["/eap"] : []),
               "/inputs",
+              ...(podeEstudos ? ["/estudos"] : []),
               ...(podeVerFinanceiro ? ["/financeiro"] : []),
               ...(podeResultados ? ["/resultados"] : []),
               ...(podeServicos ? ["/servicos"] : []),
