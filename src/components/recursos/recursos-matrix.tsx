@@ -155,6 +155,8 @@ function heatColor(pct: number, capacidadePct: number) {
   return "hsl(0 75% 60%)"; // superalocado forte
 }
 
+const FILTROS_VAZIOS: FiltrosRecursos = { busca: "", projetoId: null, disciplina: null, soSobrecarregados: false };
+
 const ROTULO = "font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground";
 
 export function RecursosMatrix({
@@ -190,12 +192,7 @@ export function RecursosMatrix({
   });
   const [novoOpen, setNovoOpen] = useState(false);
 
-  const [filtros, setFiltros] = useState<FiltrosRecursos>({
-    busca: "",
-    projetoId: null,
-    disciplina: null,
-    soSobrecarregados: false,
-  });
+  const [filtros, setFiltros] = useState<FiltrosRecursos>(FILTROS_VAZIOS);
   const [vista, setVista] = useState<"matriz" | "heatmap" | "carga" | "planejada">(janelaInicial ? "heatmap" : "matriz");
   const [periodoHeat, setPeriodoHeat] = useState<PeriodoHeatmap>("meses");
 
@@ -221,9 +218,11 @@ export function RecursosMatrix({
     [indice],
   );
   const passam = useMemo(() => pessoasQuePassam(indice, filtros), [indice, filtros]);
+  const semanasJanela = useMemo(() => semanasDaJanela(janelaIni, janelaFim), [janelaIni, janelaFim]);
+  const janelaValida = semanasJanela.length > 0;
   const sobreJanela = useMemo(
-    () => sobrecarregadosNaJanela(cargaPlanejada.sobrecargas, semanasDaJanela(janelaIni, janelaFim)),
-    [cargaPlanejada.sobrecargas, janelaIni, janelaFim],
+    () => sobrecarregadosNaJanela(cargaPlanejada.sobrecargas, semanasJanela),
+    [cargaPlanejada.sobrecargas, semanasJanela],
   );
   const sobreReal = useMemo(() => sobrecarregadosNaCargaReal(cargaSemanal.linhas), [cargaSemanal.linhas]);
   const soSobrecarregados = filtros.soSobrecarregados;
@@ -315,7 +314,7 @@ export function RecursosMatrix({
             value={filtros.projetoId ?? TODOS}
             onValueChange={(v) => setFiltros((f) => ({ ...f, projetoId: !v || v === TODOS ? null : v }))}
           >
-            <SelectTrigger className="h-8 w-64">
+            <SelectTrigger className="h-8 w-64" aria-label="Filtrar por projeto">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -336,7 +335,7 @@ export function RecursosMatrix({
               value={filtros.disciplina ?? TODOS}
               onValueChange={(v) => setFiltros((f) => ({ ...f, disciplina: !v || v === TODOS ? null : v }))}
             >
-              <SelectTrigger className="h-8 w-44">
+              <SelectTrigger className="h-8 w-44" aria-label="Filtrar por disciplina">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -360,12 +359,19 @@ export function RecursosMatrix({
           <AlertTriangle className="size-3.5" /> Só sobrecarregados
         </button>
 
+        {filtrando && (
+          <Button size="sm" variant="ghost" onClick={() => setFiltros(FILTROS_VAZIOS)}>
+            Limpar filtros
+          </Button>
+        )}
+
         {/* N-31: Janela de análise */}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className={ROTULO}>Janela</span>
           <input
             type="date"
             aria-label="Início da janela de análise"
+            aria-invalid={!janelaValida}
             value={janelaIni}
             onChange={(e) => setJanelaIni(e.target.value)}
             className="h-8 rounded-sm border bg-background px-2 text-xs"
@@ -374,6 +380,8 @@ export function RecursosMatrix({
           <input
             type="date"
             aria-label="Fim da janela de análise"
+            aria-invalid={!janelaValida}
+            min={janelaIni || undefined}
             value={janelaFim}
             onChange={(e) => setJanelaFim(e.target.value)}
             className="h-8 rounded-sm border bg-background px-2 text-xs"
@@ -392,6 +400,7 @@ export function RecursosMatrix({
             <button
               key={id}
               type="button"
+              aria-pressed={vista === id}
               onClick={() => setVista(id)}
               className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
                 vista === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
@@ -402,6 +411,13 @@ export function RecursosMatrix({
           ))}
         </div>
       </div>
+
+      {!janelaValida && (
+        <p role="alert" className="text-xs text-destructive">
+          Janela de análise inválida: o fim precisa ser depois do início, com no máximo 400 dias. Enquanto isso, o
+          filtro “Só sobrecarregados” e os avisos de janela não encontram ninguém.
+        </p>
+      )}
 
       {vista === "carga" ? (
         <CargaRealView cargaSemanal={cargaRealFiltrada} sinais={sinaisPorUser} vazio={vazio} />
@@ -512,7 +528,12 @@ export function RecursosMatrix({
                       <span className="w-20 text-right font-mono text-xs">
                         {l.totalAlocado}/{l.capacidadePct}%
                       </span>
-                      {l.superalocado && <AlertTriangle className="size-3.5 shrink-0 text-destructive" />}
+                      {l.superalocado && (
+                        <>
+                          <AlertTriangle aria-hidden className="size-3.5 shrink-0 text-destructive" />
+                          <span className="sr-only">acima da capacidade hoje</span>
+                        </>
+                      )}
                     </div>
                     <div className="mt-0.5 text-right font-mono text-[10px] text-muted-foreground">
                       hoje: {l.alocadoHoje}%{l.ausente && " · capacidade 0 (ausente)"}
@@ -528,6 +549,7 @@ export function RecursosMatrix({
                       <Button
                         size="sm"
                         variant="ghost"
+                        aria-label={`Editar recurso de ${l.nome}`}
                         onClick={() => setRecursoDlg({ open: true, linha: l })}
                       >
                         Editar
@@ -652,7 +674,8 @@ function HeatmapView({
                         {l.nome}
                         {l.superalocado && (
                           <span title="Pessoa acima da capacidade hoje" className="inline-flex items-center text-destructive">
-                            <AlertTriangle className="size-3.5" aria-label="acima da capacidade hoje" />
+                            <AlertTriangle aria-hidden className="size-3.5" />
+                            <span className="sr-only">acima da capacidade hoje</span>
                           </span>
                         )}
                         <SinalSemCronograma projetos={sinais[l.userId] ?? []} />

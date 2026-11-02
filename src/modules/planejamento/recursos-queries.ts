@@ -30,7 +30,8 @@ import { sugerirCorrecoes, type ContextoProjeto, type Sugestoes } from "./sugest
  *   - projeto com cronograma APROVADO → horas das atribuições das linhas, nas datas que o
  *     motor calcula AGORA (a qualidade faz o mesmo: o banco pode estar desatualizado);
  *   - projeto SEM cronograma aprovado → alocação digitada ("50% no Bela Vista") convertida
- *     em hora. A alocação digitada de projeto aprovado é IGNORADA.
+ *     em hora. A alocação digitada de projeto aprovado é IGNORADA. Com `incluirDigitada: false`
+ *     (a tela `/recursos`, só leitura das EAPs) nenhuma alocação digitada entra.
  *   - projeto com cronograma em RASCUNHO (reunião de 08/10/2026, item 4) → as horas das linhas
  *     aparecem À PARTE (`rascunho`), em cor clara, para o planejamento ser visível antes de aprovar.
  *     Nunca entram em `carga` nem em sobrecarga: até aprovar, quem conta é a alocação digitada.

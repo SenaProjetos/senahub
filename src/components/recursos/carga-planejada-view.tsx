@@ -77,7 +77,7 @@ export function CargaPlanejadaView({
       <p className="text-xs text-muted-foreground">
         Horas previstas nas linhas dos projetos com cronograma aprovado ({carga.projetosCalculados.length}).
         {carga.projetosEmRascunho.length > 0 &&
-          ` Em cinza, à parte, o que ${carga.projetosEmRascunho.length} cronograma(s) em rascunho já prevê — só soma depois de aprovar.`}
+          ` Em cinza, à parte, o que ${carga.projetosEmRascunho.length} cronograma(s) em rascunho já prevê — só soma depois de aprovar.`}{" "}
         Projeto sem cronograma aprovado não soma horas: a pessoa recebe o selo “sem cronograma”.
       </p>
 
@@ -119,7 +119,7 @@ export function CargaPlanejadaView({
             {pessoas.length === 0 && (
               <tr>
                 <td colSpan={carga.semanas.length + 1} className="px-3 py-6 text-center text-xs text-muted-foreground">
-                  Nenhum resultado para os filtros.
+                  {carga.pessoas.length > 0 ? "Nenhum resultado para os filtros." : "Ninguém escalado ainda."}
                 </td>
               </tr>
             )}
@@ -164,6 +164,7 @@ export function CargaPlanejadaView({
         <section className="space-y-2">
           <h3 className="text-sm font-semibold">Demanda ainda sem pessoa (perfis)</h3>
           <p className="text-xs text-muted-foreground">
+            Não segue os filtros da tela: soma todos os projetos.{" "}
             Horas atribuídas a um perfil — &ldquo;Projetista&rdquo; numa linha da Elétrica, por exemplo. Ninguém
             está escalado ainda, então não entram na carga de ninguém.
           </p>
@@ -268,7 +269,7 @@ function SobrecargaItem({
               Atrasar “{linhaNome(atrasar.linhaId)}” em {atrasar.diasUteis} dia(s) útil(eis), para{" "}
               {formatarData(atrasar.novoInicio)}
               {atrasar.resolve ? " (resolve)" : " (alivia)"}.
-              <LinkEap projetoId={linhaProjetoId(atrasar.linhaId)} />
+              <LinkEap projetoId={linhaProjetoId(atrasar.linhaId)} nomeProjeto={nomeProjeto} />
             </li>
           )}
           {passar && (
@@ -276,7 +277,7 @@ function SobrecargaItem({
               <UserRoundCheck className="size-3.5 shrink-0" />
               Passar “{linhaNome(passar.linhaId)}” para {nomeDe(passar.paraUserId)}
               {passar.resolve ? " (resolve)" : " (alivia)"}.
-              <LinkEap projetoId={linhaProjetoId(passar.linhaId)} />
+              <LinkEap projetoId={linhaProjetoId(passar.linhaId)} nomeProjeto={nomeProjeto} />
             </li>
           )}
         </ul>
@@ -291,10 +292,20 @@ function SobrecargaItem({
   );
 }
 
-function LinkEap({ projetoId }: { projetoId: string | undefined }) {
+function LinkEap({
+  projetoId,
+  nomeProjeto,
+}: {
+  projetoId: string | undefined;
+  nomeProjeto: (projetoId: string) => string;
+}) {
   if (!projetoId) return null;
   return (
-    <Link href={`/projetos/${projetoId}/eap`} className="text-primary underline-offset-2 hover:underline">
+    <Link
+      href={`/projetos/${projetoId}/eap`}
+      aria-label={`Abrir a EAP de ${nomeProjeto(projetoId)}`}
+      className="text-primary underline-offset-2 hover:underline"
+    >
       Abrir a EAP
     </Link>
   );
