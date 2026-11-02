@@ -51,6 +51,14 @@ export async function enviarEmail(opts: {
   attachments?: EmailAnexo[];
   /** Desliga a moldura branded (padrão: liga, exceto se `html` já for um documento). */
   wrap?: boolean;
+  /** Cópia oculta (ex.: quem clicou em "enviar", para o envio aparecer na caixa dessa pessoa). */
+  bcc?: string;
+  /** Para onde vai a resposta do destinatário. */
+  replyTo?: string;
+  /** Encadeamento de conversa: `Message-ID` próprio e o que ele responde (`In-Reply-To`/`References`). */
+  messageId?: string;
+  inReplyTo?: string;
+  references?: string;
 }): Promise<boolean> {
   const t = getTransporter();
   if (!t) return false;
@@ -64,6 +72,11 @@ export async function enviarEmail(opts: {
       subject: opts.subject,
       html,
       attachments: opts.attachments,
+      bcc: opts.bcc,
+      replyTo: opts.replyTo,
+      messageId: opts.messageId,
+      inReplyTo: opts.inReplyTo,
+      references: opts.references,
     });
     return true;
   } catch (err) {
