@@ -115,7 +115,7 @@ export async function painelGestao() {
       titulo: `${l.projeto}: ninguém com ${l.habilidade} no nível ${l.nivelMinimo}`,
       fonte: "Necessidades de competência do projeto × níveis das pessoas",
       periodo: `prazo ${br(l.prazo!)}`,
-      acao: { rotulo: "Cobrir necessidade", href: "/recursos" },
+      acao: { rotulo: "Cobrir necessidade", href: `/projetos/${l.projetoId}` },
     })),
     ...umAUm.map((u) => ({
       tipo: "um_a_um" as const,

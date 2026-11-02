@@ -40,6 +40,8 @@ import { PainelProjetoPersonalizavel } from "@/components/projetos/painel-projet
 import { RiscosProjetoDialog } from "@/components/projetos/riscos-projeto-dialog";
 import { NIVEL_RISCO_VISUAL } from "@/components/projetos/riscos-visual";
 import { AcessosDoProjeto } from "@/components/acessos/acessos-do-projeto";
+import { CompetenciasDoProjeto } from "@/components/projetos/competencias-do-projeto";
+import type { CompetenciasDoProjeto as DadosCompetencias } from "@/modules/rh/habilidades/queries";
 import type { AcessoDoProjeto } from "@/modules/acessos/queries";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { GRAU_RISCO_LABEL, NIVEL_RISCO_LABEL, nivelRisco } from "@/modules/projetos/riscos/regras";
@@ -68,6 +70,9 @@ type Props = {
   acessos: AcessoDoProjeto[];
   /** Horas por disciplina já filtradas pelo servidor para quem pede (R5); `null` = sem o painel. */
   horasDisciplina: { linhas: LinhaHoras[]; temLinhaDeBase: boolean; podeVerCusto: boolean } | null;
+  /** Competências que o projeto exige e quem cobre; `null` = quem pede não vê o painel. */
+  competencias: DadosCompetencias | null;
+  podeEditarCompetencias: boolean;
 };
 
 const MS_DIA = 86_400_000;
@@ -647,6 +652,8 @@ export function ProjetoVisaoGeral({
   layoutSalvo,
   acessos,
   horasDisciplina,
+  competencias,
+  podeEditarCompetencias,
 }: Props) {
   const progresso = progressoProjeto(projeto.disciplinas.map((disciplina) => disciplina.status));
   const hoje = inicioDoDiaLocal();
@@ -767,6 +774,13 @@ export function ProjetoVisaoGeral({
     paineis.push({
       id: "horas",
       conteudo: <HorasDisciplinaCard linhas={horasDisciplina.linhas} temLinhaDeBase={horasDisciplina.temLinhaDeBase} podeVerCusto={horasDisciplina.podeVerCusto} />,
+    });
+  }
+
+  if (competencias && (competencias.necessidades.length > 0 || podeEditarCompetencias)) {
+    paineis.push({
+      id: "competencias",
+      conteudo: <CompetenciasDoProjeto projetoId={projeto.id} dados={competencias} podeEditar={podeEditarCompetencias} />,
     });
   }
 

@@ -20,6 +20,11 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Competências do projeto e números das calculadoras (novembro/2026)
+
+- **Competências que o projeto precisa:** agora ficam na **Visão Geral do projeto** (cartão novo). Quem gere o projeto adiciona a competência e o nível mínimo, e o cartão mostra quantas pessoas já cobrem — com a lacuna em destaque. O aviso de lacuna do painel de Gestão de pessoas abre esse cartão.
+- **Calculadoras de Ferramentas:** os números das telas, das memórias de cálculo (PDF, Word, Excel) e dos alertas passaram a usar **vírgula** como separador decimal (por exemplo, 5,64 kW), como no resto do sistema.
+
 ## Modelos de formulário do briefing (novembro/2026)
 
 - **Editor de formulários:** em Configurações → **Modelos de formulário** dá para montar o briefing do cliente com os tipos de

@@ -18,7 +18,7 @@ Menu → **RH** → **Gestão de pessoas** (`/rh/gestao`). Para o **RH**, os **s
 
 - **Pessoas** por contratação e por setor.
 - **Capacidade × demanda** das próximas 4 semanas, em horas.
-- **Lacunas de competência**: necessidade de projeto sem ninguém com o nível.
+- **Lacunas de competência**: necessidade de projeto (cartão da Visão Geral do projeto) sem ninguém com o nível. O botão **Cobrir necessidade** abre o projeto.
 - **Entrada e saída**: listas em andamento, itens pendentes e atrasados.
 - **Férias** aprovadas nos próximos 60 dias.
 - **Banco de horas** do mês: maiores saldos positivos e negativos.

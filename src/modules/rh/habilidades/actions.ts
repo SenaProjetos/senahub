@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
 import type { SessionUser } from "@/lib/session";
 import { CATEGORIAS, MOTIVO_NAO_PUBLICADA, motivoParaNaoValidar } from "./regras";
+import { projetoVisivel } from "@/modules/planejamento/queries";
 
 const base = { modulo: "recursos", recurso: "recursos", permissao: "gerir" } as const;
 const internos = { modulo: "rh", interno: true } as const;
@@ -179,36 +180,55 @@ export const definirNivelPessoa = defineAction(
 );
 
 // ── Necessidade por projeto ──────────────────────────────────
+// Vive na Visão Geral do projeto (cartão "Competências que o projeto precisa"): quem edita é quem gere
+// o projeto (`projetos:gerir`) e enxerga esse projeto. Antes era `recursos:gerir`, na tela de Recursos.
+
+const doProjeto = { modulo: "rh", recurso: "projetos", permissao: "gerir", interno: true, entidade: "NecessidadeHabilidade" } as const;
+
+function revProjeto(projetoId: string) {
+  revalidatePath(`/projetos/${projetoId}`);
+  rev();
+}
+
+async function exigirProjeto(user: SessionUser, projetoId: string) {
+  if (!(await projetoVisivel(user, projetoId))) throw new ActionError("Projeto não encontrado.");
+}
 
 export const salvarNecessidade = defineAction(
   {
-    ...base,
+    ...doProjeto,
     acao: "salvar-necessidade-habilidade",
-    entidade: "NecessidadeHabilidade",
     schema: z.object({
       projetoId: z.string().min(1),
       habilidadeId: z.string().min(1, "Escolha a competência."),
       nivelMinimo: nivel,
-      observacao: z.string().trim().max(300).nullable().optional(),
+      observacao: z.string().trim().max(300, "A observação aceita até 300 caracteres.").nullable().optional(),
     }),
+    entidadeId: (d) => (d as { id: string }).id,
   },
-  async (i) => {
+  async (i, { user }) => {
+    await exigirProjeto(user, i.projetoId);
+    const habilidade = await prisma.habilidade.findUnique({ where: { id: i.habilidadeId }, select: { publicada: true } });
+    if (!habilidade?.publicada) throw new ActionError(MOTIVO_NAO_PUBLICADA);
     const r = await prisma.necessidadeHabilidade.upsert({
       where: { projetoId_habilidadeId: { projetoId: i.projetoId, habilidadeId: i.habilidadeId } },
       create: { projetoId: i.projetoId, habilidadeId: i.habilidadeId, nivelMinimo: i.nivelMinimo, observacao: i.observacao || null },
       update: { nivelMinimo: i.nivelMinimo, observacao: i.observacao || null },
       select: { id: true },
     });
-    rev();
+    revProjeto(i.projetoId);
     return r;
   },
 );
 
 export const removerNecessidade = defineAction(
-  { ...base, acao: "remover-necessidade-habilidade", entidade: "NecessidadeHabilidade", schema: z.object({ id: z.string().min(1) }), entidadeId: (_d, i) => i.id },
-  async (i) => {
+  { ...doProjeto, acao: "remover-necessidade-habilidade", schema: z.object({ id: z.string().min(1) }), entidadeId: (_d, i) => i.id },
+  async (i, { user }) => {
+    const n = await prisma.necessidadeHabilidade.findUnique({ where: { id: i.id }, select: { projetoId: true } });
+    if (!n) throw new ActionError("Esta necessidade já foi removida.");
+    await exigirProjeto(user, n.projetoId);
     await prisma.necessidadeHabilidade.delete({ where: { id: i.id } });
-    rev();
+    revProjeto(n.projetoId);
     return { id: i.id };
   },
 );

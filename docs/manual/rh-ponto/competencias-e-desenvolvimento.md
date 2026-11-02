@@ -1,7 +1,7 @@
 ---
 titulo: Competências e desenvolvimento
 descricao: Competências com nível, liderança direta, encontros 1:1 e objetivos de desenvolvimento.
-resumo: Cada pessoa declara o nível nas competências do catálogo e a coordenação valida; projetos dizem do que precisam e Recursos mostra quem cobre. A liderança direta registra encontros 1:1 e objetivos, com visibilidade escolhida por registro.
+resumo: Cada pessoa declara o nível nas competências do catálogo e a coordenação valida; cada projeto diz do que precisa na Visão Geral e mostra quem já cobre. A liderança direta registra encontros 1:1 e objetivos, com visibilidade escolhida por registro.
 tags: [rh, competências, habilidades, nível, liderança, 1:1, objetivos, desenvolvimento, minha equipe]
 palavras-chave: [competência, habilidade, nível, validar nível, catálogo de competências, necessidade do projeto, liderança direta, líder, liderado, encontro 1:1, one-on-one, objetivo de desenvolvimento, minha equipe, cadência]
 sinonimos: [skills, matriz de competências, PDI, plano de desenvolvimento, reunião individual]
@@ -35,9 +35,14 @@ sinonimos: [skills, matriz de competências, PDI, plano de desenvolvimento, reun
 
 ### Necessidades do projeto
 
-Em **Recursos**, com um projeto escolhido no filtro, aparece **Competências que o projeto precisa**:
-competência + nível mínimo. Para cada uma, a tela lista quem cobre **na janela de análise** — nível
-suficiente **e** folga no período —, validado antes de declarado. Ninguém cobrindo aparece como **lacuna**.
+Na **Visão Geral do projeto** há o cartão **Competências que o projeto precisa**: competência + nível mínimo
+(mais uma observação, se quiser). Quem gere o projeto (`projetos:gerir`) adiciona, altera ou remove — pelo botão
+**Adicionar**, pelo menu **⋯** ou com o botão direito na linha. Só entram competências já publicadas pelo RH.
+
+Para cada competência, o cartão mostra quantas pessoas internas ativas já estão no nível exigido (validadas e só
+declaradas); quem vê **Recursos** vê também os nomes e níveis. Ninguém no nível aparece como **lacuna** — e é esse
+o alerta que o painel de Gestão de pessoas mostra, com o botão **Cobrir necessidade** abrindo o projeto.
+A **folga no período** (quem tem horas livres) continua sendo vista em **Recursos**.
 
 ## Liderança e 1:1
 

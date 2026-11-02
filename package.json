@@ -32,6 +32,7 @@
     "smoke:inputs-link": "tsx --tsconfig tsconfig.server.json scripts/smoke-inputs-link.ts",
     "smoke:modelos-briefing": "tsx --tsconfig tsconfig.server.json scripts/smoke-modelos-briefing.ts",
     "smoke:estudos": "tsx --tsconfig tsconfig.server.json scripts/smoke-estudos.ts",
+    "smoke:competencias-projeto": "tsx --tsconfig tsconfig.server.json scripts/smoke-competencias-projeto.ts",
     "smoke:aviso-agendado": "tsx --tsconfig tsconfig.server.json scripts/smoke-aviso-agendado.ts",
     "smoke:sync-pagamento": "tsx --tsconfig tsconfig.server.json scripts/smoke-sync-pagamento.ts",
     "smoke:arvore-global": "tsx --tsconfig tsconfig.server.json scripts/smoke-arvore-global.ts",

@@ -105,3 +105,55 @@ export async function necessidadesDeHabilidade() {
   };
 }
 export type NecessidadesHabilidade = Awaited<ReturnType<typeof necessidadesDeHabilidade>>;
+
+export type PessoaQueCobre = { nome: string; nivel: number; validado: boolean };
+export type NecessidadeDoProjeto = {
+  id: string;
+  habilidadeId: string;
+  habilidade: string;
+  nivelMinimo: number;
+  observacao: string | null;
+  /** Pessoas internas ativas com nível ≥ mínimo, validado ou só declarado (folga no período fica em /recursos). */
+  aptosValidados: number;
+  aptosDeclarados: number;
+  /** Nomes e níveis só para quem vê Recursos; `null` = só a contagem. */
+  pessoas: PessoaQueCobre[] | null;
+};
+
+/**
+ * Competências que UM projeto exige e quem as cobre. O acesso ao projeto é conferido por quem chama.
+ * `comNomes` (quem vê Recursos) acrescenta quem cobre; sem ele só vai a contagem — nível de pessoa é dado de RH.
+ */
+export async function competenciasDoProjeto(projetoId: string, opcoes: { comNomes: boolean; comCatalogo: boolean }) {
+  const necessidades = await prisma.necessidadeHabilidade.findMany({
+    where: { projetoId },
+    orderBy: { habilidade: { nome: "asc" } },
+    select: { id: true, nivelMinimo: true, observacao: true, habilidade: { select: { id: true, nome: true } } },
+  });
+  const ids = necessidades.map((n) => n.habilidade.id);
+  const niveis = ids.length
+    ? await prisma.userHabilidade.findMany({
+        where: { habilidadeId: { in: ids }, nivel: { not: null }, user: { ativo: true, tipo: "interno" } },
+        select: { habilidadeId: true, nivel: true, validadoEm: true, user: { select: { name: true } } },
+      })
+    : [];
+  const lista: NecessidadeDoProjeto[] = necessidades.map((n) => {
+    const aptos = niveis
+      .filter((u) => u.habilidadeId === n.habilidade.id && (u.nivel ?? 0) >= n.nivelMinimo)
+      .map((u) => ({ nome: u.user.name, nivel: u.nivel as number, validado: u.validadoEm != null }))
+      .sort((a, b) => Number(b.validado) - Number(a.validado) || b.nivel - a.nivel || a.nome.localeCompare(b.nome));
+    return {
+      id: n.id,
+      habilidadeId: n.habilidade.id,
+      habilidade: n.habilidade.nome,
+      nivelMinimo: n.nivelMinimo,
+      observacao: n.observacao,
+      aptosValidados: aptos.filter((a) => a.validado).length,
+      aptosDeclarados: aptos.filter((a) => !a.validado).length,
+      pessoas: opcoes.comNomes ? aptos : null,
+    };
+  });
+  const catalogo = opcoes.comCatalogo ? await listarHabilidades() : [];
+  return { necessidades: lista, catalogo };
+}
+export type CompetenciasDoProjeto = Awaited<ReturnType<typeof competenciasDoProjeto>>;
