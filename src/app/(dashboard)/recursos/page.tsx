@@ -3,7 +3,6 @@ import { requirePermission } from "@/lib/session";
 import { can, podeVerFinanceiro } from "@/lib/permissions";
 import { matrizRecursos, cargaSemanalPorRecurso } from "@/modules/planejamento/queries";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
-import { listarHabilidades, habilidadesDeUsuarios, necessidadesDeHabilidade } from "@/modules/rh/habilidades/queries";
 import { RecursosMatrix } from "@/components/recursos/recursos-matrix";
 
 export const metadata: Metadata = { title: "Recursos" };
@@ -18,21 +17,15 @@ export default async function RecursosPage({ searchParams }: { searchParams: Pro
   // Custo/hora é dado do financeiro (decisão do time, 2026-09-25): vê quem vê o financeiro, edita quem o gere.
   const verCusto = await podeVerFinanceiro(user);
   const editarCusto = verCusto && (await can(user, "financeiro", "gerir"));
-  const [{ linhas, projetos, usuariosSemRecurso }, podeGerir, catalogoHabilidades, cargaSemanal, cargaPlanejada] =
-    await Promise.all([
-      matrizRecursos({ verCusto }),
-      can(user, "recursos", "gerir"),
-      listarHabilidades(),
-      cargaSemanalPorRecurso(12),
-      // F5: carga PLANEJADA das linhas de EAP (projetos com cronograma aprovado), com as
-      // sobrecargas e as sugestões já verificadas. `matrizRecursos` chama esta mesma função
-      // por dentro para 1 semana e sem sugestões — duas chamadas de propósito: aquela
-      // alimenta os totais da matriz, esta as 12 semanas e o que fazer com o excesso.
-      cargaDaEquipe({ semanas: 12 }),
-    ]);
-  const [habilidadesPorUser, necessidades] = await Promise.all([
-    habilidadesDeUsuarios(linhas.map((l) => l.userId)),
-    necessidadesDeHabilidade(),
+  const [{ linhas, projetos, usuariosSemRecurso }, podeGerir, cargaSemanal, cargaPlanejada] = await Promise.all([
+    matrizRecursos({ verCusto }),
+    can(user, "recursos", "gerir"),
+    cargaSemanalPorRecurso(12),
+    // F5: carga PLANEJADA das linhas de EAP (projetos com cronograma aprovado), com as sobrecargas.
+    // `matrizRecursos` chama esta mesma função por dentro para 1 semana — duas chamadas de propósito:
+    // aquela alimenta os totais da matriz, esta as 12 semanas. `incluirDigitada: false`: a tela é só
+    // leitura das EAPs (Lote 2) — a alocação digitada não aparece nem soma.
+    cargaDaEquipe({ semanas: 12, incluirDigitada: false }),
   ]);
 
   return (
@@ -43,12 +36,9 @@ export default async function RecursosPage({ searchParams }: { searchParams: Pro
       podeGerir={podeGerir}
       verCusto={verCusto}
       editarCusto={editarCusto}
-      catalogoHabilidades={catalogoHabilidades}
-      habilidadesPorUser={habilidadesPorUser}
       cargaSemanal={cargaSemanal}
       cargaPlanejada={cargaPlanejada}
       janelaInicial={janelaInicial}
-      necessidades={necessidades}
     />
   );
 }

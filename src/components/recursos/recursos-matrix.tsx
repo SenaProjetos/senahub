@@ -1,46 +1,45 @@
 "use client";
 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, AlertTriangle, Trash2, UserPlus, Users, LayoutGrid, CalendarRange, Scale, CalendarOff } from "lucide-react";
-import { salvarRecurso, salvarAlocacao, removerAlocacao } from "@/modules/planejamento/actions";
+import { AlertTriangle, UserPlus, Users, LayoutGrid, CalendarRange, CalendarOff } from "lucide-react";
+import { salvarRecurso } from "@/modules/planejamento/actions";
 import type { CargaDaEquipe } from "@/modules/planejamento/recursos-queries";
 import { CargaPlanejadaView } from "@/components/recursos/carga-planejada-view";
-import { NecessidadesProjeto } from "@/components/recursos/necessidades-projeto";
-import type { NecessidadesHabilidade } from "@/modules/rh/habilidades/queries";
-import { criarHabilidade, alternarHabilidadeUsuario } from "@/modules/rh/habilidades/actions";
+import { SinalSemCronograma } from "@/components/recursos/sinal-sem-cronograma";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { CONTRATACAO_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import {
-  chaveSemanaIso,
-  percentualAlocadoNoDia,
-  superalocadoNaJanela as temSuperalocacaoNaJanela,
-} from "@/modules/planejamento/disponibilidade";
+import { chaveSemanaIso } from "@/modules/planejamento/disponibilidade";
 import {
   ausenciaNosDias,
   ausenciasPessoais,
+  colunasMeses,
   colunasPorPeriodo,
-  diasDaJanela,
-  folgaNaJanela,
   percentualCalculadoPorSemana,
   PERIODOS_HEATMAP,
   picoDoMes,
   type ColunaHeatmap,
-  type FolgaNaJanela,
   type Indisponibilidade,
   type PeriodoHeatmap,
 } from "@/modules/planejamento/heatmap-recursos";
-import { dataCurta } from "@/lib/dias-iso";
+import {
+  pessoasQuePassam,
+  semanasDaJanela,
+  sobrecarregadosNaCargaReal,
+  sobrecarregadosNaJanela,
+  type FiltrosRecursos,
+  type PessoaFiltravel,
+  type ProjetoRef,
+} from "@/modules/planejamento/recursos-filtros";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
-import { SeletorMultiplo } from "@/components/ui/seletor-multiplo";
 import {
   Select,
   SelectContent,
@@ -56,19 +55,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type Alocacao = {
-  id: string;
-  projetoId: string;
-  projetoCodigo: string;
-  projetoNome: string;
-  percentual: number;
-  inicio: string | null;
-  fim: string | null;
-  ativaHoje?: boolean;
-  observacao: string | null;
-  /** Projeto com cronograma aprovado: a alocação vem das linhas da EAP e esta NÃO conta (D17). */
-  substituidaPeloCronograma?: boolean;
-};
 /** Alocação calculada das horas das linhas, na semana corrente, num projeto com cronograma aprovado. */
 type Calculada = {
   projetoId: string;
@@ -96,100 +82,34 @@ type Linha = {
   totalAlocado: number;
   alocadoHoje: number;
   superalocado: boolean;
-  alocacoes: Alocacao[];
+  disciplinas: string[];
+  /** Projetos ativos sem cronograma aprovado em que a pessoa está: só um sinal, sem horas. */
+  projetosSemCronograma: ProjetoRef[];
   calculadas?: Calculada[];
 };
 type Projeto = { id: string; codigo: string; nome: string };
 
 const NONE = "__none";
 const TODOS = "__todos";
-
-type Habilidade = { id: string; nome: string; nivel?: number | null; validado?: boolean };
+const MESES_NO_MAPA = 4;
 
 // ── Heatmap (timeline) ──────────────────────────────────────────────
-// Agrega a alocação de cada pessoa por mês a partir dos períodos das
-// alocações. Sem período definido => conta como vigente em todos os meses
-// da janela (alocação "permanente"). Soma a carga CALCULADA das horas das
-// linhas dos cronogramas aprovados (L9) nas semanas que a carga planejada cobre.
+// Ocupação de cada pessoa por coluna, só com a carga CALCULADA das horas das linhas dos cronogramas
+// aprovados, nas semanas que a carga planejada cobre (as próximas 12).
 type HeatCell = {
   chave: string;
   pct: number;
-  digitada: number;
-  calculada: number;
   /** Dias da coluna em férias/abono e os motivos — a capacidade dessa coluna encolhe. */
   diasAusente: number;
   motivosAusencia: string[];
-  /** Há alocação num dia de ausência: o projeto conta com quem não estará lá. */
+  /** Há carga num dia de ausência: o projeto conta com quem não estará lá. */
   conflitoAusencia: boolean;
 };
-
-function ymKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-function ymLabel(ym: string) {
-  const [y, m] = ym.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
-}
-
-/** Lista de chaves YYYY-MM cobrindo [de, ate] inclusive. */
-function mesesEntre(de: Date, ate: Date): string[] {
-  const out: string[] = [];
-  const cur = new Date(de.getFullYear(), de.getMonth(), 1);
-  const end = new Date(ate.getFullYear(), ate.getMonth(), 1);
-  while (cur <= end) {
-    out.push(ymKey(cur));
-    cur.setMonth(cur.getMonth() + 1);
-  }
-  return out;
-}
-
-function diasDoMes(ym: string): string[] {
-  const [ano, mes] = ym.split("-").map(Number);
-  const total = new Date(ano, mes, 0).getDate();
-  return Array.from({ length: total }, (_, indice) => `${ym}-${String(indice + 1).padStart(2, "0")}`);
-}
 
 /** Hoje na data LOCAL (`toISOString` viraria o dia à noite, por causa do fuso). */
 function hojeLocalIso(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/**
- * Colunas mensais: a janela vai do mês mais antigo de início até o mais distante de fim;
- * com fallback de [mês atual − 1, mês atual + 5] quando não há datas.
- */
-function colunasMensais(linhas: Linha[]): ColunaHeatmap[] {
-  const hoje = new Date();
-  let min: Date | null = null;
-  let max: Date | null = null;
-  const parse = (s: string) => {
-    const [y, m, d] = s.split("-").map(Number);
-    return new Date(y, m - 1, d);
-  };
-  for (const l of linhas) {
-    for (const a of l.alocacoes) {
-      if (a.inicio) {
-        const d = parse(a.inicio);
-        if (!min || d < min) min = d;
-      }
-      if (a.fim) {
-        const d = parse(a.fim);
-        if (!max || d > max) max = d;
-      }
-    }
-  }
-  const inicioJanela = min ?? new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-  const fimJanela = max ?? new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1);
-  // garante pelo menos a janela padrão ao redor de hoje
-  const de = inicioJanela < new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)
-    ? inicioJanela
-    : new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-  const ate = fimJanela > new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1)
-    ? fimJanela
-    : new Date(hoje.getFullYear(), hoje.getMonth() + 5, 1);
-
-  return mesesEntre(de, ate).map((ym) => ({ chave: ym, rotulo: ymLabel(ym), titulo: ymLabel(ym), dias: diasDoMes(ym) }));
 }
 
 /**
@@ -201,21 +121,18 @@ function montarHeatmap(
   calculadaDe: (userId: string) => ReadonlyMap<string, number>,
   periodo: PeriodoHeatmap,
 ) {
-  const colunas = periodo === "meses" ? colunasMensais(linhas) : colunasPorPeriodo(periodo, hojeLocalIso());
+  const hoje = hojeLocalIso();
+  const colunas = periodo === "meses" ? colunasMeses(hoje, MESES_NO_MAPA) : colunasPorPeriodo(periodo, hoje);
   const matriz = linhas.map((l) => {
     const pessoais = ausenciasPessoais(l.indisponibilidades);
     const calculada = calculadaDe(l.userId);
     const cells: HeatCell[] = colunas.map((c) => {
-      const pico = picoDoMes(c.dias, (dia) => percentualAlocadoNoDia(dia, vigentes(l)), calculada);
+      const pico = picoDoMes(c.dias, () => 0, calculada);
       const ausencia = ausenciaNosDias(c.dias, pessoais);
-      const conflitoAusencia = ausencia.dias.some(
-        (dia) => percentualAlocadoNoDia(dia, vigentes(l)) + (calculada.get(chaveSemanaIso(dia)) ?? 0) > 0,
-      );
+      const conflitoAusencia = ausencia.dias.some((dia) => (calculada.get(chaveSemanaIso(dia)) ?? 0) > 0);
       return {
         chave: c.chave,
         pct: pico.total,
-        digitada: pico.digitada,
-        calculada: pico.calculada,
         diasAusente: ausencia.dias.length,
         motivosAusencia: ausencia.motivos,
         conflitoAusencia,
@@ -225,22 +142,6 @@ function montarHeatmap(
   });
 
   return { colunas, matriz };
-}
-
-/** N-31: Verifica superalocação durante uma janela: qualquer mês com carga > capacidade. */
-function superalocadoNaJanela(l: Linha, inicio: string, fim: string): boolean {
-  // Feriado não conta: zera o dia de todo mundo e o % já é da capacidade útil (ver `ausenciasPessoais`).
-  return temSuperalocacaoNaJanela(inicio, fim, l.capacidadePct, vigentes(l), ausenciasPessoais(l.indisponibilidades));
-}
-
-/**
- * Alocações digitadas que AINDA contam: as de projeto com cronograma aprovado foram
- * substituídas pelas horas das linhas (D17). Heatmap e "superalocado na janela" rodam aqui
- * no cliente sobre a lista — sem este filtro contradiriam o total, que já as descarta. A
- * carga dos projetos aprovados aparece na aba "Carga planejada".
- */
-function vigentes(l: Linha): Alocacao[] {
-  return l.alocacoes.filter((a) => !a.substituidaPeloCronograma);
 }
 
 /** Cor graduada por ocupação: verde (folga) → amarelo (~100%) → vermelho (>100%). */
@@ -254,6 +155,8 @@ function heatColor(pct: number, capacidadePct: number) {
   return "hsl(0 75% 60%)"; // superalocado forte
 }
 
+const ROTULO = "font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground";
+
 export function RecursosMatrix({
   linhas,
   projetos,
@@ -261,50 +164,40 @@ export function RecursosMatrix({
   podeGerir,
   verCusto,
   editarCusto,
-  catalogoHabilidades,
-  habilidadesPorUser,
   cargaSemanal,
   cargaPlanejada,
   janelaInicial,
-  necessidades,
 }: {
   linhas: Linha[];
   projetos: Projeto[];
   usuariosSemRecurso: { id: string; name: string; contratacao: Contratacao | null }[];
+  /** Cadastro do recurso (capacidade, cor, ativo): `recursos:gerir`. A tela em si é só leitura. */
   podeGerir: boolean;
   /** Vê a taxa (custo/hora): só com acesso ao financeiro. Sem ele o servidor a manda nula. */
   verCusto: boolean;
   /** Edita a taxa: `financeiro:gerir`. */
   editarCusto: boolean;
-  catalogoHabilidades: Habilidade[];
-  habilidadesPorUser: Record<string, Habilidade[]>;
   cargaSemanal: CargaSemanal;
   cargaPlanejada: CargaDaEquipe;
   /** Janela vinda do link do aviso de ausência (`?de=&ate=`); sem ela, hoje + 90 dias. */
   janelaInicial?: { de: string; ate: string } | null;
-  /** Competências que cada projeto precisa e o nível de cada pessoa nelas (F2). */
-  necessidades: NecessidadesHabilidade;
 }) {
   const router = useRouter();
-  const [habDlg, setHabDlg] = useState<{ userId: string; nome: string } | null>(null);
   const [pending, start] = useTransition();
   const [recursoDlg, setRecursoDlg] = useState<{ open: boolean; linha: Linha | null }>({
     open: false,
     linha: null,
   });
   const [novoOpen, setNovoOpen] = useState(false);
-  const [alocDlg, setAlocDlg] = useState<{ open: boolean; linha: Linha | null; aloc: Alocacao | null }>({
-    open: false,
-    linha: null,
-    aloc: null,
-  });
 
-  // Filtro por projeto, habilidade, alternância de visão e rebalanceamento.
-  const [filtroProjeto, setFiltroProjeto] = useState(TODOS);
-  const [filtroHabilidade, setFiltroHabilidade] = useState(TODOS);
+  const [filtros, setFiltros] = useState<FiltrosRecursos>({
+    busca: "",
+    projetoId: null,
+    disciplina: null,
+    soSobrecarregados: false,
+  });
   const [vista, setVista] = useState<"matriz" | "heatmap" | "carga" | "planejada">(janelaInicial ? "heatmap" : "matriz");
   const [periodoHeat, setPeriodoHeat] = useState<PeriodoHeatmap>("meses");
-  const [rebalDlg, setRebalDlg] = useState<Linha | null>(null);
 
   // N-31: Janela de análise para superalocação futura (padrão: hoje + 90 dias).
   const hojeIso = new Date().toISOString().slice(0, 10);
@@ -312,38 +205,48 @@ export function RecursosMatrix({
   const [janelaIni, setJanelaIni] = useState(janelaInicial?.de ?? hojeIso);
   const [janelaFim, setJanelaFim] = useState(janelaInicial?.ate ?? daqui90);
 
-  // N-32: catálogo de habilidades únicas dos recursos exibidos.
-  const habilidadesUnicas = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const habs of Object.values(habilidadesPorUser)) {
-      for (const h of habs) if (!map.has(h.id)) map.set(h.id, h.nome);
-    }
-    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [habilidadesPorUser]);
+  // Índice de quem pode ser filtrado: todos os que a carga planejada conhece (inclui quem não tem recurso).
+  const indice = useMemo<PessoaFiltravel[]>(
+    () =>
+      cargaPlanejada.pessoas.map((p) => ({
+        userId: p.userId,
+        nome: p.nome,
+        disciplinas: p.disciplinas,
+        projetoIds: [...new Set([...Object.keys(p.porProjeto), ...Object.keys(p.rascunhoPorProjeto)])],
+      })),
+    [cargaPlanejada.pessoas],
+  );
+  const disciplinasOpcoes = useMemo(
+    () => [...new Set(indice.flatMap((p) => p.disciplinas))].sort((a, b) => a.localeCompare(b)),
+    [indice],
+  );
+  const passam = useMemo(() => pessoasQuePassam(indice, filtros), [indice, filtros]);
+  const sobreJanela = useMemo(
+    () => sobrecarregadosNaJanela(cargaPlanejada.sobrecargas, semanasDaJanela(janelaIni, janelaFim)),
+    [cargaPlanejada.sobrecargas, janelaIni, janelaFim],
+  );
+  const sobreReal = useMemo(() => sobrecarregadosNaCargaReal(cargaSemanal.linhas), [cargaSemanal.linhas]);
+  const soSobrecarregados = filtros.soSobrecarregados;
+  const visivel = useCallback(
+    (userId: string, sobre: ReadonlySet<string>) => passam.has(userId) && (!soSobrecarregados || sobre.has(userId)),
+    [passam, soSobrecarregados],
+  );
 
-  // Quando um projeto ou habilidade é escolhida, filtra a lista.
+  const sinaisPorUser = useMemo(
+    () => Object.fromEntries(linhas.filter((l) => l.projetosSemCronograma.length > 0).map((l) => [l.userId, l.projetosSemCronograma])),
+    [linhas],
+  );
+
   const linhasFiltradas = useMemo(() => {
-    let base = linhas;
-    if (filtroProjeto !== TODOS) {
-      // Casa também pela carga CALCULADA: quem está num projeto aprovado só pelas linhas da
-      // EAP não tem alocação digitada nele, e sumiria do filtro.
-      base = base
-        .filter(
-          (l) =>
-            l.alocacoes.some((a) => a.projetoId === filtroProjeto) ||
-            (l.calculadas ?? []).some((c) => c.projetoId === filtroProjeto),
-        )
-        .map((l) => ({
-          ...l,
-          alocacoes: l.alocacoes.filter((a) => a.projetoId === filtroProjeto),
-          calculadas: (l.calculadas ?? []).filter((c) => c.projetoId === filtroProjeto),
-        }));
-    }
-    if (filtroHabilidade !== TODOS) {
-      base = base.filter((l) => (habilidadesPorUser[l.userId] ?? []).some((h) => h.id === filtroHabilidade));
-    }
-    return base;
-  }, [linhas, filtroProjeto, filtroHabilidade, habilidadesPorUser]);
+    const base = linhas.filter((l) => visivel(l.userId, sobreJanela));
+    if (filtros.projetoId == null) return base;
+    // Com um projeto escolhido, a linha mostra só a carga dele.
+    return base.map((l) => ({ ...l, calculadas: (l.calculadas ?? []).filter((c) => c.projetoId === filtros.projetoId) }));
+  }, [linhas, visivel, sobreJanela, filtros.projetoId]);
+  const cargaRealFiltrada = useMemo(
+    () => ({ ...cargaSemanal, linhas: cargaSemanal.linhas.filter((l) => visivel(l.userId, sobreReal)) }),
+    [cargaSemanal, visivel, sobreReal],
+  );
 
   const calculadaPorUser = useMemo(
     () =>
@@ -357,38 +260,16 @@ export function RecursosMatrix({
     [linhasFiltradas, calculadaPorUser, periodoHeat],
   );
 
-  // Quem tem folga NA JANELA escolhida (F1.4): o reforço precisa caber no período, não só hoje.
-  const folgaPorUser = useMemo(() => {
-    const dias = diasDaJanela(janelaIni, janelaFim);
-    return new Map(
-      linhas.map((l) => {
-        const pessoais = ausenciasPessoais(l.indisponibilidades);
-        const folga = folgaNaJanela(
-          dias,
-          l.capacidadePct,
-          (dia) => percentualAlocadoNoDia(dia, vigentes(l)),
-          calculadaPorUser.get(l.userId) ?? new Map(),
-          (dia) => pessoais.some((a) => a.inicio <= dia && a.fim >= dia),
-        );
-        return [l.userId, folga] as const;
-      }),
-    );
-  }, [linhas, janelaIni, janelaFim, calculadaPorUser]);
-
   const totalSuper = linhasFiltradas.filter((l) => l.superalocado).length;
-  const projetosAprovados = useMemo(
-    () => new Set(cargaPlanejada.projetosCalculados),
-    [cargaPlanejada.projetosCalculados],
-  );
-  const totalSuperJanela = useMemo(() => {
-    return linhasFiltradas.filter((l) => superalocadoNaJanela(l, janelaIni, janelaFim)).length;
-  }, [linhasFiltradas, janelaIni, janelaFim]);
+  const totalSuperJanela = linhasFiltradas.filter((l) => sobreJanela.has(l.userId)).length;
+  const vazio = linhas.length === 0 ? "Nenhum recurso cadastrado." : "Nenhum resultado para os filtros.";
+  const filtrando = filtros.busca.trim() !== "" || filtros.projetoId != null || filtros.disciplina != null || filtros.soSobrecarregados;
 
   return (
     <div className="space-y-5">
       <CabecalhoPagina
-        titulo="Matriz de recursos"
-        descricao="Alocação por pessoa × projeto. O % é da capacidade da própria pessoa: 100% é tudo o que ela dedica a projetos."
+        titulo="Recursos"
+        descricao="Capacidade × carga por pessoa, vinda das EAPs. Para mudar a carga, edite a EAP do projeto."
         acoes={
           podeGerir && usuariosSemRecurso.length > 0 ? (
             <Button size="sm" onClick={() => setNovoOpen(true)}>
@@ -399,7 +280,7 @@ export function RecursosMatrix({
       />
       {(totalSuper > 0 || totalSuperJanela > 0 || cargaPlanejada.sobrecargas.length > 0) && (
         <p className="flex flex-wrap gap-x-3 text-sm">
-          {totalSuper > 0 && <span className="text-destructive">{totalSuper} superalocado(s) hoje.</span>}
+          {totalSuper > 0 && <span className="text-destructive">{totalSuper} acima da capacidade hoje.</span>}
           {totalSuperJanela > 0 && <span className="text-warning">{totalSuperJanela} na janela de análise.</span>}
           {cargaPlanejada.sobrecargas.length > 0 && (
             <button type="button" onClick={() => setVista("planejada")} className="text-destructive underline-offset-2 hover:underline">
@@ -409,13 +290,26 @@ export function RecursosMatrix({
         </p>
       )}
 
-      {/* Controles: filtro por projeto + janela de análise + alternância de visão */}
+      {/* Controles: filtros (nome, projeto, disciplina, só sobrecarregados) + janela de análise + alternância de visão */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            Projeto
-          </span>
-          <Select value={filtroProjeto} onValueChange={(v) => setFiltroProjeto(v ?? TODOS)}>
+          <span className={ROTULO}>Pessoa</span>
+          <Input
+            type="search"
+            aria-label="Buscar pessoa"
+            placeholder="Buscar pessoa…"
+            value={filtros.busca}
+            onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value }))}
+            className="h-8 w-44"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={ROTULO}>Projeto</span>
+          <Select
+            value={filtros.projetoId ?? TODOS}
+            onValueChange={(v) => setFiltros((f) => ({ ...f, projetoId: !v || v === TODOS ? null : v }))}
+          >
             <SelectTrigger className="h-8 w-64">
               <SelectValue />
             </SelectTrigger>
@@ -430,33 +324,43 @@ export function RecursosMatrix({
           </Select>
         </div>
 
-        {/* N-32: filtro por habilidade */}
-        {habilidadesUnicas.length > 0 && (
+        {disciplinasOpcoes.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              Habilidade
-            </span>
-            <Select value={filtroHabilidade} onValueChange={(v) => setFiltroHabilidade(v ?? TODOS)}>
+            <span className={ROTULO}>Disciplina</span>
+            <Select
+              value={filtros.disciplina ?? TODOS}
+              onValueChange={(v) => setFiltros((f) => ({ ...f, disciplina: !v || v === TODOS ? null : v }))}
+            >
               <SelectTrigger className="h-8 w-44">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={TODOS}>Todas</SelectItem>
-                {habilidadesUnicas.map(([id, nome]) => (
-                  <SelectItem key={id} value={id}>{nome}</SelectItem>
+                {disciplinasOpcoes.map((d) => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         )}
 
+        <button
+          type="button"
+          aria-pressed={filtros.soSobrecarregados}
+          onClick={() => setFiltros((f) => ({ ...f, soSobrecarregados: !f.soSobrecarregados }))}
+          className={`inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-xs font-medium ${
+            filtros.soSobrecarregados ? "border-destructive bg-destructive/10 text-destructive" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <AlertTriangle className="size-3.5" /> Só sobrecarregados
+        </button>
+
         {/* N-31: Janela de análise */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            Janela
-          </span>
+          <span className={ROTULO}>Janela</span>
           <input
             type="date"
+            aria-label="Início da janela de análise"
             value={janelaIni}
             onChange={(e) => setJanelaIni(e.target.value)}
             className="h-8 rounded-sm border bg-background px-2 text-xs"
@@ -464,6 +368,7 @@ export function RecursosMatrix({
           <span className="text-muted-foreground">—</span>
           <input
             type="date"
+            aria-label="Fim da janela de análise"
             value={janelaFim}
             onChange={(e) => setJanelaFim(e.target.value)}
             className="h-8 rounded-sm border bg-background px-2 text-xs"
@@ -471,58 +376,30 @@ export function RecursosMatrix({
         </div>
 
         <div className="ml-auto inline-flex rounded-sm border p-0.5">
-          <button
-            type="button"
-            onClick={() => setVista("matriz")}
-            className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
-              vista === "matriz" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <LayoutGrid className="size-3.5" /> Matriz
-          </button>
-          <button
-            type="button"
-            onClick={() => setVista("heatmap")}
-            className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
-              vista === "heatmap" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <CalendarRange className="size-3.5" /> Heatmap
-          </button>
-          <button
-            type="button"
-            onClick={() => setVista("carga")}
-            className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
-              vista === "carga" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <CalendarRange className="size-3.5" /> Carga real
-          </button>
-          <button
-            type="button"
-            onClick={() => setVista("planejada")}
-            className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
-              vista === "planejada" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <CalendarRange className="size-3.5" /> Carga planejada
-          </button>
+          {(
+            [
+              ["matriz", "Matriz", LayoutGrid],
+              ["heatmap", "Heatmap", CalendarRange],
+              ["carga", "Carga real", CalendarRange],
+              ["planejada", "Carga planejada", CalendarRange],
+            ] as const
+          ).map(([id, rotulo, Icone]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setVista(id)}
+              className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium ${
+                vista === id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Icone className="size-3.5" /> {rotulo}
+            </button>
+          ))}
         </div>
       </div>
 
-      {filtroProjeto !== TODOS && (
-        <NecessidadesProjeto
-          projetoId={filtroProjeto}
-          dados={necessidades}
-          pessoas={linhas.map((l) => ({ userId: l.userId, nome: l.nome, folga: folgaPorUser.get(l.userId) }))}
-          catalogo={catalogoHabilidades}
-          podeGerir={podeGerir}
-          janela={{ inicio: janelaIni, fim: janelaFim }}
-        />
-      )}
-
       {vista === "carga" ? (
-        <CargaRealView cargaSemanal={cargaSemanal} />
+        <CargaRealView cargaSemanal={cargaRealFiltrada} sinais={sinaisPorUser} vazio={vazio} />
       ) : vista === "planejada" ? (
         <CargaPlanejadaView carga={cargaPlanejada} podeGerir={podeGerir} />
       ) : vista === "heatmap" ? (
@@ -531,8 +408,8 @@ export function RecursosMatrix({
           matriz={heat.matriz}
           periodo={periodoHeat}
           onPeriodo={setPeriodoHeat}
-          podeGerir={podeGerir}
-          onRebalancear={(l) => setRebalDlg(l)}
+          sinais={sinaisPorUser}
+          vazio={vazio}
         />
       ) : (
       <div className="overflow-x-auto rounded-sm border">
@@ -541,28 +418,22 @@ export function RecursosMatrix({
             <tr>
               <th className="px-3 py-2">Pessoa</th>
               <th className="px-3 py-2">Capacidade</th>
-              <th className="px-3 py-2">Alocações</th>
+              <th className="px-3 py-2">Carga por projeto</th>
               <th className="px-3 py-2 w-48">Total</th>
-              {podeGerir && <th className="px-3 py-2 text-right">Ações</th>}
+              {podeGerir && <th className="px-3 py-2 text-right">Cadastro</th>}
             </tr>
           </thead>
           <tbody className="divide-y">
             {linhasFiltradas.length === 0 ? (
               <tr>
                 <td colSpan={podeGerir ? 5 : 4} className="px-3 py-8">
-                  <EmptyState
-                    icon={Users}
-                    title={
-                      filtroProjeto === TODOS
-                        ? "Nenhum recurso cadastrado."
-                        : "Nenhum recurso alocado neste projeto."
-                    }
-                  />
+                  <EmptyState icon={Users} title={filtrando && linhas.length > 0 ? "Nenhum resultado para os filtros." : vazio} />
                 </td>
               </tr>
             ) : (
               linhasFiltradas.map((l) => {
-                const superJanela = superalocadoNaJanela(l, janelaIni, janelaFim);
+                const superJanela = sobreJanela.has(l.userId);
+                const calculadas = l.calculadas ?? [];
                 return (
                 <tr key={l.recursoId} className={l.superalocado ? "bg-destructive/5" : superJanela ? "bg-warning/5" : ""}>
                   <td className="px-3 py-2">
@@ -585,22 +456,6 @@ export function RecursosMatrix({
                           {l.contratacao ? CONTRATACAO_LABELS[l.contratacao] : "Sem vínculo"}
                           {l.ausente && l.motivoAusencia && <span className="ml-1">· {l.motivoAusencia}</span>}
                         </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-1">
-                          {(habilidadesPorUser[l.userId] ?? []).map((h) => (
-                            <span key={h.id} className="rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                              {h.nome}
-                            </span>
-                          ))}
-                          {podeGerir && (
-                            <button
-                              type="button"
-                              onClick={() => setHabDlg({ userId: l.userId, nome: l.nome })}
-                              className="rounded-sm border border-dashed px-1.5 py-0.5 text-[10px] text-muted-foreground hover:border-primary hover:text-foreground"
-                            >
-                              + habilidade
-                            </button>
-                          )}
-                        </div>
                       </div>
                     </div>
                   </td>
@@ -614,29 +469,10 @@ export function RecursosMatrix({
                   </td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-1">
-                      {l.alocacoes.length === 0 && (l.calculadas ?? []).length === 0 ? (
+                      {calculadas.length === 0 && l.projetosSemCronograma.length === 0 && (
                         <span className="text-xs text-muted-foreground">—</span>
-                      ) : (
-                        l.alocacoes.map((a) => (
-                          <button
-                            key={a.id}
-                            type="button"
-                            disabled={!podeGerir}
-                            onClick={() => setAlocDlg({ open: true, linha: l, aloc: a })}
-                            className={`rounded-sm border px-1.5 py-0.5 font-mono text-[11px] ${
-                              podeGerir ? "hover:border-primary" : ""
-                            } ${a.substituidaPeloCronograma ? "border-dashed text-muted-foreground line-through" : ""}`}
-                            title={
-                              a.substituidaPeloCronograma
-                                ? `${a.projetoNome} — substituída: este projeto tem cronograma aprovado e a alocação vem das horas nas linhas da EAP. Pode remover.`
-                                : `${a.projetoNome}${a.observacao ? ` — ${a.observacao}` : ""}`
-                            }
-                          >
-                            {formatarCodigo(a.projetoCodigo)} <span className="text-muted-foreground">{a.percentual}%</span>
-                          </button>
-                        ))
                       )}
-                      {(l.calculadas ?? []).map((c) => (
+                      {calculadas.map((c) => (
                         <span
                           key={`${c.projetoId}-${c.rascunho ? "r" : "a"}`}
                           className={
@@ -657,15 +493,7 @@ export function RecursosMatrix({
                           <span className="text-[9px] uppercase text-info">{c.rascunho ? "rasc" : "calc"}</span>
                         </span>
                       ))}
-                      {podeGerir && projetos.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setAlocDlg({ open: true, linha: l, aloc: null })}
-                          className="rounded-sm border border-dashed px-1.5 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-foreground"
-                        >
-                          <Plus className="inline size-3" />
-                        </button>
-                      )}
+                      <SinalSemCronograma projetos={l.projetosSemCronograma} detalhado />
                     </div>
                   </td>
                   <td className="px-3 py-2">
@@ -684,18 +512,9 @@ export function RecursosMatrix({
                     <div className="mt-0.5 text-right font-mono text-[10px] text-muted-foreground">
                       hoje: {l.alocadoHoje}%{l.ausente && " · capacidade 0 (ausente)"}
                     </div>
-                    {l.superalocado && (
-                      <button
-                        type="button"
-                        onClick={() => setRebalDlg(l)}
-                        className="mt-1 inline-flex items-center gap-1 rounded-sm border border-destructive/40 px-1.5 py-0.5 text-[10px] font-medium text-destructive hover:bg-destructive/10"
-                      >
-                        <Scale className="size-3" /> Rebalancear
-                      </button>
-                    )}
                     {!l.superalocado && superJanela && (
                       <span className="mt-0.5 block font-mono text-[10px] text-warning">
-                        superalocado na janela (alocação digitada)
+                        acima da capacidade na janela
                       </span>
                     )}
                   </td>
@@ -754,91 +573,12 @@ export function RecursosMatrix({
               })
             }
           />
-          <AlocacaoDialog
-            state={alocDlg}
-            projetos={projetos}
-            projetosAprovados={projetosAprovados}
-            onOpenChange={(o) => setAlocDlg((s) => ({ ...s, open: o }))}
-            pending={pending}
-            onSalvar={(payload) =>
-              start(async () => {
-                const r = await salvarAlocacao(payload);
-                if (r.ok) {
-                  toast.success("Alocação salva.");
-                  setAlocDlg((s) => ({ ...s, open: false }));
-                  router.refresh();
-                } else toast.error(r.error);
-              })
-            }
-            onRemover={(id) =>
-              start(async () => {
-                const r = await removerAlocacao({ id });
-                if (r.ok) {
-                  toast.success("Alocação removida.");
-                  setAlocDlg((s) => ({ ...s, open: false }));
-                  router.refresh();
-                } else toast.error(r.error);
-              })
-            }
-          />
         </>
       )}
-
-      {podeGerir && habDlg && (
-        <HabilidadesDialog
-          alvo={habDlg}
-          catalogo={catalogoHabilidades}
-          atribuidas={(habilidadesPorUser[habDlg.userId] ?? []).map((h) => h.id)}
-          pending={pending}
-          onClose={() => setHabDlg(null)}
-          onToggle={(habilidadeId) =>
-            start(async () => {
-              const r = await alternarHabilidadeUsuario({ userId: habDlg.userId, habilidadeId });
-              if (r.ok) router.refresh();
-              else toast.error(r.error);
-            })
-          }
-          onCriar={(nome) =>
-            start(async () => {
-              const r = await criarHabilidade({ nome });
-              if (r.ok) {
-                // Quem gere Recursos PROPÕE; só o RH publica (F2).
-                if (!r.data.publicada) toast.success("Competência proposta. Ela aparece depois que o RH publicar.");
-                router.refresh();
-              } else toast.error(r.error);
-            })
-          }
-        />
-      )}
-
-      <RebalancearDialog
-        linha={rebalDlg}
-        janela={{ inicio: janelaIni, fim: janelaFim }}
-        candidatos={
-          rebalDlg
-            ? linhas
-                .filter((l) => l.userId !== rebalDlg.userId)
-                .flatMap((l) => {
-                  const folga = folgaPorUser.get(l.userId);
-                  return folga && folga.folga > 0 ? [{ linha: l, folga, habilidades: habilidadesPorUser[l.userId] ?? [] }] : [];
-                })
-                .sort((a, b) => b.folga.folga - a.folga.folga || a.linha.nome.localeCompare(b.linha.nome))
-                .slice(0, 5)
-            : []
-        }
-        onOpenChange={(o) => !o && setRebalDlg(null)}
-        onAbrirAlocacao={
-          podeGerir
-            ? (l, a) => {
-                setRebalDlg(null);
-                setAlocDlg({ open: true, linha: l, aloc: a });
-              }
-            : undefined
-        }
-      />
     </div>
   );
 }
+
 
 // ── Heatmap timeline (pessoa × mês) ─────────────────────────────────
 function HeatmapView({
@@ -846,20 +586,20 @@ function HeatmapView({
   matriz,
   periodo,
   onPeriodo,
-  podeGerir,
-  onRebalancear,
+  sinais,
+  vazio,
 }: {
   colunas: ColunaHeatmap[];
   matriz: { linha: Linha; cells: HeatCell[] }[];
   periodo: PeriodoHeatmap;
   onPeriodo: (p: PeriodoHeatmap) => void;
-  podeGerir: boolean;
-  onRebalancear: (l: Linha) => void;
+  sinais: Record<string, ProjetoRef[]>;
+  vazio: string;
 }) {
   if (matriz.length === 0) {
     return (
       <div className="rounded-sm border px-3 py-8">
-        <EmptyState icon={Users} title="Nenhum recurso para exibir." />
+        <EmptyState icon={Users} title={vazio} />
       </div>
     );
   }
@@ -906,15 +646,11 @@ function HeatmapView({
                       <div className="flex items-center gap-1.5 truncate font-medium">
                         {l.nome}
                         {l.superalocado && (
-                          <button
-                            type="button"
-                            onClick={() => onRebalancear(l)}
-                            title="Pessoa superalocada — ver sugestão de rebalanceamento"
-                            className="inline-flex items-center text-destructive hover:opacity-70"
-                          >
-                            <Scale className="size-3.5" />
-                          </button>
+                          <span title="Pessoa acima da capacidade hoje" className="inline-flex items-center text-destructive">
+                            <AlertTriangle className="size-3.5" aria-label="acima da capacidade hoje" />
+                          </span>
                         )}
+                        <SinalSemCronograma projetos={sinais[l.userId] ?? []} />
                       </div>
                       <div className="text-[11px] text-muted-foreground">
                         cap. {l.capacidadePct}%
@@ -929,9 +665,7 @@ function HeatmapView({
                       key={c.chave}
                       className="border-l px-1 py-2 text-center"
                       style={{ background: heatColor(c.pct, l.capacidadePct) }}
-                      title={`${l.nome} · ${colunas.find((x) => x.chave === c.chave)?.titulo ?? c.chave} — ${c.pct}% alocado (${ratio}% da capacidade)${
-                        c.calculada > 0 ? ` · digitada ${c.digitada}% + cronograma ${c.calculada}%` : ""
-                      }${
+                      title={`${l.nome} · ${colunas.find((x) => x.chave === c.chave)?.titulo ?? c.chave} — ${c.pct}% planejado (${ratio}% da capacidade)${
                         c.diasAusente > 0
                           ? ` · ${c.motivosAusencia.join(", ")} em ${c.diasAusente} dia(s)${c.conflitoAusencia ? " com alocação — revisar" : ""}`
                           : ""
@@ -969,13 +703,12 @@ function HeatmapView({
         <Legenda cor="hsl(28 90% 64%)" texto="estourando (≤125%)" />
         <Legenda cor="hsl(0 75% 60%)" texto="superalocado (>125%)" />
         <span className="inline-flex items-center gap-1.5">
-          <CalendarOff className="size-3 text-destructive" /> férias/abono com alocação no período
+          <CalendarOff className="size-3 text-destructive" /> férias/abono com carga no período
         </span>
         <span className="italic">
-          Alocação digitada + horas dos cronogramas aprovados (estas, só nas próximas 12 semanas; depois
-          disso, apenas a digitada). Cada célula é o pior dia do período. O detalhe por semana está em “Carga planejada”.
+          Horas dos cronogramas aprovados, só nas próximas 12 semanas (depois disso não há dado). Cada célula é o
+          pior dia do período. O detalhe por semana está em “Carga planejada”.
         </span>
-        {!podeGerir && <span className="italic">visualização somente leitura</span>}
       </div>
     </div>
   );
@@ -1009,11 +742,19 @@ function heatCarga(horas: number, capacidade: number) {
   return "hsl(0 75% 60%)";
 }
 
-function CargaRealView({ cargaSemanal }: { cargaSemanal: CargaSemanal }) {
+function CargaRealView({
+  cargaSemanal,
+  sinais,
+  vazio,
+}: {
+  cargaSemanal: CargaSemanal;
+  sinais: Record<string, ProjetoRef[]>;
+  vazio: string;
+}) {
   if (cargaSemanal.linhas.length === 0) {
     return (
       <div className="rounded-sm border px-3 py-8">
-        <EmptyState icon={Users} title="Nenhum recurso ativo cadastrado." />
+        <EmptyState icon={Users} title={vazio} />
       </div>
     );
   }
@@ -1036,6 +777,7 @@ function CargaRealView({ cargaSemanal }: { cargaSemanal: CargaSemanal }) {
                   <div className="flex items-center gap-2">
                     <AvatarUsuario nome={l.nome} image={l.image} size="sm" className="size-6 shrink-0" />
                     {l.nome}
+                    <SinalSemCronograma projetos={sinais[l.userId] ?? []} />
                   </div>
                 </td>
                 {cargaSemanal.semanas.map((wk) => {
@@ -1078,213 +820,6 @@ function Legenda({ cor, texto }: { cor: string; texto: string }) {
       <span className="size-3 rounded-sm border" style={{ background: cor }} />
       {texto}
     </span>
-  );
-}
-
-// ── Sugestão de rebalanceamento (informativo) ───────────────────────
-type Candidato = { linha: Linha; folga: FolgaNaJanela; habilidades: Habilidade[] };
-
-function RebalancearDialog({
-  linha,
-  janela,
-  candidatos,
-  onOpenChange,
-  onAbrirAlocacao,
-}: {
-  linha: Linha | null;
-  janela: { inicio: string; fim: string };
-  candidatos: Candidato[];
-  onOpenChange: (o: boolean) => void;
-  onAbrirAlocacao?: (l: Linha, a: Alocacao) => void;
-}) {
-  if (!linha) return null;
-  const l = linha;
-  const excedente = l.totalAlocado - l.capacidadePct;
-  // Só as que contam: as substituídas pelo cronograma aprovado não entram no total acima.
-  const ordenadas = vigentes(l).sort((a, b) => b.percentual - a.percentual);
-  const maior = ordenadas[0];
-
-  return (
-    <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Scale className="size-4 text-destructive" /> Rebalancear · {l.nome}
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-3 text-sm">
-          <div className="rounded-sm border border-destructive/30 bg-destructive/5 px-3 py-2">
-            <p>
-              Alocado <strong>{l.totalAlocado}%</strong> de uma capacidade de{" "}
-              <strong>{l.capacidadePct}%</strong> —{" "}
-              <span className="font-semibold text-destructive">{excedente}% acima do limite</span>.
-            </p>
-            {maior && (
-              <p className="mt-1 text-muted-foreground">
-                Sugestão: reduzir ou mover parte da maior alocação
-                {" "}(<span className="font-mono">{formatarCodigo(maior.projetoCodigo)}</span>, {maior.percentual}%)
-                {" "}para baixar pelo menos {excedente}% e voltar ao limite.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              Alocações (maiores primeiro)
-            </p>
-            <ul className="divide-y rounded-sm border">
-              {ordenadas.map((a) => {
-                const acionavel = !!onAbrirAlocacao;
-                return (
-                  <li
-                    key={a.id}
-                    className="flex items-center justify-between gap-2 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate">
-                        <span className="font-mono text-xs">{formatarCodigo(a.projetoCodigo)}</span>{" "}
-                        {a.projetoNome}
-                      </div>
-                      {(a.inicio || a.fim) && (
-                        <div className="text-[11px] text-muted-foreground">
-                          {a.inicio ?? "—"} → {a.fim ?? "—"}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="font-mono text-sm">{a.percentual}%</span>
-                      {acionavel && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onAbrirAlocacao!(l, a)}
-                        >
-                          Ajustar
-                        </Button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-
-          <div>
-            <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-              Com folga de {dataCurta(janela.inicio)} a {dataCurta(janela.fim)}
-            </p>
-            {candidatos.length === 0 ? (
-              <p className="rounded-sm border px-3 py-2 text-muted-foreground">
-                Ninguém tem folga na janela inteira. Mude a janela de análise para ver outro período.
-              </p>
-            ) : (
-              <ul className="divide-y rounded-sm border">
-                {candidatos.map((c) => (
-                  <li key={c.linha.userId} className="flex items-center justify-between gap-2 px-3 py-2">
-                    <div className="min-w-0">
-                      <div className="truncate">{c.linha.nome}</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        pico {c.folga.pico}%
-                        {c.folga.diasAusente > 0 && ` · ausente ${c.folga.diasAusente} dia(s) no período`}
-                        {c.habilidades.length > 0 && ` · ${c.habilidades.map((h) => (h.nivel ? `${h.nome} ${h.nivel}${h.validado ? "✓" : ""}` : h.nome)).join(", ")}`}
-                      </div>
-                    </div>
-                    <span className="shrink-0 font-mono text-sm">folga {c.folga.folga}%</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <p className="text-[11px] text-muted-foreground">
-            Esta é uma sugestão informativa — nenhuma alocação é alterada automaticamente.
-            {onAbrirAlocacao
-              ? " Use “Ajustar” para abrir a alocação e editar o percentual ou período manualmente."
-              : ""}
-          </p>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Fechar
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function HabilidadesDialog({
-  alvo,
-  catalogo,
-  atribuidas,
-  pending,
-  onClose,
-  onToggle,
-  onCriar,
-}: {
-  alvo: { userId: string; nome: string };
-  catalogo: Habilidade[];
-  atribuidas: string[];
-  pending: boolean;
-  onClose: () => void;
-  onToggle: (habilidadeId: string) => void;
-  onCriar: (nome: string) => void;
-}) {
-  const [nova, setNova] = useState("");
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Habilidades · {alvo.nome}</DialogTitle>
-        </DialogHeader>
-        {catalogo.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma habilidade. Crie abaixo.</p>
-        ) : (
-          <SeletorMultiplo
-            opcoes={catalogo.map((h) => ({ id: h.id, rotulo: h.nome }))}
-            selecionados={atribuidas}
-            // Cada marcação é gravada na hora (toggle no servidor): repete para o que mudou.
-            onChange={(ids) => {
-              for (const id of catalogo.map((h) => h.id)) {
-                if (ids.includes(id) !== atribuidas.includes(id)) onToggle(id);
-              }
-            }}
-            placeholder="Buscar habilidade…"
-            rotuloBusca="Buscar habilidade"
-            vazio="Nenhuma habilidade encontrada."
-            rotuloContagem={(n) => (n === 1 ? "1 habilidade" : `${n} habilidades`)}
-            alturaLista="max-h-56"
-            disabled={pending}
-          />
-        )}
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Nova habilidade…"
-            value={nova}
-            onChange={(e) => setNova(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && nova.trim()) {
-                onCriar(nova);
-                setNova("");
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={pending || !nova.trim()}
-            onClick={() => {
-              onCriar(nova);
-              setNova("");
-            }}
-          >
-            Criar
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1451,155 +986,6 @@ function RecursoDialog({
           >
             {pending ? "Salvando…" : "Salvar"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function AlocacaoDialog({
-  state,
-  projetos,
-  projetosAprovados,
-  onOpenChange,
-  pending,
-  onSalvar,
-  onRemover,
-}: {
-  state: { open: boolean; linha: Linha | null; aloc: Alocacao | null };
-  projetos: Projeto[];
-  /** Projetos com cronograma aprovado — a alocação deles vem das linhas, não se digita (D17). */
-  projetosAprovados: ReadonlySet<string>;
-  onOpenChange: (o: boolean) => void;
-  pending: boolean;
-  onSalvar: (p: {
-    id?: string;
-    recursoId: string;
-    projetoId: string;
-    percentual: number;
-    inicio: string;
-    fim: string;
-    observacao: string;
-  }) => void;
-  onRemover: (id: string) => void;
-}) {
-  const { linha: l, aloc } = state;
-  const [projetoId, setProjetoId] = useState(NONE);
-  const [percentual, setPercentual] = useState("100");
-  const [inicio, setInicio] = useState("");
-  const [fim, setFim] = useState("");
-  const [observacao, setObservacao] = useState("");
-  const [lastKey, setLastKey] = useState<string | null>(null);
-  const key = `${l?.recursoId ?? ""}:${aloc?.id ?? "nova"}`;
-  if (state.open && lastKey !== key) {
-    setLastKey(key);
-    setProjetoId(aloc?.projetoId ?? NONE);
-    setPercentual(String(aloc?.percentual ?? 100));
-    setInicio(aloc?.inicio ?? "");
-    setFim(aloc?.fim ?? "");
-    setObservacao(aloc?.observacao ?? "");
-  }
-  if (!l) return null;
-  // Alocação substituída só pode ser removida — editar não muda nada (não conta mais). A
-  // recusa do servidor tem a mesma frase.
-  const somenteRemover = !!aloc?.substituidaPeloCronograma;
-  const MOTIVO_APROVADO =
-    "Este projeto tem cronograma aprovado: a alocação vem das horas das pessoas nas linhas da EAP, não daqui.";
-
-  return (
-    <Dialog open={state.open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Alocação · {l.nome}</DialogTitle>
-        </DialogHeader>
-        {somenteRemover && (
-          <p className="rounded-sm border border-warning/30 bg-warning/5 px-2.5 py-2 text-xs text-muted-foreground">
-            {MOTIVO_APROVADO} Esta alocação já não conta — só resta removê-la.
-          </p>
-        )}
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>Projeto</Label>
-            <Select
-              value={projetoId}
-              onValueChange={(v) => setProjetoId(v ?? NONE)}
-              disabled={!!aloc}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione…" />
-              </SelectTrigger>
-              <SelectContent>
-                {projetos.map((p) => (
-                  <SelectItem key={p.id} value={p.id} disabled={projetosAprovados.has(p.id)}>
-                    {formatarCodigo(p.codigo)} · {p.nome}
-                    {projetosAprovados.has(p.id) ? " — cronograma aprovado" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {projetosAprovados.size > 0 && !aloc && (
-              <p className="text-[11px] text-muted-foreground">
-                Projeto com cronograma aprovado não recebe alocação digitada: a carga vem das horas nas linhas da EAP.
-              </p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label>Percentual: {percentual}%</Label>
-            <input
-              type="range"
-              min={1}
-              max={100}
-              step={5}
-              value={percentual}
-              onChange={(e) => setPercentual(e.target.value)}
-              disabled={somenteRemover}
-              className="w-full accent-primary"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Início (opcional)</Label>
-              <Input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Fim (opcional)</Label>
-              <Input type="date" value={fim} onChange={(e) => setFim(e.target.value)} />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Observação</Label>
-            <Input value={observacao} onChange={(e) => setObservacao(e.target.value)} />
-          </div>
-        </div>
-        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
-          {aloc ? (
-            <Button variant="ghost" size="sm" onClick={() => onRemover(aloc.id)} disabled={pending}>
-              <Trash2 className="size-3.5" /> Remover
-            </Button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={pending || projetoId === NONE || somenteRemover || projetosAprovados.has(projetoId)}
-              onClick={() =>
-                onSalvar({
-                  id: aloc?.id,
-                  recursoId: l.recursoId,
-                  projetoId,
-                  percentual: Number(percentual),
-                  inicio,
-                  fim,
-                  observacao,
-                })
-              }
-            >
-              {pending ? "Salvando…" : "Salvar"}
-            </Button>
-          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
