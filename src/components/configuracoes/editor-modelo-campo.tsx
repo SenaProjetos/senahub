@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { instrucoesDnd, anunciosDnd } from "./dnd-pt-br";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 
@@ -53,6 +54,7 @@ export function CampoDoModelo({
   campo,
   numero,
   aberto,
+  focar,
   tipoSalvo,
   outrasSecoes,
   onAbrir,
@@ -62,6 +64,7 @@ export function CampoDoModelo({
   campo: CampoBriefing;
   numero: number;
   aberto: boolean;
+  focar: boolean;
   /** Tipo com que a pergunta já está SALVA (nulo = pergunta nova, sem restrição de tipo). */
   tipoSalvo: CampoTipo | null;
   outrasSecoes: { id: string; titulo: string }[];
@@ -99,17 +102,27 @@ export function CampoDoModelo({
           type="button"
           onClick={onAbrir}
           aria-expanded={aberto}
+          aria-controls={`painel-${campo.chave}`}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-1 py-1 text-left text-sm focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           {aberto ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
           <span className="shrink-0 text-xs text-muted-foreground">{numero}.</span>
           <span className={cn("truncate", !campo.label.trim() && "italic text-muted-foreground")}>
             {campo.label.trim() || "Pergunta sem texto"}
-            {campo.obrigatorio && <span className="ml-1 text-destructive" aria-label="obrigatória">*</span>}
+            {campo.obrigatorio && (
+              <span className="ml-1 text-destructive">
+                <span aria-hidden>*</span>
+                <span className="sr-only"> (obrigatória)</span>
+              </span>
+            )}
           </span>
         </button>
         {incompleta && (
-          <Badge variant="destructive" className="shrink-0">
+          <Badge
+            variant="destructive"
+            className="shrink-0"
+            title={!campo.label.trim() ? "Falta o texto da pergunta." : "Informe pelo menos duas opções."}
+          >
             Incompleta
           </Badge>
         )}
@@ -118,7 +131,7 @@ export function CampoDoModelo({
         </Badge>
         <BotaoAcoes itens={itens} onSelect={onAcao} rotulo={`Ações da pergunta ${campo.label || "sem texto"}`} />
       </div>
-      {aberto && <EditorDoCampo campo={campo} tipoSalvo={tipoSalvo} onMudar={onMudar} />}
+      {aberto && <EditorDoCampo campo={campo} tipoSalvo={tipoSalvo} focar={focar} onMudar={onMudar} />}
     </LinhaComMenu>
   );
 }
@@ -126,10 +139,13 @@ export function CampoDoModelo({
 function EditorDoCampo({
   campo,
   tipoSalvo,
+  focar,
   onMudar,
 }: {
   campo: CampoBriefing;
   tipoSalvo: CampoTipo | null;
+  /** Pergunta recém-criada: o foco vai para o campo do texto. */
+  focar: boolean;
   onMudar: (patch: Partial<Omit<CampoBriefing, "chave">>) => void;
 }) {
   const id = useId();
@@ -137,20 +153,20 @@ function EditorDoCampo({
   const tiposPermitidos = tipoSalvo ? TIPOS_DE_CAMPO.filter((t) => grupoDoTipo(t) === grupoDoTipo(tipoSalvo)) : TIPOS_DE_CAMPO;
 
   return (
-    <div className="space-y-3 border-t px-3 py-3">
+    <div id={`painel-${campo.chave}`} className="space-y-3 border-t px-3 py-3">
       <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
         <div className="space-y-1.5">
           <Label htmlFor={`${id}-label`} className="text-xs">
             Pergunta
           </Label>
-          <Input id={`${id}-label`} value={campo.label} maxLength={300} onChange={(e) => onMudar({ label: e.target.value })} />
+          <Input id={`${id}-label`} value={campo.label} maxLength={300} autoFocus={focar} onChange={(e) => onMudar({ label: e.target.value })} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${id}-tipo`} className="text-xs">
             Tipo de resposta
           </Label>
           <Select value={campo.tipo} onValueChange={(v) => v && onMudar({ tipo: v as CampoTipo })}>
-            <SelectTrigger id={`${id}-tipo`} className="w-full">
+            <SelectTrigger id={`${id}-tipo`} className="w-full" aria-describedby={tipoSalvo ? `${id}-tipo-ajuda` : undefined}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -164,7 +180,7 @@ function EditorDoCampo({
         </div>
       </div>
       {tipoSalvo && tiposPermitidos.length < TIPOS_DE_CAMPO.length && (
-        <p className="text-xs text-muted-foreground">
+        <p id={`${id}-tipo-ajuda`} className="text-xs text-muted-foreground">
           Esta pergunta já existe no formulário: só troca por tipos parecidos, para não bagunçar as respostas já dadas.
           Para outro tipo, crie uma pergunta nova e exclua esta.
         </p>
@@ -243,6 +259,7 @@ function EditorDoCampo({
 }
 
 function OpcoesDoCampo({ opcoes, onMudar }: { opcoes: string[]; onMudar: (opcoes: string[]) => void }) {
+  const rotuloId = useId();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -262,9 +279,16 @@ function OpcoesDoCampo({ opcoes, onMudar }: { opcoes: string[]; onMudar: (opcoes
   }
 
   return (
-    <div className="space-y-1.5">
-      <span className="text-xs font-medium">Opções</span>
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
+    <div role="group" aria-labelledby={rotuloId} className="space-y-1.5">
+      <span id={rotuloId} className="text-xs font-medium">
+        Opções
+      </span>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={aoSoltar}
+        accessibility={{ screenReaderInstructions: instrucoesDnd, announcements: anunciosDnd("a opção") }}
+      >
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           <ul className="space-y-1.5">
             {opcoes.map((op, i) => (
@@ -323,11 +347,11 @@ function OpcaoLinha({
         type="button"
         variant="ghost"
         size="icon"
-        className="size-8 shrink-0"
-        disabled={!podeRemover}
         aria-label={`Remover a opção ${indice + 1}`}
+        aria-disabled={!podeRemover}
         title={podeRemover ? undefined : "É preciso ao menos duas opções."}
-        onClick={onRemover}
+        className={podeRemover ? undefined : "opacity-50"}
+        onClick={() => podeRemover && onRemover()}
       >
         <X className="size-4" />
       </Button>

@@ -101,7 +101,7 @@ async function main() {
     // 7) Esquema ilegível cai no formulário embutido, sem derrubar o projeto.
     await prisma.modeloBriefing.update({ where: { id: modelo.id }, data: { esquema: { quebrado: true } } });
     const quebrado = await resolverModelo(modelo.id);
-    check("esquema ilegível usa o formulário embutido", quebrado.id === null && quebrado.secoes.length === 7);
+    check("esquema ilegível usa o formulário embutido e sinaliza", quebrado.invalido === true && quebrado.secoes.length === 7);
   } finally {
     await prisma.linkPublicoInput.deleteMany({ where: { projetoId: projeto.id } });
     await prisma.briefingProjeto.deleteMany({ where: { projetoId: projeto.id } });

@@ -155,10 +155,15 @@ async function main() {
 }
 
 /** Valor válido para a chave: e-mail e telefone passam pela validação de formato (ADR-0010). */
-function preenchido(chave: string): string {
+function preenchido(chave: string): unknown {
   const campo = BRIEFING_SCHEMA.flatMap((s) => s.campos).find((c) => c.chave === chave);
   if (campo?.formato === "email") return "smoke@exemplo.com";
   if (campo?.formato === "telefone") return "(81) 99999-8888";
+  // O servidor confere a resposta com o TIPO do campo: opção válida, lista ou boolean.
+  if (campo?.tipo === "select" || campo?.tipo === "radio") return campo.opcoes?.[0];
+  if (campo?.tipo === "sim-nao") return "Sim";
+  if (campo?.tipo === "checkbox") return campo.opcoes?.slice(0, 1);
+  if (campo?.tipo === "checkbox-single") return true;
   return "preenchido";
 }
 

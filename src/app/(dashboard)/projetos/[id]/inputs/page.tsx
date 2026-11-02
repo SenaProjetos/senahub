@@ -101,7 +101,7 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
         status={statusBriefing}
         ocultos={ocultos}
         modeloSecoes={modelo.secoes}
-        modelo={{ id: modelo.id, nome: modelo.nome }}
+        modelo={{ id: modelo.id, nome: modelo.nome, invalido: modelo.invalido === true }}
         modelosEscolha={modelosEscolha}
       />
 

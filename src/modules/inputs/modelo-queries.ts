@@ -11,6 +11,8 @@ export type ModeloResolvido = {
   id: string | null;
   nome: string;
   secoes: SecaoBriefing[];
+  /** O modelo existe, mas o esquema gravado está ilegível: `secoes` é o formulário embutido (a tela avisa). */
+  invalido?: boolean;
 };
 
 const EMBUTIDO: ModeloResolvido = { id: null, nome: "Briefing padrão", secoes: BRIEFING_SCHEMA };
@@ -18,7 +20,9 @@ const EMBUTIDO: ModeloResolvido = { id: null, nome: "Briefing padrão", secoes: 
 function resolvido(linha: { id: string; nome: string; esquema: unknown }): ModeloResolvido {
   const v = validarEsquema(linha.esquema);
   // Esquema ilegível (editado por fora do sistema): o formulário embutido segura o projeto.
-  return v.ok ? { id: linha.id, nome: linha.nome, secoes: v.esquema } : { ...EMBUTIDO, nome: `${linha.nome} (esquema inválido)` };
+  return v.ok
+    ? { id: linha.id, nome: linha.nome, secoes: v.esquema }
+    : { id: linha.id, nome: linha.nome, secoes: BRIEFING_SCHEMA, invalido: true };
 }
 
 /**
@@ -44,6 +48,7 @@ export type ModeloLinha = {
   secoes: number;
   perguntas: number;
   projetos: number;
+  esquemaValido: boolean;
   atualizadoEm: Date;
 };
 
@@ -69,6 +74,7 @@ export async function listarModelos(): Promise<ModeloLinha[]> {
       secoes: secoes.length,
       perguntas: secoes.reduce((n, s) => n + s.campos.length, 0),
       projetos: l._count.briefings + (l.padrao ? semEscolha : 0),
+      esquemaValido: v.ok,
       atualizadoEm: l.updatedAt,
     };
   });

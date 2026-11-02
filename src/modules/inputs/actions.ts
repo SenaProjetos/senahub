@@ -259,7 +259,10 @@ export const definirVisibilidadeBriefing = defineAction(
         select: { respostasJson: true, secoesOcultas: true, camposOcultos: true, modeloId: true },
       });
       const modelo = await resolverModelo(atual.modeloId, tx);
-      if (!existeNoBriefing(input.alvo, input.chave, modelo.secoes)) throw new ActionError("Pergunta do briefing não encontrada.");
+      // Mostrar de novo vale mesmo para chave que saiu do modelo (limpa a ocultação órfã).
+      if (input.oculto && !existeNoBriefing(input.alvo, input.chave, modelo.secoes)) {
+        throw new ActionError("Pergunta do briefing não encontrada.");
+      }
       const lista = input.alvo === "secao" ? atual.secoesOcultas : atual.camposOcultos;
       const nova = input.oculto ? [...new Set([...lista, input.chave])] : lista.filter((c) => c !== input.chave);
       const ocultos = {

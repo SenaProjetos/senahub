@@ -259,9 +259,41 @@ export function mesclarRespostasVisiveis(
 ): Record<string, unknown> {
   const resultado = { ...anteriores };
   for (const campo of visiveis.flatMap((s) => s.campos)) {
-    if (campo.chave in enviadas) resultado[campo.chave] = enviadas[campo.chave];
+    if (!(campo.chave in enviadas)) continue;
+    const v = respostaValida(campo, enviadas[campo.chave]);
+    if (v.ok) resultado[campo.chave] = v.valor;
   }
   return resultado;
+}
+
+/** Limite de tamanho de uma resposta de texto (o link público é aberto ao mundo). */
+export const LIMITE_TEXTO_RESPOSTA = 5000;
+
+/**
+ * Confere a resposta enviada com o TIPO do campo: texto é string curta, escolha única é uma das
+ * opções (ou vazio), caixas é lista de opções, caixa de ciência é boolean. O que não bate é
+ * descartado (a resposta guardada fica como estava) — o link público não aceita objeto, lista em
+ * campo de texto nem opção inventada.
+ */
+export function respostaValida(campo: CampoBriefing, v: unknown): { ok: true; valor: unknown } | { ok: false } {
+  const opcoes: readonly string[] = campo.tipo === "sim-nao" ? OPCOES_SIM_NAO : (campo.opcoes ?? []);
+  switch (campo.tipo) {
+    case "text":
+    case "textarea":
+      return typeof v === "string" && v.length <= LIMITE_TEXTO_RESPOSTA ? { ok: true, valor: v } : { ok: false };
+    case "radio":
+    case "select":
+    case "sim-nao":
+      return typeof v === "string" && (v === "" || opcoes.includes(v)) ? { ok: true, valor: v } : { ok: false };
+    case "checkbox":
+      return Array.isArray(v) && v.length <= opcoes.length && v.every((x) => typeof x === "string" && opcoes.includes(x))
+        ? { ok: true, valor: [...new Set(v as string[])] }
+        : { ok: false };
+    case "checkbox-single":
+      return typeof v === "boolean" ? { ok: true, valor: v } : { ok: false };
+    default:
+      return { ok: false };
+  }
 }
 
 /** Só as respostas dos campos visíveis — o que vai ao navegador do cliente no link. */

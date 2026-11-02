@@ -88,7 +88,7 @@ export function BriefingForm({
         <span className="text-xs text-muted-foreground">
           {prog.preenchidos}/{prog.total} obrigatórios preenchidos
         </span>
-        <span className={cn("h-5 text-xs", previa && "hidden")}>
+        <span role="status" aria-live="polite" className={cn("h-5 text-xs", previa && "hidden")}>
           {saveStatus === "saving" && (
             <span className="inline-flex items-center gap-1 text-muted-foreground">
               <Loader2 className="size-3 animate-spin" /> Salvando…
@@ -112,6 +112,7 @@ export function BriefingForm({
             key={secao.id}
             type="button"
             onClick={() => setSecaoAtiva(secao.id)}
+            aria-current={secaoAtiva === secao.id ? "true" : undefined}
             className={cn(
               "-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-xs font-medium transition-colors",
               secaoAtiva === secao.id
@@ -172,7 +173,7 @@ export function BriefingForm({
 }
 
 const inputClass =
-  "w-full rounded-sm border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50";
+  "w-full rounded-sm border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50";
 
 function CampoView({
   campo,
@@ -188,12 +189,31 @@ function CampoView({
   onChange: (chave: string, valor: unknown, delay?: number) => void;
 }) {
   const disabled = !canEdit;
+  // Perguntas de várias opções são grupos: o rótulo é o <legend>, para o leitor de tela anunciar a
+  // pergunta junto de cada opção (um <label for> não aponta para nenhum controle único).
+  const agrupado =
+    campo.tipo === "radio" || campo.tipo === "sim-nao" || campo.tipo === "checkbox" || campo.tipo === "checkbox-single";
+  const rotulo = (
+    <>
+      {campo.label}
+      {campo.obrigatorio && (
+        <span className="ml-1 text-destructive">
+          <span aria-hidden>*</span>
+          <span className="sr-only"> (obrigatória)</span>
+        </span>
+      )}
+    </>
+  );
+  const Raiz = agrupado ? "fieldset" : "div";
   return (
-    <div className="space-y-1.5">
-      <label htmlFor={campo.chave} className="block text-sm font-medium">
-        {campo.label}
-        {campo.obrigatorio && <span className="ml-1 text-destructive">*</span>}
-      </label>
+    <Raiz className="min-w-0 space-y-1.5 border-0 p-0">
+      {agrupado ? (
+        <legend className="block p-0 text-sm font-medium">{rotulo}</legend>
+      ) : (
+        <label htmlFor={campo.chave} className="block text-sm font-medium">
+          {rotulo}
+        </label>
+      )}
       {campo.hint && <p className="text-xs text-muted-foreground">{campo.hint}</p>}
 
       {campo.tipo === "text" && campo.formato && (
@@ -216,6 +236,7 @@ function CampoView({
           value={(valor as string) ?? ""}
           placeholder={campo.placeholder}
           disabled={disabled}
+          aria-required={campo.obrigatorio || undefined}
           onChange={(e) => onChange(campo.chave, e.target.value)}
         />
       )}
@@ -227,6 +248,7 @@ function CampoView({
           value={(valor as string) ?? ""}
           placeholder={campo.placeholder}
           disabled={disabled}
+          aria-required={campo.obrigatorio || undefined}
           onChange={(e) => onChange(campo.chave, e.target.value)}
         />
       )}
@@ -237,6 +259,7 @@ function CampoView({
           className={cn(inputClass, "cursor-pointer")}
           value={(valor as string) ?? ""}
           disabled={disabled}
+          aria-required={campo.obrigatorio || undefined}
           onChange={(e) => onChange(campo.chave, e.target.value, 0)}
         >
           <option value="">Selecione…</option>
@@ -303,6 +326,6 @@ function CampoView({
           <span className="text-sm">{campo.opcoes[0]}</span>
         </label>
       )}
-    </div>
+    </Raiz>
   );
 }

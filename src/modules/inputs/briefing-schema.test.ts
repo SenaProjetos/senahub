@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  LIMITE_TEXTO_RESPOSTA,
+  type CampoBriefing,
   BRIEFING_SCHEMA,
   filtrarSecoes,
   prePopularRespostas,
@@ -9,6 +11,7 @@ import {
   existeNoBriefing,
   mesclarRespostasVisiveis,
   respostasVisiveis,
+  respostaValida,
 } from "./briefing-schema";
 
 describe("briefing-schema", () => {
@@ -136,5 +139,37 @@ describe("briefing: gravação só mexe no que está visível", () => {
     expect(respostasVisiveis({ areaConstruida: "250", nomeCompleto: "Ana", tipoEstrutura: "Mista" }, visiveis)).toEqual({
       nomeCompleto: "Ana",
     });
+  });
+});
+
+describe("respostaValida (o link público não confia no tipo enviado)", () => {
+  const c = (tipo: CampoBriefing["tipo"], opcoes?: string[]): CampoBriefing => ({ chave: "k", label: "K", tipo, obrigatorio: false, opcoes });
+
+  it("texto só aceita string dentro do limite", () => {
+    expect(respostaValida(c("text"), "ok").ok).toBe(true);
+    expect(respostaValida(c("text"), { a: 1 }).ok).toBe(false);
+    expect(respostaValida(c("textarea"), ["x"]).ok).toBe(false);
+    expect(respostaValida(c("text"), "x".repeat(LIMITE_TEXTO_RESPOSTA + 1)).ok).toBe(false);
+  });
+
+  it("escolha única/lista/sim-não: uma das opções ou vazio", () => {
+    expect(respostaValida(c("radio", ["a", "b"]), "a").ok).toBe(true);
+    expect(respostaValida(c("select", ["a", "b"]), "").ok).toBe(true);
+    expect(respostaValida(c("radio", ["a", "b"]), "z").ok).toBe(false);
+    expect(respostaValida(c("sim-nao"), "Sim").ok).toBe(true);
+    expect(respostaValida(c("sim-nao"), "Talvez").ok).toBe(false);
+  });
+
+  it("caixas: lista só de opções, sem repetição; caixa de ciência: boolean", () => {
+    expect(respostaValida(c("checkbox", ["a", "b"]), ["a", "a"])).toEqual({ ok: true, valor: ["a"] });
+    expect(respostaValida(c("checkbox", ["a", "b"]), "a").ok).toBe(false);
+    expect(respostaValida(c("checkbox", ["a", "b"]), ["z"]).ok).toBe(false);
+    expect(respostaValida(c("checkbox-single", ["Li"]), true).ok).toBe(true);
+    expect(respostaValida(c("checkbox-single", ["Li"]), "sim").ok).toBe(false);
+  });
+
+  it("mesclar descarta o inválido e mantém a resposta guardada", () => {
+    const visiveis = [{ id: "s", titulo: "S", campos: [c("radio", ["a", "b"])] }];
+    expect(mesclarRespostasVisiveis({ k: "a" }, { k: "inventada" }, visiveis)).toEqual({ k: "a" });
   });
 });

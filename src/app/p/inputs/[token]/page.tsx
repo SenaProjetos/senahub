@@ -81,9 +81,7 @@ export default async function InputsPublicoPage({
       <BriefingPublico
         token={token}
         respostasIniciais={respostasBriefing}
-        disciplinas={disciplinas}
-        ocultos={ocultos}
-        modeloSecoes={modelo.secoes}
+        secoes={secoesVisiveis}
       />
 
       {secoesVisiveis.length === 0 && itens.length === 0 && (

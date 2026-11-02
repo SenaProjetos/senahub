@@ -48,20 +48,20 @@ export function grupoDoTipo(tipo: CampoTipo): GrupoDeTipo {
   return "ciencia";
 }
 
-const texto = (max: number, msg: string) => z.string().trim().min(1, msg).max(max, `Use até ${max} caracteres.`);
-const textoOpc = (max: number) => z.string().trim().max(max, `Use até ${max} caracteres.`).optional();
+const texto = (max: number, msg: string) => z.string("Texto inválido.").trim().min(1, msg).max(max, `Use até ${max} caracteres.`);
+const textoOpc = (max: number) => z.string("Texto inválido.").trim().max(max, `Use até ${max} caracteres.`).optional();
 
 const campoSchema = z
   .object({
-    chave: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,59}$/, "Chave de pergunta inválida."),
+    chave: z.string("Chave de pergunta inválida.").regex(/^[A-Za-z][A-Za-z0-9_]{0,59}$/, "Chave de pergunta inválida."),
     label: texto(300, "Escreva a pergunta."),
-    tipo: z.enum(TIPOS_DE_CAMPO),
-    obrigatorio: z.boolean(),
-    opcoes: z.array(z.string().trim().min(1, "Opção em branco.").max(300, "Opção muito longa.")).max(40, "No máximo 40 opções.").optional(),
+    tipo: z.enum(TIPOS_DE_CAMPO, "Tipo de pergunta inválido."),
+    obrigatorio: z.boolean("Indique se a resposta é obrigatória."),
+    opcoes: z.array(z.string("Opção inválida.").trim().min(1, "Opção em branco.").max(300, "Opção muito longa.")).max(40, "No máximo 40 opções.").optional(),
     placeholder: textoOpc(160),
     hint: textoOpc(500),
-    importarDoCadastro: z.enum(["email", "nome", "telefone", "endereco"]).optional(),
-    formato: z.enum(FORMATOS_PERMITIDOS).optional(),
+    importarDoCadastro: z.enum(["email", "nome", "telefone", "endereco"], "Origem de cadastro inválida.").optional(),
+    formato: z.enum(FORMATOS_PERMITIDOS, "Formato de campo inválido.").optional(),
   })
   .transform((c, ctx) => {
     const base = { ...c, opcoes: c.opcoes?.filter((o) => o !== "") };
@@ -78,19 +78,19 @@ const campoSchema = z
   });
 
 const secaoSchema = z.object({
-  id: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,59}$/, "Identificador de seção inválido."),
+  id: z.string("Identificador de seção inválido.").regex(/^[A-Za-z][A-Za-z0-9_-]{0,59}$/, "Identificador de seção inválido."),
   titulo: texto(120, "Dê um título à seção."),
   descricao: textoOpc(800),
   disciplinas: z
-    .array(z.string().trim().min(1).max(60))
+    .array(z.string("Termo inválido.").trim().min(1, "Termo de disciplina em branco.").max(60, "Use até 60 caracteres em cada termo de disciplina."))
     .max(10, "No máximo 10 termos de disciplina.")
     .optional()
     .transform((d) => (d && d.length > 0 ? [...new Set(d)] : undefined)),
-  campos: z.array(campoSchema).max(60, "No máximo 60 perguntas por seção."),
+  campos: z.array(campoSchema, "Perguntas inválidas.").max(60, "No máximo 60 perguntas por seção."),
 });
 
 export const esquemaBriefingSchema = z
-  .array(secaoSchema)
+  .array(secaoSchema, "Formulário inválido.")
   .min(1, "O formulário precisa de pelo menos uma seção.")
   .max(30, "No máximo 30 seções.")
   .superRefine((secoes, ctx) => {

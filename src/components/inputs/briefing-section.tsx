@@ -49,7 +49,7 @@ export function BriefingSection({
   /** Seções do modelo de formulário do projeto (antes do filtro por disciplina e dos ocultos). */
   modeloSecoes: SecaoBriefing[];
   /** Modelo em uso (`id` nulo = formulário embutido) e os que a equipe pode escolher. */
-  modelo: { id: string | null; nome: string };
+  modelo: { id: string | null; nome: string; invalido: boolean };
   modelosEscolha: { id: string; nome: string; padrao: boolean; ativo: boolean }[];
 }) {
   const [personalizando, setPersonalizando] = useState(false);
@@ -98,6 +98,12 @@ export function BriefingSection({
       <CardContent>
         {canEdit && modelosEscolha.length > 1 && (
           <SeletorModeloBriefing projetoId={projetoId} atual={modelo.id} modelos={modelosEscolha} />
+        )}
+        {modelo.invalido && (
+          <p role="alert" className="mb-4 rounded-sm border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            O modelo “{modelo.nome}” está com o formulário ilegível; este projeto mostra o formulário padrão embutido. Corrija o modelo em
+            Configurações → Modelos de formulário.
+          </p>
         )}
         {personalizando && <BriefingPersonalizar projetoId={projetoId} secoes={doProjeto} ocultos={ocultos} />}
         {!personalizando && secoes.length === 0 && (

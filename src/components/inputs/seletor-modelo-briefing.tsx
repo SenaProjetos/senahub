@@ -38,12 +38,16 @@ export function SeletorModeloBriefing({
     });
     if (!ok) return;
     start(async () => {
-      const r = await definirModeloDoProjeto({ projetoId, modeloId: novo });
-      if (r.ok) {
-        setValor(novo);
-        toast.success("Modelo do formulário alterado.");
-        router.refresh();
-      } else toast.error(r.error);
+      try {
+        const r = await definirModeloDoProjeto({ projetoId, modeloId: novo });
+        if (r.ok) {
+          setValor(novo);
+          toast.success("Modelo do formulário alterado.");
+          router.refresh();
+        } else toast.error(r.error);
+      } catch {
+        toast.error("Não foi possível trocar o modelo. Verifique a conexão e tente de novo.");
+      }
     });
   }
 
@@ -53,7 +57,7 @@ export function SeletorModeloBriefing({
         Modelo do formulário
       </Label>
       <Select value={valor || undefined} onValueChange={trocar} disabled={pending}>
-        <SelectTrigger id="modelo-briefing" className="h-8 w-64 max-w-full">
+        <SelectTrigger id="modelo-briefing" className="w-64 max-w-full">
           <SelectValue placeholder="Modelo padrão" />
         </SelectTrigger>
         <SelectContent>

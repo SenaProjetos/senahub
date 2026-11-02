@@ -6,14 +6,16 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { aplicarOcultos, calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
+import { aplicarOcultos, calcularStatusBriefing, type SecaoBriefing } from "@/modules/inputs/briefing-schema";
 import { problemasDeEvolucao, validarEsquema } from "@/modules/inputs/modelo-schema";
 import { resolverModelo } from "@/modules/inputs/modelo-queries";
 
 const cfg = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir", entidade: "ModeloBriefing" } as const;
 
-const nomeSchema = z.string().trim().min(1, "Dê um nome ao modelo.").max(80, "Use até 80 caracteres no nome.");
-const descricaoSchema = z.string().trim().max(400, "Use até 400 caracteres na descrição.").optional();
+const nomeSchema = z.string("Informe o nome do modelo.").trim().min(1, "Dê um nome ao modelo.").max(80, "Use até 80 caracteres no nome.");
+const descricaoSchema = z.string("Descrição inválida.").trim().max(400, "Use até 400 caracteres na descrição.").optional();
+
+const idModelo = z.string("Modelo inválido.").min(1, "Modelo inválido.");
 
 const modeloAntes = (i: { id: string }) => prisma.modeloBriefing.findUnique({ where: { id: i.id } });
 
@@ -22,18 +24,41 @@ function ehConflitoDeNome(e: unknown): boolean {
 }
 
 const NOME_REPETIDO = "Já existe um modelo com este nome.";
+const ESQUEMA_ILEGIVEL = "Este modelo está com o formulário ilegível. Abra-o em Configurações → Modelos de formulário e salve-o de novo.";
+
+/**
+ * O status do briefing é persistido para a listagem; quando o formulário muda (obrigatória nova,
+ * pergunta removida, outro modelo padrão), recalcula o dos briefings que o usam. Sem trava de
+ * linha de propósito: o próximo salvamento do briefing corrige qualquer corrida.
+ */
+async function recalcularStatusDoModelo(modeloId: string, ehPadrao: boolean, secoes: readonly SecaoBriefing[]) {
+  const briefings = await prisma.briefingProjeto.findMany({
+    where: ehPadrao ? { OR: [{ modeloId }, { modeloId: null }] } : { modeloId },
+    select: { id: true, status: true, respostasJson: true, secoesOcultas: true, camposOcultos: true },
+  });
+  for (const b of briefings) {
+    const novo = calcularStatusBriefing(
+      (b.respostasJson ?? {}) as Record<string, unknown>,
+      aplicarOcultos(secoes, { secoes: b.secoesOcultas, campos: b.camposOcultos }),
+    );
+    if (novo !== b.status) await prisma.briefingProjeto.update({ where: { id: b.id }, data: { status: novo } });
+  }
+}
 
 /** Cria um modelo: em branco (uma seção vazia) ou cópia de outro, com as MESMAS chaves de pergunta. */
 export const criarModeloBriefing = defineAction(
   {
     ...cfg,
     acao: "criar-modelo-briefing",
-    schema: z.object({ nome: nomeSchema, descricao: descricaoSchema, copiarDeId: z.string().min(1).optional() }),
+    schema: z.object({ nome: nomeSchema, descricao: descricaoSchema, copiarDeId: z.string("Modelo de origem inválido.").min(1, "Modelo de origem inválido.").optional() }),
     entidadeId: (d) => (d as { id?: string } | undefined)?.id,
   },
   async (input) => {
     const origem = input.copiarDeId ? await resolverModelo(input.copiarDeId) : null;
-    if (input.copiarDeId && origem?.id !== input.copiarDeId) throw new ActionError("Modelo de origem não encontrado.");
+    if (input.copiarDeId && (origem?.id !== input.copiarDeId || origem.invalido)) {
+      const existe = await prisma.modeloBriefing.findUnique({ where: { id: input.copiarDeId }, select: { id: true } });
+      throw new ActionError(existe ? ESQUEMA_ILEGIVEL : "Modelo de origem não encontrado.");
+    }
     const esquema = origem
       ? origem.secoes
       : [{ id: "geral", titulo: "Informações gerais", campos: [] as unknown[] }];
@@ -61,11 +86,11 @@ export const salvarModeloBriefing = defineAction(
     ...cfg,
     acao: "salvar-modelo-briefing",
     schema: z.object({
-      id: z.string().min(1),
-      versao: z.number().int().min(1),
+      id: idModelo,
+      versao: z.number("Versão inválida.").int("Versão inválida.").min(1, "Versão inválida."),
       nome: nomeSchema,
       descricao: descricaoSchema,
-      esquema: z.array(z.unknown()),
+      esquema: z.array(z.unknown(), "Formulário inválido."),
     }),
     entidadeId: (_d, i) => (i as { id: string }).id,
     capturarAntes: modeloAntes,
@@ -93,6 +118,7 @@ export const salvarModeloBriefing = defineAction(
       if (ehConflitoDeNome(e)) throw new ActionError(NOME_REPETIDO);
       throw e;
     }
+    await recalcularStatusDoModelo(input.id, atual.padrao, v.esquema);
     revalidatePath("/configuracoes/inputs/modelos");
     revalidatePath(`/configuracoes/inputs/modelos/${input.id}`);
     return { id: input.id, versao: input.versao + 1 };
@@ -104,7 +130,7 @@ export const definirModeloPadraoBriefing = defineAction(
   {
     ...cfg,
     acao: "definir-modelo-padrao-briefing",
-    schema: z.object({ id: z.string().min(1) }),
+    schema: z.object({ id: idModelo }),
     entidadeId: (_d, i) => (i as { id: string }).id,
     capturarAntes: () => prisma.modeloBriefing.findFirst({ where: { padrao: true }, select: { id: true, nome: true } }),
   },
@@ -116,12 +142,17 @@ export const definirModeloPadraoBriefing = defineAction(
         if (!alvo.ativo) throw new ActionError("Restaure o modelo antes de torná-lo o padrão.");
         if (alvo.padrao) return;
         await tx.modeloBriefing.updateMany({ where: { padrao: true }, data: { padrao: false } });
-        await tx.modeloBriefing.update({ where: { id: input.id }, data: { padrao: true } });
+        // Condicionado ao estado lido: arquivar ao mesmo tempo não deixa um padrão arquivado (o throw desfaz tudo).
+        const { count } = await tx.modeloBriefing.updateMany({ where: { id: input.id, ativo: true }, data: { padrao: true } });
+        if (count !== 1) throw new ActionError("Restaure o modelo antes de torná-lo o padrão.");
       });
     } catch (e) {
       if (ehConflitoDeNome(e)) throw new ActionError("Outra pessoa trocou o modelo padrão agora. Tente de novo.");
       throw e;
     }
+    // Quem não escolheu modelo passa a usar o novo padrão: o status deles muda junto.
+    const novo = await resolverModelo(input.id);
+    if (!novo.invalido) await recalcularStatusDoModelo(input.id, true, novo.secoes);
     revalidatePath("/configuracoes/inputs/modelos");
     return { id: input.id };
   },
@@ -132,7 +163,7 @@ export const arquivarModeloBriefing = defineAction(
   {
     ...cfg,
     acao: "arquivar-modelo-briefing",
-    schema: z.object({ id: z.string().min(1), arquivar: z.boolean() }),
+    schema: z.object({ id: idModelo, arquivar: z.boolean("Ação inválida.") }),
     entidadeId: (_d, i) => (i as { id: string }).id,
     capturarAntes: modeloAntes,
   },
@@ -164,7 +195,7 @@ export const definirModeloDoProjeto = defineAction(
     recurso: "projetos",
     permissao: "gerir",
     entidade: "BriefingProjeto",
-    schema: z.object({ projetoId: z.string().min(1), modeloId: z.string().min(1) }),
+    schema: z.object({ projetoId: z.string("Projeto inválido.").min(1, "Projeto inválido."), modeloId: idModelo }),
     entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
     capturarAntes: (i) =>
       prisma.briefingProjeto.findUnique({
@@ -184,9 +215,17 @@ export const definirModeloDoProjeto = defineAction(
         select: { respostasJson: true, modeloId: true, status: true, secoesOcultas: true, camposOcultos: true },
       });
       const efetivo = (await resolverModelo(atual.modeloId, tx)).id;
-      if (efetivo === input.modeloId) return atual.status;
+      if (efetivo === input.modeloId) {
+        // Escolher explicitamente o modelo que já vale por ser o padrão: passa a ser a escolha do projeto
+        // (não muda de formulário se o padrão mudar depois). Nada mais muda.
+        if (atual.modeloId === null) {
+          await tx.briefingProjeto.update({ where: { projetoId: input.projetoId }, data: { modeloId: input.modeloId } });
+        }
+        return atual.status;
+      }
       if (!novo.ativo) throw new ActionError("Este modelo está arquivado. Restaure-o em Configurações para usá-lo.");
       const modelo = await resolverModelo(input.modeloId, tx);
+      if (modelo.invalido) throw new ActionError(ESQUEMA_ILEGIVEL);
       const novoStatus = calcularStatusBriefing(
         (atual.respostasJson ?? {}) as Record<string, unknown>,
         aplicarOcultos(modelo.secoes, { secoes: [], campos: [] }),

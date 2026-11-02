@@ -1,23 +1,19 @@
 "use client";
 
 import { BriefingForm } from "@/components/inputs/briefing-form";
-import { aplicarOcultos, filtrarSecoes, type OcultosBriefing, type SecaoBriefing } from "@/modules/inputs/briefing-schema";
+import type { SecaoBriefing } from "@/modules/inputs/briefing-schema";
 
 /** Briefing de Start no link público: salva via rota token-gated (sem login). */
 export function BriefingPublico({
   token,
   respostasIniciais,
-  disciplinas,
-  ocultos,
-  modeloSecoes,
+  secoes,
 }: {
   token: string;
   respostasIniciais: Record<string, unknown>;
-  disciplinas: string[];
-  ocultos: OcultosBriefing;
-  modeloSecoes: SecaoBriefing[];
+  /** Só as seções que o cliente deve ver (modelo, disciplinas e ocultos já aplicados NO SERVIDOR). */
+  secoes: SecaoBriefing[];
 }) {
-  const secoes = aplicarOcultos(filtrarSecoes(disciplinas, modeloSecoes), ocultos);
 
   async function onSalvar(respostas: Record<string, unknown>) {
     try {

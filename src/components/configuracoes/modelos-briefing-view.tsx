@@ -41,6 +41,7 @@ type Modelo = {
   secoes: number;
   perguntas: number;
   projetos: number;
+  esquemaValido: boolean;
   atualizadoEm: string;
 };
 
@@ -54,15 +55,20 @@ export function ModelosBriefingView({ modelos }: { modelos: Modelo[] }) {
 
   function rodar(fn: () => Promise<{ ok: boolean; error?: string }>, ok: string) {
     start(async () => {
-      const r = await fn();
-      if (r.ok) {
-        toast.success(ok);
-        router.refresh();
-      } else toast.error(r.error ?? "Não foi possível concluir.");
+      try {
+        const r = await fn();
+        if (r.ok) {
+          toast.success(ok);
+          router.refresh();
+        } else toast.error(r.error ?? "Não foi possível concluir.");
+      } catch {
+        toast.error("Não foi possível concluir. Verifique a conexão e tente de novo.");
+      }
     });
   }
 
   function aoSelecionar(m: Modelo, acao: AcaoItemAcao) {
+    if (pending) return; // uma ação por vez: o clique duplo não repete "Arquivar"
     if (acao.id === "duplicar") setNovo({ nome: `${m.nome} (cópia)`, descricao: m.descricao ?? "", copiarDeId: m.id });
     else if (acao.id === "padrao") rodar(() => definirModeloPadraoBriefing({ id: m.id }), "Modelo padrão alterado.");
     else if (acao.id === "arquivar") rodar(() => arquivarModeloBriefing({ id: m.id, arquivar: true }), "Modelo arquivado.");
@@ -72,15 +78,19 @@ export function ModelosBriefingView({ modelos }: { modelos: Modelo[] }) {
   function criar() {
     if (!novo) return;
     start(async () => {
-      const r = await criarModeloBriefing({
-        nome: novo.nome,
-        descricao: novo.descricao,
-        copiarDeId: novo.copiarDeId === EM_BRANCO ? undefined : novo.copiarDeId,
-      });
-      if (r.ok) {
-        setNovo(null);
-        router.push(`/configuracoes/inputs/modelos/${r.data.id}`);
-      } else toast.error(r.error);
+      try {
+        const r = await criarModeloBriefing({
+          nome: novo.nome,
+          descricao: novo.descricao,
+          copiarDeId: novo.copiarDeId === EM_BRANCO ? undefined : novo.copiarDeId,
+        });
+        if (r.ok) {
+          setNovo(null);
+          router.push(`/configuracoes/inputs/modelos/${r.data.id}`);
+        } else toast.error(r.error);
+      } catch {
+        toast.error("Não foi possível criar o modelo. Verifique a conexão e tente de novo.");
+      }
     });
   }
 
@@ -107,7 +117,12 @@ export function ModelosBriefingView({ modelos }: { modelos: Modelo[] }) {
         <EmptyState
           icon={ClipboardList}
           title="Nenhum modelo cadastrado"
-          description="Rode o seed (npm run db:seed) para criar o modelo padrão ou crie um modelo novo."
+          description="Crie o primeiro modelo para montar o formulário de briefing do cliente."
+          action={
+            <Button size="sm" onClick={() => setNovo({ nome: "", descricao: "", copiarDeId: EM_BRANCO })}>
+              <Plus className="size-3.5" /> Novo modelo
+            </Button>
+          }
         />
       ) : (
         <ul className="space-y-2">
@@ -130,6 +145,7 @@ export function ModelosBriefingView({ modelos }: { modelos: Modelo[] }) {
                     </Link>
                     {m.padrao && <Badge>Padrão</Badge>}
                     {!m.ativo && <Badge variant="outline">Arquivado</Badge>}
+                    {!m.esquemaValido && <Badge variant="destructive">Formulário ilegível</Badge>}
                   </div>
                   {m.descricao && <p className="text-xs text-muted-foreground">{m.descricao}</p>}
                   <p className="text-xs text-muted-foreground">
@@ -144,7 +160,7 @@ export function ModelosBriefingView({ modelos }: { modelos: Modelo[] }) {
         </ul>
       )}
 
-      <Dialog open={novo !== null} onOpenChange={(o) => !o && setNovo(null)}>
+      <Dialog open={novo !== null} onOpenChange={(o) => !o && !pending && setNovo(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Novo modelo de formulário</DialogTitle>

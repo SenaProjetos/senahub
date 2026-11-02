@@ -18,8 +18,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { GripVertical, Plus, Save } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { FileQuestion, GripVertical, Plus, Save } from "lucide-react";
 import { salvarModeloBriefing } from "@/modules/inputs/modelo-actions";
 import { SEM_OCULTOS, aplicarOcultos, type CampoTipo, type SecaoBriefing } from "@/modules/inputs/briefing-schema";
 import { itensDaSecaoDoModelo } from "@/modules/inputs/acoes-modelo";
@@ -45,6 +44,8 @@ import { BriefingForm } from "@/components/inputs/briefing-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { instrucoesDnd, anunciosDnd } from "./dnd-pt-br";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CampoDoModelo } from "./editor-modelo-campo";
@@ -81,6 +82,7 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
   }));
   const [aba, setAba] = useState<"editar" | "previa">("editar");
   const [aberto, setAberto] = useState<string | null>(null);
+  const [focarNova, setFocarNova] = useState<string | null>(null);
 
   const sujo = instantaneo(nome, descricao, secoes) !== salvo.foto;
 
@@ -109,13 +111,17 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
       return;
     }
     start(async () => {
-      const r = await salvarModeloBriefing({ id: modelo.id, versao, nome, descricao, esquema: secoes });
-      if (r.ok) {
-        setVersao(r.data.versao);
-        setSalvo({ foto: instantaneo(nome, descricao, secoes), tipos: tiposDe(secoes) });
-        toast.success("Modelo salvo.");
-        router.refresh();
-      } else toast.error(r.error);
+      try {
+        const r = await salvarModeloBriefing({ id: modelo.id, versao, nome, descricao, esquema: secoes });
+        if (r.ok) {
+          setVersao(r.data.versao);
+          setSalvo({ foto: instantaneo(nome, descricao, secoes), tipos: tiposDe(secoes) });
+          toast.success("Modelo salvo.");
+          router.refresh();
+        } else toast.error(r.error);
+      } catch {
+        toast.error("Não foi possível salvar. Verifique a conexão e tente de novo.");
+      }
     });
   }
 
@@ -153,7 +159,10 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
     const novas = adicionarCampo(secoes, secaoId);
     setSecoes(novas);
     const criada = novas.find((s) => s.id === secaoId)?.campos[ate];
-    if (criada) setAberto(criada.chave);
+    if (criada) {
+      setAberto(criada.chave);
+      setFocarNova(criada.chave);
+    }
   }
 
   const previa = useMemo(() => aplicarOcultos(secoes, SEM_OCULTOS), [secoes]);
@@ -216,21 +225,39 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
 
       {aba === "previa" ? (
         previa.length === 0 ? (
-          <p className="rounded-sm border bg-card p-6 text-center text-sm text-muted-foreground">
-            Nenhuma pergunta ainda — adicione perguntas na aba Editar.
-          </p>
+          <EmptyState
+            icon={FileQuestion}
+            title={modelo.esquemaValido ? "Nenhuma pergunta ainda" : "Formulário ilegível"}
+            description={
+              modelo.esquemaValido
+                ? "Adicione perguntas na aba Editar para ver como o cliente as enxerga."
+                : "O esquema gravado não pôde ser lido. Monte as seções de novo na aba Editar e salve."
+            }
+            action={
+              <Button size="sm" variant="outline" onClick={() => setAba("editar")}>
+                Ir para o editor
+              </Button>
+            }
+          />
         ) : (
-          <section className="rounded-sm border bg-card p-5">
-            <p className="mb-4 rounded-sm bg-muted px-3 py-2 text-xs text-muted-foreground">
+          <Card>
+            <CardContent className="pt-5">
+            <p className="mb-4 rounded-sm bg-muted px-3 py-2 text-xs text-foreground">
               Pré-visualização: é assim que o cliente vê o formulário. Nada do que for digitado aqui é gravado. As seções
               condicionadas a uma disciplina aparecem todas; no projeto, só as das disciplinas dele.
             </p>
             <BriefingForm key={JSON.stringify(previa)} respostasIniciais={{}} secoes={previa} previa onSalvar={async () => ({ ok: true })} />
-          </section>
+            </CardContent>
+          </Card>
         )
       ) : (
         <div className="space-y-3">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={aoSoltarSecao}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={aoSoltarSecao}
+            accessibility={{ screenReaderInstructions: instrucoesDnd, announcements: anunciosDnd("a seção") }}
+          >
             <SortableContext items={secoes.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               <ul className="space-y-3">
                 {secoes.map((secao, i) => (
@@ -241,8 +268,12 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
                     ultima={secoes.length === 1}
                     outrasSecoes={secoes.filter((s) => s.id !== secao.id).map((s) => ({ id: s.id, titulo: s.titulo }))}
                     aberto={aberto}
+                    focarNova={focarNova}
                     tipos={salvo.tipos}
-                    onAbrir={(chave) => setAberto((a) => (a === chave ? null : chave))}
+                    onAbrir={(chave) => {
+                      setFocarNova(null);
+                      setAberto((a) => (a === chave ? null : chave));
+                    }}
                     onSecao={(patch) => setSecoes((s) => atualizarSecao(s, secao.id, patch))}
                     onCampo={(chave, patch) => setSecoes((s) => atualizarCampo(s, chave, patch))}
                     onOrdemCampos={(de, para) => setSecoes((s) => reordenarCampos(s, secao.id, de, para))}
@@ -269,6 +300,7 @@ function SecaoDoModelo({
   ultima,
   outrasSecoes,
   aberto,
+  focarNova,
   tipos,
   onAbrir,
   onSecao,
@@ -283,6 +315,7 @@ function SecaoDoModelo({
   ultima: boolean;
   outrasSecoes: { id: string; titulo: string }[];
   aberto: string | null;
+  focarNova: string | null;
   tipos: Map<string, CampoTipo>;
   onAbrir: (chave: string) => void;
   onSecao: (patch: Partial<Pick<SecaoBriefing, "titulo" | "descricao" | "disciplinas">>) => void;
@@ -326,7 +359,7 @@ function SecaoDoModelo({
         >
           <GripVertical className="size-4" />
         </button>
-        <span className="flex-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Seção {numero}</span>
+        <span className="flex-1 text-xs font-bold uppercase tracking-wide text-foreground">Seção {numero}</span>
         <BotaoAcoes itens={itens} onSelect={onAcaoSecao} rotulo={`Ações da seção ${secao.titulo || numero}`} />
       </LinhaComMenu>
 
@@ -355,7 +388,12 @@ function SecaoDoModelo({
         {secao.campos.length === 0 ? (
           <p className="rounded-sm border border-dashed p-3 text-center text-xs text-muted-foreground">Seção sem perguntas.</p>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={aoSoltarCampo}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={aoSoltarCampo}
+            accessibility={{ screenReaderInstructions: instrucoesDnd, announcements: anunciosDnd("a pergunta") }}
+          >
             <SortableContext items={secao.campos.map((c) => c.chave)} strategy={verticalListSortingStrategy}>
               <ul className="space-y-1.5">
                 {secao.campos.map((campo, i) => (
@@ -364,6 +402,7 @@ function SecaoDoModelo({
                     campo={campo}
                     numero={i + 1}
                     aberto={aberto === campo.chave}
+                    focar={focarNova === campo.chave}
                     tipoSalvo={tipos.get(campo.chave) ?? null}
                     outrasSecoes={outrasSecoes}
                     onAbrir={() => onAbrir(campo.chave)}
@@ -376,7 +415,7 @@ function SecaoDoModelo({
           </DndContext>
         )}
         <Button variant="outline" size="sm" onClick={onNovaPergunta}>
-          <Plus className={cn("size-3.5")} /> Adicionar pergunta
+          <Plus className="size-3.5" /> Adicionar pergunta
         </Button>
       </div>
     </li>
@@ -403,6 +442,7 @@ function TermosDeDisciplina({
         id={id}
         value={texto}
         placeholder="Ex.: elétric, hidro — vazio = sempre aparece"
+        maxLength={200}
         onChange={(e) => setTexto(e.target.value)}
         onBlur={() => {
           const lista = [...new Set(texto.split(",").map((t) => t.trim()).filter(Boolean))];
