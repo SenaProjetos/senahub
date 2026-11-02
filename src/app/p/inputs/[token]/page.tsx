@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ClipboardList } from "lucide-react";
 import { inputsPorToken } from "@/modules/inputs/queries";
+import { resolverModelo } from "@/modules/inputs/modelo-queries";
 import {
   aplicarOcultos,
   filtrarSecoes,
@@ -50,7 +51,8 @@ export default async function InputsPublicoPage({
     secoes: projeto.briefing?.secoesOcultas ?? [],
     campos: projeto.briefing?.camposOcultos ?? [],
   };
-  const secoesVisiveis = aplicarOcultos(filtrarSecoes(disciplinas), ocultos);
+  const modelo = await resolverModelo(projeto.briefing?.modeloId);
+  const secoesVisiveis = aplicarOcultos(filtrarSecoes(disciplinas, modelo.secoes), ocultos);
   // Resposta de campo oculto não sai do servidor (a gravação mescla, então ela fica guardada).
   const respostasBriefing = respostasVisiveis(
     prePopularRespostas(
@@ -61,6 +63,7 @@ export default async function InputsPublicoPage({
       telefone: projeto.cliente?.telefone,
       endereco: projeto.endereco ?? undefined,
     },
+    modelo.secoes,
     ),
     secoesVisiveis,
   );
@@ -80,6 +83,7 @@ export default async function InputsPublicoPage({
         respostasIniciais={respostasBriefing}
         disciplinas={disciplinas}
         ocultos={ocultos}
+        modeloSecoes={modelo.secoes}
       />
 
       {secoesVisiveis.length === 0 && itens.length === 0 && (

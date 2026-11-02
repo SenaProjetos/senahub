@@ -5,9 +5,9 @@ import { can } from "@/lib/permissions";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { obterProjeto } from "@/modules/projetos/queries";
 import { listarInputs, listarInputsRemovidos, linkInput, progressoInputs, obterBriefing } from "@/modules/inputs/queries";
+import { resolverModelo, modelosParaEscolha } from "@/modules/inputs/modelo-queries";
 import {
   aplicarOcultos,
-  BRIEFING_SCHEMA,
   prePopularRespostas,
   calcularStatusBriefing,
   type StatusBriefing,
@@ -39,6 +39,9 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
   ]);
   if (!projetoCompleto) notFound();
 
+  const modelo = await resolverModelo(briefing?.modeloId);
+  const modelosEscolha = podeGerir ? await modelosParaEscolha(modelo.id) : [];
+
   const baseUrl = process.env.APP_URL ?? "";
   const disciplinas = projetoCompleto.disciplinas.map((d) => d.disciplinaTextoLegado);
 
@@ -50,10 +53,10 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
     email: cliente?.email,
     telefone: cliente?.telefone,
     endereco: projetoCompleto.endereco ?? undefined,
-  });
+  }, modelo.secoes);
   const ocultos = { secoes: briefing?.secoesOcultas ?? [], campos: briefing?.camposOcultos ?? [] };
   const statusBriefing: StatusBriefing =
-    (briefing?.status as StatusBriefing) ?? calcularStatusBriefing(respostasSalvas, aplicarOcultos(BRIEFING_SCHEMA, ocultos));
+    (briefing?.status as StatusBriefing) ?? calcularStatusBriefing(respostasSalvas, aplicarOcultos(modelo.secoes, ocultos));
 
   // Situação do link em uma frase — o botão fica ACIMA do formulário, porque o
   // link abre o formulário inteiro (briefing + perguntas extras).
@@ -97,6 +100,9 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
         canEdit={podeGerir}
         status={statusBriefing}
         ocultos={ocultos}
+        modeloSecoes={modelo.secoes}
+        modelo={{ id: modelo.id, nome: modelo.nome }}
+        modelosEscolha={modelosEscolha}
       />
 
       <InputsPanel

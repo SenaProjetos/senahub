@@ -40,6 +40,13 @@ lugar.
   sigla já significou outra coisa numa versão anterior.
 - **Documentos padrão** — modelo do Estúdio usado por padrão em cada fonte.
 - **Inputs padrão** — perguntas padrão por disciplina no link do cliente.
+- **Modelos de formulário** — monte o formulário de briefing do cliente como num editor de
+  formulários: tipos de pergunta (texto curto, parágrafo, sim/não, escolha única, lista suspensa,
+  caixas de marcação, caixa de ciência), **arrastar para reordenar** seções, perguntas e opções,
+  perguntas obrigatórias e **pré-visualização**. Cada projeto usa um modelo (o **padrão** ou o
+  escolhido na aba Inputs); crie um por perfil de cliente (**Duplicar** copia as perguntas).
+  Regras: a pergunta já existente só troca de tipo por um parecido; renomear uma opção não muda
+  respostas já dadas; o modelo **arquiva** em vez de excluir; o padrão não arquiva.
 - **Feriados** — calendário (ponto, escala, banco de horas).
 - **Modalidades de licitação** — lista usada no cadastro de licitações.
 - **Parâmetros de licitação** — prazos de recurso, limite de aditivo, modo PNCP/reajuste,

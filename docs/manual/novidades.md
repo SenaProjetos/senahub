@@ -20,6 +20,14 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Modelos de formulário do briefing (novembro/2026)
+
+- **Editor de formulários:** em Configurações → **Modelos de formulário** dá para montar o briefing do cliente com os tipos de
+  pergunta que você quiser (sim/não, escolha única, lista, caixas de marcação, texto, parágrafo), obrigatória ou não.
+- **Arrastar para reordenar** seções, perguntas e opções, e **pré-visualizar** como o cliente vê.
+- **Vários modelos:** crie um modelo por perfil de cliente e escolha o modelo de cada projeto na aba Inputs. Quem não escolhe usa o modelo padrão
+  (o briefing de sempre).
+
 ## E-mail de acompanhamento ao cliente (novembro/2026)
 
 - **Novo botão no ⋯ de Arquivos:** **E-mail de acompanhamento** envia ao cliente do projeto uma lista do que já foi enviado

@@ -700,6 +700,20 @@ Disciplinas da ficha NÃO entram. Desfazer só zera `negociacaoId` e é recusado
 (`Proposta.projetoId` + mesma `negociacaoId`: os dois caminhos andam juntos); aceite de proposta sem negociação não trava.
 Permissão: `comercial:gerir` + `projetos:gerir`, só interno; importar para o Geral dispensa `arquivos_gerais:gerir`.
 
+**Modelos de formulário do briefing** (`modules/inputs/modelo-*.ts`, plano `docs/superpowers/plans/2026-11-02-lote4-inputs-modelos.md`):
+o briefing de Start NÃO é mais só a constante `BRIEFING_SCHEMA` — ela é o modelo padrão EMBUTIDO (semeia o `ModeloBriefing` padrão no
+`db:seed`, create-only, e é o último recurso enquanto o seed não rodou). O formulário de um projeto é `resolverModelo(BriefingProjeto.modeloId)`
+(`modelo-queries.ts`): o modelo escolhido (mesmo arquivado) → o padrão → o embutido; esquema ilegível cai no embutido. Toda função de
+`briefing-schema.ts`/`briefing-formato.ts` recebe as `secoes` do modelo (padrão = a constante só para teste e compatibilidade) — um novo
+leitor do briefing resolve o modelo, nunca importa `BRIEFING_SCHEMA` direto. A resposta é gravada por `campo.chave`, que é **imutável**
+(gerada em `novaChave`; renomear a pergunta não muda a chave) — por isso pergunta de mesma chave em modelos diferentes compartilha a
+resposta e pergunta já salva só troca de tipo dentro do mesmo grupo (`grupoDoTipo`/`problemasDeEvolucao`: a resposta gravada não muda de
+forma). Condição de seção por disciplina = `SecaoBriefing.disciplinas` (termos sem acento/caixa). Esquema validado por `validarEsquema`
+(Zod, `modelo-schema.ts`); o editor (`modelo-editor.ts`, puro) trabalha em rascunho e `salvarModeloBriefing` grava o modelo INTEIRO com
+trava otimista por `versao`. Um modelo arquiva (não exclui) e há um só padrão (índice parcial `modelo_briefing_um_padrao`, fora do
+schema.prisma). Trocar o modelo do projeto zera `secoesOcultas/camposOcultos` e recalcula o status; as respostas ficam. As perguntas
+extras por disciplina (`InputTemplate`/`InputProjeto`) são outra coisa e não mudaram. Verificação: `npm run smoke:modelos-briefing`.
+
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em
 `docs/superpowers/specs/2026-09-19-proposta-composta.md`) — a proposta montada NO sistema: modelo +
 biblioteca de cláusulas (`ClausulaProposta`, variante por UF/disciplina, mantida só por

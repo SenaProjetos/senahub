@@ -9,11 +9,13 @@ import {
   aplicarOcultos,
   filtrarSecoes,
   type OcultosBriefing,
+  type SecaoBriefing,
   type StatusBriefing,
 } from "@/modules/inputs/briefing-schema";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SeletorModeloBriefing } from "./seletor-modelo-briefing";
 
 const STATUS_LABEL: Record<StatusBriefing, string> = {
   nao_iniciado: "Não iniciado",
@@ -34,6 +36,9 @@ export function BriefingSection({
   canEdit,
   status,
   ocultos,
+  modeloSecoes,
+  modelo,
+  modelosEscolha,
 }: {
   projetoId: string;
   respostasIniciais: Record<string, unknown>;
@@ -41,9 +46,14 @@ export function BriefingSection({
   canEdit: boolean;
   status: StatusBriefing;
   ocultos: OcultosBriefing;
+  /** Seções do modelo de formulário do projeto (antes do filtro por disciplina e dos ocultos). */
+  modeloSecoes: SecaoBriefing[];
+  /** Modelo em uso (`id` nulo = formulário embutido) e os que a equipe pode escolher. */
+  modelo: { id: string | null; nome: string };
+  modelosEscolha: { id: string; nome: string; padrao: boolean; ativo: boolean }[];
 }) {
   const [personalizando, setPersonalizando] = useState(false);
-  const doProjeto = filtrarSecoes(disciplinas);
+  const doProjeto = filtrarSecoes(disciplinas, modeloSecoes);
   const secoes = aplicarOcultos(doProjeto, ocultos);
   const totalCampos = doProjeto.reduce((n, s) => n + s.campos.length, 0);
   const qtdOcultos = totalCampos - secoes.reduce((n, s) => n + s.campos.length, 0);
@@ -86,6 +96,9 @@ export function BriefingSection({
         </div>
       </CardHeader>
       <CardContent>
+        {canEdit && modelosEscolha.length > 1 && (
+          <SeletorModeloBriefing projetoId={projetoId} atual={modelo.id} modelos={modelosEscolha} />
+        )}
         {personalizando && <BriefingPersonalizar projetoId={projetoId} secoes={doProjeto} ocultos={ocultos} />}
         {!personalizando && secoes.length === 0 && (
           <p className="text-sm text-muted-foreground">

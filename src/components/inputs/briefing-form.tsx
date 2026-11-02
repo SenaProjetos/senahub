@@ -9,6 +9,7 @@ import { respostasParaSalvar } from "@/modules/inputs/briefing-formato";
 import {
   type SecaoBriefing,
   type CampoBriefing,
+  OPCOES_SIM_NAO,
   progressoObrigatorios,
 } from "@/modules/inputs/briefing-schema";
 
@@ -25,11 +26,14 @@ export function BriefingForm({
   respostasIniciais,
   secoes,
   canEdit = true,
+  previa = false,
   onSalvar,
 }: {
   respostasIniciais: Record<string, unknown>;
   secoes: SecaoBriefing[];
   canEdit?: boolean;
+  /** Pré-visualização do editor de modelos: nada é gravado, então some o aviso de salvamento e o Finalizar. */
+  previa?: boolean;
   onSalvar: (respostas: Record<string, unknown>) => Promise<ResultadoSalvar>;
 }) {
   const [respostas, setRespostas] = useState<Record<string, unknown>>(respostasIniciais);
@@ -48,7 +52,7 @@ export function BriefingForm({
 
   const salvar = useCallback(
     async (dados: Record<string, unknown>) => {
-      const { payload, invalidos } = respostasParaSalvar(dados, ultimoSalvo.current);
+      const { payload, invalidos } = respostasParaSalvar(dados, ultimoSalvo.current, secoes);
       setACorrigir(invalidos.map((c) => c.label));
       setSaveStatus("saving");
       const r = await onSalvar(payload);
@@ -58,7 +62,7 @@ export function BriefingForm({
       setSaveStatus(r.ok ? "saved" : "error");
       setTimeout(() => setSaveStatus("idle"), r.ok ? 2000 : 3000);
     },
-    [onSalvar],
+    [onSalvar, secoes],
   );
 
   const alterar = useCallback(
@@ -84,7 +88,7 @@ export function BriefingForm({
         <span className="text-xs text-muted-foreground">
           {prog.preenchidos}/{prog.total} obrigatórios preenchidos
         </span>
-        <span className="h-5 text-xs">
+        <span className={cn("h-5 text-xs", previa && "hidden")}>
           {saveStatus === "saving" && (
             <span className="inline-flex items-center gap-1 text-muted-foreground">
               <Loader2 className="size-3 animate-spin" /> Salvando…
@@ -156,7 +160,7 @@ export function BriefingForm({
             Próximo →
           </Button>
         ) : (
-          canEdit && (
+          canEdit && !previa && (
             <Button type="button" size="sm" onClick={() => void salvar(respostas)} disabled={saveStatus === "saving"}>
               Finalizar
             </Button>
@@ -244,9 +248,9 @@ function CampoView({
         </select>
       )}
 
-      {campo.tipo === "radio" && (
+      {(campo.tipo === "radio" || campo.tipo === "sim-nao") && (
         <div className="flex flex-wrap gap-3">
-          {campo.opcoes?.map((op) => (
+          {(campo.tipo === "sim-nao" ? OPCOES_SIM_NAO : campo.opcoes)?.map((op) => (
             <label key={op} className={cn("flex cursor-pointer items-center gap-2", disabled && "cursor-not-allowed opacity-50")}>
               <input
                 type="radio"

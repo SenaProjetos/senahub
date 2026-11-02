@@ -106,6 +106,12 @@ const GRUPOS: Grupo[] = [
         descricao: "Perguntas padrão por disciplina aplicadas ao link do cliente.",
       },
       {
+        href: "/configuracoes/inputs/modelos",
+        icon: ClipboardList,
+        titulo: "Modelos de formulário",
+        descricao: "Formulários de briefing do cliente: tipos de pergunta, ordem e um modelo por perfil de cliente.",
+      },
+      {
         href: "/configuracoes/feriados",
         icon: CalendarDays,
         titulo: "Feriados",

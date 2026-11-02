@@ -1,0 +1,336 @@
+"use client";
+
+import { useId, type CSSProperties } from "react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { ChevronDown, ChevronRight, GripVertical, Plus, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { CampoBriefing, CampoTipo } from "@/modules/inputs/briefing-schema";
+import {
+  FORMATOS_PERMITIDOS,
+  ROTULO_FORMATO,
+  ROTULO_TIPO,
+  TIPOS_DE_CAMPO,
+  grupoDoTipo,
+  tipoUsaOpcoes,
+} from "@/modules/inputs/modelo-schema";
+import { itensDaPerguntaDoModelo } from "@/modules/inputs/acoes-modelo";
+import type { AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
+import { LinhaComMenu } from "@/components/ui/linha-com-menu";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+
+const SEM_FORMATO = "__sem_formato";
+
+function estiloArrasto(transform: { x: number; y: number } | null, transition: string | undefined, arrastando: boolean): CSSProperties {
+  return {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    transition,
+    opacity: arrastando ? 0.6 : 1,
+  };
+}
+
+/** Uma pergunta do modelo: recolhida (uma linha, arrastável) ou aberta para editar. */
+export function CampoDoModelo({
+  campo,
+  numero,
+  aberto,
+  tipoSalvo,
+  outrasSecoes,
+  onAbrir,
+  onMudar,
+  onAcao,
+}: {
+  campo: CampoBriefing;
+  numero: number;
+  aberto: boolean;
+  /** Tipo com que a pergunta já está SALVA (nulo = pergunta nova, sem restrição de tipo). */
+  tipoSalvo: CampoTipo | null;
+  outrasSecoes: { id: string; titulo: string }[];
+  onAbrir: () => void;
+  onMudar: (patch: Partial<Omit<CampoBriefing, "chave">>) => void;
+  onAcao: (acao: AcaoItemAcao) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: campo.chave });
+  const itens = itensDaPerguntaDoModelo(outrasSecoes);
+  const incompleta = !campo.label.trim() || (tipoUsaOpcoes(campo.tipo) && campo.tipo !== "checkbox-single" && (campo.opcoes?.length ?? 0) < 2);
+
+  return (
+    <LinhaComMenu
+      itens={itens}
+      onSelect={onAcao}
+      render={
+        <li
+          ref={setNodeRef}
+          style={estiloArrasto(transform, transition, isDragging)}
+          className={cn("rounded-sm border bg-background data-[popup-open]:bg-muted/30", aberto && "border-primary/50")}
+        />
+      }
+    >
+      <div className="flex items-center gap-1.5 px-2 py-1.5">
+        <button
+          type="button"
+          className="cursor-grab touch-none rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+          aria-label={`Arrastar a pergunta ${campo.label || "sem texto"}`}
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="size-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onAbrir}
+          aria-expanded={aberto}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-sm px-1 py-1 text-left text-sm focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          {aberto ? <ChevronDown className="size-3.5 shrink-0" /> : <ChevronRight className="size-3.5 shrink-0" />}
+          <span className="shrink-0 text-xs text-muted-foreground">{numero}.</span>
+          <span className={cn("truncate", !campo.label.trim() && "italic text-muted-foreground")}>
+            {campo.label.trim() || "Pergunta sem texto"}
+            {campo.obrigatorio && <span className="ml-1 text-destructive" aria-label="obrigatória">*</span>}
+          </span>
+        </button>
+        {incompleta && (
+          <Badge variant="destructive" className="shrink-0">
+            Incompleta
+          </Badge>
+        )}
+        <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
+          {ROTULO_TIPO[campo.tipo]}
+        </Badge>
+        <BotaoAcoes itens={itens} onSelect={onAcao} rotulo={`Ações da pergunta ${campo.label || "sem texto"}`} />
+      </div>
+      {aberto && <EditorDoCampo campo={campo} tipoSalvo={tipoSalvo} onMudar={onMudar} />}
+    </LinhaComMenu>
+  );
+}
+
+function EditorDoCampo({
+  campo,
+  tipoSalvo,
+  onMudar,
+}: {
+  campo: CampoBriefing;
+  tipoSalvo: CampoTipo | null;
+  onMudar: (patch: Partial<Omit<CampoBriefing, "chave">>) => void;
+}) {
+  const id = useId();
+  // Pergunta já salva só troca por tipo do mesmo grupo (a resposta gravada não muda de forma).
+  const tiposPermitidos = tipoSalvo ? TIPOS_DE_CAMPO.filter((t) => grupoDoTipo(t) === grupoDoTipo(tipoSalvo)) : TIPOS_DE_CAMPO;
+
+  return (
+    <div className="space-y-3 border-t px-3 py-3">
+      <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-label`} className="text-xs">
+            Pergunta
+          </Label>
+          <Input id={`${id}-label`} value={campo.label} maxLength={300} onChange={(e) => onMudar({ label: e.target.value })} />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-tipo`} className="text-xs">
+            Tipo de resposta
+          </Label>
+          <Select value={campo.tipo} onValueChange={(v) => v && onMudar({ tipo: v as CampoTipo })}>
+            <SelectTrigger id={`${id}-tipo`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {tiposPermitidos.map((t) => (
+                <SelectItem key={t} value={t}>
+                  {ROTULO_TIPO[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {tipoSalvo && tiposPermitidos.length < TIPOS_DE_CAMPO.length && (
+        <p className="text-xs text-muted-foreground">
+          Esta pergunta já existe no formulário: só troca por tipos parecidos, para não bagunçar as respostas já dadas.
+          Para outro tipo, crie uma pergunta nova e exclua esta.
+        </p>
+      )}
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${id}-hint`} className="text-xs">
+          Texto de apoio (opcional)
+        </Label>
+        <Input id={`${id}-hint`} value={campo.hint ?? ""} maxLength={500} onChange={(e) => onMudar({ hint: e.target.value })} />
+      </div>
+
+      {(campo.tipo === "text" || campo.tipo === "textarea") && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-ph`} className="text-xs">
+              Exemplo no campo (opcional)
+            </Label>
+            <Input id={`${id}-ph`} value={campo.placeholder ?? ""} maxLength={160} onChange={(e) => onMudar({ placeholder: e.target.value })} />
+          </div>
+          {campo.tipo === "text" && (
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-fmt`} className="text-xs">
+                Formato
+              </Label>
+              <Select
+                value={campo.formato ?? SEM_FORMATO}
+                onValueChange={(v) => onMudar({ formato: !v || v === SEM_FORMATO ? undefined : (v as CampoBriefing["formato"]) })}
+              >
+                <SelectTrigger id={`${id}-fmt`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SEM_FORMATO}>Texto livre</SelectItem>
+                  {FORMATOS_PERMITIDOS.map((f) => (
+                    <SelectItem key={f} value={f}>
+                      {ROTULO_FORMATO[f]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {campo.tipo === "sim-nao" && <p className="text-xs text-muted-foreground">As opções são fixas: Sim e Não.</p>}
+
+      {campo.tipo === "checkbox-single" && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`${id}-ciente`} className="text-xs">
+            Texto ao lado da caixa
+          </Label>
+          <Input
+            id={`${id}-ciente`}
+            value={campo.opcoes?.[0] ?? ""}
+            maxLength={300}
+            onChange={(e) => onMudar({ opcoes: [e.target.value] })}
+            placeholder="Ex.: Li e estou ciente"
+          />
+        </div>
+      )}
+
+      {tipoUsaOpcoes(campo.tipo) && campo.tipo !== "checkbox-single" && (
+        <OpcoesDoCampo opcoes={campo.opcoes ?? []} onMudar={(opcoes) => onMudar({ opcoes })} />
+      )}
+
+      <div className="flex items-center gap-2 pt-1">
+        <Switch id={`${id}-obrig`} checked={campo.obrigatorio} onCheckedChange={(v: boolean) => onMudar({ obrigatorio: v })} />
+        <Label htmlFor={`${id}-obrig`} className="text-sm">
+          Resposta obrigatória
+        </Label>
+      </div>
+    </div>
+  );
+}
+
+function OpcoesDoCampo({ opcoes, onMudar }: { opcoes: string[]; onMudar: (opcoes: string[]) => void }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const ids = opcoes.map((_, i) => `op-${i}`);
+
+  function aoSoltar(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const de = ids.indexOf(String(active.id));
+    const para = ids.indexOf(String(over.id));
+    if (de < 0 || para < 0) return;
+    const nova = [...opcoes];
+    const [item] = nova.splice(de, 1);
+    nova.splice(para, 0, item);
+    onMudar(nova);
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <span className="text-xs font-medium">Opções</span>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={aoSoltar}>
+        <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-1.5">
+            {opcoes.map((op, i) => (
+              <OpcaoLinha
+                key={ids[i]}
+                id={ids[i]}
+                valor={op}
+                indice={i}
+                podeRemover={opcoes.length > 2}
+                onMudar={(v) => onMudar(opcoes.map((o, j) => (j === i ? v : o)))}
+                onRemover={() => onMudar(opcoes.filter((_, j) => j !== i))}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
+      <Button type="button" variant="outline" size="sm" onClick={() => onMudar([...opcoes, `Opção ${opcoes.length + 1}`])}>
+        <Plus className="size-3.5" /> Adicionar opção
+      </Button>
+      <p className="text-xs text-muted-foreground">
+        Renomear uma opção não altera as respostas já dadas: quem escolheu o texto antigo continua com ele guardado.
+      </p>
+    </div>
+  );
+}
+
+function OpcaoLinha({
+  id,
+  valor,
+  indice,
+  podeRemover,
+  onMudar,
+  onRemover,
+}: {
+  id: string;
+  valor: string;
+  indice: number;
+  podeRemover: boolean;
+  onMudar: (v: string) => void;
+  onRemover: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <li ref={setNodeRef} style={estiloArrasto(transform, transition, isDragging)} className="flex items-center gap-1.5">
+      <button
+        type="button"
+        className="cursor-grab touch-none rounded-sm p-1 text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        aria-label={`Arrastar a opção ${indice + 1}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="size-4" />
+      </button>
+      <Input value={valor} maxLength={300} aria-label={`Opção ${indice + 1}`} onChange={(e) => onMudar(e.target.value)} />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="size-8 shrink-0"
+        disabled={!podeRemover}
+        aria-label={`Remover a opção ${indice + 1}`}
+        title={podeRemover ? undefined : "É preciso ao menos duas opções."}
+        onClick={onRemover}
+      >
+        <X className="size-4" />
+      </Button>
+    </li>
+  );
+}

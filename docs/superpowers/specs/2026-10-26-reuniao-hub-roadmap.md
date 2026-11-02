@@ -123,6 +123,11 @@ execução e colunas de variação).
 
 ## Lote 4 — Inputs estilo Google Forms
 
+**Implementado em 2026-11-02** (decisões e tarefas em [../plans/2026-11-02-lote4-inputs-modelos.md](../plans/2026-11-02-lote4-inputs-modelos.md)):
+modelo de formulário no banco, 7 tipos de pergunta (inclui sim/não), arrastar para reordenar, vários modelos escolhidos por projeto.
+As "perguntas em aberto" abaixo foram decididas pelo agente (o dono pulou as perguntas): modelo escolhido **por projeto**, projetos
+antigos usam o padrão sem migração. Texto original do pedido preservado:
+
 - **Pedido:** editor de modelos de inputs com tipos de campo (sim/não, caixa de marcação,
   múltipla escolha, escolha única), arrastar para reordenar e vários modelos (um por perfil de cliente).
 - **O que já existe:** `modules/inputs` (briefing com schema, perguntas padrão, perguntas extras

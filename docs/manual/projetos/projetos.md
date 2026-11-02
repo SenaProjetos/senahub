@@ -456,6 +456,12 @@ cadastro**, e as respostas caem direto nesta aba (salvam sozinhas, campo a campo
 
 ### Ajustar o formulário ao projeto (aba Inputs)
 
+**Modelo do formulário** — quando há mais de um modelo cadastrado (Configurações → **Modelos de
+formulário**), a aba mostra o seletor **Modelo do formulário**. Sem escolha vale o modelo
+**padrão**. Trocar o modelo pede confirmação: as perguntas ocultas voltam a aparecer, o status do
+briefing é recalculado e as respostas já dadas ficam guardadas (a pergunta que existe nos dois
+modelos aproveita a resposta; a que só existia no modelo antigo some da tela, mas a resposta fica).
+
 **Briefing de Start** — o botão **Personalizar** mostra todas as seções e perguntas do
 briefing com uma marca de "aparece". Desligue a **seção** inteira ou desmarque **perguntas**
 soltas que não se aplicam a este projeto; clique em **Concluir** para voltar ao formulário.
