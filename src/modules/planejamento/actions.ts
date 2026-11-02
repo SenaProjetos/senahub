@@ -1299,6 +1299,7 @@ export const registrarExecucao = defineAction(
     acao: "registrar-execucao",
     entidade: "EapTarefa",
     schema: registrarExecucaoSchema,
+    entidadeId: (_d, i) => i.id,
     capturarAntes: async (i) => {
       const l = await prisma.eapTarefa.findUnique({
         where: { id: i.id },

@@ -107,14 +107,21 @@ export function ExecucaoDialog({
   async function gravar(inicioReal: string | null, fimReal: string | null, opcoes: { reabrir?: boolean } = {}) {
     if (!linha) return;
     setSalvando(true);
-    const r = await registrarExecucao({
-      id: linha.id,
-      inicioReal,
-      fimReal,
-      progresso: opcoes.reabrir ? undefined : progressoParaEnviar(fimReal),
-      custoRealTerceiro: valorParaEnviar(),
-    });
-    setSalvando(false);
+    let r;
+    try {
+      r = await registrarExecucao({
+        id: linha.id,
+        inicioReal,
+        fimReal,
+        progresso: opcoes.reabrir ? undefined : progressoParaEnviar(fimReal),
+        custoRealTerceiro: valorParaEnviar(),
+      });
+    } catch {
+      toast.error("Não foi possível registrar a execução. Verifique a conexão e tente de novo.");
+      return;
+    } finally {
+      setSalvando(false);
+    }
     if (!r.ok) {
       toast.error(r.error);
       return;

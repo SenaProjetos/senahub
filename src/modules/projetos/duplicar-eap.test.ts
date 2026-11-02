@@ -58,7 +58,7 @@ describe("clonarEap", () => {
     expect(l.inicioPrevisto).toEqual(dia("2026-03-02"));
     for (const campo of [
       "status", "inicioReal", "fimReal", "inicioBaseline", "fimBaseline",
-      "restricaoTipo", "restricaoData", "motivoBloqueio", "previsaoDesbloqueio", "codigoEap",
+      "restricaoTipo", "restricaoData", "motivoBloqueio", "previsaoDesbloqueio", "codigoEap", "custoRealTerceiro",
     ]) {
       expect(l, campo).not.toHaveProperty(campo);
     }

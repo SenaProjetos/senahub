@@ -78,16 +78,22 @@ export async function registrarExecucaoNaLinha(p: {
   // Decisão #17: o % derivado das datas reais também é histórico — "marcou como concluída na terça" é
   // informação de alguém, e o Valor Agregado de uma data passada depende dela.
   await prisma.$transaction(async (tx) => {
-    await tx.eapTarefa.update({
-      where: { id: p.id },
+    // Condicional ao estado lido: dois cliques (ou outra pessoa) entre a leitura e a escrita não se sobrescrevem
+    // nem duplicam o histórico do % e os avisos de fase/parcela.
+    const gravada = await tx.eapTarefa.updateMany({
+      where: { id: p.id, status: linha.status, progresso: linha.progresso },
       data: {
         inicioReal: r.inicioReal ? paraDataUtc(r.inicioReal) : null,
         fimReal: r.fimReal ? paraDataUtc(r.fimReal) : null,
         status: r.status,
         progresso: r.progresso,
-        ...(p.custoRealTerceiro !== undefined ? { custoRealTerceiro: p.custoRealTerceiro } : {}),
+        // Coluna é Decimal(12,2): arredonda aqui em vez de o banco fazê-lo em silêncio.
+        ...(p.custoRealTerceiro !== undefined
+          ? { custoRealTerceiro: p.custoRealTerceiro === null ? null : Math.round(p.custoRealTerceiro * 100) / 100 }
+          : {}),
       },
     });
+    if (gravada.count !== 1) throw new ActionError("A tarefa mudou enquanto você editava. Atualize a tela e tente de novo.");
     await registrarProgresso(tx, {
       tarefaId: p.id,
       projetoId: linha.projetoId,
