@@ -47,6 +47,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { instrucoesDnd, anunciosDnd } from "./dnd-pt-br";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { CampoDoModelo } from "./editor-modelo-campo";
 
@@ -137,7 +138,12 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
       if (!ok) return;
     }
     if (acao.id === "duplicar") setSecoes((s) => duplicarCampo(s, chave));
-    else if (acao.id === "excluir") setSecoes((s) => removerCampo(s, chave));
+    else if (acao.id === "excluir") {
+      // O item some e leva o foco junto: devolve ao botão de adicionar pergunta da mesma seção.
+      const secaoId = secoes.find((x) => x.campos.some((c) => c.chave === chave))?.id;
+      setSecoes((s) => removerCampo(s, chave));
+      if (secaoId) focarDepois(`modelo-add-pergunta-${secaoId}`);
+    }
     else if (acao.id.startsWith("mover:")) setSecoes((s) => moverCampoParaSecao(s, chave, acao.id.slice("mover:".length)));
   }
 
@@ -151,7 +157,10 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
       });
       if (!ok) return;
     }
-    if (acao.id === "excluir") setSecoes((s) => removerSecao(s, id));
+    if (acao.id === "excluir") {
+      setSecoes((s) => removerSecao(s, id));
+      focarDepois("modelo-add-secao");
+    }
   }
 
   function novaPergunta(secaoId: string) {
@@ -209,21 +218,17 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
             {modelo.padrao && <Badge>Padrão</Badge>}
             {!modelo.ativo && <Badge variant="outline">Arquivado</Badge>}
             <span>Versão {versao}</span>
-            {sujo && <span className="font-medium text-warning">Alterações não salvas</span>}
+            {sujo && <span className="font-medium text-warning-text">Alterações não salvas</span>}
           </div>
         </CardContent>
       </Card>
 
-      <div role="group" aria-label="Modo do editor" className="inline-flex rounded-sm border p-0.5">
-        <Button size="sm" variant={aba === "editar" ? "default" : "ghost"} aria-pressed={aba === "editar"} onClick={() => setAba("editar")}>
-          Editar
-        </Button>
-        <Button size="sm" variant={aba === "previa" ? "default" : "ghost"} aria-pressed={aba === "previa"} onClick={() => setAba("previa")}>
-          Pré-visualizar
-        </Button>
-      </div>
-
-      {aba === "previa" ? (
+      <Tabs value={aba} onValueChange={(v) => setAba(v as "editar" | "previa")}>
+        <TabsList aria-label="Modo do editor" activateOnFocus>
+          <TabsTrigger value="editar">Editar</TabsTrigger>
+          <TabsTrigger value="previa">Pré-visualizar</TabsTrigger>
+        </TabsList>
+        <TabsContent value="previa" className="mt-3 text-base">
         previa.length === 0 ? (
           <EmptyState
             icon={FileQuestion}
@@ -250,7 +255,8 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
             </CardContent>
           </Card>
         )
-      ) : (
+        </TabsContent>
+        <TabsContent value="editar" className="mt-3 text-base">
         <div className="space-y-3">
           <DndContext
             sensors={sensors}
@@ -285,13 +291,19 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
               </ul>
             </SortableContext>
           </DndContext>
-          <Button variant="outline" size="sm" onClick={() => setSecoes((s) => adicionarSecao(s))}>
+          <Button id="modelo-add-secao" variant="outline" size="sm" onClick={() => setSecoes((s) => adicionarSecao(s))}>
             <Plus className="size-3.5" /> Adicionar seção
           </Button>
         </div>
-      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
+}
+
+/** Espera o React gravar a lista nova e põe o foco no elemento (depois de excluir, o botão de origem já não existe). */
+function focarDepois(id: string) {
+  requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(id)?.focus()));
 }
 
 function SecaoDoModelo({
@@ -414,7 +426,7 @@ function SecaoDoModelo({
             </SortableContext>
           </DndContext>
         )}
-        <Button variant="outline" size="sm" onClick={onNovaPergunta}>
+        <Button id={`modelo-add-pergunta-${secao.id}`} variant="outline" size="sm" onClick={onNovaPergunta}>
           <Plus className="size-3.5" /> Adicionar pergunta
         </Button>
       </div>

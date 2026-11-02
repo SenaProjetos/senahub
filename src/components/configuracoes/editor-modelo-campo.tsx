@@ -299,13 +299,17 @@ function OpcoesDoCampo({ opcoes, onMudar }: { opcoes: string[]; onMudar: (opcoes
                 indice={i}
                 podeRemover={opcoes.length > 2}
                 onMudar={(v) => onMudar(opcoes.map((o, j) => (j === i ? v : o)))}
-                onRemover={() => onMudar(opcoes.filter((_, j) => j !== i))}
+                onRemover={() => {
+                  onMudar(opcoes.filter((_, j) => j !== i));
+                  // A linha some e leva o foco junto: devolve ao botão de adicionar opção.
+                  requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`${rotuloId}-add`)?.focus()));
+                }}
               />
             ))}
           </ul>
         </SortableContext>
       </DndContext>
-      <Button type="button" variant="outline" size="sm" onClick={() => onMudar([...opcoes, `Opção ${opcoes.length + 1}`])}>
+      <Button id={`${rotuloId}-add`} type="button" variant="outline" size="sm" onClick={() => onMudar([...opcoes, `Opção ${opcoes.length + 1}`])}>
         <Plus className="size-3.5" /> Adicionar opção
       </Button>
       <p className="text-xs text-muted-foreground">
