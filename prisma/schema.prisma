@@ -49,6 +49,8 @@ model User {
   id            String  @id @default(cuid())
   /// Modelos de EAP que esta pessoa importou (decisão #5).
   modelosEap    ModeloEap[] @relation("ModeloEapAutor")
+  /// E-mails de acompanhamento de projeto que esta pessoa enviou ao cliente (Lote 3).
+  emailsAcompanhamento EmailAcompanhamento[] @relation("EmailAcompanhamentoAutor")
   /// % concluído que esta pessoa informou em linhas da EAP (decisão #17).
   progressosEap EapProgressoRegistro[] @relation("EapProgressoAutor")
   /// Nome de EXIBIÇÃO — mostrado nas telas (o usuário pode escolher/encurtar o próprio).
@@ -1267,6 +1269,7 @@ model Projeto {
   rateiosLancamento       RateioLancamento[]
   canais                  Canal[]
   proposta                Proposta?
+  emailsAcompanhamento    EmailAcompanhamento[]
   tarefas                 Tarefa[]
   docsJuridicos           DocumentoJuridico[]
   documentos              Documento[]
@@ -9637,4 +9640,28 @@ model CredencialFavorito {
   @@id([userId, credencialId])
   @@index([credencialId])
   @@map("credencial_favorito")
+}
+
+/// E-mail de acompanhamento enviado ao cliente de um projeto (Lote 3, 2026-11-02). Cada linha é um envio: é o
+/// que sustenta o "o que mudou desde o último e-mail" e a conversa encadeada (`messageId` do anterior vira
+/// `In-Reply-To`/`References` do próximo). Só se grava DEPOIS que o servidor de e-mail aceitou o envio.
+model EmailAcompanhamento {
+  id            String   @id @default(cuid())
+  projetoId     String
+  projeto       Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  enviadoPorId  String?
+  enviadoPor    User?    @relation("EmailAcompanhamentoAutor", fields: [enviadoPorId], references: [id], onDelete: SetNull)
+  enviadoEm     DateTime @default(now())
+  assunto       String
+  /// Cabeçalho `Message-ID` deste envio (com `<>`).
+  messageId     String   @unique
+  destinatarios String[]
+  /// E-mail que recebeu a cópia oculta (quem enviou), quando pediu.
+  copiaPara     String?
+  observacao    String?
+  /// O que foi listado: `[{ revisaoId, rotulo }]`.
+  itens         Json
+
+  @@index([projetoId, enviadoEm])
+  @@map("email_acompanhamento")
 }

@@ -52,6 +52,15 @@ describe("catálogo de templates", () => {
     expect(metaTemplate("inexistente")).toBeUndefined();
   });
 
+  it("acompanhamento-projeto expõe nomeCliente/projeto/lista/observacao e leva a lista no corpo", () => {
+    const meta = metaTemplate("acompanhamento-projeto");
+    expect(meta).toBeDefined();
+    expect(meta!.variaveis.map((v) => v.nome).sort()).toEqual(["lista", "nomeCliente", "observacao", "projeto"]);
+    const corpo = substituirVariaveis(meta!.corpoPadrao, { nomeCliente: "Alfa", projeto: "Galpão", lista: "- R01 · Planta", observacao: "" });
+    expect(corpo).toContain("- R01 · Planta");
+    expect(corpo).not.toMatch(/\{\{/);
+  });
+
   it("projeto-disponivel expõe nomeCliente/projeto/blocoAcesso", () => {
     const meta = metaTemplate("projeto-disponivel");
     expect(meta).toBeDefined();

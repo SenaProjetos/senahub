@@ -193,6 +193,33 @@ Qualquer dúvida, é só falar com a nossa equipe.
 Sena Projetos`,
   },
   {
+    slug: "acompanhamento-projeto",
+    grupo: "Projetos",
+    label: "Acompanhamento do projeto (cliente)",
+    descricao:
+      "Enviado ao cliente pelo botão \"E-mail de acompanhamento\" do projeto. Lista o que já foi enviado a ele; o assunto real é fixo por projeto (para a conversa ficar encadeada na caixa do cliente).",
+    variaveis: [
+      { nome: "nomeCliente", descricao: "Nome do cliente", exemplo: "Construtora Alfa" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      {
+        nome: "lista",
+        descricao: "Lista do que foi enviado (uma linha por revisão). Montada pelo sistema.",
+        exemplo: "- R01 · Planta de forma (Estrutural)\n- R02 · Detalhe de escada (Estrutural)",
+      },
+      { nome: "observacao", descricao: "Texto livre que quem envia acrescenta (pode ficar vazio)", exemplo: "Qualquer dúvida, é só responder este e-mail." },
+    ],
+    assuntoPadrao: "Acompanhamento — {{projeto}}",
+    corpoPadrao: `Olá, {{nomeCliente}}.
+
+Segue o acompanhamento do projeto **{{projeto}}**. Já enviamos a você:
+
+{{lista}}
+
+{{observacao}}
+
+Sena Projetos`,
+  },
+  {
     slug: "holerite",
     grupo: "RH",
     label: "Holerite",
