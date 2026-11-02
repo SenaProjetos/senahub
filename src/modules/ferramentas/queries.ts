@@ -5,6 +5,7 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { parseListParams } from "@/lib/list-params";
 import { montarMemoria } from "./service";
+import { ferramentaVisivel, getFerramenta } from "./registry";
 
 type RawParams = Record<string, string | string[] | undefined>;
 
@@ -45,6 +46,9 @@ export async function abrirCalculo(id: string) {
 
   const podeGerir = await can(user, "ferramentas", "gerir");
   if (registro.autorId !== user.id && !podeGerir) return null;
+  // Ferramenta que voltou para "em validação": só quem gere abre e exporta o cálculo salvo.
+  const meta = getFerramenta(registro.ferramenta);
+  if (meta && !ferramentaVisivel(meta, podeGerir)) return null;
 
   return registro;
 }

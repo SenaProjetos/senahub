@@ -21,8 +21,25 @@ import {
   Crosshair,
   Square,
   SquareStack,
+  Droplets,
+  PlugZap,
   type LucideIcon,
 } from "lucide-react";
+
+/**
+ * Registro da validação técnica de uma calculadora (feita por engenheiro da casa).
+ * Vale para UMA versão do motor: se `versaoCalc` da ferramenta mudar, volta a "em validação".
+ */
+export type ValidacaoFerramenta = {
+  /** Quem validou (nome e registro profissional). */
+  por: string;
+  /** Data da validação, `YYYY-MM-DD`. */
+  em: string;
+  /** Versão do motor validada. */
+  versaoCalc: number;
+  /** Caminho da ficha de validação assinada (docs/engenharia/validacao/…). */
+  ficha: string;
+};
 
 export type FerramentaMeta = {
   /** Chave estável da ferramenta (ex.: "conversor-unidades"). Igual ao entradasJson.ferramenta. */
@@ -41,8 +58,29 @@ export type FerramentaMeta = {
    * e não devem ser reinterpretados silenciosamente pela regra nova.
    */
   versaoCalc?: number;
+  /**
+   * Calculadora que só vai à equipe depois de um engenheiro validar fórmulas e tabelas.
+   * Sem `validacao` da versão atual, fica "em validação" (ver `situacaoValidacao`).
+   */
+  exigeValidacao?: boolean;
+  validacao?: ValidacaoFerramenta;
   icon: LucideIcon;
 };
+
+export type SituacaoValidacao = "nao_exige" | "validada" | "em_validacao";
+
+/** Pura. A validação só conta se foi feita para a versão atual do motor. */
+export function situacaoValidacao(
+  meta: Pick<FerramentaMeta, "exigeValidacao" | "validacao" | "versaoCalc">,
+): SituacaoValidacao {
+  if (!meta.exigeValidacao) return "nao_exige";
+  return meta.validacao && meta.validacao.versaoCalc === (meta.versaoCalc ?? 1) ? "validada" : "em_validacao";
+}
+
+/** Ferramenta em validação só é vista e usada por quem gere as ferramentas. */
+export function ferramentaVisivel(meta: FerramentaMeta, podeVerEmValidacao: boolean): boolean {
+  return podeVerEmValidacao || situacaoValidacao(meta) !== "em_validacao";
+}
 
 export const FERRAMENTAS: FerramentaMeta[] = [
   {
@@ -215,6 +253,30 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     norma: "NBR 6122",
     exportaveis: ["pdf", "xlsx"],
     icon: Layers,
+  },
+  {
+    key: "reservatorios",
+    nome: "Reservatórios (inferior e superior)",
+    descricao:
+      "Pré-dimensiona reservatório inferior e superior pelo consumo diário e dias de reserva, com reserva técnica de incêndio opcional e área em planta pela altura útil.",
+    disciplina: "Hidrossanitário",
+    tipo: "rapida",
+    norma: "NBR 5626 / NBR 13714",
+    exportaveis: ["pdf", "docx", "xlsx"],
+    exigeValidacao: true,
+    icon: Droplets,
+  },
+  {
+    key: "corrente-demanda",
+    nome: "Corrente e Demanda",
+    descricao:
+      "Corrente de projeto, corrente corrigida (temperatura e agrupamento) e carga demandada por linha de carga, com a demanda total em kW e kVA.",
+    disciplina: "Elétrico",
+    tipo: "rapida",
+    norma: "NBR 5410",
+    exportaveis: ["pdf", "docx", "xlsx"],
+    exigeValidacao: true,
+    icon: PlugZap,
   },
 ];
 

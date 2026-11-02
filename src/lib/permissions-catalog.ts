@@ -377,7 +377,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
     label: "Ferramentas de Engenharia",
     acoes: [
       { acao: "usar", label: "Usar ferramentas e salvar cálculos", abre: "Ferramentas" },
-      { acao: "gerir", label: "Ver cálculos de todos / administrar" },
+      { acao: "gerir", label: "Ver cálculos de todos / administrar / testar calculadoras em validação" },
     ],
   },
   {

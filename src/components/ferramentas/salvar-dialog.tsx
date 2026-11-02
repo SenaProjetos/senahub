@@ -113,8 +113,11 @@ export function SalvarDialog({
     if (art?.responsavelRegistro) setResponsavelRegistro(art.responsavelRegistro);
   }
 
-  // Atualiza o titulo quando abre com novo tituloSugerido
-  if (open && titulo !== tituloSugerido && !titulo) setTitulo(tituloSugerido);
+  // Ao abrir, o título parte da sugestão de agora (o diálogo é montado com o formulário, antes de
+  // as entradas serem digitadas). Com o diálogo aberto o formulário não muda, então não sobrescreve edição.
+  useEffect(() => {
+    if (open) setTitulo(tituloSugerido);
+  }, [open, tituloSugerido]);
 
   function handleFechar() {
     onOpenChange(false);

@@ -32,7 +32,19 @@ import { calcular as calcularSapataExc, entradaSchema as sapataExcSchema } from 
 import { calcular as calcularSapataSpt, entradaSchema as sapataSptSchema } from "./calc/sapata-spt";
 import { calcular as calcularRecalque, entradaSchema as recalqueSchema } from "./calc/recalque-fundacao";
 import { SOLOS as SOLOS_SPT } from "./calc/spt-shared";
-import { getFerramenta } from "./registry";
+import {
+  calcular as calcularReservatorio,
+  entradaSchema as reservatorioSchema,
+  OCUPACOES,
+  SISTEMAS as SISTEMAS_RESERVATORIO,
+} from "./calc/reservoir";
+import {
+  calcular as calcularDemanda,
+  entradaSchema as demandaSchema,
+  ISOLACOES,
+  LIGACOES,
+} from "./calc/electrical-demand";
+import { getFerramenta, situacaoValidacao } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
 function larguraAlma(secao: EntradaFlexao["secao"]): number {
@@ -214,6 +226,32 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
       if (r.forca) campos["F arrasto"] = fmtNum(r.forca.f, 1);
       return { campos };
     }
+    case "reservatorios": {
+      const r = calcularReservatorio(reservatorioSchema.parse(entradas));
+      const campos: Record<string, string | number> = {
+        "Consumo diário (L)": fmtNum(r.consumoDiarioL, 0),
+        "Reserva de consumo (L)": fmtNum(r.volumeReservaL, 0),
+      };
+      if (r.inferior) campos["Inferior (L)"] = fmtNum(r.inferior.totalL, 0);
+      if (r.superior) campos["Superior (L)"] = fmtNum(r.superior.totalL, 0);
+      if (r.rtiL > 0) campos["RTI (L)"] = fmtNum(r.rtiL, 0);
+      campos["Total (L)"] = fmtNum(r.totalL, 0);
+      return { campos, alertas: r.alertas };
+    }
+    case "corrente-demanda": {
+      const r = calcularDemanda(demandaSchema.parse(entradas));
+      return {
+        campos: {
+          "Instalada (kW)": fmtNum(r.pInstaladaW / 1000, 2),
+          "Demandada (kW)": fmtNum(r.pDemandadaW / 1000, 2),
+          "Demandada (kVA)": fmtNum(r.sDemandadaVA / 1000, 2),
+          "Corrente total (A)": fmtNum(r.correnteTotalA, 1),
+          FCT: fmtNum(r.fct, 2),
+          FCA: fmtNum(r.fca, 2),
+        },
+        alertas: r.alertas,
+      };
+    }
     case "combinacoes-acoes": {
       const r = calcularCombos(combosSchema.parse(entradas));
       return {
@@ -354,10 +392,12 @@ export function montarMemoria(
   opts: MemoriaOpts,
 ): MemoriaDoc {
   const meta = getFerramenta(ferramenta);
+  // Calculadora ainda sem validação do engenheiro: a memória sai marcada, nunca como documento final.
+  const emValidacao = meta ? situacaoValidacao(meta) === "em_validacao" : false;
   const base = {
     ferramenta,
     titulo: opts.titulo,
-    subtitulo: meta?.nome,
+    subtitulo: emValidacao ? `${meta?.nome} — EM VALIDAÇÃO, não usar em projeto` : meta?.nome,
     norma: meta?.norma,
     autor: opts.autor,
     projeto: opts.projeto,
@@ -386,6 +426,10 @@ export function montarMemoria(
       return memoriaDescidaCargas(entradas, base);
     case "acao-vento":
       return memoriaAcaoVento(entradas, base);
+    case "reservatorios":
+      return memoriaReservatorios(entradas, base);
+    case "corrente-demanda":
+      return memoriaCorrenteDemanda(entradas, base);
     case "combinacoes-acoes":
       return memoriaCombinacoesAcoes(entradas, base);
     case "pilar-concreto":
@@ -953,6 +997,162 @@ function memoriaAcaoVento(entradas: Record<string, unknown>, base: BaseArgs): Me
   }
 
   return montarMemoriaBase({ ...base, secoes });
+}
+
+function memoriaReservatorios(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = reservatorioSchema.parse(entradas);
+  const r = calcularReservatorio(e);
+  const ocup = e.ocupacao === "personalizado" ? null : OCUPACOES[e.ocupacao];
+
+  const linhasEntrada: (string | number)[][] = [
+    ["Ocupação", ocup ? ocup.label : "Personalizada"],
+    ["Unidades de consumo", `${fmtNum(e.unidades, 2)}${ocup ? ` (${ocup.unidade})` : ""}`],
+    ["Consumo por unidade (L/dia)", fmtNum(r.consumoPorUnidade, 2)],
+    ["Dias de reserva", fmtNum(e.diasReserva, 2)],
+    ["Sistema", SISTEMAS_RESERVATORIO[e.sistema]],
+  ];
+  if (e.sistema === "inferior_superior") {
+    linhasEntrada.push(["Fração do consumo no inferior", `${fmtNum(e.fracaoInferior * 100, 1)} %`]);
+  }
+  linhasEntrada.push([
+    "Reserva técnica de incêndio",
+    e.rtiModo === "nenhuma"
+      ? "Não considerada"
+      : e.rtiModo === "informada"
+        ? `${fmtNum(e.rtiVolumeM3 ?? 0, 2)} m³ (informada)`
+        : `${e.rtiHidrantes} hidrante(s) × ${fmtNum(e.rtiVazaoLMin ?? 0, 1)} L/min × ${fmtNum(e.rtiMinutos ?? 0, 0)} min`,
+  ]);
+
+  const linhasReservatorios: (string | number)[][] = [];
+  const nomeEVolume = (nome: string, d: NonNullable<typeof r.inferior>) =>
+    linhasReservatorios.push([
+      nome,
+      fmtNum(d.consumoL, 0),
+      fmtNum(d.rtiL, 0),
+      fmtNum(d.totalL, 0),
+      fmtNum(d.totalM3, 2),
+      d.areaM2 != null ? fmtNum(d.areaM2, 2) : "—",
+      d.ladoQuadradoM != null ? fmtNum(d.ladoQuadradoM, 2) : "—",
+    ]);
+  if (r.inferior) nomeEVolume("Inferior", r.inferior);
+  if (r.superior) nomeEVolume("Superior", r.superior);
+
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      { titulo: "Dados de entrada", tabelas: [{ colunas: ["Parâmetro", "Valor"], linhas: linhasEntrada }] },
+      {
+        titulo: "Consumo e reserva",
+        valores: [
+          { simbolo: "CD", descricao: "Consumo diário", valor: fmtNum(r.consumoDiarioL, 0), unidade: "L", formula: "unidades × consumo por unidade" },
+          { simbolo: "V_res", descricao: "Volume de reserva de consumo", valor: fmtNum(r.volumeReservaL, 0), unidade: "L", formula: "CD × dias de reserva" },
+          { simbolo: "RTI", descricao: "Reserva técnica de incêndio", valor: fmtNum(r.rtiL, 0), unidade: "L" },
+          { simbolo: "V_total", descricao: "Volume total a armazenar", valor: fmtNum(r.totalL, 0), unidade: "L", formula: "V_res + RTI" },
+        ],
+      },
+      {
+        titulo: "Reservatórios",
+        tabelas: [
+          {
+            colunas: ["Reservatório", "Consumo (L)", "RTI (L)", "Total (L)", "Total (m³)", "Área (m²)", "Lado quadrado (m)"],
+            linhas: linhasReservatorios,
+          },
+        ],
+        notas: [
+          "Área em planta = volume (m³) ÷ altura útil informada; lado quadrado = √área. Sem altura útil, ficam em branco.",
+          "Os consumos por unidade são valores usuais de projeto; a NBR 5626 não os fixa. Dias de reserva e a divisão inferior/superior são prática de projeto.",
+          "A reserva técnica de incêndio segue a instrução técnica do Corpo de Bombeiros do estado (NBR 13714 define a vazão mínima por tipo de hidrante).",
+          ...r.alertas,
+        ],
+      },
+    ],
+  });
+}
+
+function memoriaCorrenteDemanda(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = demandaSchema.parse(entradas);
+  const r = calcularDemanda(e);
+
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      {
+        titulo: "Cargas",
+        tabelas: [
+          {
+            colunas: ["Carga", "Qtd", "P unit. (W)", "fp", "η", "fd", "V", "Ligação"],
+            linhas: e.cargas.map((c) => [
+              c.descricao,
+              c.quantidade,
+              fmtNum(c.potenciaW, 1),
+              fmtNum(c.fp, 2),
+              fmtNum(c.rendimento, 2),
+              fmtNum(c.fd, 2),
+              fmtNum(c.tensaoV, 0),
+              LIGACOES[c.ligacao],
+            ]),
+          },
+        ],
+      },
+      {
+        titulo: "Fatores de correção (NBR 5410)",
+        valores: [
+          {
+            simbolo: "FCT",
+            descricao: e.fctManual != null ? "Fator de temperatura (informado)" : `Fator de temperatura — ${ISOLACOES[e.isolacao]}, ambiente ${fmtNum(e.temperaturaC, 0)} °C (Tab. 40)`,
+            valor: fmtNum(r.fct, 2),
+          },
+          {
+            simbolo: "FCA",
+            descricao: e.fcaManual != null ? "Fator de agrupamento (informado)" : `Fator de agrupamento — ${e.circuitosAgrupados} circuito(s) (Tab. 42)`,
+            valor: fmtNum(r.fca, 2),
+          },
+        ],
+      },
+      {
+        titulo: "Corrente por linha de carga",
+        tabelas: [
+          {
+            colunas: ["Carga", "P absorvida (W)", "S (VA)", "Ib (A)", "Ib' = Ib/(FCT·FCA) (A)", "P demandada (W)"],
+            linhas: r.linhas.map((l) => [
+              l.descricao,
+              fmtNum(l.pInstalada, 0),
+              fmtNum(l.sAparente, 0),
+              fmtNum(l.ib, 2),
+              fmtNum(l.ibCorrigida, 2),
+              fmtNum(l.pDemandada, 0),
+            ]),
+          },
+        ],
+        notas: [
+          "P absorvida = quantidade × P ÷ η. Ib = P absorvida ÷ (k·V·fp), com k = 1 (monofásica) ou √3 (trifásica).",
+          "Ib' é a corrente a comparar com a capacidade de condução do condutor (Tabelas 36 a 39 da NBR 5410).",
+        ],
+      },
+      {
+        titulo: "Carga demandada",
+        valores: [
+          { simbolo: "P_inst", descricao: "Potência instalada (absorvida)", valor: fmtNum(r.pInstaladaW / 1000, 2), unidade: "kW" },
+          { simbolo: "D", descricao: "Demanda", valor: fmtNum(r.pDemandadaW / 1000, 2), unidade: "kW", formula: "Σ P absorvida × fd" },
+          { simbolo: "D", descricao: "Demanda aparente", valor: fmtNum(r.sDemandadaVA / 1000, 2), unidade: "kVA", formula: "Σ (P demandada ÷ fp)" },
+          { simbolo: "fp_médio", descricao: "Fator de potência médio da demanda", valor: fmtNum(r.fpMedio, 3), formula: "kW ÷ kVA" },
+          { simbolo: "fd_global", descricao: "Fator de demanda global", valor: fmtNum(r.fatorDemandaGlobal, 3), formula: "demanda ÷ instalada" },
+          {
+            simbolo: "I_total",
+            descricao: `Corrente total da demanda (${LIGACOES[e.alimentacaoLigacao].toLowerCase()}, ${fmtNum(e.alimentacaoTensaoV, 0)} V)`,
+            valor: fmtNum(r.correnteTotalA, 1),
+            unidade: "A",
+            formula: "kVA ÷ (k·V)",
+          },
+        ],
+        notas: [
+          "A demanda aparente é a soma aritmética das potências aparentes (a favor da segurança); a soma vetorial exigiria o ângulo de cada carga.",
+          "Os fatores de demanda não vêm da NBR 5410: seguem a concessionária e o tipo de carga, e foram digitados por linha.",
+          ...r.alertas,
+        ],
+      },
+    ],
+  });
 }
 
 const ROTULO_ELU: Record<string, string> = {

@@ -10,7 +10,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { formatarRegistro } from "@/modules/usuarios/registro";
 import { calcular, snapshotParaSalvar } from "./service";
-import { getFerramenta } from "./registry";
+import { ferramentaVisivel, getFerramenta, situacaoValidacao, versaoCalcDe } from "./registry";
 import { autoStore } from "./auto-store";
 
 const base = { modulo: "ferramentas", interno: true, recurso: "ferramentas" } as const;
@@ -51,7 +51,14 @@ export const salvarCalculo = defineAction(
   },
   async (i, { user }) => {
     const meta = getFerramenta(i.ferramenta);
-    if (!meta) throw new ActionError(`Ferramenta desconhecida: "${i.ferramenta}".`);
+    if (!meta) throw new ActionError("Ferramenta desconhecida.");
+    if (!ferramentaVisivel(meta, await can(user, "ferramentas", "gerir"))) {
+      throw new ActionError("Esta calculadora ainda não foi validada por um engenheiro.");
+    }
+    // Em validação, o cálculo é só um teste: não vai para a disciplina do projeto (autoStore).
+    if (situacaoValidacao(meta) === "em_validacao" && (i.projetoId || i.disciplinaId)) {
+      throw new ActionError("Calculadora em validação: salve sem vincular a projeto ou disciplina.");
+    }
 
     // Recalcula no servidor — não confia no resultado que veio do cliente.
     const resultado = calcular(i.ferramenta, i.entradas);
@@ -59,7 +66,7 @@ export const salvarCalculo = defineAction(
       i.ferramenta,
       i.titulo,
       meta.norma,
-      1,
+      versaoCalcDe(i.ferramenta),
       i.entradas,
       resultado,
     );
@@ -151,6 +158,8 @@ export const buscarCalculo = defineAction(
     if (!registro) throw new ActionError("Cálculo não encontrado.");
     const podeGerir = await can(user, "ferramentas", "gerir");
     if (registro.autorId !== user.id && !podeGerir) throw new ActionError("Sem permissão.");
+    const meta = getFerramenta(registro.ferramenta);
+    if (meta && !ferramentaVisivel(meta, podeGerir)) throw new ActionError("Esta calculadora ainda não foi validada por um engenheiro.");
     return {
       id: registro.id,
       titulo: registro.titulo,

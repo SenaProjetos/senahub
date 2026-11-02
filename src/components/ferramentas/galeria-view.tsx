@@ -1,21 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { porDisciplina } from "@/modules/ferramentas/registry";
+import { ferramentaVisivel, porDisciplina, situacaoValidacao } from "@/modules/ferramentas/registry";
 import type { Disciplina } from "@/modules/ferramentas/types";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Zap, Wrench } from "lucide-react";
 
 // Catálogo (com ícones-componente) é resolvido no cliente — não pode cruzar o boundary RSC.
-export function GaleriaView() {
-  const grupos = porDisciplina();
+export function GaleriaView({ podeVerEmValidacao }: { podeVerEmValidacao: boolean }) {
+  const todos = porDisciplina();
+  const grupos = {} as typeof todos;
+  for (const d of Object.keys(todos) as Disciplina[]) {
+    const visiveis = todos[d].filter((f) => ferramentaVisivel(f, podeVerEmValidacao));
+    if (visiveis.length > 0) grupos[d] = visiveis;
+  }
   const disciplinas = Object.keys(grupos) as Disciplina[];
 
   if (disciplinas.length === 0) {
     return (
       <div className="p-6 text-center text-muted-foreground text-sm">
-        Nenhuma ferramenta disponível.
+        Nenhuma ferramenta liberada ainda. As calculadoras novas aparecem aqui depois da validação do engenheiro.
       </div>
     );
   }
@@ -44,14 +49,14 @@ export function GaleriaView() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <div className="rounded-md bg-primary/10 p-1.5">
-                            <Icon className="h-4 w-4 text-primary" />
+                            <Icon aria-hidden className="h-4 w-4 text-primary" />
                           </div>
                           <CardTitle className="text-sm leading-tight">{f.nome}</CardTitle>
                         </div>
                         {f.tipo === "rapida" ? (
-                          <Zap className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                          <Zap aria-label="Ferramenta rápida" role="img" className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
                         ) : (
-                          <Wrench className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+                          <Wrench aria-label="Ferramenta completa" role="img" className="h-3.5 w-3.5 text-info shrink-0 mt-0.5" />
                         )}
                       </div>
                     </CardHeader>
@@ -59,11 +64,18 @@ export function GaleriaView() {
                       <CardDescription className="text-xs leading-relaxed">
                         {f.descricao}
                       </CardDescription>
-                      {f.norma && (
-                        <Badge variant="outline" className="mt-2 text-xs">
-                          {f.norma}
-                        </Badge>
-                      )}
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {f.norma && (
+                          <Badge variant="outline" className="text-xs">
+                            {f.norma}
+                          </Badge>
+                        )}
+                        {situacaoValidacao(f) === "em_validacao" && (
+                          <Badge variant="outline" className="text-xs border-warning text-warning">
+                            Em validação
+                          </Badge>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
                 </Link>

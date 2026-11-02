@@ -1,0 +1,306 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { ZodError } from "zod";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  calcular,
+  CHAVES_OCUPACAO,
+  OCUPACOES,
+  SISTEMAS,
+  type EntradaReservatorioInput,
+  type ReservatorioDimensionado,
+} from "@/modules/ferramentas/calc/reservoir";
+import { fmtNum } from "@/modules/ferramentas/memoria";
+import { Footer } from "./anchorage-form";
+
+type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
+
+const s = (v: unknown, d: string) => (v != null ? String(v) : d);
+const pct = (v: unknown, d: string) => (typeof v === "number" ? String(Math.round(v * 1000) / 10) : d);
+
+type Estado = {
+  ocupacao: string;
+  unidades: string;
+  consumo: string;
+  dias: string;
+  sistema: string;
+  fracaoInferior: string;
+  rtiModo: string;
+  rtiVolume: string;
+  rtiHidrantes: string;
+  rtiVazao: string;
+  rtiMinutos: string;
+  rtiEm: string;
+  alturaInferior: string;
+  alturaSuperior: string;
+};
+
+function estadoInicial(e?: Record<string, unknown>): Estado {
+  return {
+    ocupacao: s(e?.ocupacao, "residencia_media"),
+    unidades: s(e?.unidades, ""),
+    consumo: s(e?.consumoLitrosDia, ""),
+    dias: s(e?.diasReserva, "2"),
+    sistema: s(e?.sistema, "inferior_superior"),
+    fracaoInferior: pct(e?.fracaoInferior, "60"),
+    rtiModo: s(e?.rtiModo, "nenhuma"),
+    rtiVolume: s(e?.rtiVolumeM3, ""),
+    rtiHidrantes: s(e?.rtiHidrantes, ""),
+    rtiVazao: s(e?.rtiVazaoLMin, ""),
+    rtiMinutos: s(e?.rtiMinutos, ""),
+    rtiEm: s(e?.rtiEm, "superior"),
+    alturaInferior: s(e?.alturaUtilInferiorM, ""),
+    alturaSuperior: s(e?.alturaUtilSuperiorM, ""),
+  };
+}
+
+function montarEntrada(st: Estado): EntradaReservatorioInput | null {
+  const n = (v: string) => Number(v.replace(",", "."));
+  if (!(n(st.unidades) > 0) || !(n(st.dias) > 0)) return null;
+  const e: EntradaReservatorioInput = {
+    ocupacao: st.ocupacao as EntradaReservatorioInput["ocupacao"],
+    unidades: n(st.unidades),
+    diasReserva: n(st.dias),
+    sistema: st.sistema as EntradaReservatorioInput["sistema"],
+    rtiModo: st.rtiModo as EntradaReservatorioInput["rtiModo"],
+    rtiEm: st.rtiEm as EntradaReservatorioInput["rtiEm"],
+  };
+  // Campos ocultos pelo sistema/modo não vão: um valor antigo fora da faixa não pode zerar o resultado.
+  if (st.sistema === "inferior_superior") e.fracaoInferior = n(st.fracaoInferior) / 100;
+  if (n(st.consumo) > 0) e.consumoLitrosDia = n(st.consumo);
+  if (st.rtiModo === "informada" && n(st.rtiVolume) > 0) e.rtiVolumeM3 = n(st.rtiVolume);
+  if (st.rtiModo === "calculada") {
+    if (n(st.rtiHidrantes) > 0) e.rtiHidrantes = Math.round(n(st.rtiHidrantes));
+    if (n(st.rtiVazao) > 0) e.rtiVazaoLMin = n(st.rtiVazao);
+    if (n(st.rtiMinutos) > 0) e.rtiMinutos = n(st.rtiMinutos);
+  }
+  if (st.sistema !== "somente_superior" && n(st.alturaInferior) > 0) e.alturaUtilInferiorM = n(st.alturaInferior);
+  if (st.sistema !== "somente_inferior" && n(st.alturaSuperior) > 0) e.alturaUtilSuperiorM = n(st.alturaSuperior);
+  return e;
+}
+
+export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
+  const [st, setSt] = useState<Estado>(() => estadoInicial(initialEntradas));
+  const [salvarOpen, setSalvarOpen] = useState(false);
+
+  const set = (k: keyof Estado) => (v: string) => setSt((a) => ({ ...a, [k]: v }));
+
+  const entrada = useMemo(() => montarEntrada(st), [st]);
+  const { resultado, orientacao } = useMemo(() => {
+    if (!entrada) return { resultado: null, orientacao: "Informe a quantidade de unidades e os dias de reserva." };
+    try {
+      return { resultado: calcular(entrada), orientacao: null };
+    } catch (e) {
+      // As mensagens do esquema já dizem o que falta ("Informe o consumo por unidade.").
+      return { resultado: null, orientacao: e instanceof ZodError ? (e.issues[0]?.message ?? null) : "Não foi possível calcular." };
+    }
+  }, [entrada]);
+
+  const ocup = st.ocupacao === "personalizado" ? null : OCUPACOES[st.ocupacao as keyof typeof OCUPACOES];
+  const doisReservatorios = st.sistema === "inferior_superior";
+
+  return (
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">1. Consumo</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1.5 sm:col-span-1">
+            <Label>Ocupação</Label>
+            <Select value={st.ocupacao} onValueChange={(v) => v && set("ocupacao")(v)}>
+              <SelectTrigger aria-label="Ocupação"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CHAVES_OCUPACAO.map((k) => (
+                  <SelectItem key={k} value={k}>{OCUPACOES[k].label}</SelectItem>
+                ))}
+                <SelectItem value="personalizado">Personalizada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="h01-unidades">Quantidade{ocup ? ` (${ocup.unidade})` : ""}</Label>
+            <Input id="h01-unidades" type="number" value={st.unidades} onChange={(e) => set("unidades")(e.target.value)} className="font-mono" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="h01-consumo">Consumo (L/dia por unidade)</Label>
+            <Input
+              id="h01-consumo"
+              type="number"
+              value={st.consumo}
+              placeholder={ocup ? String(ocup.litrosPorDia) : "informe"}
+              onChange={(e) => set("consumo")(e.target.value)}
+              className="font-mono"
+            />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Os valores da tabela são consumos usuais de projeto (a NBR 5626 não os fixa). Digite o consumo para substituí-lo.
+        </p>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">2. Reserva e reservatórios</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="h01-dias">Dias de reserva</Label>
+            <Input id="h01-dias" type="number" step="0.5" value={st.dias} onChange={(e) => set("dias")(e.target.value)} className="font-mono" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Sistema</Label>
+            <Select value={st.sistema} onValueChange={(v) => v && set("sistema")(v)}>
+              <SelectTrigger aria-label="Sistema de reservatórios"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(SISTEMAS) as (keyof typeof SISTEMAS)[]).map((k) => (
+                  <SelectItem key={k} value={k}>{SISTEMAS[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {doisReservatorios && (
+            <div className="space-y-1.5">
+              <Label htmlFor="h01-fracao">Parcela no inferior (%)</Label>
+              <Input id="h01-fracao" type="number" value={st.fracaoInferior} onChange={(e) => set("fracaoInferior")(e.target.value)} className="font-mono" />
+            </div>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {st.sistema !== "somente_superior" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="h01-hinf">Altura útil do inferior (m)</Label>
+              <Input id="h01-hinf" type="number" step="0.1" value={st.alturaInferior} onChange={(e) => set("alturaInferior")(e.target.value)} className="font-mono" placeholder="opcional" />
+            </div>
+          )}
+          {st.sistema !== "somente_inferior" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="h01-hsup">Altura útil do superior (m)</Label>
+              <Input id="h01-hsup" type="number" step="0.1" value={st.alturaSuperior} onChange={(e) => set("alturaSuperior")(e.target.value)} className="font-mono" placeholder="opcional" />
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium">3. Reserva técnica de incêndio</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label>Como informar</Label>
+            <Select value={st.rtiModo} onValueChange={(v) => v && set("rtiModo")(v)}>
+              <SelectTrigger aria-label="Como informar a reserva técnica de incêndio"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="nenhuma">Não considerar</SelectItem>
+                <SelectItem value="informada">Volume informado</SelectItem>
+                <SelectItem value="calculada">Calcular (hidrantes × vazão × tempo)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {st.rtiModo === "informada" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="h01-rti">Volume (m³)</Label>
+              <Input id="h01-rti" type="number" value={st.rtiVolume} onChange={(e) => set("rtiVolume")(e.target.value)} className="font-mono" />
+            </div>
+          )}
+          {st.rtiModo === "calculada" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="h01-hid">Hidrantes simultâneos</Label>
+                <Input id="h01-hid" type="number" value={st.rtiHidrantes} onChange={(e) => set("rtiHidrantes")(e.target.value)} className="font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="h01-vaz">Vazão por hidrante (L/min)</Label>
+                <Input id="h01-vaz" type="number" value={st.rtiVazao} onChange={(e) => set("rtiVazao")(e.target.value)} className="font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="h01-min">Tempo de funcionamento (min)</Label>
+                <Input id="h01-min" type="number" value={st.rtiMinutos} onChange={(e) => set("rtiMinutos")(e.target.value)} className="font-mono" />
+              </div>
+            </>
+          )}
+          {st.rtiModo !== "nenhuma" && doisReservatorios && (
+            <div className="space-y-1.5">
+              <Label>Fica no reservatório</Label>
+              <Select value={st.rtiEm} onValueChange={(v) => v && set("rtiEm")(v)}>
+                <SelectTrigger aria-label="Reservatório da reserva técnica de incêndio"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="superior">Superior</SelectItem>
+                  <SelectItem value="inferior">Inferior</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Número de hidrantes e tempo vêm da instrução técnica do Corpo de Bombeiros do estado (a NBR 13714 define a vazão mínima por tipo de hidrante). Não há valor padrão.
+        </p>
+      </section>
+
+      {!resultado && orientacao && (
+        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>
+      )}
+
+      {resultado && (
+        <div className="rounded-lg border bg-muted/40 p-4 space-y-3 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2">
+            <Prop simbolo="CD" valor={fmtNum(resultado.consumoDiarioL, 0)} un="L/dia" />
+            <Prop simbolo="V reserva" valor={fmtNum(resultado.volumeReservaL, 0)} un="L" />
+            <Prop simbolo="V total" valor={fmtNum(resultado.totalL, 0)} un="L" destaque />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {resultado.inferior && <Reservatorio nome="Inferior" d={resultado.inferior} />}
+            {resultado.superior && <Reservatorio nome="Superior" d={resultado.superior} />}
+          </div>
+          {resultado.alertas.map((a) => (
+            <p key={a} className="text-xs text-warning">{a}</p>
+          ))}
+        </div>
+      )}
+
+      <Footer
+        ferramenta="reservatorios"
+        titulo={`Reservatórios — ${ocup ? ocup.label : "personalizada"}, ${st.unidades || "—"} un.`}
+        entradas={(entrada ?? {}) as Record<string, unknown>}
+        habilitado={!!resultado}
+        salvarOpen={salvarOpen}
+        setSalvarOpen={setSalvarOpen}
+        onImport={(n) => setSt(estadoInicial(n))}
+        onSalvo={onSalvo}
+      />
+    </div>
+  );
+}
+
+function Reservatorio({ nome, d }: { nome: string; d: ReservatorioDimensionado }) {
+  return (
+    <div className="rounded-md border bg-background p-3 space-y-1">
+      <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{nome}</h3>
+      <p className="font-mono text-base font-semibold">
+        {fmtNum(d.totalL, 0)} L <span className="text-xs font-normal text-muted-foreground">({fmtNum(d.totalM3, 2)} m³)</span>
+      </p>
+      <p className="text-xs text-muted-foreground">
+        Consumo {fmtNum(d.consumoL, 0)} L{d.rtiL > 0 && <> + incêndio {fmtNum(d.rtiL, 0)} L</>}
+      </p>
+      {d.areaM2 != null && d.ladoQuadradoM != null && (
+        <p className="text-xs text-muted-foreground">
+          Planta: {fmtNum(d.areaM2, 2)} m² (≈ {fmtNum(d.ladoQuadradoM, 2)} × {fmtNum(d.ladoQuadradoM, 2)} m)
+        </p>
+      )}
+    </div>
+  );
+}
+
+function Prop({ simbolo, valor, un, destaque }: { simbolo: string; valor: string; un: string; destaque?: boolean }) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span className="italic text-muted-foreground">{simbolo} =</span>
+      <span className={`font-mono ${destaque ? "font-semibold" : "font-medium"}`}>{valor}</span>
+      <span className="text-xs text-muted-foreground">{un}</span>
+    </div>
+  );
+}

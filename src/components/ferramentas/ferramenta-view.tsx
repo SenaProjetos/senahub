@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { getFerramenta } from "@/modules/ferramentas/registry";
+import { getFerramenta, situacaoValidacao } from "@/modules/ferramentas/registry";
 import { getGuia } from "@/modules/ferramentas/guia-meta";
 import type { RecenteCalculo } from "@/modules/ferramentas/types";
 import { buscarCalculo } from "@/modules/ferramentas/actions";
@@ -27,6 +27,8 @@ import { StairForm } from "./stair-form";
 import { PunchingForm } from "./punching-form";
 import { FootingForm } from "./footing-form";
 import { EccentricFootingForm } from "./eccentric-footing-form";
+import { ReservoirForm } from "./reservoir-form";
+import { ElectricalDemandForm } from "./electrical-demand-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -73,6 +75,10 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <FootingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "sapata-excentrica":
       return <EccentricFootingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "reservatorios":
+      return <ReservoirForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "corrente-demanda":
+      return <ElectricalDemandForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }
@@ -139,6 +145,13 @@ export function FerramentaView({ ferramentaKey, recentes }: Props) {
             </div>
             <p className="text-sm text-muted-foreground mt-1">{meta.descricao}</p>
           </div>
+        </div>
+      )}
+
+      {situacaoValidacao(meta) === "em_validacao" && (
+        <div role="note" className="rounded-lg border border-warning/50 bg-warning/10 px-4 py-3 text-sm">
+          <strong className="font-semibold">Em validação.</strong> Um engenheiro da casa ainda não conferiu as fórmulas e
+          tabelas desta calculadora. Só quem gere as ferramentas a vê, e a memória sai marcada como &quot;não usar em projeto&quot;.
         </div>
       )}
 
