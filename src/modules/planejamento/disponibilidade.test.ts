@@ -41,4 +41,32 @@ describe("disponibilidade", () => {
     expect(chaveSemanaIso("2026-01-01")).toBe("2026-W01");
     expect(chaveSemanaIso("2027-01-01")).toBe("2026-W53");
   });
+
+  it("2027: a primeira semana ISO começa em 2027-01-04 (não W02)", () => {
+    expect(chaveSemanaIso("2027-01-03")).toBe("2026-W53");
+    expect(chaveSemanaIso("2027-01-04")).toBe("2027-W01");
+    expect(chaveSemanaIso("2027-01-10")).toBe("2027-W01");
+    expect(chaveSemanaIso("2027-01-11")).toBe("2027-W02");
+    expect(chaveSemanaIso("2024-12-30")).toBe("2025-W01");
+  });
+
+  it("bate com a definição ISO 8601 em todos os dias de 2020 a 2035", () => {
+    // Referência independente: a semana 1 é a que contém 4 de janeiro (ela começa na segunda-feira).
+    const segundaDaSemana1 = (ano: number) => {
+      const quatro = new Date(Date.UTC(ano, 0, 4));
+      return Date.UTC(ano, 0, 4 - ((quatro.getUTCDay() || 7) - 1));
+    };
+    const referencia = (d: Date) => {
+      const t = d.getTime();
+      const quinta = new Date(t + (4 - (d.getUTCDay() || 7)) * 86_400_000);
+      let ano = quinta.getUTCFullYear();
+      if (t < segundaDaSemana1(ano)) ano -= 1;
+      else if (ano < 2100 && t >= segundaDaSemana1(ano + 1)) ano += 1;
+      const semana = Math.floor((t - segundaDaSemana1(ano)) / (7 * 86_400_000)) + 1;
+      return `${ano}-W${String(semana).padStart(2, "0")}`;
+    };
+    for (let d = new Date(Date.UTC(2020, 0, 1)); d.getUTCFullYear() < 2036; d = new Date(d.getTime() + 86_400_000)) {
+      expect(chaveSemanaIso(d.toISOString().slice(0, 10)), d.toISOString().slice(0, 10)).toBe(referencia(d));
+    }
+  });
 });

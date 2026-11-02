@@ -30,11 +30,14 @@ export function capacidadeEfetivaPctNoDia(
 
 /** Chave de semana no padrão ISO, inclusive nas viradas de ano. */
 export function chaveSemanaIso(dia: string): string {
-  const data = new Date(`${dia}T12:00:00Z`);
+  // Tudo em meia-noite UTC: com meio-dia a conta do dia do ano ganhava meio dia e a semana
+  // avançava cedo quando o dia da quinta-feira da semana era múltiplo de 7 (2027-01-04 virava W02).
+  const [ano, mes, diaDoMes] = dia.split("-").map(Number);
+  const data = new Date(Date.UTC(ano, mes - 1, diaDoMes));
   const diaDaSemana = data.getUTCDay() || 7;
-  data.setUTCDate(data.getUTCDate() + 4 - diaDaSemana);
-  const inicioAno = new Date(Date.UTC(data.getUTCFullYear(), 0, 1));
-  const semana = Math.ceil((((data.getTime() - inicioAno.getTime()) / 86_400_000) + 1) / 7);
+  data.setUTCDate(data.getUTCDate() + 4 - diaDaSemana); // a quinta-feira da semana decide o ano ISO
+  const inicioAno = Date.UTC(data.getUTCFullYear(), 0, 1);
+  const semana = Math.ceil(((data.getTime() - inicioAno) / 86_400_000 + 1) / 7);
   return `${data.getUTCFullYear()}-W${String(semana).padStart(2, "0")}`;
 }
 
