@@ -1,7 +1,8 @@
 "use server";
 
 import { z } from "zod";
-import { defineAction } from "@/lib/with-action";
+import { defineAction, ActionError } from "@/lib/with-action";
+import { projetoVisivel } from "@/modules/planejamento/queries";
 import { campo } from "@/lib/campos/zod";
 import { enviarAcompanhamento } from "./service";
 
@@ -27,13 +28,16 @@ export const enviarAcompanhamentoProjeto = defineAction(
     }),
     entidadeId: (_d, i) => i.projetoId,
   },
-  async (input, { user }) =>
-    enviarAcompanhamento({
+  async (input, { user }) => {
+    // O escopo de dados vale aqui, não só na tela: id de projeto fora do escopo é "não encontrado".
+    if (!(await projetoVisivel(user, input.projetoId))) throw new ActionError("Projeto não encontrado.");
+    return enviarAcompanhamento({
       projetoId: input.projetoId,
       usuario: { id: user.id, email: user.email, name: user.name },
       destinatarios: input.destinatarios,
       revisaoIds: input.revisaoIds,
       observacao: input.observacao,
       copiaParaMim: input.copiaParaMim,
-    }),
+    });
+  },
 );

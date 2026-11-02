@@ -48,7 +48,7 @@ export type DadosDoAcompanhamento = Awaited<ReturnType<typeof dadosDoAcompanhame
 
 /** Tudo que o diálogo do e-mail de acompanhamento precisa: contatos, lista, último envio e histórico. */
 export async function dadosDoAcompanhamento(projetoId: string) {
-  const [projeto, itens, envios] = await Promise.all([
+  const [projeto, itens, envios, todosOsEnvios] = await Promise.all([
     prisma.projeto.findUnique({
       where: { id: projetoId },
       select: {
@@ -68,7 +68,17 @@ export async function dadosDoAcompanhamento(projetoId: string) {
       take: 10,
       select: { id: true, enviadoEm: true, destinatarios: true, itens: true, enviadoPor: { select: { name: true } } },
     }),
+    prisma.emailAcompanhamento.findMany({ where: { projetoId }, select: { itens: true } }),
   ]);
+  // Revisões que algum e-mail já listou (o histórico mostra só os 10 últimos; isto olha todos).
+  const jaAvisadas = new Set<string>();
+  for (const e of todosOsEnvios) {
+    if (!Array.isArray(e.itens)) continue;
+    for (const i of e.itens) {
+      const id = (i as { revisaoId?: unknown } | null)?.revisaoId;
+      if (typeof id === "string") jaAvisadas.add(id);
+    }
+  }
   return {
     smtp: smtpConfigurado(),
     cliente: projeto?.cliente?.nome ?? null,
@@ -77,6 +87,7 @@ export async function dadosDoAcompanhamento(projetoId: string) {
       return email ? [{ id: c.id, nome: c.nome, email }] : [];
     }),
     itens,
+    jaAvisadas,
     ultimoEnvioEm: envios[0]?.enviadoEm ?? null,
     historico: envios.map((e) => ({
       id: e.id,
@@ -99,7 +110,7 @@ export type AcompanhamentoParaTela = {
 
 export async function acompanhamentoParaTela(projetoId: string): Promise<AcompanhamentoParaTela> {
   const d = await dadosDoAcompanhamento(projetoId);
-  const { novos } = separarItens(d.itens, d.ultimoEnvioEm);
+  const { novos } = separarItens(d.itens, d.jaAvisadas);
   const ehNovo = new Set(novos.map((i) => i.revisaoId));
   return {
     smtp: d.smtp,

@@ -24,17 +24,26 @@ export function destinatariosValidos(contatos: readonly ContatoEnvio[], extras: 
 
 export type ItemEnviado = { revisaoId: string; rotulo: string; enviadoEm: Date };
 
-/** "Novos" = marcados como enviados ao cliente depois do último e-mail; sem último e-mail, tudo é novo. */
+/**
+ * "Novos" = revisões que NENHUM e-mail anterior listou. Pela lista gravada em cada envio, e não pela hora:
+ * quem manda só parte dos novos não faz os demais virarem "já enviados".
+ */
 export function separarItens(
   itens: readonly ItemEnviado[],
-  ultimoEnvioEm: Date | null,
+  jaAvisadas: ReadonlySet<string>,
 ): { novos: ItemEnviado[]; anteriores: ItemEnviado[] } {
-  if (!ultimoEnvioEm) return { novos: [...itens], anteriores: [] };
-  const corte = ultimoEnvioEm.getTime();
   return {
-    novos: itens.filter((i) => i.enviadoEm.getTime() > corte),
-    anteriores: itens.filter((i) => i.enviadoEm.getTime() <= corte),
+    novos: itens.filter((i) => !jaAvisadas.has(i.revisaoId)),
+    anteriores: itens.filter((i) => jaAvisadas.has(i.revisaoId)),
   };
+}
+
+/**
+ * Texto digitado por gente (observação, título de arquivo) entra no corpo em Markdown e vai para fora da
+ * empresa: escapa o que viraria HTML, link, imagem ou formatação, para sair como texto.
+ */
+export function escaparMarkdown(texto: string): string {
+  return texto.replace(/[\\`*_[\]()<>#!|~&]/g, "\\$&");
 }
 
 export function listaEmMarkdown(itens: readonly { rotulo: string }[]): string {

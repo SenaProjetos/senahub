@@ -9,6 +9,7 @@ import {
   assuntoDoAcompanhamento,
   cabecalhosDeConversa,
   destinatariosValidos,
+  escaparMarkdown,
   listaEmMarkdown,
   novoMessageId,
 } from "./regras";
@@ -52,12 +53,22 @@ export async function enviarAcompanhamento(
 
   const projeto = await prisma.projeto.findUnique({
     where: { id: args.projetoId },
-    select: { id: true, codigo: true, nome: true, cliente: { select: { nome: true } } },
+    select: { id: true, codigo: true, nome: true, clienteId: true, cliente: { select: { nome: true } } },
   });
   if (!projeto) throw new ActionError("Projeto não encontrado.");
 
-  const destinatarios = destinatariosValidos([], args.destinatarios);
-  if (destinatarios.length === 0) throw new ActionError("Informe ao menos um destinatário com e-mail válido.");
+  // Quem pediu para não receber contato (`optOut`) não recebe, nem digitado à mão: a regra vale no servidor.
+  const optOuts = projeto.clienteId
+    ? await prisma.contatoCliente.findMany({
+        where: { clienteId: projeto.clienteId, optOut: true, email: { not: null } },
+        select: { email: true },
+      })
+    : [];
+  const bloqueados = new Set(optOuts.map((c) => (c.email ?? "").trim().toLowerCase()));
+  const validos = destinatariosValidos([], args.destinatarios);
+  const destinatarios = validos.filter((e) => !bloqueados.has(e));
+  if (validos.length === 0) throw new ActionError("Informe ao menos um destinatário com e-mail válido.");
+  if (destinatarios.length === 0) throw new ActionError("Os destinatários escolhidos pediram para não receber comunicações.");
 
   const escolhidas = new Set(args.revisaoIds);
   const itens = (await itensEnviadosAoCliente(projeto.id)).filter((i) => escolhidas.has(i.revisaoId));
@@ -74,11 +85,12 @@ export async function enviarAcompanhamento(
   const messageId = novoMessageId(projeto.id, randomUUID().replace(/-/g, "").slice(0, 16), dominioDoMessageId());
   const assunto = assuntoDoAcompanhamento(projeto.codigo, projeto.nome);
 
+  // Tudo que vem de gente (nome, título do arquivo, observação) é escapado: o corpo é Markdown e sai da empresa.
   const { html } = await renderTemplate("acompanhamento-projeto", {
-    nomeCliente: projeto.cliente?.nome || "cliente",
-    projeto: projeto.nome,
-    lista: listaEmMarkdown(itens),
-    observacao: args.observacao?.trim() ?? "",
+    nomeCliente: escaparMarkdown(projeto.cliente?.nome || "cliente"),
+    projeto: escaparMarkdown(projeto.nome),
+    lista: listaEmMarkdown(itens.map((i) => ({ rotulo: escaparMarkdown(i.rotulo) }))),
+    observacao: escaparMarkdown(args.observacao?.trim() ?? ""),
   });
 
   const enviado = await deps.enviar({
@@ -92,18 +104,26 @@ export async function enviarAcompanhamento(
   });
   if (!enviado) throw new ActionError("Não foi possível enviar o e-mail. Verifique a configuração de SMTP.");
 
-  const registro = await prisma.emailAcompanhamento.create({
-    data: {
-      projetoId: projeto.id,
-      enviadoPorId: args.usuario.id,
-      assunto,
-      messageId,
-      destinatarios,
-      copiaPara: args.copiaParaMim ? args.usuario.email : null,
-      observacao: args.observacao?.trim() || null,
-      itens: itens.map((i) => ({ revisaoId: i.revisaoId, rotulo: i.rotulo })),
-    },
-    select: { id: true },
-  });
+  // O e-mail já saiu: se o registro falhar, a pessoa precisa saber — senão manda de novo e duplica para o cliente.
+  const registro = await prisma.emailAcompanhamento
+    .create({
+      data: {
+        projetoId: projeto.id,
+        enviadoPorId: args.usuario.id,
+        assunto,
+        messageId,
+        destinatarios,
+        copiaPara: args.copiaParaMim ? args.usuario.email : null,
+        observacao: args.observacao?.trim() || null,
+        itens: itens.map((i) => ({ revisaoId: i.revisaoId, rotulo: i.rotulo })),
+      },
+      select: { id: true },
+    })
+    .catch((err: unknown) => {
+      console.error("[acompanhamento] e-mail enviado, mas o registro falhou:", err);
+      throw new ActionError(
+        "O e-mail foi enviado ao cliente, mas não foi possível registrar o envio. Não envie de novo; avise a equipe de TI.",
+      );
+    });
   return { id: registro.id, destinatarios, itens: itens.length };
 }

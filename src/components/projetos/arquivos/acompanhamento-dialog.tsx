@@ -34,6 +34,7 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
   const [itens, setItens] = useState<Set<string>>(new Set());
   const [observacao, setObservacao] = useState("");
   const [copia, setCopia] = useState(true);
+  const [erroGeral, setErroGeral] = useState<string | null>(null);
 
   const abrir = useCallback(() => {
     // Abre sempre do zero: o primeiro contato (o principal) e o que é novo desde o último e-mail já marcados.
@@ -42,6 +43,7 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
     setItens(new Set(dados.itens.filter((i) => i.novo).map((i) => i.revisaoId)));
     setObservacao("");
     setCopia(true);
+    setErroGeral(null);
     limparErros();
     setAberto(true);
   }, [dados, limparErros]);
@@ -55,6 +57,13 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
   };
   const emails = [...dados.contatos.filter((c) => contatos.has(c.id)).map((c) => c.email), ...(extra.trim() ? [extra.trim()] : [])];
   const podeEnviar = dados.smtp && emails.length > 0 && itens.size > 0 && !pending;
+  const falta = !dados.smtp
+    ? "o envio de e-mail não está configurado"
+    : emails.length === 0
+      ? "escolha ao menos um destinatário"
+      : itens.size === 0
+        ? "escolha ao menos uma revisão"
+        : null;
 
   async function enviar() {
     const ok = await confirm({
@@ -63,6 +72,7 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
       confirmLabel: "Enviar",
     });
     if (!ok) return;
+    setErroGeral(null);
     start(async () => {
       const r = await enviarAcompanhamentoProjeto({
         projetoId,
@@ -76,7 +86,11 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
         setAberto(false);
         router.refresh();
       } else if (!fe.registrar(r)) {
+        // Sem campo para marcar: a mensagem fica no diálogo (o toast some) e a lista é recarregada — o erro
+        // mais comum é revisão que deixou de estar "Enviado ao cliente" desde que a janela abriu.
+        setErroGeral(r.error);
         toast.error(r.error);
+        router.refresh();
       }
     });
   }
@@ -95,6 +109,11 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">
+          {erroGeral && (
+            <p role="alert" className="rounded-sm border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {erroGeral}
+            </p>
+          )}
           {!dados.smtp && (
             <p role="alert" className="rounded-sm border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
               O envio de e-mail não está configurado neste servidor (SMTP). Peça a quem administra o sistema.
@@ -104,7 +123,7 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Destinatários</legend>
             {dados.contatos.length === 0 && (
-              <p className="text-xs text-muted-foreground">O cliente do projeto não tem contato com e-mail. Digite um abaixo.</p>
+              <p className="text-xs text-muted-foreground">O cliente do projeto não tem contato com e-mail. Digite um e-mail no campo “Outro e-mail”.</p>
             )}
             {dados.contatos.map((c) => (
               <label key={c.id} className="flex items-center gap-2 text-sm">
@@ -157,24 +176,29 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
               id="acomp-obs"
               rows={3}
               maxLength={1000}
-              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               value={observacao}
               onChange={(e) => {
                 fe.limpar("observacao");
                 setObservacao(e.target.value);
               }}
               aria-invalid={fe.erros.observacao ? true : undefined}
+              aria-describedby={fe.erros.observacao ? "acomp-obs-erro" : undefined}
             />
-            {fe.erros.observacao && <p className="text-xs text-destructive">{fe.erros.observacao}</p>}
+            {fe.erros.observacao && (
+              <p id="acomp-obs-erro" className="text-xs text-destructive">
+                {fe.erros.observacao}
+              </p>
+            )}
           </div>
 
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={copia} onCheckedChange={(v) => setCopia(v === true)} />
-            Receber uma cópia (Cco). As respostas do cliente também chegam para você.
+            Receber uma cópia oculta (Cco) deste e-mail. As respostas do cliente chegam para você de qualquer jeito.
           </label>
 
           {dados.historico.length > 0 && (
-            <CollapsibleSection titulo="Envios anteriores" resumo={`${dados.historico.length}`}>
+            <CollapsibleSection titulo="Envios anteriores" resumo={`${dados.historico.length} envio(s)`}>
               <ul className="space-y-1 text-xs text-muted-foreground">
                 {dados.historico.map((h) => (
                   <li key={h.id}>
@@ -186,11 +210,16 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
           )}
         </DialogBody>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setAberto(false)}>
+          {falta && !pending && (
+            <p id="acomp-falta" className="mr-auto text-xs text-muted-foreground">
+              Para enviar: {falta}.
+            </p>
+          )}
+          <Button variant="ghost" disabled={pending} onClick={() => setAberto(false)}>
             Cancelar
           </Button>
-          <Button disabled={!podeEnviar} onClick={() => void enviar()}>
-            <Send className="size-3.5" /> {pending ? "Enviando…" : "Enviar"}
+          <Button disabled={!podeEnviar} aria-describedby={falta ? "acomp-falta" : undefined} onClick={() => void enviar()}>
+            <Send aria-hidden className="size-3.5" /> {pending ? "Enviando…" : "Enviar"}
           </Button>
         </DialogFooter>
       </DialogContent>

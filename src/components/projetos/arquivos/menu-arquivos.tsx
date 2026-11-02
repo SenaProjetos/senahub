@@ -45,7 +45,7 @@ export function MenuArquivos({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="outline" size="icon" className="size-8 shrink-0" aria-label="Mais ações de Arquivos" title="Nomenclatura · Lista Mestre · Link público">
+          <Button variant="outline" size="icon" className="size-8 shrink-0" aria-label="Mais ações de Arquivos" title="Nomenclatura · Lista Mestre · Link público · E-mail de acompanhamento">
             <MoreHorizontal className="size-4" />
           </Button>
         }

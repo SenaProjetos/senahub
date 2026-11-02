@@ -13,7 +13,6 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { dadosDoAcompanhamento } from "../src/modules/projetos/acompanhamento/queries";
 import { enviarAcompanhamento } from "../src/modules/projetos/acompanhamento/service";
-import { separarItens } from "../src/modules/projetos/acompanhamento/regras";
 
 const tag = `SMKACO_${Date.now()}`;
 let falhas = 0;
@@ -93,11 +92,25 @@ async function main() {
     check("corpo traz a revisão enviada e não a outra", enviados[0]?.html.includes("Planta de forma") === true && !enviados[0]?.html.includes("R02"));
     check("registro gravado", r1.itens === 1 && (await prisma.emailAcompanhamento.count({ where: { projetoId: projeto.id } })) === 1);
 
-    // 6 — novos desde o último envio (o controle de rev2 foi aplicado agora, depois do envio? não: antes) — força a data
-    await prisma.controleRevisao.updateMany({ where: { revisaoId: rev2.id }, data: { aplicadoEm: new Date(Date.now() + 60_000) } });
+    // 6 — novo = nenhum e-mail anterior listou (pela lista gravada, não pela hora)
     const depois = await dadosDoAcompanhamento(projeto.id);
-    const { novos, anteriores } = separarItens(depois.itens, depois.ultimoEnvioEm);
-    check("depois do envio, só o que foi marcado depois é novo", novos.length === 1 && novos[0].revisaoId === rev2.id && anteriores.length === 1, { novos: novos.length, anteriores: anteriores.length });
+    check(
+      "depois do envio, só a revisão ainda não listada é nova",
+      depois.jaAvisadas.has(rev1.id) && !depois.jaAvisadas.has(rev2.id),
+      [...depois.jaAvisadas],
+    );
+
+    // optOut digitado à mão também é barrado no servidor
+    let barrado = false;
+    try {
+      await enviarAcompanhamento(
+        { projetoId: projeto.id, usuario, destinatarios: ["bruno@cliente.com"], revisaoIds: [rev2.id], copiaParaMim: false },
+        falso(true),
+      );
+    } catch {
+      barrado = true;
+    }
+    check("contato com optOut digitado à mão não recebe", barrado && enviados.length === 1);
 
     // 3 — segundo envio encadeado
     await enviarAcompanhamento(
@@ -111,6 +124,17 @@ async function main() {
       { inReplyTo: enviados[1]?.inReplyTo, references: enviados[1]?.references, primeiroId },
     );
     check("sem cópia pedida, sem Cco", enviados[1]?.bcc === undefined);
+
+    // texto livre sai escapado (sem HTML/link vindo do usuário)
+    await enviarAcompanhamento(
+      { projetoId: projeto.id, usuario, destinatarios: ["ana@cliente.com"], revisaoIds: [rev2.id], observacao: "<a href='http://x.test'>clique</a>", copiaParaMim: false },
+      falso(true),
+    );
+    check(
+      "observação com HTML sai como texto, não como link",
+      !enviados[2].html.includes("<a href='http://x.test'>") && enviados[2].html.includes("&lt;a href="),
+      enviados[2].html.slice(0, 300),
+    );
 
     // 4 — falha de envio não grava
     const antes = await prisma.emailAcompanhamento.count({ where: { projetoId: projeto.id } });

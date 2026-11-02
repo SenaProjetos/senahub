@@ -3,6 +3,7 @@ import {
   assuntoDoAcompanhamento,
   cabecalhosDeConversa,
   destinatariosValidos,
+  escaparMarkdown,
   listaEmMarkdown,
   novoMessageId,
   separarItens,
@@ -30,17 +31,28 @@ describe("destinatariosValidos", () => {
 });
 
 describe("separarItens", () => {
-  const item = (id: string, dia: string): ItemEnviado => ({ revisaoId: id, rotulo: id, enviadoEm: new Date(`${dia}T12:00:00Z`) });
-  const itens = [item("a", "2026-10-01"), item("b", "2026-10-20")];
+  const item = (id: string): ItemEnviado => ({ revisaoId: id, rotulo: id, enviadoEm: new Date("2026-10-01T12:00:00Z") });
+  const itens = [item("a"), item("b"), item("c")];
 
-  it("sem último envio, tudo é novo", () => {
-    expect(separarItens(itens, null)).toEqual({ novos: itens, anteriores: [] });
+  it("sem nenhum envio anterior, tudo é novo", () => {
+    expect(separarItens(itens, new Set())).toEqual({ novos: itens, anteriores: [] });
   });
 
-  it("novo é o marcado depois do último envio", () => {
-    const r = separarItens(itens, new Date("2026-10-10T00:00:00Z"));
-    expect(r.novos.map((i) => i.revisaoId)).toEqual(["b"]);
+  it("novo é o que nenhum e-mail anterior listou — mesmo que o envio anterior tenha levado só parte dos novos", () => {
+    const r = separarItens(itens, new Set(["a"]));
+    expect(r.novos.map((i) => i.revisaoId)).toEqual(["b", "c"]);
     expect(r.anteriores.map((i) => i.revisaoId)).toEqual(["a"]);
+  });
+});
+
+describe("escaparMarkdown", () => {
+  it("neutraliza HTML, links e formatação vindos de texto livre", () => {
+    expect(escaparMarkdown("<a href=x>clique</a>")).toBe("\\<a href=x\\>clique\\</a\\>");
+    expect(escaparMarkdown("[ver](http://x.com) **forte** _it_")).toBe("\\[ver\\]\\(http://x.com\\) \\*\\*forte\\*\\* \\_it\\_");
+  });
+
+  it("texto comum fica como está", () => {
+    expect(escaparMarkdown("Planta de forma do pavimento tipo")).toBe("Planta de forma do pavimento tipo");
   });
 });
 
