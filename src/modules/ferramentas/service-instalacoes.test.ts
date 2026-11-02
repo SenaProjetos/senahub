@@ -69,3 +69,78 @@ describe("corrente-demanda no service", () => {
     expect(parse(ruim, "corrente-demanda").ok).toBe(false);
   });
 });
+
+const recalque = {
+  origem: "consumo_diario",
+  consumoDiarioL: 30000,
+  alturaSuccaoM: 2,
+  alturaRecalqueM: 18,
+  comprimentoSuccaoM: 3,
+  comprimentoRecalqueM: 25,
+  leqSuccaoM: 5,
+  leqRecalqueM: 15,
+};
+
+describe("bomba-recalque no service", () => {
+  it("painel traz vazão, diâmetros, Hm e motor", () => {
+    const r = calcular("bomba-recalque", recalque);
+    expect(r.campos["Vazão (m³/h)"]).toBe("5");
+    expect(r.campos.Recalque).toBe("DN40");
+    expect(r.campos.Sucção).toBe("DN50");
+    expect(r.campos["Hm (mca)"]).toBe("23.02");
+    expect(r.campos["Motor (cv)"]).toBe("1.5");
+  });
+
+  it("memória sai com o selo, as hipóteses e a nota do NPSH", () => {
+    const doc = montarMemoria("bomba-recalque", recalque, { titulo: "Teste" });
+    expect(doc.subtitulo).toContain("EM VALIDAÇÃO");
+    const texto = textoDe(doc);
+    expect(texto).toContain("Forchheimer");
+    expect(texto).toContain("NPSH");
+    expect(texto).toContain("adotado pelo cálculo");
+  });
+
+  it("arquivo .shcalc faz o ciclo e recusa entrada incompleta", () => {
+    const json = serializar({ ferramenta: "bomba-recalque", versaoCalc: 1, titulo: "B", entradas: recalque });
+    expect(parse(json, "bomba-recalque").ok).toBe(true);
+    const ruim = serializar({ ferramenta: "bomba-recalque", versaoCalc: 1, titulo: "B", entradas: { ...recalque, consumoDiarioL: undefined } });
+    expect(parse(ruim, "bomba-recalque").ok).toBe(false);
+  });
+});
+
+const piscina = {
+  forma: "retangular",
+  comprimentoM: 8,
+  larguraM: 4,
+  profundidadeMediaM: 1.5,
+  comprimentoSuccaoM: 4,
+  leqSuccaoM: 6,
+  comprimentoRetornoM: 10,
+  leqRetornoM: 8,
+  perdaEquipamentosMca: 4,
+  pressaoRetornoMca: 2,
+};
+
+describe("bomba-piscina no service", () => {
+  it("painel traz volume, vazão, diâmetros, Hm e motor", () => {
+    const r = calcular("bomba-piscina", piscina);
+    expect(r.campos["Volume (m³)"]).toBe("48");
+    expect(r.campos["Vazão (m³/h)"]).toBe("8");
+    expect(r.campos.Sucção).toBe("DN50");
+    expect(r.campos.Retorno).toBe("DN40");
+    expect(r.campos["Motor (cv)"]).toBe("1");
+  });
+
+  it("memória sai com o selo e a nota do circuito fechado", () => {
+    const doc = montarMemoria("bomba-piscina", piscina, { titulo: "Teste" });
+    expect(doc.subtitulo).toContain("EM VALIDAÇÃO");
+    expect(textoDe(doc)).toContain("Circuito fechado");
+  });
+
+  it("arquivo .shcalc faz o ciclo e recusa forma sem medidas", () => {
+    const json = serializar({ ferramenta: "bomba-piscina", versaoCalc: 1, titulo: "P", entradas: piscina });
+    expect(parse(json, "bomba-piscina").ok).toBe(true);
+    const ruim = serializar({ ferramenta: "bomba-piscina", versaoCalc: 1, titulo: "P", entradas: { ...piscina, larguraM: undefined } });
+    expect(parse(ruim, "bomba-piscina").ok).toBe(false);
+  });
+});

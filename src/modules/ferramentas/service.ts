@@ -44,6 +44,18 @@ import {
   ISOLACOES,
   LIGACOES,
 } from "./calc/electrical-demand";
+import {
+  calcular as calcularRecalqueBomba,
+  entradaSchema as recalqueBombaSchema,
+  ORIGENS_CONSUMO,
+} from "./calc/pump-recalque";
+import {
+  calcular as calcularPiscinaBomba,
+  entradaSchema as piscinaBombaSchema,
+  FORMAS as FORMAS_PISCINA,
+  USOS as USOS_PISCINA,
+} from "./calc/pool-pump";
+import type { DimensionamentoMotor, TrechoResultado } from "./calc/hidraulica";
 import { getFerramenta, situacaoValidacao } from "./registry";
 
 /** Largura da alma (bw) usada no cisalhamento: b (retangular) ou bw (T). */
@@ -252,6 +264,35 @@ export function calcular(ferramenta: string, entradas: Record<string, unknown>):
         alertas: r.alertas,
       };
     }
+    case "bomba-recalque": {
+      const r = calcularRecalqueBomba(recalqueBombaSchema.parse(entradas));
+      return {
+        campos: {
+          "Vazão (m³/h)": fmtNum(r.vazaoM3h, 2),
+          Recalque: `DN${r.recalque.dn}`,
+          Sucção: `DN${r.succao.dn}`,
+          "Hm (mca)": fmtNum(r.alturaManometricaM, 2),
+          "Potência (cv)": fmtNum(r.motor.potenciaCv, 2),
+          "Motor (cv)": r.motor.motorCv != null ? fmtNum(r.motor.motorCv, 2) : "—",
+        },
+        alertas: r.alertas,
+      };
+    }
+    case "bomba-piscina": {
+      const r = calcularPiscinaBomba(piscinaBombaSchema.parse(entradas));
+      return {
+        campos: {
+          "Volume (m³)": fmtNum(r.volumeM3, 1),
+          "Vazão (m³/h)": fmtNum(r.vazaoM3h, 2),
+          Sucção: `DN${r.succao.dn}`,
+          Retorno: `DN${r.retorno.dn}`,
+          "Hm (mca)": fmtNum(r.alturaManometricaM, 2),
+          "Potência (cv)": fmtNum(r.motor.potenciaCv, 2),
+          "Motor (cv)": r.motor.motorCv != null ? fmtNum(r.motor.motorCv, 2) : "—",
+        },
+        alertas: r.alertas,
+      };
+    }
     case "combinacoes-acoes": {
       const r = calcularCombos(combosSchema.parse(entradas));
       return {
@@ -430,6 +471,10 @@ export function montarMemoria(
       return memoriaReservatorios(entradas, base);
     case "corrente-demanda":
       return memoriaCorrenteDemanda(entradas, base);
+    case "bomba-recalque":
+      return memoriaBombaRecalque(entradas, base);
+    case "bomba-piscina":
+      return memoriaBombaPiscina(entradas, base);
     case "combinacoes-acoes":
       return memoriaCombinacoesAcoes(entradas, base);
     case "pilar-concreto":
@@ -997,6 +1042,163 @@ function memoriaAcaoVento(entradas: Record<string, unknown>, base: BaseArgs): Me
   }
 
   return montarMemoriaBase({ ...base, secoes });
+}
+
+function linhasTrecho(nome: string, t: TrechoResultado, automatico: boolean): (string | number)[][] {
+  return [
+    [
+      nome,
+      `DN${t.dn} (${t.polegadas})${automatico ? " — adotado pelo cálculo" : ""}`,
+      fmtNum(t.internoMm, 1),
+      fmtNum(t.velocidadeMs, 2),
+      fmtNum(t.perdaUnitaria, 4),
+      fmtNum(t.comprimentoTotalM, 1),
+      fmtNum(t.perdaMca, 2),
+    ],
+  ];
+}
+
+const COLUNAS_TRECHO = ["Trecho", "Diâmetro", "D interno (mm)", "v (m/s)", "J (m/m)", "L + Leq (m)", "hf (mca)"];
+
+function valoresMotor(m: DimensionamentoMotor) {
+  return [
+    { simbolo: "P", descricao: "Potência absorvida", valor: fmtNum(m.potenciaCv, 2), unidade: "cv", formula: "γ·Q·Hm ÷ (η · 735,5)" },
+    { simbolo: "margem", descricao: "Margem de segurança", valor: fmtNum(m.margem * 100, 0), unidade: "%", formula: "por faixa de potência" },
+    { simbolo: "P_motor", descricao: "Potência com margem", valor: fmtNum(m.comMargemCv, 2), unidade: "cv", formula: "P · (1 + margem)" },
+    { simbolo: "Motor", descricao: "Motor comercial", valor: m.motorCv != null ? fmtNum(m.motorCv, 2) : "acima da tabela", unidade: m.motorCv != null ? "cv" : "" },
+  ];
+}
+
+function memoriaBombaRecalque(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = recalqueBombaSchema.parse(entradas);
+  const r = calcularRecalqueBomba(e);
+  const ocup = e.ocupacao === "personalizado" ? null : OCUPACOES[e.ocupacao];
+
+  const linhasEntrada: (string | number)[][] = [["Origem do consumo", ORIGENS_CONSUMO[e.origem]]];
+  if (e.origem === "ocupacao") {
+    linhasEntrada.push(
+      ["Ocupação", ocup ? ocup.label : "Personalizada"],
+      ["Unidades de consumo", `${fmtNum(e.unidades ?? 0, 2)}${ocup ? ` (${ocup.unidade})` : ""}`],
+      ["Consumo por unidade (L/dia)", fmtNum(r.consumoDiarioL / (e.unidades ?? 1), 2)],
+    );
+  }
+  linhasEntrada.push(
+    ["Consumo diário (L/dia)", fmtNum(r.consumoDiarioL, 0)],
+    ["Funcionamento da bomba (h/dia)", fmtNum(e.horasFuncionamento, 1)],
+    ["Altura de sucção (m)", fmtNum(e.alturaSuccaoM, 2)],
+    ["Altura de recalque (m)", fmtNum(e.alturaRecalqueM, 2)],
+    ["Sucção: comprimento real + equivalente (m)", `${fmtNum(e.comprimentoSuccaoM, 1)} + ${fmtNum(e.leqSuccaoM, 1)}`],
+    ["Recalque: comprimento real + equivalente (m)", `${fmtNum(e.comprimentoRecalqueM, 1)} + ${fmtNum(e.leqRecalqueM, 1)}`],
+    ["Coeficiente C de Hazen-Williams", fmtNum(e.coeficienteHW, 0)],
+    ["Rendimento do conjunto motor-bomba", `${fmtNum(e.rendimento * 100, 0)} %`],
+  );
+
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      { titulo: "Dados de entrada", tabelas: [{ colunas: ["Parâmetro", "Valor"], linhas: linhasEntrada }] },
+      {
+        titulo: "Vazão e diâmetros",
+        valores: [
+          { simbolo: "Q", descricao: "Vazão de recalque", valor: fmtNum(r.vazaoM3h, 2), unidade: "m³/h", formula: "CD ÷ horas de funcionamento" },
+          { simbolo: "Q", descricao: "Vazão de recalque", valor: fmtNum(r.vazaoLs, 3), unidade: "L/s" },
+          { simbolo: "D_F", descricao: "Diâmetro de Forchheimer", valor: fmtNum(r.forchheimerMm, 1), unidade: "mm", formula: "1,3 · (h/24)^¼ · √Q" },
+        ],
+        tabelas: [
+          {
+            colunas: COLUNAS_TRECHO,
+            linhas: [...linhasTrecho("Recalque", r.recalque, r.recalqueAutomatico), ...linhasTrecho("Sucção", r.succao, r.succaoAutomatico)],
+          },
+        ],
+        notas: [
+          "Recalque: menor DN comercial de PVC soldável (NBR 5648) com diâmetro interno maior ou igual ao de Forchheimer. Sucção: DN imediatamente acima do recalque.",
+          "J por Hazen-Williams: J = 10,643 · Q^1,85 · C^-1,85 · D^-4,87. As conexões entram como comprimento equivalente digitado (Leq).",
+        ],
+      },
+      {
+        titulo: "Altura manométrica e potência",
+        valores: [
+          { simbolo: "Hg", descricao: "Altura geométrica", valor: fmtNum(r.alturaGeometricaM, 2), unidade: "m", formula: "altura de sucção + altura de recalque" },
+          { simbolo: "Σhf", descricao: "Perda de carga total", valor: fmtNum(r.perdaTotalMca, 2), unidade: "mca", formula: "hf recalque + hf sucção" },
+          { simbolo: "Hm", descricao: "Altura manométrica", valor: fmtNum(r.alturaManometricaM, 2), unidade: "mca", formula: "Hg + Σhf" },
+          ...valoresMotor(r.motor),
+        ],
+        notas: [
+          "Valores padrão da calculadora (6 h/dia, C = 140, rendimento de 60 %), margem de potência por faixa (50 % até 2 cv, 30 % até 5, 20 % até 10, 15 % até 20, 10 % acima) e limites de velocidade (3,0 m/s no recalque, 2,0 m/s na sucção) são prática de projeto, não valores fixados pela norma. Os valores usados neste cálculo estão nos dados de entrada.",
+          "O NPSH disponível não é calculado: confira com a curva da bomba escolhida.",
+          ...r.alertas,
+        ],
+      },
+    ],
+  });
+}
+
+function memoriaBombaPiscina(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {
+  const e = piscinaBombaSchema.parse(entradas);
+  const r = calcularPiscinaBomba(e);
+
+  const linhasEntrada: (string | number)[][] = [["Forma", FORMAS_PISCINA[e.forma]]];
+  if (e.forma === "retangular") {
+    linhasEntrada.push(["Comprimento × largura (m)", `${fmtNum(e.comprimentoM ?? 0, 2)} × ${fmtNum(e.larguraM ?? 0, 2)}`]);
+  } else if (e.forma === "circular") {
+    linhasEntrada.push(["Diâmetro (m)", fmtNum(e.diametroM ?? 0, 2)]);
+  }
+  if (e.forma !== "volume") linhasEntrada.push(["Profundidade média (m)", fmtNum(e.profundidadeMediaM ?? 0, 2)]);
+  linhasEntrada.push(
+    ["Uso", USOS_PISCINA[e.uso].label],
+    ["Tempo de recirculação (h)", `${fmtNum(r.horasRecirculacao, 1)}${e.horasRecirculacao != null ? " (informado)" : " (do uso)"}`],
+    ["Sucção: comprimento real + equivalente (m)", `${fmtNum(e.comprimentoSuccaoM, 1)} + ${fmtNum(e.leqSuccaoM, 1)}`],
+    ["Retorno: comprimento real + equivalente (m)", `${fmtNum(e.comprimentoRetornoM, 1)} + ${fmtNum(e.leqRetornoM, 1)}`],
+    ["Perda nos equipamentos (mca)", fmtNum(e.perdaEquipamentosMca, 2)],
+    ["Pressão residual nos retornos (mca)", fmtNum(e.pressaoRetornoMca, 2)],
+    ["Taxa de filtração (m³/h por m²)", e.taxaFiltracao != null ? fmtNum(e.taxaFiltracao, 1) : "não informada"],
+    ["Coeficiente C de Hazen-Williams", fmtNum(e.coeficienteHW, 0)],
+    ["Rendimento do conjunto motor-bomba", `${fmtNum(e.rendimento * 100, 0)} %`],
+  );
+
+  const valoresVazao = [
+    { simbolo: "V", descricao: "Volume da piscina", valor: fmtNum(r.volumeM3, 2), unidade: "m³" },
+    { simbolo: "Q", descricao: "Vazão de recirculação", valor: fmtNum(r.vazaoM3h, 2), unidade: "m³/h", formula: "V ÷ tempo de recirculação" },
+    { simbolo: "Q", descricao: "Vazão de recirculação", valor: fmtNum(r.vazaoLs, 3), unidade: "L/s" },
+  ];
+  if (r.areaFiltranteM2 != null) {
+    valoresVazao.push({ simbolo: "A_f", descricao: "Área filtrante", valor: fmtNum(r.areaFiltranteM2, 2), unidade: "m²", formula: "Q ÷ taxa de filtração" });
+  }
+
+  return montarMemoriaBase({
+    ...base,
+    secoes: [
+      { titulo: "Dados de entrada", tabelas: [{ colunas: ["Parâmetro", "Valor"], linhas: linhasEntrada }] },
+      {
+        titulo: "Volume, vazão e diâmetros",
+        valores: valoresVazao,
+        tabelas: [
+          {
+            colunas: COLUNAS_TRECHO,
+            linhas: [...linhasTrecho("Sucção", r.succao, r.succaoAutomatico), ...linhasTrecho("Retorno", r.retorno, r.retornoAutomatico)],
+          },
+        ],
+        notas: [
+          "DN adotado pelo cálculo: o menor de PVC soldável (NBR 5648) com velocidade dentro do limite (1,8 m/s na sucção, 3,0 m/s no retorno).",
+          "J por Hazen-Williams: J = 10,643 · Q^1,85 · C^-1,85 · D^-4,87. As conexões entram como comprimento equivalente digitado (Leq).",
+        ],
+      },
+      {
+        titulo: "Altura manométrica e potência",
+        valores: [
+          { simbolo: "Σhf", descricao: "Perda de carga na tubulação", valor: fmtNum(r.perdaTubulacaoMca, 2), unidade: "mca", formula: "hf sucção + hf retorno" },
+          { simbolo: "Hm", descricao: "Altura manométrica", valor: fmtNum(r.alturaManometricaM, 2), unidade: "mca", formula: "Σhf + equipamentos + pressão nos retornos" },
+          ...valoresMotor(r.motor),
+        ],
+        notas: [
+          "Circuito fechado com superfície livre: não há desnível geométrico a vencer.",
+          "Tempos de recirculação por uso (6 h residencial, 4 h coletivo, 2 h infantil), limites de velocidade, rendimento padrão de 50 % e margem de potência são prática de projeto a confirmar na NBR 10339.",
+          "A perda dos equipamentos e a pressão nos retornos vêm do catálogo do fabricante. Não há valor padrão.",
+          ...r.alertas,
+        ],
+      },
+    ],
+  });
 }
 
 function memoriaReservatorios(entradas: Record<string, unknown>, base: BaseArgs): MemoriaDoc {

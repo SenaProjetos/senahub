@@ -29,6 +29,8 @@ import { FootingForm } from "./footing-form";
 import { EccentricFootingForm } from "./eccentric-footing-form";
 import { ReservoirForm } from "./reservoir-form";
 import { ElectricalDemandForm } from "./electrical-demand-form";
+import { PumpRecalqueForm } from "./pump-recalque-form";
+import { PoolPumpForm } from "./pool-pump-form";
 import { RecentesList } from "./recentes-list";
 
 type RecenteSerializado = Omit<RecenteCalculo, "createdAt"> & { createdAt: string };
@@ -79,6 +81,10 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <ReservoirForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "corrente-demanda":
       return <ElectricalDemandForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "bomba-recalque":
+      return <PumpRecalqueForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
+    case "bomba-piscina":
+      return <PoolPumpForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     default:
       return <p className="text-muted-foreground text-sm">Ferramenta em desenvolvimento.</p>;
   }

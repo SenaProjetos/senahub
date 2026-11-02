@@ -23,6 +23,8 @@ import { entradaSchema as sapataSptSchema } from "./calc/sapata-spt";
 import { entradaSchema as recalqueSchema } from "./calc/recalque-fundacao";
 import { entradaSchema as reservoirSchema } from "./calc/reservoir";
 import { entradaSchema as electricalDemandSchema } from "./calc/electrical-demand";
+import { entradaSchema as pumpRecalqueSchema } from "./calc/pump-recalque";
+import { entradaSchema as poolPumpSchema } from "./calc/pool-pump";
 
 export const SAVEFILE_APP = "senahub" as const;
 export const SAVEFILE_KIND = "shcalc" as const;
@@ -59,6 +61,8 @@ const ENTRADAS_SCHEMAS: Record<string, z.ZodTypeAny> = {
   "recalque-fundacao": recalqueSchema,
   "reservatorios": reservoirSchema,
   "corrente-demanda": electricalDemandSchema,
+  "bomba-recalque": pumpRecalqueSchema,
+  "bomba-piscina": poolPumpSchema,
 };
 
 const savefileSchema = headerSchema.extend({

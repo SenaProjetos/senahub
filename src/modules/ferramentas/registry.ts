@@ -23,6 +23,8 @@ import {
   SquareStack,
   Droplets,
   PlugZap,
+  ArrowUpFromLine,
+  Waves,
   type LucideIcon,
 } from "lucide-react";
 
@@ -265,6 +267,30 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     exportaveis: ["pdf", "docx", "xlsx"],
     exigeValidacao: true,
     icon: Droplets,
+  },
+  {
+    key: "bomba-recalque",
+    nome: "Bomba de Recalque",
+    descricao:
+      "Vazão pelo consumo diário e horas de funcionamento, diâmetros de recalque e sucção (Forchheimer), perda de carga, altura manométrica e potência do motor.",
+    disciplina: "Hidrossanitário",
+    tipo: "rapida",
+    norma: "NBR 5626",
+    exportaveis: ["pdf", "docx", "xlsx"],
+    exigeValidacao: true,
+    icon: ArrowUpFromLine,
+  },
+  {
+    key: "bomba-piscina",
+    nome: "Bomba de Piscina",
+    descricao:
+      "Volume, vazão pelo tempo de recirculação, diâmetros de sucção e retorno, perda de carga com os equipamentos, altura manométrica e potência do motor.",
+    disciplina: "Hidrossanitário",
+    tipo: "rapida",
+    norma: "NBR 10339",
+    exportaveis: ["pdf", "docx", "xlsx"],
+    exigeValidacao: true,
+    icon: Waves,
   },
   {
     key: "corrente-demanda",
