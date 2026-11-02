@@ -49,6 +49,7 @@ import { fasesParaLink, linksArquivosDoProjeto } from "@/modules/projetos/arquiv
 import type { LinkData } from "@/components/projetos/link-publico-arquivos-dialog";
 import { listarArtsDoProjeto } from "@/modules/projetos/art/queries";
 import { DocumentosShell, type MolduraDiretorio } from "@/components/projetos/arquivos/documentos-shell";
+import { acompanhamentoParaTela } from "@/modules/projetos/acompanhamento/queries";
 import { areaValida, type AreaDisponivel } from "@/modules/uploads/areas-projeto";
 import { versoesDoModeloFederado } from "@/modules/coordenacao/federado/service";
 import { listarListasDocumentos, podeGerirListasDocumentos } from "@/modules/uploads/listas-queries";
@@ -165,6 +166,8 @@ export async function TelaDocumentosProjeto({
   const arts = await listarArtsDoProjeto(id);
   // Filtro de fase do link (F4): só quem gere o link abre o diálogo, então só ele paga a consulta.
   const fasesLink = podeGerirLink ? await fasesParaLink(id) : undefined;
+  // E-mail de acompanhamento ao cliente (Lote 3): só quem gere o projeto paga a consulta.
+  const acompanhamento = podeGerirLink ? await acompanhamentoParaTela(id) : null;
   const baseUrl = process.env.APP_URL ?? "";
   // Pasta "Geral" (Documento origem=interno) só é carregada p/ quem tem `arquivos_gerais:ver`.
   const geral = podeVerGeral ? await geralDoProjeto(id) : [];
@@ -457,6 +460,7 @@ export async function TelaDocumentosProjeto({
         versaoAtualId: nomenclatura.versao?.id ?? null,
         personalizado: nomenclatura.personalizado,
       }}
+      acompanhamento={acompanhamento}
       linkPublico={
         podeGerirLink
           ? {

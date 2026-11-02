@@ -8,6 +8,8 @@ import { LinkPublicoArquivosButton } from "@/components/projetos/link-publico-ar
 import { NomenclaturaProjetoButton } from "@/components/projetos/arquivos/nomenclatura-projeto-dialog";
 import { CicloConfigDialog, type ValoresConfigCiclo } from "@/components/projetos/arquivos/ciclo-config-dialog";
 import { MenuArquivos } from "@/components/projetos/arquivos/menu-arquivos";
+import { AcompanhamentoDialog } from "@/components/projetos/arquivos/acompanhamento-dialog";
+import type { AcompanhamentoParaTela } from "@/modules/projetos/acompanhamento/queries";
 import { GerarListaMestreButton } from "@/components/projetos/arquivos/gerar-lista-mestre-dialog";
 import { BotaoPastas, PainelLateralDocumentos } from "@/components/projetos/arquivos/painel-lateral-documentos";
 import type { ListaPainel } from "@/components/projetos/arquivos/painel-listas";
@@ -110,6 +112,7 @@ export function DocumentosShell({
   situacoes,
   dadosAreas,
   linkPublico,
+  acompanhamento,
   nomenclatura,
   exclusoesPendentes,
   configCiclo = null,
@@ -168,6 +171,8 @@ export function DocumentosShell({
   dadosAreas: DadosAreas;
   /** `null` quando o usuário não pode gerir o link público — o botão nem aparece. */
   linkPublico: LinkPublicoProps | null;
+  /** Dados do e-mail de acompanhamento; null = quem vê a tela não gere o projeto. */
+  acompanhamento: AcompanhamentoParaTela | null;
   /** Só para admin: configuração do ciclo documental do projeto (A9). */
   configCiclo?: ValoresConfigCiclo | null;
   /** O projeto envia ao cliente o que é publicado — a confirmação do lote "Publicar" avisa. */
@@ -268,6 +273,7 @@ export function DocumentosShell({
           fasesLink={linkPublico.fasesLink}
         />
       )}
+      {acompanhamento && <AcompanhamentoDialog projetoId={projeto.id} dados={acompanhamento} />}
       <ModoFocoBotao semBotao />
       {configCiclo && <CicloConfigDialog projetoId={projeto.id} valores={configCiclo} />}
 
@@ -355,6 +361,7 @@ export function DocumentosShell({
                 listaMestre={dadosUploader ? dadosUploader.disciplinas.some((d) => !d.usaPastas) : null}
                 linkPublico={linkPublico ? linkPublico.links.filter((l) => l.ativo).length : null}
                 configCiclo={configCiclo !== null}
+                acompanhamento={acompanhamento !== null}
               />
               {dadosUploader && <EnviarDocumentosDialog dados={dadosUploader} abrirAoCarregar={abrirEnvio} />}
             </div>

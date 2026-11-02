@@ -1,6 +1,6 @@
 "use client";
 
-import { ListChecks, Maximize2, MoreHorizontal, Settings2, Share2, Tags } from "lucide-react";
+import { ListChecks, Mail, Maximize2, MoreHorizontal, Settings2, Share2, Tags } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +17,7 @@ export const EVENTO_ARQUIVOS = {
   listaMestre: "senahub:arquivos:lista-mestre",
   linkPublico: "senahub:arquivos:link-publico",
   configCiclo: "senahub:arquivos:config-ciclo",
+  acompanhamento: "senahub:arquivos:acompanhamento",
 } as const;
 
 const disparar = (evento: string) => window.dispatchEvent(new Event(evento));
@@ -29,6 +30,7 @@ export function MenuArquivos({
   listaMestre,
   linkPublico,
   configCiclo = false,
+  acompanhamento = false,
 }: {
   /** null = a pessoa não gera Lista Mestre; false = sem disciplina que use a lista. */
   listaMestre: boolean | null;
@@ -36,6 +38,8 @@ export function MenuArquivos({
   linkPublico: number | null;
   /** Admin: configura o ciclo documental do projeto (A9). */
   configCiclo?: boolean;
+  /** Quem gere o projeto pode mandar o e-mail de acompanhamento ao cliente. */
+  acompanhamento?: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -59,6 +63,11 @@ export function MenuArquivos({
           <DropdownMenuItem className="gap-2" onClick={() => disparar(EVENTO_ARQUIVOS.linkPublico)}>
             <Share2 className="size-4" /> Link público
             {linkPublico > 0 && <span className="ml-auto font-mono text-xs text-muted-foreground">{linkPublico} ativo(s)</span>}
+          </DropdownMenuItem>
+        )}
+        {acompanhamento && (
+          <DropdownMenuItem className="gap-2" onClick={() => disparar(EVENTO_ARQUIVOS.acompanhamento)}>
+            <Mail className="size-4" /> E-mail de acompanhamento
           </DropdownMenuItem>
         )}
         {configCiclo && (

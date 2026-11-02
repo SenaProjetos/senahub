@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { smtpConfigurado } from "@/lib/mail";
 import { CAMPOS } from "@/lib/campos";
-import type { ItemEnviado } from "./regras";
+import { separarItens, type ItemEnviado } from "./regras";
 
 const rotuloDaRevisao = (r: {
   numero: number;
@@ -85,5 +85,30 @@ export async function dadosDoAcompanhamento(projetoId: string) {
       destinatarios: e.destinatarios,
       itens: Array.isArray(e.itens) ? e.itens.length : 0,
     })),
+  };
+}
+
+/** O que o diálogo recebe: datas como texto (vai do servidor ao cliente) e cada item já marcado como novo ou anterior. */
+export type AcompanhamentoParaTela = {
+  smtp: boolean;
+  cliente: string | null;
+  contatos: { id: string; nome: string; email: string }[];
+  itens: { revisaoId: string; rotulo: string; novo: boolean }[];
+  historico: { id: string; enviadoEm: string; enviadoPor: string | null; destinatarios: string[]; itens: number }[];
+};
+
+export async function acompanhamentoParaTela(projetoId: string): Promise<AcompanhamentoParaTela> {
+  const d = await dadosDoAcompanhamento(projetoId);
+  const { novos } = separarItens(d.itens, d.ultimoEnvioEm);
+  const ehNovo = new Set(novos.map((i) => i.revisaoId));
+  return {
+    smtp: d.smtp,
+    cliente: d.cliente,
+    contatos: d.contatos,
+    // Os novos primeiro: é o que a pessoa quer mandar.
+    itens: [...d.itens]
+      .sort((a, b) => Number(ehNovo.has(b.revisaoId)) - Number(ehNovo.has(a.revisaoId)))
+      .map((i) => ({ revisaoId: i.revisaoId, rotulo: i.rotulo, novo: ehNovo.has(i.revisaoId) })),
+    historico: d.historico.map((h) => ({ ...h, enviadoEm: h.enviadoEm.toISOString() })),
   };
 }
