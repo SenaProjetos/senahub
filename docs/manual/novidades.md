@@ -20,6 +20,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Recursos: tela só de leitura, com filtros (novembro/2026)
+
+- **Só leitura:** a tela de **Recursos** deixou de alocar pessoa por projeto. Ela mostra a **capacidade × carga** de cada
+  pessoa, calculada das **EAPs** dos projetos, com a sobrecarga em vermelho. Para mudar a carga, edite a EAP.
+- **Filtros novos:** buscar pessoa pelo nome, filtrar por **disciplina** e mostrar **só sobrecarregados**, além do projeto e da janela.
+- **Selo "sem cronograma":** quem está num projeto ativo sem cronograma aprovado ganha um aviso (sem somar horas), com link para a EAP.
+- **Sugestões de sobrecarga:** continuam na Carga planejada, só como leitura, com o link para abrir a EAP.
+- **Habilidades:** saíram desta tela; ficam no RH.
+
 ## Cronograma: % na execução, colunas do realizado e visão Variação (novembro/2026)
 
 - **Atualizar tarefa registra o %:** quem acompanha o cronograma agora informa o **% concluído** de qualquer tarefa

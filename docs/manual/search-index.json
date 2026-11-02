@@ -781,47 +781,43 @@
       ]
     },
     {
-      "titulo": "Recursos (alocação da equipe)",
+      "titulo": "Recursos (capacidade × carga da equipe)",
       "path": "projetos/recursos.md",
-      "descricao": "Matriz de alocação de pessoas em projetos, com carga real e planejada por semana, sobrecarga e habilidades.",
-      "resumo": "Veja quem está alocado em quais projetos, a carga de trabalho por semana (a real, do ponto, e a planejada, das horas do cronograma), as semanas acima da capacidade com sugestões de correção e as habilidades de cada pessoa.",
+      "descricao": "Tela de leitura da capacidade e da carga de cada pessoa, calculada das EAPs dos projetos, com filtros e sobrecarga em vermelho.",
+      "resumo": "Veja quanto cada pessoa tem de carga nas EAPs aprovadas contra a capacidade dela, semana a semana, e quem está acima da capacidade. A tela só lê — a carga muda na EAP do projeto.",
       "tags": [
         "recursos",
-        "alocação",
         "carga",
         "equipe",
-        "habilidades",
         "capacidade",
         "férias",
         "abonos",
         "carga planejada",
         "sobrecarga",
-        "heatmap"
+        "heatmap",
+        "filtros"
       ],
       "palavrasChave": [
         "recursos",
-        "alocação",
         "carga semanal",
         "capacidade",
         "equipe",
-        "habilidade",
-        "competência",
         "carga real",
         "carga planejada",
-        "superalocado",
         "sobrecarga",
-        "rebalancear",
         "heatmap",
-        "alocação calculada",
         "demanda sem pessoa",
-        "perfil"
+        "perfil",
+        "sem cronograma",
+        "disciplina",
+        "só sobrecarregados"
       ],
       "sinonimos": [
-        "alocação de equipe",
         "capacity",
         "planejamento de recursos",
         "histograma de recursos",
-        "superalocação"
+        "superalocação",
+        "carga da equipe"
       ]
     },
     {

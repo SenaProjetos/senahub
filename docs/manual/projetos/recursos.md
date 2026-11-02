@@ -1,93 +1,94 @@
 ---
-titulo: Recursos (alocação da equipe)
-descricao: Matriz de alocação de pessoas em projetos, com carga real e planejada por semana, sobrecarga e habilidades.
-resumo: Veja quem está alocado em quais projetos, a carga de trabalho por semana (a real, do ponto, e a planejada, das horas do cronograma), as semanas acima da capacidade com sugestões de correção e as habilidades de cada pessoa.
-tags: [recursos, alocação, carga, carga planejada, sobrecarga, equipe, habilidades, capacidade, heatmap]
-palavras-chave: [recursos, alocação, férias, ausência, aviso de impacto, folga, carga semanal, carga real, carga planejada, capacidade, superalocado, sobrecarga, rebalancear, heatmap, equipe, habilidade, competência, alocação calculada, demanda sem pessoa, perfil]
-sinonimos: [alocação de equipe, capacity, planejamento de recursos, histograma de recursos, superalocação]
+titulo: Recursos (capacidade × carga da equipe)
+descricao: Tela de leitura da capacidade e da carga de cada pessoa, calculada das EAPs dos projetos, com filtros e sobrecarga em vermelho.
+resumo: Veja quanto cada pessoa tem de carga nas EAPs aprovadas contra a capacidade dela, semana a semana, e quem está acima da capacidade. A tela só lê — a carga muda na EAP do projeto.
+tags: [recursos, carga, carga planejada, sobrecarga, equipe, capacidade, heatmap, filtros]
+palavras-chave: [recursos, férias, ausência, aviso de impacto, carga semanal, carga real, carga planejada, capacidade, sobrecarga, heatmap, equipe, demanda sem pessoa, perfil, sem cronograma, disciplina, só sobrecarregados]
+sinonimos: [capacity, planejamento de recursos, histograma de recursos, superalocação, carga da equipe]
 ---
 
-# Recursos (alocação da equipe)
+# Recursos (capacidade × carga da equipe)
 
 ## Objetivo
 
-Visualizar e gerenciar a **alocação das pessoas nos projetos**, a **carga de trabalho** por semana —
-a **real** (do ponto) e a **planejada** (das horas do cronograma) — e as **habilidades** de cada um.
+Enxergar, num lugar só, a **capacidade** e a **carga** de cada pessoa — a **planejada** (as horas
+das atividades nas EAPs dos projetos com cronograma aprovado) e a **real** (as horas do ponto) — e
+achar quem está **acima da capacidade**.
+
+A tela é **somente leitura**. Quem atribui pessoas e horas é a **EAP do projeto**; aqui só se vê o resultado.
 
 ## Quando utilizar
 
-- Para equilibrar a carga do time e decidir alocações.
-- Para achar **semanas acima da capacidade** antes que virem atraso.
+- Para equilibrar a carga do time antes que vire atraso.
+- Para achar **semanas acima da capacidade** e saber em qual projeto mexer.
 
 ## Como acessar
 
 - Menu → **Gestão** → **Recursos** (`/recursos`). Exige `recursos:ver`.
 - Nos perfis padrão, disponível ao Coordenador e ao Administrativo.
 
-## As quatro visões
+## Filtros
 
-No canto direito, o seletor troca a visão. **Projeto** e **Habilidade** filtram as pessoas; **Janela**
-define o período de análise (padrão: de hoje a 90 dias).
+Acima das visões ficam os filtros, que valem para as quatro:
+
+- **Pessoa:** busca pelo nome (sem diferenciar acento ou maiúscula).
+- **Projeto:** quem tem carga naquele projeto (inclusive em cronograma ainda em rascunho).
+- **Disciplina:** quem tem atividade atribuída naquela disciplina nas EAPs aprovadas.
+- **Só sobrecarregados:** esconde quem está dentro da capacidade. Na Matriz, no Heatmap e na Carga
+  planejada vale a **janela de análise** (alguma semana dela acima da capacidade); na Carga real vale
+  qualquer uma das 12 semanas exibidas.
+- **Janela:** o período de análise (padrão: de hoje a 90 dias).
+
+Na **Carga real**, Projeto e Disciplina escolhem **quem** aparece (pelo que está planejado); as horas
+registradas de cada pessoa não são filtradas, porque o ponto não separa por projeto aqui.
+
+## As quatro visões
 
 | Visão | O que mostra |
 | --- | --- |
-| **Matriz** | Linhas = pessoas, colunas = projetos, com a alocação de cada uma |
-| **Heatmap** | A ocupação por período (o pior dia de cada coluna), pintada conforme a intensidade em relação à capacidade. Escolha o **período** acima da tabela: **1 semana** (um dia por coluna), **4 semanas**, **12 semanas** (uma semana por coluna, a partir da semana de hoje) ou **Meses** (o padrão). Soma a alocação **digitada** com as **horas dos cronogramas aprovados** (estas, só nas próximas 12 semanas; depois disso, apenas a digitada). Passe o mouse na célula para ver as duas parcelas. O ícone de **calendário riscado** marca a coluna em que a pessoa tem **férias ou abono** aprovados (feriado não conta: é de todo mundo); em **vermelho**, há alocação num desses dias |
+| **Matriz** | Linhas = pessoas, com a carga calculada em cada projeto, o total contra a capacidade e o quanto está ocupado **hoje** |
+| **Heatmap** | A ocupação por período (o pior dia de cada coluna), pintada conforme a intensidade em relação à capacidade. Escolha o **período**: **1 semana** (um dia por coluna), **4 semanas**, **12 semanas** (uma semana por coluna, a partir da semana de hoje) ou **Meses** (o padrão, quatro meses a partir do atual). Só entram as **horas dos cronogramas aprovados**, nas próximas 12 semanas; depois disso não há dado. O ícone de **calendário riscado** marca a coluna em que a pessoa tem **férias ou abono** aprovados (feriado não conta: é de todo mundo); em **vermelho**, há carga num desses dias |
 | **Carga real** | Nas últimas 12 semanas, `horas registradas / horas disponíveis` por semana, usando escala, fator de capacidade, feriados, férias e abonos aprovados |
 | **Carga planejada** | As **horas previstas nas linhas dos cronogramas aprovados**, por pessoa e semana, contra a capacidade — veja abaixo |
 
 ## A matriz
 
-Cada pessoa mostra: **habilidades**, o aviso **ausente** (quando está de férias ou abono hoje), a
-**capacidade** (multiplicador; 1,00 = jornada cheia, 0,50 = meio período) e as **alocações** por projeto,
-em chips. O **%** de uma alocação é sempre **da capacidade da própria pessoa**: 100% é tudo o que ela
-dedica a projetos, então quem trabalha meio período fica cheio com 100% (e 50% é metade do meio período
-dela), não com 50%.
+Cada pessoa mostra o aviso **ausente** (férias ou abono hoje), a **capacidade** (multiplicador; 1,00 =
+jornada cheia, 0,50 = meio período) e a **carga por projeto**, em chips. O **%** é sempre **da
+capacidade da própria pessoa**: 100% é tudo o que ela dedica a projetos, então quem trabalha meio
+período fica cheio com 100% (e 50% é metade do meio período dela).
 
-### Alocação digitada × calculada
+- **Chip azul, marcado calc:** carga calculada das **horas das linhas** de um projeto com cronograma
+  aprovado. Para mudar, edite a EAP do projeto.
+- **Chip tracejado, marcado rasc:** o que uma EAP em **rascunho** já prevê. Aparece à parte e **não
+  soma** na carga até o cronograma ser aprovado.
 
-- **Alocação digitada** (chip cinza, com o %): a que você cadastra a mão. **Faixas de alocação** por
-  projeto permitem encerrar uma participação e voltar ao mesmo projeto depois, preservando o
-  histórico; faixas que se sobrepõem para a mesma pessoa e projeto são bloqueadas.
-- **Alocação calculada** (chip azul, marcado **calc**): a que vem das **horas das linhas** de um
-  projeto com **cronograma aprovado**. Não se edita aqui — ajuste na EAP do projeto.
-- **Substituída** (chip tracejado e riscado): projeto que **ganhou cronograma aprovado** — a alocação
-  digitada dele **deixou de contar**, e a carga passa a vir das horas. Pode remover.
-- Projeto **sem** cronograma aprovado continua valendo pela alocação **digitada**, convertida em
-  horas, enquanto ele não é aprovado. **Criar alocação digitada para projeto com cronograma aprovado é
-  recusado.**
+### Projeto sem cronograma aprovado
 
-### Superalocação
+Quem está num projeto ativo **sem cronograma aprovado** (como membro, responsável de disciplina ou
+com atividade aberta) ganha o selo **sem cronograma**, com um link para a EAP do projeto. O selo é só
+um **aviso**: não soma horas e não pinta sobrecarga — essa carga ainda não existe em lugar nenhum. Ele
+aparece nas quatro visões. Aprove o cronograma do projeto para a carga entrar.
 
-A barra de cada pessoa mostra o total alocado contra a capacidade (100%), e o quanto está alocado **hoje**.
-Pessoa **acima da capacidade** fica destacada com **Rebalancear**; **superalocado na janela** avisa
-quando algum dia da janela passa da capacidade (nesses dois casos, considera só a alocação
-**digitada**). Férias e abono zeram a capacidade dos dias deles, então alocação nesses dias conta como
-excesso; **feriado não conta** — zera o dia de todo mundo, e o % já é da capacidade útil.
+### Sobrecarga
 
-O **Rebalancear** mostra, além das alocações da pessoa, até **5 pessoas com folga na janela de
-análise inteira** (o pior dia de cada uma, somando a alocação digitada e as horas dos cronogramas
-aprovados), com as habilidades delas e os dias de ausência no período. É só sugestão: nada muda sem
-você abrir e ajustar a alocação.
-
-## Competências que o projeto precisa
-
-Com um **projeto** escolhido no filtro, aparece o quadro **Competências que o projeto precisa**: adicione a
-competência e o nível mínimo. Para cada necessidade, a tela lista até 5 pessoas que têm o nível **e** folga na
-janela de análise — validadas primeiro; "não validado" marca o nível só declarado. Ninguém cobrindo aparece
-como lacuna. Veja [Competências e desenvolvimento](../rh-ponto/competencias-e-desenvolvimento.md).
+A barra de cada pessoa mostra a carga contra a capacidade (100%) e o quanto está ocupado **hoje**.
+Pessoa **acima da capacidade** fica destacada; **acima da capacidade na janela** avisa quando alguma
+semana da janela passa do que ela tem disponível. Férias e abono reduzem a capacidade dos dias deles;
+**feriado** reduz a de todo mundo.
 
 ## Aviso de férias ou ausência que afeta alocação
 
 Quando o RH **aprova** férias ou um abono — ou lança férias direto, ou uma nova data de férias entra em
 vigor — e a pessoa está **alocada** em algum projeto nesse período, quem pode gerir Recursos recebe um
-aviso no sino com os projetos e o quanto de cada um (o % digitado ou as horas do cronograma). O link do
-aviso abre o **Heatmap** já com a **janela** da ausência.
+aviso no sino com os projetos e o quanto de cada um. O link do aviso abre o **Heatmap** já com a
+**janela** da ausência.
 
 - Só vale o pedaço **de hoje em diante**: férias lançadas no passado, para acertar o ponto, não avisam.
 - Abono aparece como **"ausência"**, sem o motivo.
-- **Nada é alterado automaticamente**: a alocação continua como estava até alguém revisá-la.
+- **Nada é alterado automaticamente**.
 - Para deixar de receber: **Preferências → Notificações → Ausência que afeta alocação**.
+- Esse aviso ainda considera também alocações antigas digitadas à mão, que a tela não mostra mais.
 
 ## Carga planejada
 
@@ -97,38 +98,37 @@ pintada conforme a intensidade.
 
 - **Semanas acima da capacidade** viram uma lista no topo, com o quanto excede, a maior parcela (a
   atividade e o projeto que mais pesam) e o motivo de a capacidade estar menor (feriado, férias…).
-- **Ver sugestões** (para quem edita o cronograma) calcula, para a semana escolhida:
-  - **Atrasar** uma atividade em alguns dias úteis, quando isso **não muda o término do projeto** —
-    a atividade pode ganhar a **data fixada** (alfinete);
+- **Ver sugestões** calcula, para a semana escolhida:
+  - **Atrasar** uma atividade em alguns dias úteis, quando isso **não muda o término do projeto**;
   - **Passar** a atividade inteira para outra pessoa livre.
-  Cada sugestão vem **verificada**: o sistema refaz o cálculo para saber se **resolve** ou só
-  **alivia**. Só é aplicada depois de você **confirmar**. Nunca há nivelamento automático — quando
-  nenhuma correção cabe sem mexer no prazo ou sobrecarregar outra pessoa, a decisão é da coordenação.
+  Cada sugestão vem **verificada** (o sistema refaz o cálculo para saber se **resolve** ou só
+  **alivia**). As sugestões são **só leitura**: o link **Abrir a EAP** leva ao projeto, onde quem
+  tem permissão de planejamento faz a mudança. Quando nenhuma correção cabe sem mexer no prazo ou
+  sobrecarregar outra pessoa, a decisão é da coordenação.
 - **Demanda ainda sem pessoa (perfis):** horas atribuídas a um **perfil** ("Projetista" numa linha da
   Elétrica). Ninguém está escalado, então **não entra na carga de ninguém**.
 
-A visão diz de onde vêm as horas: projetos com cronograma aprovado, ou a alocação digitada convertida.
 Ver [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md).
 
-## Cadastro do recurso e habilidades
+## Cadastro do recurso
 
-- **Adicionar recurso** transforma um usuário em recurso, com **capacidade** (multiplicador), **cor**
-  e **custo por hora**. **Editar** altera esses dados.
+- **Adicionar recurso** (só quem gere Recursos) transforma um usuário em recurso, com **capacidade**
+  (multiplicador), **cor** e **custo por hora**. **Editar** altera esses dados.
 - O **custo por hora** alimenta o **custo previsto** do cronograma e o
   [Valor Agregado](valor-agregado.md) em R$. Ele é dado do **financeiro**: só aparece em Recursos para quem
   tem acesso ao financeiro, e só quem **gere o financeiro** o altera. Quem não o vê edita capacidade e cor
   normalmente, sem apagar a taxa que já está gravada.
-- **Habilidades**: o catálogo de competências e o vínculo com cada pessoa (**+ habilidade**), com
-  filtro por habilidade.
-- **Usuários sem recurso** (ainda não mapeados) são destacados.
+- **Usuários sem recurso** (ainda não mapeados) são oferecidos no **Adicionar recurso**.
+- As **habilidades** das pessoas ficam no RH (ficha da pessoa), não mais nesta tela.
 
 ## Permissões
 
 | Ação | Permissão |
 | --- | --- |
-| Ver as visões e pedir **sugestões** | `recursos:ver` |
-| Editar alocações digitadas, recursos e habilidades | `recursos:gerir` |
-| **Aplicar** uma sugestão (atrasar/passar) | `planejamento:gerir` |
+| Ver as visões, os filtros e pedir **sugestões** | `recursos:ver` |
+| Adicionar e editar o recurso (capacidade, cor) | `recursos:gerir` |
+| Custo por hora | `financeiro:ver` para ver, `financeiro:gerir` para editar |
+| Mudar a carga (atribuir pessoas e horas, atrasar, passar) | `planejamento:gerir`, na EAP do projeto |
 
 ## Funcionalidades relacionadas
 
@@ -144,16 +144,11 @@ reduzem a capacidade exibida.
 **E a carga planejada?** É a mesma comparação, mas com as **horas previstas no cronograma** no lugar
 das horas registradas — o que **vai** acontecer, e não o que já aconteceu.
 
-**Posso alocar a mesma pessoa no mesmo projeto mais de uma vez?** Sim, desde que as faixas de datas
-não coincidam. Por exemplo, uma faixa pode terminar em junho e outra começar em setembro, sem apagar
-a participação anterior.
+**Onde aloco uma pessoa num projeto?** Na **EAP** do projeto: atribua a pessoa e as horas à atividade. A
+tela de Recursos só mostra o resultado.
 
-**Aprovei o cronograma e a alocação da pessoa mudou.** É o esperado: a partir da aprovação, a carga do
-projeto vem das **horas das linhas** (o heatmap já as soma), e a alocação digitada aparece riscada. Se o projeto não tinha
-horas estimadas, ele **some da carga** — estime as horas na EAP.
+**Uma pessoa aparece livre, mas sei que ela está num projeto.** Veja se ela tem o selo **sem cronograma**:
+o projeto ainda não tem cronograma aprovado, então a carga dele não entra. Aprove o cronograma.
 
-**A pessoa aparece livre no Heatmap de meses mais distantes e sobrecarregada na Carga planejada.** As
-horas dos cronogramas aprovados entram no heatmap só nas **próximas 12 semanas**; nos meses seguintes ele
-mostra apenas a alocação **digitada**. Já o aviso "superalocado na janela" olha só a alocação
-digitada — a carga dos projetos aprovados está na **Carga planejada**. A lista de quem tem folga, no
-**Rebalancear**, soma as duas.
+**Para onde foram as alocações que eu digitava?** Continuam gravadas, mas esta tela não as mostra nem
+as soma. A carga agora vem só das EAPs.
