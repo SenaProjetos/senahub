@@ -1,12 +1,12 @@
 import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { CAMPOS, type NomeCampo } from "@/lib/campos";
 import { ActionError } from "@/lib/action-error";
-import { BRIEFING_SCHEMA } from "./briefing-schema";
+import { BRIEFING_SCHEMA, type SecaoBriefing } from "./briefing-schema";
 
 /** Chave da resposta → campo do catálogo, para os campos do briefing marcados com `formato`. */
-export function formatosDoBriefing(): Record<string, NomeCampo> {
+export function formatosDoBriefing(secoes: readonly SecaoBriefing[] = BRIEFING_SCHEMA): Record<string, NomeCampo> {
   const mapa: Record<string, NomeCampo> = {};
-  for (const secao of BRIEFING_SCHEMA) {
+  for (const secao of secoes) {
     for (const c of secao.campos) if (c.formato) mapa[c.chave] = c.formato;
   }
   return mapa;
@@ -22,10 +22,11 @@ export function formatosDoBriefing(): Record<string, NomeCampo> {
 export function respostasParaSalvar(
   respostas: Record<string, unknown>,
   ultimoSalvo: Record<string, unknown>,
+  secoes: readonly SecaoBriefing[] = BRIEFING_SCHEMA,
 ): { payload: Record<string, unknown>; invalidos: { chave: string; label: string }[] } {
   const payload = { ...respostas };
   const invalidos: { chave: string; label: string }[] = [];
-  for (const secao of BRIEFING_SCHEMA) {
+  for (const secao of secoes) {
     for (const c of secao.campos) {
       if (!c.formato) continue;
       const v = respostas[c.chave];
@@ -50,8 +51,9 @@ export type ResultadoFormatoBriefing =
 export function aplicarFormatosDoBriefing(
   respostas: Record<string, unknown>,
   anteriores: Record<string, unknown> | null | undefined,
+  secoes: readonly SecaoBriefing[] = BRIEFING_SCHEMA,
 ): ResultadoFormatoBriefing {
-  const mapa = formatosDoBriefing();
+  const mapa = formatosDoBriefing(secoes);
   try {
     exigirCamposValidos(respostas, anteriores, mapa);
   } catch (e) {

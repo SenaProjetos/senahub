@@ -1403,10 +1403,35 @@ model BriefingProjeto {
   /// somem da tela e do link e não contam no status. As respostas ficam guardadas.
   secoesOcultas String[]  @default([])
   camposOcultos String[]  @default([])
+  /// Modelo de formulário escolhido para ESTE projeto. Nulo = o modelo padrão (projetos antigos
+  /// e os que nunca escolheram), então não há backfill.
+  modeloId      String?
+  modelo        ModeloBriefing? @relation(fields: [modeloId], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  @@index([modeloId])
   @@map("briefing_projeto")
+}
+
+/// Modelo de formulário do briefing (Lote 4): seções → campos em `esquema` (JSON validado por
+/// `modules/inputs/modelo-schema.ts`). As respostas ficam em `BriefingProjeto.respostasJson`,
+/// chaveadas por `campo.chave` (imutável). Um modelo não se exclui: arquiva (`ativo=false`);
+/// exatamente um `padrao` (índice parcial `modelo_briefing_um_padrao`, fora do schema.prisma).
+model ModeloBriefing {
+  id         String   @id @default(cuid())
+  nome       String   @unique
+  descricao  String?
+  padrao     Boolean  @default(false)
+  ativo      Boolean  @default(true)
+  /// Trava otimista: cada gravação do esquema incrementa; salvar com versão velha é recusado.
+  versao     Int      @default(1)
+  esquema    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  briefings  BriefingProjeto[]
+
+  @@map("modelo_briefing")
 }
 
 /// Link público (por token) para o cliente preencher os inputs sem login.

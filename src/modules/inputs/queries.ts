@@ -58,7 +58,7 @@ export async function inputsPorToken(token: string) {
             orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }],
           },
           disciplinas: { select: { disciplinaTextoLegado: true } },
-          briefing: { select: { respostasJson: true, status: true, secoesOcultas: true, camposOcultos: true } },
+          briefing: { select: { respostasJson: true, status: true, secoesOcultas: true, camposOcultos: true, modeloId: true } },
           cliente: { select: { nome: true, email: true, telefone: true } },
         },
       },

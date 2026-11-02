@@ -7,12 +7,8 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/session";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import {
-  aplicarOcultos,
-  BRIEFING_SCHEMA,
-  calcularStatusBriefing,
-  existeNoBriefing,
-} from "@/modules/inputs/briefing-schema";
+import { aplicarOcultos, calcularStatusBriefing, existeNoBriefing } from "@/modules/inputs/briefing-schema";
+import { resolverModelo } from "@/modules/inputs/modelo-queries";
 import { gravarRespostasBriefing } from "@/modules/inputs/briefing-service";
 import { perguntasDoPadraoParaCriar } from "@/modules/inputs/perguntas";
 import {
@@ -253,7 +249,6 @@ export const definirVisibilidadeBriefing = defineAction(
   },
   async (input, { user }) => {
     await exigirProjetoVisivel(user, input.projetoId);
-    if (!existeNoBriefing(input.alvo, input.chave)) throw new ActionError("Pergunta do briefing não encontrada.");
     const status = await prisma.$transaction(async (tx) => {
       // A linha pode não existir (briefing nunca preenchido). Depois de garantida, a trava
       // serializa dois cliques simultâneos — sem ela, um sobrescreveria a lista do outro.
@@ -261,8 +256,10 @@ export const definirVisibilidadeBriefing = defineAction(
       await tx.$queryRaw`SELECT 1 FROM "briefing_projeto" WHERE "projetoId" = ${input.projetoId} FOR UPDATE`;
       const atual = await tx.briefingProjeto.findUniqueOrThrow({
         where: { projetoId: input.projetoId },
-        select: { respostasJson: true, secoesOcultas: true, camposOcultos: true },
+        select: { respostasJson: true, secoesOcultas: true, camposOcultos: true, modeloId: true },
       });
+      const modelo = await resolverModelo(atual.modeloId, tx);
+      if (!existeNoBriefing(input.alvo, input.chave, modelo.secoes)) throw new ActionError("Pergunta do briefing não encontrada.");
       const lista = input.alvo === "secao" ? atual.secoesOcultas : atual.camposOcultos;
       const nova = input.oculto ? [...new Set([...lista, input.chave])] : lista.filter((c) => c !== input.chave);
       const ocultos = {
@@ -271,7 +268,7 @@ export const definirVisibilidadeBriefing = defineAction(
       };
       const novoStatus = calcularStatusBriefing(
         (atual.respostasJson ?? {}) as Record<string, unknown>,
-        aplicarOcultos(BRIEFING_SCHEMA, ocultos),
+        aplicarOcultos(modelo.secoes, ocultos),
       );
       await tx.briefingProjeto.update({
         where: { projetoId: input.projetoId },

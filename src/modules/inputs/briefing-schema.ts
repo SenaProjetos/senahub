@@ -3,12 +3,17 @@
  * (`../SENAHub/lib/inputs/projeto-schema.ts`). PURO/cliente-safe: sem `server-only`,
  * Prisma ou React. As respostas são um objeto chave→valor salvo em `BriefingProjeto.respostasJson`.
  *
- * 7 seções: Dados Gerais e Declaração sempre aparecem; as demais são filtradas pelas
- * disciplinas ativas do projeto (ver `filtrarSecoes`).
+ * `BRIEFING_SCHEMA` é o modelo PADRÃO EMBUTIDO (7 seções: Dados Gerais e Declaração sempre aparecem;
+ * as demais são filtradas pelas disciplinas ativas do projeto — ver `filtrarSecoes`). Desde o Lote 4
+ * o formulário vem de um `ModeloBriefing` no banco; esta constante semeia o modelo padrão e é o
+ * último recurso enquanto o seed não rodou. Todas as funções recebem as `secoes` do modelo do projeto.
  */
 import { CAMPOS, type NomeCampo } from "@/lib/campos";
 
-export type CampoTipo = "text" | "textarea" | "select" | "radio" | "checkbox" | "checkbox-single";
+export type CampoTipo = "text" | "textarea" | "select" | "radio" | "checkbox" | "checkbox-single" | "sim-nao";
+
+/** Opções fixas do tipo `sim-nao` (a resposta é gravada como esse texto, igual aos radios Sim/Não antigos). */
+export const OPCOES_SIM_NAO = ["Sim", "Não"] as const;
 
 export interface CampoBriefing {
   chave: string;
@@ -28,6 +33,11 @@ export interface SecaoBriefing {
   id: string;
   titulo: string;
   descricao?: string;
+  /**
+   * Termos que condicionam a seção: ela só aparece se o nome de alguma disciplina do projeto contém
+   * algum termo (sem acento nem caixa). Ausente/vazio = sempre aparece.
+   */
+  disciplinas?: string[];
   campos: CampoBriefing[];
 }
 
@@ -75,6 +85,7 @@ export const BRIEFING_SCHEMA: SecaoBriefing[] = [
   {
     id: "estrutural",
     titulo: "Projeto Estrutural",
+    disciplinas: ["estrutur"],
     descricao: "Preencher somente se o projeto estrutural foi contratado.",
     campos: [
       { chave: "tipoEstrutura", label: "Expectativa inicial para o tipo de estrutura", tipo: "select", obrigatorio: false, opcoes: ["Concreto armado", "Metálica", "Mista", "A definir"] },
@@ -87,6 +98,7 @@ export const BRIEFING_SCHEMA: SecaoBriefing[] = [
   {
     id: "eletrico",
     titulo: "Projeto Elétrico",
+    disciplinas: ["eletric"],
     descricao: "Preencher somente se o projeto elétrico foi contratado.",
     campos: [
       { chave: "concessionariaEnergia", label: "Concessionária de energia e tensão prevista", tipo: "text", obrigatorio: false, placeholder: "Ex: CEMIG — 127/220V trifásico" },
@@ -103,6 +115,7 @@ export const BRIEFING_SCHEMA: SecaoBriefing[] = [
   {
     id: "hidrossanitario",
     titulo: "Projeto Hidrossanitário",
+    disciplinas: ["hidro", "sanit"],
     descricao: "Preencher somente se o projeto hidrossanitário / drenagem foi contratado.",
     campos: [
       { chave: "abastecimentoAgua", label: "Tipo de abastecimento de água", tipo: "select", obrigatorio: false, opcoes: ["Rede pública", "Poço", "Outro"] },
@@ -119,6 +132,7 @@ export const BRIEFING_SCHEMA: SecaoBriefing[] = [
   {
     id: "incendio",
     titulo: "Prevenção e Combate a Incêndio",
+    disciplinas: ["incendio", "ppci", "spda", "combate"],
     descricao: "Preencher somente se o projeto de combate a incêndio foi contratado.",
     campos: [
       { chave: "reservaTecnicaIncendio", label: "Reserva técnica de incêndio prevista?", tipo: "radio", obrigatorio: false, opcoes: ["Sim", "Não"] },
@@ -131,6 +145,7 @@ export const BRIEFING_SCHEMA: SecaoBriefing[] = [
   {
     id: "climatizacao",
     titulo: "Projeto de Climatização",
+    disciplinas: ["climati", "hvac", "avac", "ar condicionado", "ar-condicionado", "arcondicionado"],
     descricao: "Preencher somente se o projeto de climatização foi contratado.",
     campos: [
       { chave: "sistemaClimatizacao", label: "Sistema já está definido?", tipo: "select", obrigatorio: false, opcoes: ["Sim, SPLIT", "Sim, VRF", "Sim, MULTISPLIT", "FANCOLETE", "FANCOIL", "Não definido"] },
@@ -155,24 +170,26 @@ export const BRIEFING_SCHEMA: SecaoBriefing[] = [
   },
 ];
 
-/** Padrão de disciplina por seção (null = sempre visível). */
-const DISCIPLINA_DA_SECAO: Record<string, RegExp | null> = {
-  "dados-gerais": null,
-  declaracao: null,
-  estrutural: /estrutur/i,
-  eletrico: /el[eé]tric/i,
-  hidrossanitario: /hidro|sanit/i,
-  incendio: /inc[eê]ndio|ppci|spda|combate/i,
-  climatizacao: /climati|hvac|avac|ar.?condicionado/i,
-};
+/** Minúsculas e sem acento — a comparação dos termos de disciplina não depende de como o nome foi digitado. */
+export function normalizarTermo(t: string): string {
+  return t.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+}
 
-/** Filtra as seções pelas disciplinas ativas do projeto (Dados Gerais e Declaração sempre entram). */
-export function filtrarSecoes(disciplinasAtivas: string[] | undefined): SecaoBriefing[] {
-  if (!disciplinasAtivas?.length) return BRIEFING_SCHEMA;
-  return BRIEFING_SCHEMA.filter((s) => {
-    const pattern = DISCIPLINA_DA_SECAO[s.id];
-    if (!pattern) return true;
-    return disciplinasAtivas.some((d) => pattern.test(d));
+/**
+ * Filtra as seções pelas disciplinas ativas do projeto: a seção sem `disciplinas` sempre entra; a
+ * condicionada entra se alguma disciplina do projeto contém algum dos termos. Projeto sem
+ * disciplina vê todas as seções.
+ */
+export function filtrarSecoes(
+  disciplinasAtivas: string[] | undefined,
+  secoes: readonly SecaoBriefing[] = BRIEFING_SCHEMA,
+): SecaoBriefing[] {
+  if (!disciplinasAtivas?.length) return [...secoes];
+  const nomes = disciplinasAtivas.map(normalizarTermo);
+  return secoes.filter((s) => {
+    const termos = (s.disciplinas ?? []).map(normalizarTermo).filter(Boolean);
+    if (termos.length === 0) return true;
+    return nomes.some((n) => termos.some((t) => n.includes(t)));
   });
 }
 
@@ -187,9 +204,10 @@ export type ClientePrePopulavel = {
 export function prePopularRespostas(
   respostasExistentes: Record<string, unknown>,
   cliente: ClientePrePopulavel,
+  secoes: readonly SecaoBriefing[] = BRIEFING_SCHEMA,
 ): Record<string, unknown> {
   const resultado = { ...respostasExistentes };
-  for (const secao of BRIEFING_SCHEMA) {
+  for (const secao of secoes) {
     for (const campo of secao.campos) {
       if (!campo.importarDoCadastro) continue;
       if (resultado[campo.chave] !== undefined && resultado[campo.chave] !== "") continue;
@@ -256,10 +274,14 @@ export function respostasVisiveis(
 }
 
 /** A chave existe no briefing (seção pelo `id`, campo pela `chave`)? */
-export function existeNoBriefing(alvo: "secao" | "campo", chave: string): boolean {
+export function existeNoBriefing(
+  alvo: "secao" | "campo",
+  chave: string,
+  secoes: readonly SecaoBriefing[] = BRIEFING_SCHEMA,
+): boolean {
   return alvo === "secao"
-    ? BRIEFING_SCHEMA.some((s) => s.id === chave)
-    : BRIEFING_SCHEMA.some((s) => s.campos.some((c) => c.chave === chave));
+    ? secoes.some((s) => s.id === chave)
+    : secoes.some((s) => s.campos.some((c) => c.chave === chave));
 }
 
 function respondido(v: unknown): boolean {

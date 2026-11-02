@@ -8,6 +8,7 @@ import { semearEscalaContratacaoPadrao } from "./escalas-padrao";
 import { feriadosNacionais } from "../src/modules/rh/feriados/queries";
 import { seedPerfisAcesso } from "./seed-perfis-acesso";
 import { seedPropostaComposta } from "./seed-proposta-composta";
+import { seedModeloBriefing } from "./seed-modelo-briefing";
 import { semearCatalogoDisciplinas, semearEapCatalogo, semearListaMestre } from "./seed-catalogos";
 import { semearSiglasFaltantes } from "../src/modules/uploads/nomenclatura/siglas-service";
 import { MODELOS_CICLO_PADRAO } from "../src/modules/rh/ciclo/modelos-padrao";
@@ -491,6 +492,10 @@ async function main() {
     });
   }
   console.log(`✔ ${FUNIL_ETAPAS.length} etapas do funil comercial.`);
+
+  // 9-bis) Modelo padrão do briefing de inputs (Lote 4). CREATE-ONLY: a edição da gestão vale mais que o deploy.
+  const mb = await seedModeloBriefing(prisma);
+  console.log(`✔ Modelo padrão do briefing: ${mb.criado ? "criado" : "já existia"}.`);
 
   // 9a) Biblioteca de cláusulas e modelos de proposta (ADR-0006). CREATE-ONLY por slug: a gestão
   // edita o texto na tela e o deploy não pode desfazer a edição.
