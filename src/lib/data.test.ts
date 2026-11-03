@@ -72,15 +72,21 @@ describe("inicioDoDia", () => {
 });
 
 describe("inicioDoDiaUtc", () => {
-  it("devolve a meia-noite UTC do dia LOCAL, mesmo à noite em fuso atrás de UTC", () => {
+  it("devolve a meia-noite UTC do dia de São Paulo, mesmo à noite (fuso atrás de UTC)", () => {
     // 02/09 21:00 em BRT já é 03/09 em UTC — `toISOString()` erraria o dia aqui.
-    const d = inicioDoDiaUtc(new Date(2026, 8, 2, 21, 0));
+    const d = inicioDoDiaUtc(new Date("2026-09-02T21:00:00-03:00"));
     expect(d.toISOString()).toBe("2026-09-02T00:00:00.000Z");
+  });
+
+  it("segue São Paulo, não o fuso da máquina: 23:59 BRT ainda é o mesmo dia, 00:00 BRT já é o seguinte", () => {
+    expect(inicioDoDiaUtc(new Date("2026-09-02T23:59:59-03:00")).toISOString()).toBe("2026-09-02T00:00:00.000Z");
+    expect(inicioDoDiaUtc(new Date("2026-09-03T00:00:00-03:00")).toISOString()).toBe("2026-09-03T00:00:00.000Z");
+    expect(inicioDoDiaUtc(new Date("2026-09-03T02:30:00Z")).toISOString()).toBe(hojeParaBanco(new Date("2026-09-03T02:30:00Z")).toISOString());
   });
 
   it("casa com o registro do próprio dia numa fronteira `gte`", () => {
     const registroDeHoje = new Date("2026-09-02T00:00:00.000Z");
-    expect(registroDeHoje >= inicioDoDiaUtc(new Date(2026, 8, 2, 21, 0))).toBe(true);
+    expect(registroDeHoje >= inicioDoDiaUtc(new Date("2026-09-02T21:00:00-03:00"))).toBe(true);
   });
 
 });

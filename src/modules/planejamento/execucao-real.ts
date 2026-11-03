@@ -85,6 +85,8 @@ export function trabalhoRealDaFolha(p: { deTerceiro: boolean; minutos: number })
 /**
  * Agrupamento = soma dos filhos que têm valor (`null` se nenhum tem), parcial se algum filho é.
  * Recursivo por `parentId`, com memória; um ciclo (dado corrompido) para em vez de estourar a pilha.
+ * Um valor PRÓPRIO do agrupamento em `folhas` (hora apontada quando a linha ainda era atividade, antes de
+ * ganhar filhas) entra na soma junto dos filhos — senão o trabalho feito sumiria do realizado.
  */
 export function somaNaArvore(
   linhas: readonly { id: string; parentId: string | null }[],
@@ -110,9 +112,10 @@ export function somaNaArvore(
     }
     if (visitando.has(id)) return { valor: null, parcial: false };
     visitando.add(id);
-    let total = 0;
-    let algum = false;
-    let parcial = false;
+    const proprio = folhas.get(id);
+    let total = proprio?.valor != null ? centesimos(proprio.valor) : 0;
+    let algum = proprio?.valor != null;
+    let parcial = proprio?.parcial ?? false;
     for (const f of meus) {
       const vf = valor(f);
       if (vf.parcial) parcial = true;

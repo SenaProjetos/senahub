@@ -112,6 +112,28 @@ describe("somaNaArvore", () => {
     const r = somaNaArvore([{ id: "P", parentId: null }, { id: "X", parentId: "P" }], new Map([["X", { valor: null, parcial: false }]]));
     expect(r.get("P")).toEqual({ valor: null, parcial: false });
   });
+  it("hora apontada no próprio agrupamento (de quando era atividade) soma com a dos filhos", () => {
+    const r = somaNaArvore(
+      [
+        { id: "P", parentId: null },
+        { id: "X", parentId: "P" },
+        { id: "Y", parentId: "P" },
+      ],
+      new Map<string, ValorReal>([
+        ["P", { valor: 3.5, parcial: true }],
+        ["X", { valor: 1.25, parcial: false }],
+        ["Y", { valor: null, parcial: false }],
+      ]),
+    );
+    expect(r.get("P")).toEqual({ valor: 4.75, parcial: true });
+  });
+  it("agrupamento cujos filhos não têm valor mostra o próprio", () => {
+    const r = somaNaArvore(
+      [{ id: "P", parentId: null }, { id: "X", parentId: "P" }],
+      new Map<string, ValorReal>([["P", { valor: 2, parcial: false }], ["X", { valor: null, parcial: false }]]),
+    );
+    expect(r.get("P")).toEqual({ valor: 2, parcial: false });
+  });
   it("ciclo de parentId termina", () => {
     const r = somaNaArvore(
       [

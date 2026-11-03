@@ -8,7 +8,7 @@ import { diaLocal, minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso, diaEstaNaFaixa, minutosDisponiveisNoDia, percentualAlocadoNoDia } from "@/modules/planejamento/disponibilidade";
 import { montarCalendario, paraDia, planoDoProjeto, type PlanoDoProjeto } from "@/modules/planejamento/agenda";
-import { inicioDoDiaUtc } from "@/lib/data";
+import { diaDeSaoPaulo, inicioDoDiaUtc } from "@/lib/data";
 import {
   custoRealDaFolha,
   duracaoReal,
@@ -181,7 +181,21 @@ async function realizadoDasLinhas(
   const trabalhoFolhas = new Map<string, ValorReal>();
   const custoFolhas = new Map<string, ValorReal>();
   for (const t of tarefas) {
-    if (pais.has(t.id)) continue;
+    if (pais.has(t.id)) {
+      // Agrupamento com hora apontada nele mesmo (era atividade antes de ganhar filhas): esse trabalho foi feito e
+      // entra na soma dos filhos (`somaNaArvore`). Só a hora: o valor de terceiro digitado é da atividade de terceiro.
+      const minutos = apoio.apontadoMin.get(t.id) ?? 0;
+      if (minutos > 0) {
+        trabalhoFolhas.set(t.id, trabalhoRealDaFolha({ deTerceiro: false, minutos }));
+        if (verCusto) {
+          custoFolhas.set(
+            t.id,
+            custoRealDaFolha({ deTerceiro: false, custoRealTerceiro: null, minutosPorPessoa: apoio.apontadoPorPessoa.get(t.id) ?? new Map(), custoHora }),
+          );
+        }
+      }
+      continue;
+    }
     const deTerceiro = ehEtapaDeTerceiro(t.atribuicoes);
     trabalhoFolhas.set(t.id, trabalhoRealDaFolha({ deTerceiro, minutos: apoio.apontadoMin.get(t.id) ?? 0 }));
     if (verCusto) {
@@ -528,8 +542,8 @@ export async function cronogramaProjetosAtivos() {
  */
 export async function planoVsRealProjeto(projetoId: string) {
   const agora = new Date();
-  const ano = agora.getFullYear();
-  const mes = agora.getMonth() + 1;
+  // Mês corrente de São Paulo, não o do fuso da máquina.
+  const [ano, mes] = diaDeSaoPaulo(agora).split("-").map(Number);
   const inicioIso = `${ano}-${String(mes).padStart(2, "0")}-01`;
   const fimIso = new Date(Date.UTC(ano, mes, 1)).toISOString().slice(0, 10);
   // Alocação tem vigência por data; sessão tem horário local de Brasília.

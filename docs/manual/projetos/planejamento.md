@@ -451,8 +451,9 @@ No **Controle**, depois do **% concl.**, ficam as colunas do que **já aconteceu
 | **Trab. real** | Horas apontadas no **ponto** nos cards da tarefa. Tarefa de terceiro mostra "—" (não se mede pelo ponto). |
 | **Custo real** | Horas apontadas × custo/hora de **quem apontou** (em Recursos) ou, na tarefa de terceiro, o valor digitado. **parcial** = alguém apontou horas sem custo/hora cadastrado: o número soma o que se sabe. Só para quem vê o financeiro. |
 
-No agrupamento, **Trab. real** e **Custo real** somam as tarefas de dentro. "—" quer dizer que não há o que
-medir (sem início real, marco, terceiro).
+No agrupamento, **Trab. real** e **Custo real** somam as tarefas de dentro. Se a linha já tinha horas apontadas
+quando ainda era uma tarefa (antes de ganhar tarefas dentro dela), essas horas continuam somando no agrupamento.
+"—" quer dizer que não há o que medir (sem início real, marco, terceiro).
 
 O **Variação** é a mesma tela só com a comparação com a linha de base: **Início**, **Término**, **Início base**,
 **Término base**, **Var. início** e **Var. término** (dias corridos; vermelho = depois da base, verde = antes,

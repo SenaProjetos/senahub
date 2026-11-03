@@ -50,10 +50,11 @@ export function inicioDoDiaLocal(agora: Date = new Date()): Date {
 }
 
 /**
- * Meia-noite **UTC** do dia-calendário local de um instante local (padrão: agora)
+ * Meia-noite **UTC** do dia-calendário de São Paulo de um instante (padrão: agora)
  * — use SÓ como fronteira de `where` do Prisma sobre colunas de data (`@db.Date`
  * ou `DateTime` gravado a partir de um `<input type="date">`, que o Prisma grava
- * como meia-noite UTC).
+ * como meia-noite UTC). Igual a `hojeParaBanco`: o dia é o de São Paulo, nunca o do
+ * fuso da máquina (servidor em UTC daria "amanhã" depois das 21h).
  *
  * Comparar essas colunas com meia-noite LOCAL (03:00Z em America/Sao_Paulo) faz
  * o registro de HOJE cair fora do intervalo: `data: { gte: hoje }` perdia o
@@ -62,7 +63,7 @@ export function inicioDoDiaLocal(agora: Date = new Date()): Date {
  * Não é `toISOString().slice(0,10)`: às 21h de 02/09 em BRT isso daria 03/09.
  */
 export function inicioDoDiaUtc(agora: Date = new Date()): Date {
-  return new Date(Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate()))
+  return hojeParaBanco(agora)
 }
 
 /**

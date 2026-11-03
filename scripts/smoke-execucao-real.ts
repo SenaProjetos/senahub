@@ -139,6 +139,23 @@ async function main() {
       semDatas.tarefas.every((x) => x.duracaoReal === null && x.duracaoRestante === null),
       semDatas.tarefas.map((x) => [x.duracaoReal, x.duracaoRestante]),
     );
+
+    // Hora apontada numa linha que depois virou agrupamento (o card ainda aponta para ela): o trabalho foi feito e
+    // não pode sumir do realizado.
+    const cardDoGrupo = await prisma.tarefa.create({
+      data: { titulo: `${tag} card R`, statusId: statusAberto.id, projetoId: projeto.id, criadorId: admin.id, eapTarefaId: R.id },
+      select: { id: true },
+    });
+    const inicioGrupo = new Date(Date.now() - 2 * 60 * MIN);
+    await prisma.sessaoTrabalho.create({
+      data: { userId: u1.id, projetoId: projeto.id, tipoAlocacao: "projeto", tarefaId: cardDoGrupo.id, inicio: inicioGrupo, fim: new Date(inicioGrupo.getTime() + 30 * MIN) },
+    });
+    const comGrupo = de(await eapDoProjeto(projeto.id, { verCusto: true, verDatas: true }), R.id);
+    check(
+      "agrupamento com hora apontada nele mesmo soma essa hora aos filhos",
+      comGrupo.trabalhoReal === 3 && comGrupo.custoReal === 700 && comGrupo.custoRealParcial === true,
+      { trabalho: comGrupo.trabalhoReal, custo: comGrupo.custoReal, parcial: comGrupo.custoRealParcial },
+    );
   } finally {
     const linhas = await prisma.eapTarefa.findMany({ where: { projetoId: projeto.id }, select: { id: true } });
     await prisma.sessaoTrabalho.deleteMany({ where: { projetoId: projeto.id } });
