@@ -134,7 +134,11 @@ export async function cargaDaEquipe(
   const semanas = [...new Set(dias.map(chaveSemanaIso))];
 
   const cronogramas = await prisma.cronogramaProjeto.findMany({
-    where: { OR: [{ aprovado: true }, { projeto: { situacao: "em_andamento" } }] },
+    // Projeto cancelado ou arquivado não ocupa ninguém, mesmo com cronograma aprovado e linhas no futuro.
+    where: {
+      projeto: { situacao: { notIn: ["cancelado", "arquivado"] } },
+      OR: [{ aprovado: true }, { projeto: { situacao: "em_andamento" } }],
+    },
     select: { projetoId: true, aprovado: true },
   });
   const aprovados = cronogramas.filter((c) => c.aprovado).map((c) => c.projetoId);

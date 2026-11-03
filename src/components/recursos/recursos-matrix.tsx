@@ -271,9 +271,16 @@ export function RecursosMatrix({
   const calculadaPorUser = useMemo(
     () =>
       new Map(
-        cargaPlanejada.pessoas.map((pessoa) => [pessoa.userId, percentualCalculadoPorSemana(pessoa, cargaPlanejada.projetosCalculados)]),
+        cargaPlanejada.pessoas.map((pessoa) => [
+          pessoa.userId,
+          // Com um projeto no filtro, o Heatmap pinta só a carga dele — a mesma que a Matriz mostra.
+          percentualCalculadoPorSemana(
+            pessoa,
+            filtros.projetoId ? cargaPlanejada.projetosCalculados.filter((id) => id === filtros.projetoId) : cargaPlanejada.projetosCalculados,
+          ),
+        ]),
       ),
-    [cargaPlanejada],
+    [cargaPlanejada, filtros.projetoId],
   );
   const heat = useMemo(
     () => montarHeatmap(linhasFiltradas, (userId) => calculadaPorUser.get(userId) ?? new Map(), periodoHeat, janelaFim),
@@ -438,7 +445,12 @@ export function RecursosMatrix({
       {vista === "carga" ? (
         <CargaRealView cargaSemanal={cargaRealFiltrada} sinais={sinaisPorUser} vazio={vazio} />
       ) : vista === "planejada" ? (
-        <CargaPlanejadaView carga={cargaPlanejada} sinaisPorUser={sinaisPorUser} pessoasVisiveis={planejadaVisiveis} />
+        <CargaPlanejadaView
+          carga={cargaPlanejada}
+          sinaisPorUser={sinaisPorUser}
+          pessoasVisiveis={planejadaVisiveis}
+          semanasDaJanela={soSobrecarregados ? semanasJanela : null}
+        />
       ) : vista === "heatmap" ? (
         <HeatmapView
           colunas={heat.colunas}

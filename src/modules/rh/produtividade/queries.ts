@@ -5,6 +5,7 @@ import { minutosPorDiaSessao } from "@/modules/ponto/engine";
 import { diferencaEmDias } from "@/lib/data";
 import { agregarHoras, type HorasPessoa } from "@/modules/rh/produtividade/horas";
 import { somarDias } from "@/modules/rh/produtividade/periodo";
+import { chaveSemanaIso } from "@/modules/planejamento/disponibilidade";
 import { wherePessoasDasHoras } from "@/modules/rh/produtividade/pessoas-horas";
 import type { Contratacao } from "@/generated/prisma/enums";
 
@@ -54,14 +55,12 @@ export type ProjetistaProdutividade = {
 export type PessoaHoras = HorasPessoa & { nome: string; contratacao: Contratacao | null };
 export type HorasProjetistas = { dias: string[]; destinos: Record<string, string>; pessoas: PessoaHoras[] };
 
-/** Chave ISO-8601 da semana (YYYY-Www) de uma data. */
+/**
+ * Chave ISO-8601 da semana (YYYY-Www) de uma data. O ano é o da quinta-feira da semana (`chaveSemanaIso`): com o
+ * ano do próprio dia, 01/01/2027 saía "2027-W00" em vez de "2026-W53".
+ */
 function isoWeek(d: Date): string {
-  const tmp = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const jan4 = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 4));
-  const startOfWeek1 = new Date(jan4);
-  startOfWeek1.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7));
-  const weekNum = Math.ceil(((tmp.getTime() - startOfWeek1.getTime()) / 86_400_000 + 1) / 7);
-  return `${tmp.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
+  return chaveSemanaIso(d.toISOString().slice(0, 10));
 }
 
 function chaveMes(d: Date): string {

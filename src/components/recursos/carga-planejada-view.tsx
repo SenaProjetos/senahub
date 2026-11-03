@@ -44,15 +44,21 @@ export function CargaPlanejadaView({
   carga,
   sinaisPorUser,
   pessoasVisiveis,
+  semanasDaJanela = null,
 }: {
   carga: CargaDaEquipe;
   /** Projetos ativos sem cronograma aprovado por pessoa — só um sinal, sem horas. */
   sinaisPorUser: Record<string, ProjetoRef[]>;
   /** Filtros da tela; `null` = todas as pessoas. */
   pessoasVisiveis: ReadonlySet<string> | null;
+  /** Com "Só sobrecarregados": as sobrecargas listadas ficam na janela escolhida. `null` = todas. */
+  semanasDaJanela?: readonly string[] | null;
 }) {
   const pessoas = pessoasVisiveis ? carga.pessoas.filter((p) => pessoasVisiveis.has(p.userId)) : carga.pessoas;
-  const sobrecargas = pessoasVisiveis ? carga.sobrecargas.filter((s) => pessoasVisiveis.has(s.userId)) : carga.sobrecargas;
+  const naJanela = semanasDaJanela ? new Set(semanasDaJanela) : null;
+  const sobrecargas = carga.sobrecargas.filter(
+    (s) => (!pessoasVisiveis || pessoasVisiveis.has(s.userId)) && (!naJanela || naJanela.has(s.semana)),
+  );
   const nomeDe = new Map(carga.pessoas.map((p) => [p.userId, p.nome]));
   const nomeProjeto = (id: string) => {
     const p = carga.rotulos.projetos[id];
