@@ -101,9 +101,9 @@ describe("envio e link público", () => {
     expect(r).toEqual({ piscina: "Não", aquecimento: "Gás" });
   });
 
-  it("o link público não devolve resposta de pergunta oculta", () => {
-    const r = respostasVisiveis({ piscina: "Não", aquecimento: "Gás" }, esquema());
-    expect(Object.keys(r)).toEqual(["piscina"]);
+  it("o link público devolve a resposta da condicional escondida (é do cliente; tela e servidor avaliam o mesmo)", () => {
+    const r = respostasVisiveis({ piscina: "Não", aquecimento: "Gás", inventada: "x" }, esquema());
+    expect(Object.keys(r).sort()).toEqual(["aquecimento", "piscina"]);
   });
 });
 
@@ -171,6 +171,15 @@ describe("editor: a condição acompanha as mudanças", () => {
     expect(validarEsquema(e).ok).toBe(true);
   });
 
+  it("opção que passa pelo texto de outra não leva a condição dela", () => {
+    let e = esquema();
+    e[0].campos[1].opcoes = ["Solar", "Solares", "Gás"]; // a condição de "detalhe" é "Solar" (índice 0)
+    e = renomearOpcao(e, "aquecimento", 1, "Solare");
+    e = renomearOpcao(e, "aquecimento", 1, "Solar"); // igual à do índice 0 no meio da digitação
+    e = renomearOpcao(e, "aquecimento", 1, "Solar2");
+    expect(e[1].campos[0].condicao?.igual).toEqual(["Solar"]);
+  });
+
   it("remover a única opção da condição tira a condição; remover outra a mantém e poda", () => {
     const e = esquema();
     e[1].campos[0].condicao = { campo: "aquecimento", igual: ["Solar", "Gás"] };
@@ -218,6 +227,18 @@ describe("renomear opção migra resposta", () => {
     expect(renomeiosDoRascunho(comOrigens(esquema()))).toEqual([]);
     const trocado = atualizarCampo(renomearOpcao(comOrigens(esquema()), "aquecimento", 0, "X"), "aquecimento", { tipo: "select" });
     expect(renomeiosDoRascunho(trocado)).toEqual([]);
+  });
+
+  it("opção com espaço no fim é aparada como o servidor grava (renomeio e condição incluídos)", () => {
+    let e = comOrigens(esquema());
+    e = renomearOpcao(e, "aquecimento", 0, "Solar ");
+    expect(renomeiosDoRascunho(e)).toEqual([]);
+    e = renomearOpcao(e, "aquecimento", 0, "Solar novo ");
+    expect(renomeiosDoRascunho(e)).toEqual([{ chave: "aquecimento", de: "Solar", para: "Solar novo" }]);
+    const gravar = esquemaParaGravar(e);
+    expect(gravar[0].campos[1].opcoes?.[0]).toBe("Solar novo");
+    expect(gravar[1].campos[0].condicao?.igual).toEqual(["Solar novo"]);
+    expect(validarEsquema(gravar).ok).toBe(true);
   });
 
   it("esquemaParaGravar tira a origem", () => {

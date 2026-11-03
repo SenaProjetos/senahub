@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import {
   calcularStatusBriefing,
   camposDescartadosNoEnvio,
+  filtrarSecoes,
   mesclarRespostasVisiveis,
   secoesDoProjeto,
   type StatusBriefing,
@@ -54,7 +55,8 @@ export async function gravarRespostasBriefing(
     // Linha recém-criada aqui (nunca preenchida) não tinha status de verdade.
     const statusAnterior = gravado.preenchidoEm ? (gravado.status as StatusBriefing) : null;
     // O que o envio trouxe e não foi gravado (campo que saiu do formulário no meio do preenchimento): a tela avisa.
-    const descartados = camposDescartadosNoEnvio(anteriores, enviadas, modelo.secoes, visiveis);
+    // Rótulos só das seções das disciplinas do projeto: a chave forjada de outra disciplina não devolve a pergunta dela.
+    const descartados = camposDescartadosNoEnvio(anteriores, enviadas, filtrarSecoes(disciplinas, modelo.secoes), visiveis);
     return { ok: true, status, statusAnterior, descartados };
   });
 }

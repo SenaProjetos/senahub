@@ -105,14 +105,21 @@ export async function mesclarClientes(
       if (count > 0) movidos[chave] = count;
     };
 
-    // Trava o absorvido: quem cria projeto ou troca o cliente de um projeto para ele toma a trava da FK e espera o fim da
-    // fusão — a lista abaixo não perde projeto que entra no meio.
-    await tx.$queryRaw`SELECT 1 FROM "cliente" WHERE "id" = ${absorvidoId} FOR UPDATE`;
+    // Trava os dois (ordem fixa, por id): quem cria projeto ou troca o cliente de um projeto para um deles toma a trava da
+    // FK e espera o fim da fusão — a lista abaixo não perde projeto que entra no meio —, e duas fusões do mesmo cliente
+    // ao mesmo tempo viram uma fila: a segunda relê o estado depois da trava e é recusada.
+    const travar = [sobreviventeId, absorvidoId].sort();
+    await tx.$queryRaw`SELECT 1 FROM "cliente" WHERE "id" = ANY(${travar}) ORDER BY "id" FOR UPDATE`;
+    const fundidos = await tx.cliente.findMany({ where: { id: { in: travar }, fundidoEmId: { not: null } }, select: { id: true } });
+    if (fundidos.length > 0) throw new ActionError("Um dos clientes acabou de ser unificado por outra pessoa. Recarregue a página.");
 
-    // Briefing dos projetos que mudam de cliente: foto do formulário efetivo ANTES de repontar (o modelo padrão do cliente
-    // vem do cliente), para recalcular o status e zerar as ocultações de quem trocar de formulário.
+    // Briefing dos projetos cujo formulário pode mudar: foto do formulário efetivo ANTES de repontar (o modelo padrão do
+    // cliente vem do cliente), para recalcular o status e zerar as ocultações de quem trocar de formulário. Entram os do
+    // absorvido (mudam de cliente) e os do sobrevivente (podem herdar o modelo padrão do absorvido, abaixo).
     const projetosAbsorvidos = (await tx.projeto.findMany({ where: { clienteId: absorvidoId }, select: { id: true } })).map((p) => p.id);
-    const formularioAntes = await formulariosEfetivos(tx, projetosAbsorvidos);
+    const projetosDoSobrevivente = (await tx.projeto.findMany({ where: { clienteId: sobreviventeId }, select: { id: true } })).map((p) => p.id);
+    const projetosAfetados = [...projetosAbsorvidos, ...projetosDoSobrevivente];
+    const formularioAntes = await formulariosEfetivos(tx, projetosAfetados);
 
     await repontar("contatos", () =>
       tx.contatoCliente.updateMany({ where: { clienteId: absorvidoId }, data: { clienteId: sobreviventeId } }),
@@ -166,7 +173,7 @@ export async function mesclarClientes(
       movidos["modeloBriefing"] = 1;
     }
 
-    await recalcularBriefingsDosProjetos(tx, projetosAbsorvidos, formularioAntes);
+    await recalcularBriefingsDosProjetos(tx, projetosAfetados, formularioAntes);
 
     // Arquiva o absorvido com a referência. NÃO deleta.
     await tx.cliente.update({

@@ -136,17 +136,19 @@ export function adicionarOpcao(esquema: Esquema, chave: string): SecaoBriefing[]
 
 /**
  * Renomeia a opção `indice`. Pergunta condicional que usava o texto antigo passa a usar o novo — a cada letra
- * digitada (o texto antigo é sempre o de antes da letra), então a condição acompanha o nome.
+ * digitada (o texto antigo é sempre o de antes da letra), então a condição acompanha o nome. Se outra opção tem o
+ * mesmo texto antigo (no meio da digitação "Casas" passa por "Casa"), a condição é dela e fica onde está.
  */
 export function renomearOpcao(esquema: Esquema, chave: string, indice: number, texto: string): SecaoBriefing[] {
   const alvo = esquema.flatMap((s) => s.campos).find((c) => c.chave === chave);
   const antigo = alvo?.opcoes?.[indice];
   if (antigo === undefined) return [...esquema];
+  const repetido = (alvo?.opcoes ?? []).some((o, i) => i !== indice && o === antigo);
   return esquema.map((s) => ({
     ...s,
     campos: s.campos.map((c) => {
       if (c.chave === chave) return { ...c, opcoes: (c.opcoes ?? []).map((o, i) => (i === indice ? texto : o)) };
-      if (c.condicao?.campo === chave && c.condicao.igual.includes(antigo)) {
+      if (c.condicao?.campo === chave && c.condicao.igual.includes(antigo) && !repetido) {
         return { ...c, condicao: { ...c.condicao, igual: c.condicao.igual.map((r) => (r === antigo ? texto : r)) } };
       }
       return c;
@@ -212,14 +214,15 @@ export function comOrigens(esquema: Esquema): SecaoBriefing[] {
   }));
 }
 
-/** O esquema que vai ao servidor: sem o que é só do editor. */
+/** O esquema que vai ao servidor: sem o que é só do editor, e com o texto das opções aparado (o servidor apara). */
 export function esquemaParaGravar(esquema: Esquema): SecaoBriefing[] {
   return esquema.map((s) => ({
     ...s,
     campos: s.campos.map((c) => {
       const { opcoesOrigem: _origem, ...resto } = c;
       void _origem;
-      return resto;
+      const aparado = resto.opcoes ? { ...resto, opcoes: resto.opcoes.map((o) => o.trim()) } : resto;
+      return aparado.condicao ? { ...aparado, condicao: { ...aparado.condicao, igual: aparado.condicao.igual.map((r) => r.trim()) } } : aparado;
     }),
   }));
 }
@@ -230,8 +233,10 @@ export function renomeiosDoRascunho(esquema: Esquema): Renomeio[] {
   for (const c of esquema.flatMap((s) => s.campos)) {
     if (!COM_LISTA.includes(c.tipo) || !c.opcoes || !c.opcoesOrigem || c.opcoesOrigem.length !== c.opcoes.length) continue;
     c.opcoes.forEach((atual, i) => {
-      const origem = c.opcoesOrigem![i];
-      if (origem !== null && origem !== atual) saida.push({ chave: c.chave, de: origem, para: atual });
+      // Aparado como o servidor grava: "Casa " é "Casa" (sem isto, o renomeio seria recusado por não existir).
+      const origem = c.opcoesOrigem![i]?.trim() ?? null;
+      const para = atual.trim();
+      if (origem !== null && origem !== para) saida.push({ chave: c.chave, de: origem, para });
     });
   }
   return saida;

@@ -1358,6 +1358,9 @@ async function cascatearNomeDisciplina(tx: Prisma.TransactionClient, de: string,
   const ids = candidatas.filter((c) => !jaTemDestino.has(c.projetoId)).map((c) => c.id);
   if (ids.length > 0) {
     await tx.disciplina.updateMany({ where: { id: { in: ids } }, data: { disciplinaTextoLegado: para } });
+    // O briefing escolhe as seções pelo nome da disciplina: o status gravado acompanha o nome novo.
+    const projetos = [...new Set(candidatas.filter((c) => !jaTemDestino.has(c.projetoId)).map((c) => c.projetoId))];
+    await recalcularBriefingsDosProjetos(tx, projetos);
   }
 }
 

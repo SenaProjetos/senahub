@@ -384,12 +384,17 @@ export function respostaValida(campo: CampoBriefing, v: unknown): { ok: true; va
   }
 }
 
-/** Só as respostas dos campos visíveis — o que vai ao navegador do cliente no link. */
+/**
+ * Só as respostas dos campos que o projeto mostra — o que vai ao navegador do cliente no link. Campo oculto pela equipe
+ * ou de outra disciplina não sai; pergunta condicional escondida SAI (a resposta é do próprio cliente): sem ela, a tela
+ * avaliaria as condições sobre menos respostas que o servidor, e mostraria vazia, ao reaparecer, a pergunta que o
+ * status já conta como respondida.
+ */
 export function respostasVisiveis(
   respostas: Record<string, unknown>,
   visiveis: readonly SecaoBriefing[],
 ): Record<string, unknown> {
-  const chaves = new Set(aplicarCondicoes(visiveis, respostas).flatMap((s) => s.campos.map((c) => c.chave)));
+  const chaves = new Set(visiveis.flatMap((s) => s.campos.map((c) => c.chave)));
   return Object.fromEntries(Object.entries(respostas).filter(([k]) => chaves.has(k)));
 }
 
@@ -411,6 +416,25 @@ function respondido(v: unknown): boolean {
 }
 
 /**
+ * A pergunta conta como respondida? Escolha só com uma opção que ainda existe (opção removida ou tipo trocado a tela
+ * mostra vazio, e o status não pode dizer "completo"). Texto e caixa de ciência seguem o que a tela mostra.
+ */
+function respondidaNoCampo(c: CampoBriefing, v: unknown): boolean {
+  if (!respondido(v)) return false;
+  const opcoes: readonly string[] = c.tipo === "sim-nao" ? OPCOES_SIM_NAO : (c.opcoes ?? []);
+  switch (c.tipo) {
+    case "radio":
+    case "select":
+    case "sim-nao":
+      return typeof v === "string" && opcoes.includes(v);
+    case "checkbox":
+      return Array.isArray(v) && v.some((x) => typeof x === "string" && opcoes.includes(x));
+    default:
+      return true;
+  }
+}
+
+/**
  * Status geral do briefing pelo preenchimento dos campos obrigatórios das `secoes` (padrão: TODAS;
  * com campos ocultos, passe `aplicarOcultos(BRIEFING_SCHEMA, ocultos)`). Sem obrigatório visível,
  * completo = alguma resposta nos campos visíveis.
@@ -422,14 +446,9 @@ export function calcularStatusBriefing(
   const campos = aplicarCondicoes(secoes, respostas).flatMap((s) => s.campos);
   const obrigatorios = campos.filter((c) => c.obrigatorio);
   if (obrigatorios.length === 0) {
-    return campos.some((c) => respondido(respostas[c.chave])) ? "completo" : "nao_iniciado";
+    return campos.some((c) => respondidaNoCampo(c, respostas[c.chave])) ? "completo" : "nao_iniciado";
   }
-  const preenchidos = obrigatorios.filter((c) => {
-    const v = respostas[c.chave];
-    if (v === undefined || v === null || v === "") return false;
-    if (Array.isArray(v)) return v.length > 0;
-    return true;
-  });
+  const preenchidos = obrigatorios.filter((c) => respondidaNoCampo(c, respostas[c.chave]));
   if (preenchidos.length === 0) return "nao_iniciado";
   if (preenchidos.length === obrigatorios.length) return "completo";
   return "em_preenchimento";
@@ -441,11 +460,6 @@ export function progressoObrigatorios(
   secoes: SecaoBriefing[] = BRIEFING_SCHEMA,
 ): { preenchidos: number; total: number } {
   const obrigatorios = aplicarCondicoes(secoes, respostas).flatMap((s) => s.campos).filter((c) => c.obrigatorio);
-  const preenchidos = obrigatorios.filter((c) => {
-    const v = respostas[c.chave];
-    if (v === undefined || v === null || v === "") return false;
-    if (Array.isArray(v)) return v.length > 0;
-    return true;
-  });
+  const preenchidos = obrigatorios.filter((c) => respondidaNoCampo(c, respostas[c.chave]));
   return { preenchidos: preenchidos.length, total: obrigatorios.length };
 }

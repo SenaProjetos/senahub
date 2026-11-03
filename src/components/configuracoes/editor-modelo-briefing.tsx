@@ -128,7 +128,7 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
         if (r.ok) {
           setVersao(r.data.versao);
           // O que acabou de ser salvo vira a nova origem de cada opção.
-          const novas = comOrigens(secoes);
+          const novas = comOrigens(esquema);
           setSecoes(novas);
           setSalvo({ foto: instantaneo(nome, descricao, novas), tipos: tiposDe(novas) });
           toast.success(
@@ -281,7 +281,8 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
         )}
         </TabsContent>
         <TabsContent value="editar" className="mt-3 text-base">
-        <div className="space-y-3">
+        {/* Enquanto salva, o rascunho não muda: o que fosse editado agora seria sobrescrito pela versão salva. */}
+        <fieldset disabled={pending} className="m-0 min-w-0 space-y-3 border-0 p-0">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -325,7 +326,7 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
           <Button id="modelo-add-secao" variant="outline" size="sm" onClick={() => setSecoes((s) => adicionarSecao(s))}>
             <Plus className="size-3.5" /> Adicionar seção
           </Button>
-        </div>
+        </fieldset>
         </TabsContent>
       </Tabs>
     </div>

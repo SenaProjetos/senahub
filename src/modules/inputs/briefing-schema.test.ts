@@ -16,6 +16,15 @@ import {
   secoesDoProjeto,
 } from "./briefing-schema";
 
+/** Uma resposta que o campo aceita (escolha = a primeira opção). */
+function valorValido(c: CampoBriefing): unknown {
+  if (c.tipo === "checkbox") return [c.opcoes![0]];
+  if (c.tipo === "checkbox-single") return true;
+  if (c.tipo === "sim-nao") return "Sim";
+  if (c.tipo === "radio" || c.tipo === "select") return c.opcoes![0];
+  return "x";
+}
+
 describe("briefing-schema", () => {
   it("tem 7 seções com Dados Gerais primeiro e Declaração por último", () => {
     expect(BRIEFING_SCHEMA).toHaveLength(7);
@@ -64,8 +73,21 @@ describe("briefing-schema", () => {
     expect(calcularStatusBriefing({ emailContato: "a@b.com" })).toBe("em_preenchimento");
     const obrig = BRIEFING_SCHEMA.flatMap((s) => s.campos).filter((c) => c.obrigatorio);
     const todas: Record<string, unknown> = {};
-    for (const c of obrig) todas[c.chave] = c.tipo === "checkbox" || c.tipo === "checkbox-single" ? ["x"] : "x";
+    for (const c of obrig) todas[c.chave] = valorValido(c);
     expect(calcularStatusBriefing(todas)).toBe("completo");
+  });
+
+  it("status: resposta de escolha que não é mais opção não conta (a tela a mostra vazia)", () => {
+    const obrig = BRIEFING_SCHEMA.flatMap((s) => s.campos).filter((c) => c.obrigatorio);
+    const todas: Record<string, unknown> = {};
+    for (const c of obrig) todas[c.chave] = valorValido(c);
+    const escolha = obrig.find((c) => c.tipo === "radio" || c.tipo === "select" || c.tipo === "sim-nao");
+    if (escolha) {
+      expect(calcularStatusBriefing({ ...todas, [escolha.chave]: "opção removida" })).toBe("em_preenchimento");
+    }
+    const secoes = [{ id: "s", titulo: "S", campos: [{ chave: "k", label: "K", tipo: "checkbox" as const, obrigatorio: true, opcoes: ["a", "b"] }] }];
+    expect(calcularStatusBriefing({ k: ["velha"] }, secoes)).toBe("nao_iniciado");
+    expect(calcularStatusBriefing({ k: ["velha", "b"] }, secoes)).toBe("completo");
   });
 
   it("progresso: obrigatórios vivem só em Dados Gerais + Declaração (sempre visíveis)", () => {
@@ -97,7 +119,7 @@ describe("briefing: seções e campos ocultos no projeto", () => {
     const obrig = BRIEFING_SCHEMA.flatMap((s) => s.campos).filter((c) => c.obrigatorio);
     const [primeiro, ...resto] = obrig;
     const respostas: Record<string, unknown> = {};
-    for (const c of resto) respostas[c.chave] = c.tipo === "checkbox" ? ["x"] : "x";
+    for (const c of resto) respostas[c.chave] = valorValido(c);
     expect(calcularStatusBriefing(respostas)).toBe("em_preenchimento");
     const visiveis = aplicarOcultos(BRIEFING_SCHEMA, { secoes: [], campos: [primeiro.chave] });
     expect(calcularStatusBriefing(respostas, visiveis)).toBe("completo");

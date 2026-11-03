@@ -6,7 +6,13 @@ import { linkVigente } from "@/lib/link-publico";
 import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
 
-const putSchema = z.object({ respostas: z.record(z.string(), z.unknown()).default({}) });
+// O link é aberto ao mundo: teto de perguntas por envio (o valor de cada uma é conferido pelo tipo no serviço).
+const putSchema = z.object({
+  respostas: z
+    .record(z.string().max(64), z.unknown())
+    .default({})
+    .refine((r) => Object.keys(r).length <= 500, "Respostas demais."),
+});
 
 async function projetoDoToken(token: string) {
   const link = await prisma.linkPublicoInput.findUnique({

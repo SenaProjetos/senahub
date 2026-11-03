@@ -65,9 +65,18 @@ export function BriefingForm({
   // Campos que o servidor não gravou porque saíram do formulário (ou a opção mudou) no meio do preenchimento.
   const [descartados, setDescartados] = useState<string[]>([]);
 
-  const salvar = useCallback(
+  // Um envio por vez: dois PUTs do link público (que não é serializado como a Server Action) podiam chegar fora de
+  // ordem e deixar gravado o estado mais velho. Quem chega com um envio em curso só deixa o último estado na fila.
+  const emCurso = useRef(false);
+  const naFila = useRef<Record<string, unknown> | null>(null);
+
+  const enviar = useCallback(
     async (dados: Record<string, unknown>) => {
-      const { payload, invalidos } = respostasParaSalvar(dados, ultimoSalvo.current, todasAsSecoes);
+      // Só as perguntas que ESTE formulário tem: a pré-população do cadastro também cobre campo oculto ou de outra
+      // disciplina, e mandá-lo faria o servidor acusá-lo de descartado a cada salvamento.
+      const chaves = new Set(todasAsSecoes.flatMap((s) => s.campos.map((c) => c.chave)));
+      const doFormulario = Object.fromEntries(Object.entries(dados).filter(([k]) => chaves.has(k)));
+      const { payload, invalidos } = respostasParaSalvar(doFormulario, ultimoSalvo.current, todasAsSecoes);
       setACorrigir(invalidos.map((c) => c.label));
       setSaveStatus("saving");
       const r = await onSalvar(payload);
@@ -79,6 +88,27 @@ export function BriefingForm({
       setTimeout(() => setSaveStatus("idle"), r.ok ? 2000 : 3000);
     },
     [onSalvar, todasAsSecoes],
+  );
+
+  const salvar = useCallback(
+    async (dados: Record<string, unknown>) => {
+      if (emCurso.current) {
+        naFila.current = dados;
+        return;
+      }
+      emCurso.current = true;
+      try {
+        let proximo: Record<string, unknown> | null = dados;
+        while (proximo) {
+          naFila.current = null;
+          await enviar(proximo);
+          proximo = naFila.current;
+        }
+      } finally {
+        emCurso.current = false;
+      }
+    },
+    [enviar],
   );
 
   const alterar = useCallback(
