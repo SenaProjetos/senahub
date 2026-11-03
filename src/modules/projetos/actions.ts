@@ -245,6 +245,10 @@ export const editarProjeto = defineAction(
       const atual = rest.clienteId ? await tx.projeto.findUnique({ where: { id }, select: { clienteId: true } }) : null;
       const trocouCliente = !!atual && atual.clienteId !== rest.clienteId;
       if (trocouCliente) {
+        // Trava o cliente de destino ANTES dos briefings (a ordem da fusão e de `definirModeloDoCliente`: cliente, depois
+        // briefing) e só então lê: uma fusão em andamento termina primeiro e o destino arquivado é recusado aqui, em vez de
+        // o projeto cair nele — e as duas não se travam em ordem inversa.
+        await tx.$queryRaw`SELECT 1 FROM "cliente" WHERE "id" = ${rest.clienteId!} FOR SHARE`;
         // Cliente fundido ou inativo não recebe projeto: a fusão já levou os projetos dele para o sobrevivente.
         const destino = await tx.cliente.findUnique({ where: { id: rest.clienteId! }, select: { ativo: true, fundidoEmId: true } });
         if (!destino) throw new ActionError("Cliente não encontrado.");

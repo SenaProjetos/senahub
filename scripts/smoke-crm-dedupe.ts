@@ -17,7 +17,7 @@
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { mesclarClientes, REFERENCIAS_CLIENTE } from "../src/modules/clientes/fusao";
+import { MOTIVO_DOIS_LOGINS, mesclarClientes, REFERENCIAS_CLIENTE } from "../src/modules/clientes/fusao";
 
 /** Tabelas cujo total de linhas não pode mudar com uma fusão (nada é apagado). */
 const TABELAS_INVARIANTES = [...new Set(REFERENCIAS_CLIENTE.map((r) => r.tabela)), "cliente"];
@@ -98,6 +98,13 @@ async function main() {
     data: { clienteId: absorvido.id, nome: `${tag}_contato` },
   });
 
+  // Âncoras polimórficas (sem FK — o §1 não as enxerga): próxima ação no cliente e o de-para contábil dele.
+  const criador = await prisma.user.findFirstOrThrow({ where: { superUsuario: true }, select: { id: true } });
+  const compromisso = await prisma.compromisso.create({
+    data: { titulo: `${tag}_proxima_acao`, inicio: new Date(), criadorId: criador.id, entidadeTipo: "CLIENTE", entidadeId: absorvido.id },
+  });
+  const dePara = await prisma.deParaContabil.create({ data: { alvo: "cliente", alvoId: absorvido.id, contaReduzido: 9999 } });
+
   // ── 3. Funde ─────────────────────────────────────────────────────────────
   const resultado = await mesclarClientes(sobrevivente.id, absorvido.id);
   console.log(`      movidos: ${JSON.stringify(resultado.movidos)}`);
@@ -124,6 +131,15 @@ async function main() {
   check(
     "absorvido não tem mais projeto",
     (await prisma.projeto.count({ where: { clienteId: absorvido.id } })) === 0,
+  );
+
+  check(
+    "próxima ação (compromisso) ancorada no absorvido passou para o sobrevivente",
+    (await prisma.compromisso.findUniqueOrThrow({ where: { id: compromisso.id } })).entidadeId === sobrevivente.id,
+  );
+  check(
+    "de-para contábil do absorvido passou para o sobrevivente (ele não tinha)",
+    (await prisma.deParaContabil.findUniqueOrThrow({ where: { id: dePara.id } })).alvoId === sobrevivente.id,
   );
 
   // ── 4. Nada foi apagado: total de linhas idêntico ────────────────────────
@@ -158,10 +174,58 @@ async function main() {
   }
   check("fundir um cliente com ele mesmo é recusado", recusouSiMesmo);
 
+  // ── 5b. Login do portal dado ao sobrevivente DURANTE a fusão (03/11/2026) ─
+  // A fusão leu "sobrevivente sem login" antes da trava; enquanto ela espera a trava, outra transação dá um login ao
+  // sobrevivente. Depois da trava a fusão tem de RELER e recusar (os dois têm login) — antes, ela sobrescrevia o login
+  // novo com o do absorvido, em silêncio.
+  const usuarios: string[] = [];
+  const corridaClientes: string[] = [];
+  try {
+    const u1 = await prisma.user.create({ data: { name: `${tag}_u1`, email: `${tag.toLowerCase()}_u1@smoke.local`, tipo: "externo", ativo: true } });
+    const u2 = await prisma.user.create({ data: { name: `${tag}_u2`, email: `${tag.toLowerCase()}_u2@smoke.local`, tipo: "externo", ativo: true } });
+    usuarios.push(u1.id, u2.id);
+    const s2 = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_corrida_sobrevivente` } });
+    const a2 = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_corrida_absorvido`, usuarioId: u1.id } });
+    corridaClientes.push(s2.id, a2.id);
+
+    let soltar!: () => void;
+    const solto = new Promise<void>((r) => (soltar = r));
+    let gravou!: () => void;
+    const gravado = new Promise<void>((r) => (gravou = r));
+    const segurando = prisma.$transaction(
+      async (tx) => {
+        await tx.cliente.update({ where: { id: s2.id }, data: { usuarioId: u2.id } });
+        gravou();
+        await solto;
+      },
+      { timeout: 20_000 },
+    );
+    await gravado;
+    const fusao = mesclarClientes(s2.id, a2.id).then(
+      () => null,
+      (e: unknown) => (e instanceof Error ? e.message : String(e)),
+    );
+    await new Promise((r) => setTimeout(r, 500));
+    soltar();
+    await segurando;
+    const erro = await fusao;
+    check(`login dado ao sobrevivente no meio da fusão: recusa com 'os dois têm login' (veio: ${erro})`, erro === MOTIVO_DOIS_LOGINS);
+    const [s2d, a2d] = await Promise.all([
+      prisma.cliente.findUniqueOrThrow({ where: { id: s2.id }, select: { usuarioId: true } }),
+      prisma.cliente.findUniqueOrThrow({ where: { id: a2.id }, select: { usuarioId: true, fundidoEmId: true } }),
+    ]);
+    check("o login novo do sobrevivente ficou; o absorvido segue com o dele e não foi fundido", s2d.usuarioId === u2.id && a2d.usuarioId === u1.id && a2d.fundidoEmId === null);
+  } finally {
+    if (corridaClientes.length) await prisma.cliente.deleteMany({ where: { id: { in: corridaClientes } } });
+    if (usuarios.length) await prisma.user.deleteMany({ where: { id: { in: usuarios } } });
+  }
+
   // ── 6. Limpeza ───────────────────────────────────────────────────────────
   // Ordem: o absorvido aponta para o sobrevivente (FK), então some primeiro.
   await prisma.projeto.deleteMany({ where: { id: { in: [projA.id, projB.id] } } });
   await prisma.contatoCliente.deleteMany({ where: { id: contato.id } });
+  await prisma.compromisso.deleteMany({ where: { id: compromisso.id } });
+  await prisma.deParaContabil.deleteMany({ where: { id: dePara.id } });
   await prisma.cliente.delete({ where: { id: absorvido.id } });
   await prisma.cliente.delete({ where: { id: sobrevivente.id } });
 

@@ -173,6 +173,10 @@ export const definirModeloDoCliente = defineAction(
   },
   async (input) => {
     const afetados = await prisma.$transaction(async (tx) => {
+      // Trava o cliente ANTES de ler (a mesma trava da fusão, e na mesma ordem: cliente, depois briefings). Duas escolhas
+      // ao mesmo tempo viram fila — a segunda relê o modelo já gravado e tira a foto "antes" certa — e uma fusão em
+      // andamento termina primeiro: o cliente absorvido é recusado em vez de ganhar formulário depois de arquivado.
+      await tx.$queryRaw`SELECT 1 FROM "cliente" WHERE "id" = ${input.clienteId} FOR UPDATE`;
       const cliente = await tx.cliente.findUnique({
         where: { id: input.clienteId },
         select: { id: true, modeloBriefingId: true, excluidoEm: true, fundidoEmId: true },
