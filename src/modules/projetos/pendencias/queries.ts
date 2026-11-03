@@ -661,7 +661,13 @@ export async function problemasDoProjeto(projetoId: string, viewer: SessionUser)
       uploadIdVigente: vigente?.id ?? null,
       // Com documento: existe versão vigente fora da lixeira. Sem documento (legado): a de origem.
       arquivoDisponivel: r.documentoId ? vigente != null : !origemNaLixeira,
-      deOutraRevisao: r.revisaoOrigemId != null && vigente?.revisaoId != null && r.revisaoOrigemId !== vigente.revisaoId,
+      // "Resolver na Rxx" só com revisão POSTERIOR à de origem (o servidor recusa as outras). Com a mais nova na lixeira, a
+      // vigente pode ser uma anterior: aí não se oferece resolver nela.
+      deOutraRevisao:
+        r.revisaoOrigemId != null &&
+        vigente?.revisaoId != null &&
+        r.revisaoOrigemId !== vigente.revisaoId &&
+        (vigente.revisao?.numero ?? -1) > (r.revisaoOrigem?.numero ?? Number.POSITIVE_INFINITY),
       revisaoOrigemId: r.revisaoOrigemId,
       revisaoVigenteId: vigente?.revisaoId ?? null,
       // A revisão vem do arquivo vigente escolhido (o mesmo do link do alfinete). Sem ele, cai na revisão

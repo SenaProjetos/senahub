@@ -163,7 +163,8 @@ function LinhaProblema({ linha, projetoId, usuarioId, itens, expandido, ocupado,
           )}
           <Badge variant="outline" className="h-5 px-1.5 text-[10px]">{statusLabel}</Badge>
           {linha.prazo && <span>Prazo {formatarData(linha.prazo)}</span>}
-          <span>{linha.fechadoEm ? `${dias}d até encerrar` : `${dias}d em aberto`}</span>
+          {/* Adiado não grava `fechadoEm`: um contador "em aberto" seguiria crescendo num item encerrado. */}
+          {linha.status !== "adiado" && <span>{linha.fechadoEm ? `${dias}d até encerrar` : `${dias}d em aberto`}</span>}
         </div>
       </LinhaComMenu>
 
@@ -330,8 +331,8 @@ export function ProblemasView({
     return (
       <EmptyState
         icon={ClipboardList}
-        title="Nenhum problema neste projeto."
-        description="Os apontamentos enviados pela coordenação aparecem aqui."
+        title="Nenhum problema para você neste projeto."
+        description="Os apontamentos enviados pela coordenação aparecem aqui. Apontamentos de disciplinas que você não acompanha não aparecem."
       />
     );
   }

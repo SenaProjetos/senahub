@@ -64,7 +64,13 @@ export default async function VisualizarPage({
   const ehGlobal = acessoGlobal(user);
   const ehResp = upload.disciplina.responsaveis.some((r) => r.userId === user.id);
   const ehMembro = membros.some((m) => m.userId === user.id);
-  if (!ehGlobal && !ehResp && !ehMembro) notFound();
+  // Participa do projeto também quem é responsável por OUTRA disciplina dele — a mesma regra da muralha do download e
+  // da aba Problemas (sem isto, o link "Abrir na prancha" da aba caía em 404).
+  const ehRespNoProjeto =
+    !ehGlobal && !ehResp && !ehMembro
+      ? (await prisma.disciplina.count({ where: { projetoId: id, responsaveis: { some: { userId: user.id } } } })) > 0
+      : false;
+  if (!ehGlobal && !ehResp && !ehMembro && !ehRespNoProjeto) notFound();
 
   // Só a versão vigente do arquivo aceita novos apontamentos.
   const maisNova = await prisma.upload.findFirst({
