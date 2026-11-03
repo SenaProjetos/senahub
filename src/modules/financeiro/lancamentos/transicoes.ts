@@ -13,6 +13,8 @@
  *   aguardando ── aprovar ──▶ previsto · aguardando ── rejeitar/cancelar ──▶ cancelado
  *   previsao (cronograma) só muda pela sincronização do contrato — nunca por aqui.
  *   perna de transferência entre contas: só muda pela transferência inteira (as duas pernas juntas).
+ *   conta de imposto retido (C4): nasce do pagamento de uma nota com retenção; paga e estorna como qualquer conta, mas
+ *   só some estornando o pagamento da nota de origem (cancelar, excluir e mudar o valor são recusados).
  */
 
 export type Situacao = "previsto" | "aguardando_aprovacao" | "confirmado" | "cancelado" | "previsao";
@@ -31,7 +33,17 @@ export type Operacao =
   | "corrigir_pagamento";
 
 /** Quem controla o lançamento além do Financeiro (a porta certa para mexer nele). */
-export type Origem = "manual" | "projetista" | "art" | "previsao" | "transferencia" | "acessorio";
+export type Origem =
+  | "manual"
+  | "projetista"
+  | "art"
+  | "previsao"
+  | "transferencia"
+  | "acessorio"
+  /** C4: o lançamento que faz o banco sair (ou entrar) só o líquido da nota com retenção. */
+  | "retencao_acessorio"
+  /** C4: a conta do imposto retido a recolher, gerada pela baixa da nota. */
+  | "retencao";
 
 export type EstadoDoLancamento = {
   status: Situacao;
@@ -64,6 +76,10 @@ export const MOTIVO_TRANSFERENCIA =
 export const MOTIVO_ACESSORIO =
   "São os juros, a multa ou o desconto de uma baixa — estorne, exclua ou corrija o pagamento do lançamento principal (eles vão junto).";
 export const MOTIVO_SO_PAGO_CORRIGE = "Só se corrige o pagamento do que já foi pago ou recebido.";
+export const MOTIVO_ACESSORIO_RETENCAO =
+  "É a retenção de imposto de uma baixa — estorne ou corrija o pagamento do lançamento principal (ela vai junto).";
+/** Mesma frase de `retencoes.ts` (o menu e o servidor dizem o mesmo). */
+export const MOTIVO_RETENCAO_ORIGEM = "Nasce da retenção de uma nota: para desfazer, estorne o pagamento da conta de origem.";
 
 /** Por que a operação não pode acontecer; `null` = pode. */
 export function motivoParaNao(op: Operacao, e: EstadoDoLancamento): string | null {
@@ -74,6 +90,9 @@ export function motivoParaNao(op: Operacao, e: EstadoDoLancamento): string | nul
   if (e.origem === "transferencia" && op !== "conciliar" && op !== "aprovar" && op !== "rejeitar") return MOTIVO_TRANSFERENCIA;
   // M7: juros/multa/desconto de uma baixa só andam junto com o principal.
   if (e.origem === "acessorio") return MOTIVO_ACESSORIO;
+  if (e.origem === "retencao_acessorio") return MOTIVO_ACESSORIO_RETENCAO;
+  // C4: a conta do imposto retido paga e estorna normalmente; sumir, só estornando a nota de origem.
+  if (e.origem === "retencao" && (op === "cancelar" || op === "excluir" || op === "reabrir")) return MOTIVO_RETENCAO_ORIGEM;
 
   switch (op) {
     case "baixar":
@@ -169,6 +188,10 @@ export function estadoDoLancamento(l: {
   parDeTransferencia?: boolean;
   /** M7: é juros/multa/desconto de outra baixa. */
   acessorioDeId?: string | null;
+  /** C4: conta de imposto gerada pela retenção de outra nota. */
+  retencaoDeId?: string | null;
+  /** C4: com `acessorioDeId`, é a retenção de imposto daquela baixa. */
+  retencaoImposto?: string | null;
 }): EstadoDoLancamento {
   const status = l.status as Situacao;
   return {
@@ -184,7 +207,11 @@ export function estadoDoLancamento(l: {
           : l.ehDeArt
             ? "art"
             : l.acessorioDeId
-              ? "acessorio"
+              ? l.retencaoImposto
+                ? "retencao_acessorio"
+                : "acessorio"
+              : l.retencaoDeId
+              ? "retencao"
               : l.parDeTransferencia
               ? "transferencia"
               : "manual",

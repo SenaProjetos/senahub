@@ -9,7 +9,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { pagamentoPagoNoFinanceiro } from "@/modules/financeiro/custo/lancamento-custo";
-import { exigirOperacao } from "@/modules/financeiro/lancamentos/situacao-service";
+import { excluirAcessoriosNoTx, exigirOperacao, MOTIVO_MUDOU } from "@/modules/financeiro/lancamentos/situacao-service";
+import { aplicarRetencoesNaBaixaNoTx, desfazerContasDeImpostoNoTx } from "@/modules/financeiro/lancamentos/retencoes-service";
 import { exigirPeriodoAberto, mesesFechados } from "@/modules/financeiro/fechamento/trava-service";
 import { mesDe } from "@/modules/financeiro/fechamento/trava";
 import { paraCentavos, paraReais } from "@/modules/financeiro/liquidez/dinheiro";
@@ -42,12 +43,14 @@ export async function candidatosDeConciliacao(db: Db): Promise<(CandidatoConcili
       data: true,
       vencimento: true,
       dataConfirmacao: true,
+      // C4: com retenção na nota, o banco movimenta o líquido — é ele que casa com o extrato.
+      retencoes: { select: { valor: true } },
     },
   });
   return ls.map((l) => ({
     id: l.id,
     tipo: l.tipo,
-    valorCentavos: paraCentavos(l.valor),
+    valorCentavos: paraCentavos(l.valor) - l.retencoes.reduce((s, r) => s + paraCentavos(r.valor), 0),
     valor: Number(l.valor),
     descricao: l.descricao,
     status: l.status,
@@ -95,9 +98,23 @@ async function ligar(tx: Tx, t: { id: string; data: Date; contaId: string }, lan
     data: { conciliado: true, lancamentoId, estadoAnterior: antes },
   });
   if (r.count !== 1) throw new ActionError("Transação já conciliada.");
-  await tx.lancamento.update({ where: { id: lancamentoId }, data: { status: "confirmado", dataConfirmacao: t.data, contaId: t.contaId } });
+  // Condicionado à situação lida: baixa manual e casamento do OFX ao mesmo tempo não pagam (nem retêm) duas vezes.
+  const r2 = await tx.lancamento.updateMany({
+    where: { id: lancamentoId, status: estado.status, excluidoEm: null },
+    data: { status: "confirmado", dataConfirmacao: t.data, contaId: t.contaId },
+  });
+  if (r2.count !== 1) throw new ActionError(MOTIVO_MUDOU);
   if (estado.status !== "confirmado") {
     await tx.lancamentoStatusHistorico.create({ data: { lancamentoId, de: estado.status, para: "confirmado", autorId } });
+    // C4: pago agora pelo extrato — a retenção na nota acontece aqui, como na baixa manual.
+    const titulo = await tx.lancamento.findUniqueOrThrow({
+      where: { id: lancamentoId },
+      select: {
+        id: true, tipo: true, descricao: true, formaId: true, numeroDocumento: true, chaveNfe: true,
+        fornecedorId: true, clienteId: true, centroId: true, projetoId: true,
+      },
+    });
+    await aplicarRetencoesNaBaixaNoTx(tx, titulo, { data: t.data, contaId: t.contaId, formaId: titulo.formaId, autorId, parcial: false });
   }
   const pag = await tx.lancamento.findUniqueOrThrow({ where: { id: lancamentoId }, select: { pagamentoProjetistaId: true } });
   if (pag.pagamentoProjetistaId) {
@@ -186,6 +203,10 @@ export async function desconciliarNoBanco(transacaoId: string, autorId: string):
       return { lancamentoId: l.id, aviso: null, efeito: "excluido" };
     }
     const e = plano.estado;
+    // C4: voltou a em aberto — a retenção aplicada no pagamento sai junto (acessórios e contas dos impostos;
+    // imposto já recolhido recusa). Antes da conciliação não havia acessório: ela só os cria ao pagar.
+    await excluirAcessoriosNoTx(tx, l.id, autorId);
+    await desfazerContasDeImpostoNoTx(tx, l.id, autorId);
     await tx.lancamento.update({
       where: { id: l.id },
       data: {

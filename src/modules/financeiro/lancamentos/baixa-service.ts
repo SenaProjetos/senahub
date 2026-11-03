@@ -16,6 +16,8 @@ import { exigirOperacao, MOTIVO_MUDOU } from "@/modules/financeiro/lancamentos/s
 import { planejarBaixa, type PlanoDaBaixa } from "@/modules/financeiro/lancamentos/baixa";
 import { exigirComprovanteSeObrigatorio } from "@/modules/financeiro/lancamentos/comprovante-service";
 import { copiarRateioNoTx } from "@/modules/financeiro/lancamentos/rateio-service";
+import { aplicarRetencoesNaBaixaNoTx } from "@/modules/financeiro/lancamentos/retencoes-service";
+import { MOTIVO_RETENCAO_DESCONTO } from "@/modules/financeiro/lancamentos/retencoes";
 
 type Tx = Prisma.TransactionClient;
 
@@ -31,7 +33,7 @@ export type PedidoDeBaixa = {
   desconto?: number | null;
 };
 
-export type BaixaFeita = { restante: number | null; acessorios: number; caixa: number };
+export type BaixaFeita = { restante: number | null; acessorios: number; caixa: number; impostosARecolher: number };
 
 const centavos = (v: number | null | undefined) => (v == null ? 0 : Math.round(v * 100));
 
@@ -108,10 +110,21 @@ export async function baixarNoTx(tx: Tx, i: PedidoDeBaixa, autorId: string): Pro
     await copiarRateioNoTx(tx, lanc.id, acessorio.id);
   }
 
+  // C4: retenção na nota — acessórios fora da DRE (o banco fica com o líquido) e as contas dos impostos a recolher.
+  const ret = await aplicarRetencoesNaBaixaNoTx(tx, lanc, { data: i.data, contaId, formaId, autorId, parcial: plano.restante != null });
+  // Desconto grande + retenção: o banco "receberia" numa conta a pagar. A transação desfaz o que já foi gravado.
+  if (plano.caixa - ret.retidoCentavos < 0) throw new ActionError(MOTIVO_RETENCAO_DESCONTO);
+
   if (lanc.pagamentoProjetistaId) {
     await tx.pagamentoProjetista.updateMany(pagamentoPagoNoFinanceiro(lanc.pagamentoProjetistaId, i.data));
   }
-  return { restante: plano.restante == null ? null : plano.restante / 100, acessorios: plano.acessorios.length, caixa: plano.caixa / 100 };
+  return {
+    restante: plano.restante == null ? null : plano.restante / 100,
+    acessorios: plano.acessorios.length + ret.acessorios,
+    // O retido não passa pelo banco: sai (ou entra) só o líquido.
+    caixa: (plano.caixa - ret.retidoCentavos) / 100,
+    impostosARecolher: ret.aRecolher,
+  };
 }
 
 type Lanc = Awaited<ReturnType<Tx["lancamento"]["findUniqueOrThrow"]>>;

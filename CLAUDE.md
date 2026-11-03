@@ -64,8 +64,11 @@ npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, 
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
+npm run smoke:retencoes             # retenções na nota (C4): pagar líquido + contas dos impostos, parcial/desconto recusados, estorno, conciliação, cobrança, contabilidade
 npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do projeto, projetista pago no Financeiro, recebido pelo pago) e N1 (estorno, reabrir, caminhos impossíveis, desfazer importação)
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
+npm run smoke:contabil              # integração contábil (M5): plano do contador, partidas (reconhecimento+baixa, parcial, cartão, transferência, folha fora), invariante do extrato, exportação só de mês fechado
+npm run contabil:importar-plano     # importa/re-importa o plano do contador (CSV; sem argumento usa docs/financeiro/contabil/plano-de-contas-gama-2026-10.csv)
 npm run smoke:catalogo-nomenclatura # catálogo da versão: sigla que muda de dono (sinônimo/oficial), sair sem mexer em sigla, voltar escolhendo
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
 npm run smoke:ponto-disciplina     # rateio R2: disciplina na sessão, reunião ligada a projeto, quem pode marcar, tarefa obrigatória com 2+ disciplinas, correção do dia pelo responsável da data
@@ -183,7 +186,7 @@ conta, PIX key and NF-e key use `InputFormatado tipo="…"` (`components/ui/inpu
 `campo.<tipo>()` (`lib/campos/zod.ts`) in the schema — never a raw `<Input>` or a bare `z.string()`. The catalog
 (`lib/campos/`) is the single source of mask, normalization, validation and message, so the screen never accepts what
 the action refuses. The DB stores the **standard format** (`000.000.000-00`, `(00) 00000-0000`); exceptions: PIX (BACEN
-format, validated in the handler via `campoPix` in `normalizarConta` because it depends on `pixTipo`), the NF-e key (44 digits) and
+format, validated in the handler via `campoPix` in `normalizarConta` because it depends on `pixTipo`), the NF key (digits/uppercase, 44 or 50) and
 `Cliente.documento` (digits only — CRM ADR-03 uniqueness; the screen masks it). Duplicate lookups match
 `variantesDoValor` while legacy rows remain; importers and producers pass a valid value through
 `CAMPOS.<tipo>.normalizar` (an invalid one is a preview warning, saved as it came). Create schemas are strict; **every
@@ -481,8 +484,9 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
   an accessory `origem = "acessorio"` (every op refused with `MOTIVO_ACESSORIO`); estornar/excluir the principal soft-deletes
   them (`excluirAcessoriosNoTx`) and corrigir pagamento moves them. `acessorioDeId` has NO Prisma relation on purpose: a
   second self-relation on `Lancamento` cost ~0.7 GB of `tsc` heap (`tsc -p tsconfig.server.json` is already above 4 GB —
-  run it with `NODE_OPTIONS=--max-old-space-size=8192`). `Lancamento.numeroDocumento` / `chaveNfe` (44 digits, mod-11 DV
-  in `chaveNfeValida`). Retentions on the NF (ISS, IRRF, INSS…) wait for the accountant (owner decision 5).
+  run it with `NODE_OPTIONS=--max-old-space-size=8192`). `Lancamento.numeroDocumento` / `chaveNfe` (access key: NFS-e nacional 50 chars or NF-e 44 with
+  mod-11 DV, alphanumeric CNPJ allowed — `lib/campos/chave-nfe.ts` `modeloDaChave`; a receivable only takes an NFS-e key, owner
+  2026-10-16: the company issues service invoices — `motivoChaveDoTipo`). Retentions on the NF (ISS, IRRF, INSS…) wait for the accountant (owner decision 5).
 - **DRE base, Indicadores and relatório por dimensão** (M6 + review 2026-10-03, `financeiro/relatorios/`): `whereDRE(de, ate,
   base)` is the ONE rule for what enters a DRE period — DRE comparativo, `relatorioDRE` (Excel export, takes `base`) and
   Indicadores. **Caixa** = realized by `dataConfirmacao`; **Competência = pago E em aberto** (`confirmado|previsto|
@@ -561,6 +565,40 @@ dispensada"). Writes only in `pendencias-service.ts` (re-checks the signature in
 `pendencia_dispensada` / `pendencia_dispensa_desfeita`); `ciclo/service.ts` is untouched. Screen and actions gate on
 `notificacoes:gestao`, the audience of the notice (no new permission). The 06:20 notice is now a summary of OPEN items linking
 to the screen.
+
+**Accounting export (M5)** (`modules/financeiro/contabil/`, spec `docs/superpowers/specs/2026-10-07-integracao-contabil.md`):
+the SenaHub does NOT keep books — `gerarPartidas` (pure) DERIVES double-entry lines from the month's lançamentos at each
+export; the accountant (Alterdata) books them. Accounts are the accountant's **código reduzido** (`ContaContabil.reduzido`,
+unique — the classificação repeats in his plan). `DeParaContabil` maps categoria (inherits from the parent; `naoExportar` =
+folha CLT, the accountant books it), conta bancária (investment accounts included), cartão, contato and the two padrões
+(Clientes/Fornecedores Diversos). A título = TWO lines (accountant's rule): recognition at competência and baixa at payment;
+a partial remainder (`restanteDeId`) is never recognized again; card purchases pay in one line per fatura; a transfer pair is
+one line; M7 accessories and investment yield/IR are one line against the bank. Only a CLOSED month exports
+(`registrarExportacaoNoBanco` stores `ExportacaoContabil` lines + hash, audited); the download route only reads that record.
+Invariant (smoke): the bank account's lines + what was left out = the Extrato por conta's net for the month.
+The accountant's own import model (`docs/financeiro/contabil/modelo-de-importacao-alterdata-lancamentos.xls`, format `alterdata`) has
+5 columns (`debito, credito, data, valor, complemento historico`, tab `Planilha1`) plus THREE EXTRA COLUMNS to the right added by the
+owner (`centro de custo`, `projeto`, `chave de acesso`). Accounts in EVERY file are the plan's CLASSIFICAÇÃO (owner/accountant,
+2026-10-16), resolved by `partidasDoMes` into `LinhaExportada` — the código reduzido stays the internal key (de-para, motor). The
+classificação repeats in his plan (`2.1.3.01.0003` = PIS/COFINS/ICMS/IPI/IE) and that is ACCEPTED — in the Simples they are paid
+together in the DAS, one account for the Alterdata (owner, 2026-10-16); the alterdata layout refuses a month with a line without account; the complemento is capped at 200 chars (description shortened,
+document kept, `complementoAlterdata`); centro/projeto only on result-account lines, never on the baixa (no de-para code → SenaHub
+centro name / projeto code). `arquivo-xlsx.ts` (exceljs, `node:module`) is imported only by the download route, never by the client view.
+**Retention on the invoice** (C4, `lancamentos/retencoes.ts` pure + `retencoes-service.ts`, spec §14): `RetencaoLancamento` lives on
+the título (reais per tax, typed from the NF). EVERY path that pays a título calls `aplicarRetencoesNaBaixaNoTx` (baixa, lote,
+conciliação `ligar`, created-already-paid): one accessory per tax (`acessorioDeId` + `retencaoImposto`, `fora_do_resultado`) so the
+bank moves the NET, and — on a payable only — one tax payable per tax (`retencaoDeId` + `retencaoImposto`, due on the configured day
+of the month after payment, `ConfigSistema financeiro.retencoes`). Partial payment and lote de pagamentos refuse a título with
+retention; estorno/excluir/desconciliar undo it via `desfazerContasDeImpostoNoTx` (refused once a tax was paid). State machine:
+origem `retencao_acessorio` (moves only with the principal) and `retencao` (pays/estorna; never cancel/excluir/reabrir; value,
+category and dates belong to the NF). Readers of what the bank moves use valor − retido (Contas list, planner — plus the estimated
+`ret:<id>:<imposto>` event —, conciliation candidates, collection e-mail, pay bell); DRE/aging keep the NF value. Accounting: baixa
+by the net, each retained tax against the contato (D fornecedor / C imposto a recolher; D imposto a compensar / C cliente), the tax
+payable only on payment (D imposto a recolher / C banco); de-para `imposto_recolher|imposto_compensar` by tax. Partial unique
+indexes (one live tax per NF) back it in the DB. Smoke: `npm run smoke:retencoes`.
+Accounts with código reduzido `9101`–`9105` (ISS a recolher, ISS/INSS a compensar, cartão a pagar, adiantamento de sócios) are PROVISIONED by us (accountant agreed
+2026-11-01, spec §15) with classificações in his structure; he creates the real ones with the same classificação, and nothing
+changes here — never reuse the `9xxx` block for anything else.
 
 **Projetista paid per phase** (F7.4, `PagamentoProjetista.etapaId`): "already paid" means
 `situacaoPagamento().jaLiberouTudo` (every phase released) — never "has any payment" (`_count.pagamentos > 0`),

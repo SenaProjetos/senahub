@@ -59,6 +59,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { brl, formatarData } from "@/lib/utils";
 import { MESES_CURTOS, diaDeSaoPaulo } from "@/lib/data";
 import { SeletorPeriodo, type OpcaoPeriodo } from "@/components/financeiro/seletor-periodo";
+import { ROTULO_IMPOSTO, type ImpostoRetido } from "@/modules/financeiro/lancamentos/retencoes";
 
 function dt(d: string | Date | null) {
   return d ? formatarData(d) : "—";
@@ -81,6 +82,12 @@ function venceEm(d: string | Date | null): "vencido" | "hoje" | "futuro" | null 
   if (v.getTime() === hoje.getTime()) return "hoje";
   return "futuro";
 }
+/** C4: o que sai (ou entra) no banco — a nota menos o retido. É o que a lista soma e o planejador projeta. */
+function liquido(l: LancamentoItem): number {
+  return Math.round((Number(l.valor) - l.retencoes.reduce((s, r) => s + r.valor, 0)) * 100) / 100;
+}
+const retidoDe = (l: LancamentoItem) => Math.round(l.retencoes.reduce((s, r) => s + r.valor, 0) * 100);
+
 function parcela(desc: string): string | null {
   const m = desc.match(/(\d+)\s*\/\s*(\d+)/);
   return m ? `${m[1]}/${m[2]}` : null;
@@ -111,7 +118,8 @@ export function ContasPagarReceberView({
 }: {
   itens: LancamentoItem[];
   opcoes: OpcoesLancamento;
-  tabInicial?: "despesa" | "receita";
+  /** "impostos" = A pagar recortado nas contas de imposto retido (C4). */
+  tabInicial?: "despesa" | "receita" | "impostos";
   podeGerir?: boolean;
   /** Bloco exibido acima da lista, só na aba "A receber" (ex.: parcelas de contrato a faturar). */
   topoReceita?: React.ReactNode;
@@ -122,7 +130,9 @@ export function ContasPagarReceberView({
   const [, start] = useTransition();
   const printRef = useRef<HTMLDivElement>(null);
 
-  const [tab, setTab] = useState<"despesa" | "receita">(tabInicial);
+  const [tab, setTab] = useState<"despesa" | "receita">(tabInicial === "receita" ? "receita" : "despesa");
+  // C4: "Impostos retidos" é um recorte de A pagar — as contas que nasceram da retenção de uma nota.
+  const [soImpostos, setSoImpostos] = useState(tabInicial === "impostos");
   const [modo, setModo] = useState<Modo>("todos");
   const [mesRef, setMesRef] = useState(() => meioDia(new Date()));
   const [de, setDe] = useState("");
@@ -225,8 +235,8 @@ export function ContasPagarReceberView({
     for (const l of itens) {
       if (!passaComum(l)) continue;
       if (excluidas.has(topoDe(l))) continue;
-      if (l.tipo === "despesa") aPagar += Number(l.valor);
-      else aReceber += Number(l.valor);
+      if (l.tipo === "despesa") aPagar += liquido(l);
+      else aReceber += liquido(l);
     }
     return { aPagar, aReceber, resultado: aReceber - aPagar };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,25 +247,43 @@ export function ContasPagarReceberView({
     const m = new Map<string, number>();
     for (const l of itens) {
       if (l.tipo !== tab) continue;
+      if (soImpostos && !l.retencaoDeId) continue;
       if (!passaComum(l)) continue;
       const k = topoDe(l);
-      m.set(k, (m.get(k) ?? 0) + Number(l.valor));
+      m.set(k, (m.get(k) ?? 0) + liquido(l));
     }
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, tab, modo, mesRef, de, ate, busca, situacoes, aging, fornecedorId, clienteId, centroId, formaId, projetoId, valorMin, valorMax]);
+  }, [itens, tab, soImpostos, modo, mesRef, de, ate, busca, situacoes, aging, fornecedorId, clienteId, centroId, formaId, projetoId, valorMin, valorMax]);
 
   // lista final do tab (aplica exclusão de categoria)
   const lista = useMemo(() => {
     return itens
-      .filter((l) => l.tipo === tab && passaComum(l) && !excluidas.has(topoDe(l)))
+      .filter((l) => l.tipo === tab && (!soImpostos || l.retencaoDeId != null) && passaComum(l) && !excluidas.has(topoDe(l)))
       .sort((a, b) => {
         const va = new Date(a.vencimento ?? a.data).getTime();
         const vb = new Date(b.vencimento ?? b.data).getTime();
         return va - vb;
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itens, tab, modo, mesRef, de, ate, busca, situacoes, aging, fornecedorId, clienteId, centroId, formaId, projetoId, valorMin, valorMax, excluidas]);
+  }, [itens, tab, soImpostos, modo, mesRef, de, ate, busca, situacoes, aging, fornecedorId, clienteId, centroId, formaId, projetoId, valorMin, valorMax, excluidas]);
+
+  // C4: um cartão por imposto retido em aberto (o que a lista mostra), com o vencimento mais próximo e quantas notas.
+  const kpisImpostos = useMemo(() => {
+    if (!soImpostos) return null;
+    const m = new Map<string, { total: number; vence: string | null; notas: number }>();
+    for (const l of lista) {
+      const k = l.retencaoImposto ?? "outro";
+      const v = new Date(l.vencimento ?? l.data).toISOString().slice(0, 10);
+      const a = m.get(k) ?? { total: 0, vence: null, notas: 0 };
+      a.total += Number(l.valor);
+      a.notas += 1;
+      if (!a.vence || v < a.vence) a.vence = v;
+      m.set(k, a);
+    }
+    const ordem = ["iss", "irrf", "inss", "pis", "cofins", "csll"];
+    return [...m.entries()].sort((a, b) => ordem.indexOf(a[0]) - ordem.indexOf(b[0]));
+  }, [lista, soImpostos]);
 
   // "Selecionados (N)": ignora filtros e mostra só os marcados. A seleção é zerada ao trocar de
   // aba, então são sempre contas do mesmo tipo (a coluna Fornecedor/Cliente continua valendo).
@@ -266,7 +294,7 @@ export function ContasPagarReceberView({
       .sort((a, b) => new Date(a.vencimento ?? a.data).getTime() - new Date(b.vencimento ?? b.data).getTime());
   }, [lista, itens, selecao.soSelecionados, selecao.ids]);
 
-  const totalLista = exibidas.reduce((s, l) => s + Number(l.valor), 0);
+  const totalLista = exibidas.reduce((s, l) => s + liquido(l), 0);
 
   // agrupamento com subtotais
   const grupos = useMemo(() => {
@@ -291,7 +319,7 @@ export function ContasPagarReceberView({
     return [...m.entries()].map(([nome, items]) => ({
       nome,
       items,
-      total: items.reduce((s, l) => s + Number(l.valor), 0),
+      total: items.reduce((s, l) => s + liquido(l), 0),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exibidas, agruparPor]);
@@ -319,7 +347,7 @@ export function ContasPagarReceberView({
 
   /** Contas marcadas que ainda estão na lista (a fila encolhe quando algo é quitado). */
   const alvosSelecao = useMemo(() => itens.filter((i) => selecao.marcado(i.id)), [itens, selecao]);
-  const itensDoLote = itensDeLoteContas(tab, podeGerir);
+  const itensDoLote = itensDeLoteContas(tab, podeGerir, alvosSelecao.length > 0 && alvosSelecao.every((a) => a.retencaoDeId != null));
 
   /** Planejador (D1/D3): prioridade e confiança mudam o que o planejador espera, não o status. */
   function gravarPlanejador(p: Promise<{ ok: boolean; error?: string }>, ok: string) {
@@ -385,7 +413,8 @@ export function ContasPagarReceberView({
       toast.error("Despesa aguardando aprovação.");
       return;
     }
-    if (l.contaId) {
+    // C4: nota com retenção abre o diálogo — ele mostra o líquido e as contas de imposto que vão nascer.
+    if (l.contaId && l.retencoes.length === 0) {
       start(async () => {
         const { confirmarLancamento } = await import("@/modules/financeiro/lancamentos/actions");
         const r = await confirmarLancamento({ id: l.id });
@@ -433,7 +462,7 @@ export function ContasPagarReceberView({
           <td>${dt(l.vencimento ?? l.data)}</td>
           <td>${l.descricao}</td>
           <td>${l.fornecedor?.nome ?? l.cliente?.nome ?? ""}</td>
-          <td style="text-align:right">${brl(sinal * Number(l.valor))}</td>
+          <td style="text-align:right">${brl(sinal * liquido(l))}</td>
         </tr>`,
       )
       .join("");
@@ -478,19 +507,52 @@ export function ContasPagarReceberView({
       {subnav}
 
       {/* abas */}
-      <div className="flex gap-1 border-b">
-        {(["despesa", "receita"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => { setTab(t); limparSel(); }}
-            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
-              tab === t ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {t === "despesa" ? "A pagar" : "A receber"}
-          </button>
-        ))}
+      <div role="tablist" aria-label="Contas em aberto" className="flex flex-wrap gap-1 border-b">
+        {(["despesa", "receita", "impostos"] as const).map((t) => {
+          const ativa = t === "impostos" ? soImpostos : !soImpostos && tab === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={ativa}
+              onClick={() => {
+                setTab(t === "impostos" ? "despesa" : t);
+                setSoImpostos(t === "impostos");
+                limparSel();
+              }}
+              className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+                ativa ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {t === "despesa" ? "A pagar" : t === "receita" ? "A receber" : "Impostos retidos"}
+            </button>
+          );
+        })}
       </div>
+
+      {kpisImpostos && kpisImpostos.length > 0 && (
+        <section aria-label="Impostos retidos em aberto" className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
+          {kpisImpostos.map(([imposto, k]) => (
+            <Card key={imposto}>
+              <CardContent className="space-y-0.5 py-3 text-sm">
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{ROTULO_IMPOSTO[imposto as ImpostoRetido] ?? imposto} a recolher</p>
+                <p className="font-mono text-lg font-semibold tabular-nums">{brl(k.total)}</p>
+                <p className="text-xs text-muted-foreground">
+                  {k.vence ? `vence ${dt(k.vence)}` : ""} · {k.notas} {k.notas === 1 ? "nota" : "notas"}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+          <Card>
+            <CardContent className="space-y-0.5 py-3 text-sm">
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Fora da DRE</p>
+              <p className="font-mono text-lg font-semibold tabular-nums">{brl(kpisImpostos.reduce((s, [, k]) => s + k.total, 0))}</p>
+              <p className="text-xs text-muted-foreground">a despesa já entrou pelo valor cheio da nota</p>
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {tab === "receita" && topoReceita}
 
@@ -523,7 +585,7 @@ export function ContasPagarReceberView({
             <CardContent className="py-4">
               <div className="mb-2 flex items-center justify-between text-sm font-medium">
                 <span>Contas exibidas</span>
-                <span className="text-muted-foreground">{tab === "despesa" ? "A pagar" : "A receber"}</span>
+                <span className="text-muted-foreground">{soImpostos ? "Impostos retidos" : tab === "despesa" ? "A pagar" : "A receber"}</span>
               </div>
               <ul className="space-y-1 text-sm">
                 {grupoContas.length === 0 && <li className="text-muted-foreground">—</li>}
@@ -617,7 +679,16 @@ export function ContasPagarReceberView({
               <span />
             </div>
             {exibidas.length === 0 ? (
-              <EmptyState icon={Wallet} title={selecao.soSelecionados ? "As contas selecionadas não estão mais disponíveis." : "Nada em aberto."} />
+              <EmptyState
+                icon={Wallet}
+                title={
+                  selecao.soSelecionados
+                    ? "As contas selecionadas não estão mais disponíveis."
+                    : soImpostos
+                      ? "Nenhum imposto retido em aberto com estes filtros."
+                      : "Nada em aberto."
+                }
+              />
             ) : grupos ? (
               grupos.map((g) => (
                 <div key={g.nome}>
@@ -648,7 +719,7 @@ export function ContasPagarReceberView({
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir={podeGerir} onClose={() => setDetalhe(null)} />
       <CriarRegraDialog lancamento={regraDe} onClose={() => setRegraDe(null)} />
       {transferencias.dialogo}
-      <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
+      <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} diasRetencao={opcoes.diasRetencao} />
       <BarraSelecao
         total={alvosSelecao.length}
         itens={itensDoLote}
@@ -674,7 +745,7 @@ export function ContasPagarReceberView({
   function renderComSaldo() {
     let saldo = 0;
     return exibidas.map((l) => {
-      saldo += sinal * Number(l.valor);
+      saldo += sinal * liquido(l);
       return renderLinhaConta(l, mostrarSaldo ? saldo : undefined);
     });
   }
@@ -690,7 +761,15 @@ export function ContasPagarReceberView({
     // Com a linha DENTRO de uma seleção de vários, o menu age sobre a seleção (regra 3 da ADR-0002).
     const menuItens = alvosSelecao.length > 1 && selecao.marcado(l.id)
       ? itensDoLote
-      : itensDeConta({ status: l.status, anexos: l.anexos.length, prioridade: l.prioridade, confianca: l.confianca, caixinhaId: l.caixinhaId, temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null, conciliado: l.transacao != null }, { tipo: tab, podeGerir, caixinhas: opcoes.caixinhas });
+      : itensDeConta(
+          {
+            status: l.status, anexos: l.anexos.length, prioridade: l.prioridade, confianca: l.confianca, caixinhaId: l.caixinhaId,
+            temCategoria: l.categoria != null, deTransferencia: l.transferenciaId != null, conciliado: l.transacao != null,
+            retidoCentavos: retidoDe(l), retencaoDeId: l.retencaoDeId, documentoOrigem: l.numeroDocumento,
+          },
+          { tipo: tab, podeGerir, caixinhas: opcoes.caixinhas },
+        );
+    const retido = retidoDe(l);
     // Efetivas, como o planejador as lê: despesa herda da categoria (ou da mãe, ou P3); receita
     // em aberto sem marca é Provável (D1).
     const prioridade = l.tipo === "despesa" ? (l.prioridade ?? l.categoria?.prioridadePadrao ?? l.categoria?.pai?.prioridadePadrao ?? "p3") : null;
@@ -718,11 +797,13 @@ export function ContasPagarReceberView({
             {topoDe(l)}
             {par && <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">{par}</Badge>}
             {l.projeto && ` · ${formatarCodigo(l.projeto.codigo)} ${l.projeto.nome}`}
+            {retido > 0 && ` · nota ${brl(Number(l.valor))} · ${brl(retido / 100)} retidos`}
+            {l.retencaoDeId && `${l.numeroDocumento ? ` · ${l.numeroDocumento}` : ""} · pagamento de ${dt(l.data)}`}
           </span>
         </span>
         <span className="truncate text-xs text-muted-foreground">{l.fornecedor?.nome ?? l.cliente?.nome ?? "—"}</span>
         <span className={`text-right font-mono ${saldo != null ? (saldo < 0 ? "text-destructive" : "text-success") : ""}`}>
-          {saldo != null ? brl(saldo) : brl(sinal * Number(l.valor))}
+          {saldo != null ? brl(saldo) : brl(sinal * liquido(l))}
         </span>
         <span className="flex items-center justify-end gap-1">
           <Button size="sm" variant="outline" disabled={l.status === "aguardando_aprovacao"} onClick={() => confirmarRapido(l)}>

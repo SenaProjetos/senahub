@@ -28,8 +28,10 @@ Campos:
 - **Vencimento** e **data de competência** (opcionais).
 - **Categoria** (obrigatória), **centro de custo**, **conta**, **forma de pagamento**.
 - **Projeto**, **fornecedor** (despesa) ou **cliente** (receita), **observação**.
-- **Nº do documento** (boleto, NF, recibo) e **chave da NF** (44 dígitos — o sistema confere o dígito verificador
-  e avisa se a chave foi digitada errada).
+- **Nº do documento** (boleto, NF, recibo) e **chave de acesso da nota** — a da **NFS-e** (nota de
+  serviço, padrão nacional) tem 50 caracteres e a da **NF-e** (nota de produto) tem 44. Conta a receber só aceita a chave da
+  NFS-e, porque a empresa emite nota de serviço; conta a pagar aceita as duas. O sistema confere o formato (na NF-e, também
+  o dígito verificador) e avisa se a chave foi digitada errada. Chave de emitente com CNPJ alfanumérico (letras) é aceita.
 - **Confirmado:** marque para já lançar como **realizado** (senão entra como
   **previsto**).
 - **Recorrência mensal:** nº de ocorrências (1 = sem recorrência; até 60), que gera

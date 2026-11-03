@@ -1,3 +1,4 @@
+import { desfazerContasDeImpostoNoTx, exigirImpostosNaoRecolhidos } from "@/modules/financeiro/lancamentos/retencoes-service";
 import "server-only";
 
 /**
@@ -43,6 +44,9 @@ export async function lerParaOperacao(db: Db, id: string) {
       recorrenciaGrupo: true,
       transferenciaId: true,
       acessorioDeId: true,
+      retencaoDeId: true,
+      retencaoImposto: true,
+      categoriaId: true,
       data: true,
       dataCompetencia: true,
       dataConfirmacao: true,
@@ -86,6 +90,8 @@ export async function estornarNoBanco(id: string, autorId: string): Promise<Resu
     const { lancamento: l, estado } = await exigirOperacao(tx, id, "estornar");
     // N5: estornar tira o pagamento do mês em que ele caiu.
     await exigirPeriodoAberto(tx, [l.dataConfirmacao]);
+    // C4: imposto retido já recolhido não pode ficar órfão da nota que o gerou.
+    await exigirImpostosNaoRecolhidos(tx, id);
 
     const parcial = l.valorEfetivo != null && paraCentavos(l.valorEfetivo) < paraCentavos(l.valor);
     let restantesExcluidos = 0;
@@ -116,6 +122,8 @@ export async function estornarNoBanco(id: string, autorId: string): Promise<Resu
     const distribuicaoDesfeita = estado.distribuido ? await desfazerDistribuicao(tx, id) : false;
     // M7: juros/multa/desconto da baixa deixam de existir com ela.
     await excluirAcessoriosNoTx(tx, id, autorId);
+    // C4: as contas dos impostos retidos nascidas desta baixa saem junto (em aberto; pagas já foram recusadas acima).
+    await desfazerContasDeImpostoNoTx(tx, id, autorId);
 
     const r = await tx.lancamento.updateMany({
       where: { id, status: "confirmado", excluidoEm: null },

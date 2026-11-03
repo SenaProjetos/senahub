@@ -874,7 +874,7 @@ export function LancamentosView({
         onOpenChange={(o) => { if (!o) { setFormOpen(false); setEditar(null); setDuplicar(null); } }}
       />
       <RateioDialog lancamento={ratearDe} opcoes={opcoes} onClose={() => setRatearDe(null)} />
-      <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} />
+      <ConfirmarDialog lancamento={confirmar} onClose={() => setConfirmar(null)} contas={opcoes.contas} formas={opcoes.formas} diasRetencao={opcoes.diasRetencao} />
       <LancamentoDetalheDialog lancamento={detalhe} podeGerir onClose={() => setDetalhe(null)} />
       <CriarRegraDialog lancamento={regraDe} onClose={() => setRegraDe(null)} />
       {transferencias.dialogo}

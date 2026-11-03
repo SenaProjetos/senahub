@@ -8,6 +8,8 @@ import { Plus, Trash2 } from "lucide-react";
 import { salvarConfigFinanceiro, salvarAliquotas, salvarSenhaExclusao } from "@/modules/financeiro/config/actions";
 import { salvarNiveisAprovacao } from "@/modules/financeiro/aprovacao/actions";
 import { salvarConfigAvisos } from "@/modules/financeiro/avisos/actions";
+import { salvarDiasRetencoes } from "@/modules/financeiro/lancamentos/retencoes-actions";
+import type { DiasDeVencimento } from "@/modules/financeiro/lancamentos/retencoes";
 import type { ConfigAvisos } from "@/modules/financeiro/avisos/regras";
 import type { ConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import type { CamposObrigatorios } from "@/modules/financeiro/config/validacao";
@@ -34,8 +36,10 @@ export function ConfiguracoesView({
   niveis,
   exclusao,
   avisos,
+  diasRetencao,
   subnav,
 }: {
+  diasRetencao: DiasDeVencimento;
   config: ConfigFinanceiro;
   aliquotas: Aliquotas;
   avisos: ConfigAvisos;
@@ -118,6 +122,7 @@ export function ConfiguracoesView({
       </div>
 
       <AvisosCard inicial={avisos} />
+      <VencimentoImpostosRetidosCard inicial={diasRetencao} />
       <AliquotasCard inicial={aliquotas} />
       <NiveisAlcadaCard inicial={niveis} />
       <SenhaExclusaoCard inicial={exclusao} />
@@ -187,6 +192,84 @@ function AvisosCard({ inicial }: { inicial: ConfigAvisos }) {
         <div className="flex justify-end pt-2">
           <Button onClick={salvar} disabled={pending}>
             {pending ? "Salvando…" : "Salvar avisos"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** C4 (mock "Vencimento dos impostos retidos"): PIS, COFINS e CSLL andam juntos (mesma guia, mesmo dia). */
+function VencimentoImpostosRetidosCard({ inicial }: { inicial: DiasDeVencimento }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [dias, setDias] = useState({ iss: inicial.iss, irrf: inicial.irrf, inss: inicial.inss, contribuicoes: inicial.pis });
+  const linhas = [
+    { k: "iss", rotulo: "ISS" },
+    { k: "irrf", rotulo: "IRRF" },
+    { k: "inss", rotulo: "INSS" },
+    { k: "contribuicoes", rotulo: "PIS, COFINS e CSLL" },
+  ] as const;
+  const fora = (d: number) => !Number.isInteger(d) || d < 1 || d > 31;
+  const invalido = Object.values(dias).some(fora);
+  // A tela grava PIS, COFINS e CSLL no mesmo dia: se já estavam diferentes, salvar iguala os três.
+  const contribuicoesDiferentes = inicial.cofins !== inicial.pis || inicial.csll !== inicial.pis;
+
+  function salvar() {
+    start(async () => {
+      const r = await salvarDiasRetencoes({ iss: dias.iss, irrf: dias.irrf, inss: dias.inss, pis: dias.contribuicoes, cofins: dias.contribuicoes, csll: dias.contribuicoes });
+      if (r.ok) {
+        toast.success("Vencimento dos impostos retidos salvo.");
+        router.refresh();
+      } else toast.error(r.error);
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Vencimento dos impostos retidos</CardTitle>
+        <CardDescription>
+          Dia do mês seguinte ao do pagamento da nota em que a conta do imposto vence. Valores do contador: ISS dia 10, os demais dia 15. Vale para as contas que
+          nascerem daqui em diante.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {linhas.map((l) => (
+          <div key={l.k} className="flex items-center justify-between gap-3 px-2">
+            <Label htmlFor={`ret-dia-${l.k}`} className="text-sm">
+              {l.rotulo}
+            </Label>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span aria-hidden>vence no dia</span>
+              <Input
+                id={`ret-dia-${l.k}`}
+                type="number"
+                min={1}
+                max={31}
+                aria-label={`${l.rotulo}: vence no dia`}
+                aria-invalid={fora(dias[l.k]) || undefined}
+                aria-describedby={fora(dias[l.k]) ? "ret-dia-erro" : undefined}
+                value={dias[l.k]}
+                onChange={(e) => setDias({ ...dias, [l.k]: Math.trunc(Number(e.target.value)) })}
+                className="h-8 w-20"
+              />
+            </div>
+          </div>
+        ))}
+        {invalido && (
+          <p id="ret-dia-erro" role="alert" className="px-2 text-[13px] font-medium text-destructive">
+            Dia entre 1 e 31.
+          </p>
+        )}
+        {contribuicoesDiferentes && (
+          <p className="px-2 text-xs text-muted-foreground">
+            PIS, COFINS e CSLL estavam em dias diferentes ({inicial.pis}, {inicial.cofins} e {inicial.csll}): salvar põe os três no dia mostrado.
+          </p>
+        )}
+        <div className="flex justify-end pt-2">
+          <Button onClick={salvar} disabled={pending || invalido}>
+            {pending ? "Salvando…" : "Salvar vencimentos"}
           </Button>
         </div>
       </CardContent>

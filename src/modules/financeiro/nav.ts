@@ -75,6 +75,7 @@ const MAIS: readonly ItemNavFinanceiro[] = [
   { id: "importar", href: "/financeiro/importar", rotulo: "Importar planilha", desc: "Meu Dinheiro e outras", gate: "conciliar" },
   { id: "regras", href: "/financeiro/regras", rotulo: "Regras de preenchimento", desc: "Categoria e outros campos automáticos", gate: "gerir", novo: true },
   { id: "fechamento", href: "/financeiro/fechamento", rotulo: "Fechamento mensal", desc: "Trava o mês fechado", gate: "fechar" },
+  { id: "contabil", href: "/financeiro/contabil", rotulo: "Integração contábil", desc: "De-para e exportação para o contador", gate: "fechar", novo: true },
   { id: "cadastros", href: "/financeiro/cadastros", rotulo: "Cadastros", desc: "Plano de contas, contas, centros", gate: "gerir" },
   { id: "configuracoes", href: "/financeiro/configuracoes", rotulo: "Configurações", desc: "Alçadas, campos obrigatórios", gate: "gerir" },
   { id: "clientes", href: "/clientes", rotulo: "Clientes", desc: "Cadastro de clientes (módulo Clientes)", gate: "ver" },

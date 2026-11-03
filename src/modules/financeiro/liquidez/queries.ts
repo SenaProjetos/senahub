@@ -26,6 +26,8 @@ import {
 import { agregarFaturas, type FaturaDoEvento } from "@/modules/financeiro/cartoes/eventos";
 import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
 import { vencimentosDeInvestimento } from "@/modules/financeiro/investimentos/queries";
+import { impostosEstimados, liquidoDoTitulo, MOTIVO_IMPOSTO_ESTIMADO, type ImpostoRetido, type Retencao } from "@/modules/financeiro/lancamentos/retencoes";
+import { diasDeVencimentoDasRetencoes } from "@/modules/financeiro/lancamentos/retencoes-service";
 import { anomaliasDoSaldo, saldoBase, type AnomaliasDoSaldo } from "@/modules/financeiro/liquidez/saldo-base";
 import type { Centavos, Contraparte, DataIso, EventoCaixa, LancamentoEntrada, Observado } from "@/modules/financeiro/liquidez/tipos";
 
@@ -128,6 +130,8 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
       categoria: {
         select: { nome: true, natureza: true, prioridadePadrao: true, pai: { select: { prioridadePadrao: true } } },
       },
+      // C4: nota com retenção sai (ou entra) pelo líquido; os impostos viram saídas estimadas.
+      retencoes: { select: { imposto: true, valor: true } },
     },
   });
 
@@ -182,11 +186,13 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
           })
       : [];
 
+  const retencoesDe = (l: (typeof pendentes)[number]): Retencao[] =>
+    l.retencoes.map((r) => ({ imposto: r.imposto as ImpostoRetido, valorCentavos: paraCentavos(r.valor) }));
   const entradas: LancamentoEntrada[] = pendentes.map((l) => ({
     id: l.id,
     tipo: l.tipo,
     status: l.status,
-    valor: paraCentavos(l.valor),
+    valor: liquidoDoTitulo(paraCentavos(l.valor), retencoesDe(l)),
     data: isoDeDataDoBanco(l.data),
     vencimento: l.vencimento ? isoDeDataDoBanco(l.vencimento) : null,
     descricao: l.descricao,
@@ -214,6 +220,44 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
   const vinculadas = compromissos.length ? await competenciasVinculadas() : new Set<string>();
   const calendario = compromissos.length ? await calendarioFinanceiro(anosDoHorizonte(hoje, fim)) : null;
   const programados = calendario ? eventosProgramados(compromissos, { hoje, fim, vinculadas, calendario }) : [];
+  // C4: o imposto retido de cada nota em aberto, no dia em que deve sair (se cair no horizonte).
+  const diasRetencao = await diasDeVencimentoDasRetencoes();
+  const impostos: EventoCaixa[] = pendentes
+    .filter((l) => l.retencoes.length > 0 && l.status !== "previsao")
+    .flatMap((l) =>
+      impostosEstimados(
+        {
+          id: l.id,
+          tipo: l.tipo,
+          descricao: l.descricao,
+          // Nota atrasada ainda vai ser paga: o imposto nasce no mês seguinte ao pagamento, nunca antes de hoje.
+          data: [dataDoEvento({ vencimento: l.vencimento ? isoDeDataDoBanco(l.vencimento) : null, data: isoDeDataDoBanco(l.data) }), hoje].sort()[1],
+        },
+        retencoesDe(l),
+        diasRetencao,
+      ),
+    )
+    .filter((x) => x.data <= fim)
+    .map((x) => ({
+      id: x.id,
+      origem: "programado" as const,
+      tipo: "despesa" as const,
+      natureza: "fora_do_resultado" as const,
+      valor: x.valorCentavos,
+      data: x.data,
+      vencido: x.data < hoje,
+      descricao: x.descricao,
+      favorecido: null,
+      projeto: null,
+      categoriaNome: "Impostos retidos a recolher",
+      status: null,
+      prioridade: "p1" as const,
+      confianca: null,
+      caixinhaId: null,
+      naoProgramavel: MOTIVO_IMPOSTO_ESTIMADO,
+      transferencia: null,
+    }));
+
   const avisos = calendario
     ? avisosDeRecorrencia(
         compromissos,
@@ -232,6 +276,7 @@ export async function baseDoPlanejador(opcoes: { horizonteDias?: number; agora?:
     eventos: [
       ...agregarFaturas(paraEventos(entradas, { hoje, diasParaIncerta: config.diasParaIncerta }), faturaPorLancamento),
       ...programados,
+      ...impostos,
       ...(await vencimentosDeInvestimento(hoje, fim)),
     ],
     avisosRecorrencia: avisos,

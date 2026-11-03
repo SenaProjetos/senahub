@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { hojeParaBanco, utcFimDoDia, utcInicioDoDia } from "@/lib/data";
 import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
+import { diasDeVencimentoDasRetencoes } from "@/modules/financeiro/lancamentos/retencoes-service";
 
 const INCLUDE = {
   // Prioridade padrão (da categoria e da mãe): a efetiva do planejador, mostrada em Contas.
@@ -19,6 +20,8 @@ const INCLUDE = {
   statusHistorico: { orderBy: { createdAt: "desc" }, select: { de: true, para: true, createdAt: true } },
   // M10: rateio entre centros/projetos — só para o menu saber se já tem rateio e pré-preencher o diálogo.
   rateios: { select: { centroId: true, projetoId: true, percentualBp: true } },
+  // C4: retenções na nota (o título mostra o líquido e a baixa as contas de imposto que vão nascer).
+  retencoes: { select: { imposto: true, valor: true } },
 } satisfies Prisma.LancamentoInclude;
 
 type LancRaw = Prisma.LancamentoGetPayload<{ include: typeof INCLUDE }>;
@@ -28,6 +31,7 @@ function serializar(l: LancRaw) {
     ...l,
     valor: Number(l.valor),
     valorEfetivo: l.valorEfetivo != null ? Number(l.valorEfetivo) : null,
+    retencoes: l.retencoes.map((r) => ({ imposto: r.imposto, valor: Number(r.valor) })),
   };
 }
 
@@ -79,7 +83,9 @@ export async function opcoesLancamento() {
     prisma.cliente.findMany({ where: { ativo: true }, orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
     prisma.caixinha.findMany({ where: { ativo: true }, orderBy: [{ ordem: "asc" }, { nome: "asc" }], select: { id: true, nome: true } }),
   ]);
-  return { categorias, centros, contas, formas, projetos, fornecedores, clientes, caixinhas };
+  // C4: dia de vencimento de cada imposto retido — a baixa mostra as contas que vão nascer antes de pagar.
+  const diasRetencao = await diasDeVencimentoDasRetencoes();
+  return { categorias, centros, contas, formas, projetos, fornecedores, clientes, caixinhas, diasRetencao };
 }
 
 /**

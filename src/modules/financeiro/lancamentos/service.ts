@@ -12,8 +12,10 @@ import { getConfigFinanceiro } from "@/modules/financeiro/config/queries";
 import { obrigatorioFaltando } from "@/modules/financeiro/config/validacao";
 import { motivoCategoriaIncompativel } from "@/modules/financeiro/categorias-regras";
 import type { CriarLancamentoInput } from "@/modules/financeiro/lancamentos/schemas";
-import { normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
+import { motivoChaveDoTipo, normalizarChaveNfe } from "@/modules/financeiro/lancamentos/baixa";
 import { exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
+import { MOTIVO_RETENCAO_RECORRENCIA, motivoRetencoesInvalidas, normalizarRetencoes } from "@/modules/financeiro/lancamentos/retencoes";
+import { aplicarRetencoesNaBaixaNoTx, salvarRetencoesNoTx } from "@/modules/financeiro/lancamentos/retencoes-service";
 
 /**
  * Criação de lançamento compartilhada (spec do planejador §7): a action `criarLancamento` e o
@@ -67,6 +69,8 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
   if (!cat) throw new ActionError("Categoria não encontrada.");
   const incompativel = motivoCategoriaIncompativel(i.tipo, cat.tipo);
   if (incompativel) throw new ActionError(incompativel);
+  const chaveRuim = motivoChaveDoTipo(i.tipo, i.chaveNfe);
+  if (chaveRuim) throw new ActionError(chaveRuim, { chaveNfe: chaveRuim });
 
   // Alçada por faixa: despesa em faixa que exige aprovação trava em aguardando_aprovacao. Vale o
   // TOTAL das ocorrências (N3): 60 × R$ 900 não passa como "R$ 900".
@@ -87,6 +91,14 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
     const c = await db.caixinha.findUnique({ where: { id: i.caixinhaId }, select: { ativo: true } });
     if (!c?.ativo) throw new ActionError("A caixinha escolhida não existe ou está inativa.");
     caixinhaId = i.caixinhaId;
+  }
+
+  // C4: retenção é de UMA nota — não repete nos meses seguintes; valida contra o valor da nota.
+  const retencoes = normalizarRetencoes(i.retencoes ?? []);
+  if (retencoes.length > 0) {
+    if (i.ocorrencias > 1) throw new ActionError(MOTIVO_RETENCAO_RECORRENCIA);
+    const motivo = motivoRetencoesInvalidas(Math.round(i.valor * 100), retencoes);
+    if (motivo) throw new ActionError(motivo);
   }
 
   const grupo = i.ocorrencias > 1 ? randomUUID() : null;
@@ -131,11 +143,27 @@ export async function criarLancamentoNoTx(db: Db, i: CriarLancamentoInput, autor
   await exigirPeriodoAberto(db, registros.flatMap((r) => [r.dataCompetencia ?? r.data, r.dataConfirmacao]));
 
   if (registros.length === 1) {
-    const criado = await db.lancamento.create({
-      // Histórico desde o nascimento (N1): a linha do tempo da situação começa aqui.
-      data: { ...registros[0], statusHistorico: { create: { de: null, para: status, autorId } } },
-      select: { id: true, vencimento: true, data: true },
-    });
+    const gravar = async (tx: Prisma.TransactionClient) => {
+      const c = await tx.lancamento.create({
+        // Histórico desde o nascimento (N1): a linha do tempo da situação começa aqui.
+        data: { ...registros[0], statusHistorico: { create: { de: null, para: status, autorId } } },
+        select: { id: true, vencimento: true, data: true },
+      });
+      if (retencoes.length > 0) {
+        await salvarRetencoesNoTx(tx, c.id, retencoes);
+        // Nota lançada já paga: a retenção acontece agora (acessórios + contas dos impostos).
+        if (registros[0].status === "confirmado") {
+          await aplicarRetencoesNaBaixaNoTx(
+            tx,
+            { ...comum, id: c.id },
+            { data: registros[0].dataConfirmacao ?? dataBase, contaId: comum.contaId, formaId: comum.formaId, autorId, parcial: false },
+          );
+        }
+      }
+      return c;
+    };
+    // Dentro do "aplicar cenário" já é transação; da tela, abre uma (lançamento + retenções juntos ou nada).
+    const criado = retencoes.length > 0 && "$transaction" in db ? await db.$transaction(gravar) : await gravar(db);
     return {
       ocorrencias: 1,
       id: criado.id,

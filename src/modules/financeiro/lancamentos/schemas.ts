@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { campo } from "@/lib/campos/zod";
+import { IMPOSTOS_RETIDOS } from "@/modules/financeiro/lancamentos/retencoes";
 
 const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
+
+/** C4: retenções na nota, em reais (digitadas a partir da nota). Ausente = não mexe (editar) / sem retenção (criar). */
+export const retencoesSchema = z
+  .array(z.object({ imposto: z.enum(IMPOSTOS_RETIDOS), valor: z.number().min(0, "Retenção não pode ser negativa.") }))
+  .max(IMPOSTOS_RETIDOS.length);
 
 /** Planejador de caixa: nulo = herda da categoria (prioridade) ou padrão do status (confiança). */
 export const prioridadeSchema = z.enum(["p1", "p2", "p3", "p4"]);
@@ -32,9 +38,10 @@ export const criarLancamentoSchema = z.object({
   confianca: confiancaSchema.nullable().optional(),
   /// Só despesa em aberto: a caixinha que paga a saída (F4).
   caixinhaId: z.string().min(1).nullable().optional(),
-  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da NF (44 dígitos, conferidos pelo DV).
+  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da nota (NFS-e 50 ou NF-e 44, `lib/campos/chave-nfe.ts`; receita só NFS-e).
   numeroDocumento: z.string().trim().max(60).optional().or(z.literal("")),
   chaveNfe: campo.chaveNfe(),
+  retencoes: retencoesSchema.optional(),
 });
 
 export const editarLancamentoSchema = z.object({
@@ -55,9 +62,10 @@ export const editarLancamentoSchema = z.object({
   confianca: confiancaSchema.nullable().optional(),
   /// Ausente = não mexe; nulo = tira da caixinha.
   caixinhaId: z.string().min(1).nullable().optional(),
-  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da NF (44 dígitos, conferidos pelo DV).
+  /// M7: número do documento (boleto, NF, recibo) e chave de acesso da nota (NFS-e 50 ou NF-e 44, `lib/campos/chave-nfe.ts`; receita só NFS-e).
   numeroDocumento: z.string().trim().max(60).optional().or(z.literal("")),
   chaveNfe: campo.chaveNfe(),
+  retencoes: retencoesSchema.optional(),
 });
 
 /** Menu de contexto e lote de Contas: só a prioridade ou só a confiança. */

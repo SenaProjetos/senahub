@@ -14,8 +14,7 @@
  * na sua linha, sem mexer em nenhum leitor de relatório.
  */
 
-import { chaveNfe } from "@/lib/campos/chave-nfe";
-import { soDigitos } from "@/lib/documento";
+import { chaveNfe, modeloDaChave } from "@/lib/campos/chave-nfe";
 
 export type TipoDoLancamento = "receita" | "despesa";
 
@@ -97,5 +96,17 @@ export function planejarBaixa(e: EntradaDaBaixa): PlanoDaBaixa | { erro: string 
 
 /** Chave de acesso da NF: regra no catálogo de campos (`lib/campos/chave-nfe.ts`). */
 export { chaveNfeValida } from "@/lib/campos/chave-nfe";
-export const normalizarChaveNfe = (texto: string): string => soDigitos(texto);
+export const normalizarChaveNfe = (texto: string): string => chaveNfe.essencia(texto);
 export const MOTIVO_CHAVE_INVALIDA = chaveNfe.mensagem;
+
+/** A empresa emite NFS-e: o que ela recebe tem nota de serviço. Custos podem vir com NFS-e ou NF-e. */
+export const MOTIVO_CHAVE_RECEITA_NFSE =
+  "Conta a receber é nota de serviço emitida pela empresa: a chave é a da NFS-e, com 50 caracteres (a de 44 é de NF-e, nota de produto).";
+
+/** Por que essa chave não serve a esse tipo de lançamento; `null` = serve (chave inválida é recusada pelo campo). */
+export function motivoChaveDoTipo(tipo: "receita" | "despesa", chave: string | null | undefined): string | null {
+  if (!chave?.trim()) return null;
+  const modelo = modeloDaChave(chave);
+  if (modelo && tipo === "receita" && modelo !== "nfse") return MOTIVO_CHAVE_RECEITA_NFSE;
+  return null;
+}

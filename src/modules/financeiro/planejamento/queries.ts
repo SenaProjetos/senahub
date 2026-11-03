@@ -51,7 +51,8 @@ export async function contasEmAberto(filtros: {
   projetoId?: string | null;
   excluirIds?: string[];
 }): Promise<LancamentoPlano[]> {
-  const where: Prisma.LancamentoWhereInput = { status: "previsto", tipo: "despesa" };
+  // C4: nota com retenção na nota não entra em lote de pagamentos — paga-se pela própria conta (gera as contas dos impostos).
+  const where: Prisma.LancamentoWhereInput = { status: "previsto", tipo: "despesa", retencoes: { none: {} } };
   if (filtros.centroId) where.centroId = filtros.centroId;
   if (filtros.projetoId) where.projetoId = filtros.projetoId;
   if (filtros.excluirIds?.length) where.id = { notIn: filtros.excluirIds };

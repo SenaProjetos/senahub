@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACAO_ABRIR_ORIGEM,
   ACAO_ANEXOS,
   ACAO_COPIAR_DESCRICAO,
+  ACAO_EXCLUIR_IMPOSTO,
+  ACAO_MUDAR_VALOR_IMPOSTO,
+  ACAO_PAGAR_PARTE,
+  ACAO_VER_PLANEJADOR,
   ACAO_DESMARCAR_CONFIRMADA,
   ACAO_EDITAR,
   ACAO_LOTE_MARCAR_CONFIRMADA,
@@ -13,6 +18,7 @@ import {
   itensDeConta,
   itensDeLoteContas,
 } from "./acoes-conta";
+import { MOTIVO_RETENCAO_ORIGEM, MOTIVO_RETENCAO_VALOR, motivoRetencaoParcial } from "./retencoes";
 
 const ids = (itens: { id: string }[]) => itens.map((i) => i.id);
 
@@ -91,5 +97,25 @@ describe("itensDeLoteContas", () => {
     expect(ids(itensDeLoteContas("receita", true))).toEqual([ACAO_LOTE_QUITAR, ACAO_LOTE_MARCAR_CONFIRMADA]);
     expect(ids(itensDeLoteContas("receita", false))).toEqual([ACAO_LOTE_QUITAR]);
     expect(ids(itensDeLoteContas("despesa", true))).toEqual([ACAO_LOTE_QUITAR]);
+  });
+});
+
+describe("retenção na nota (C4)", () => {
+  it("nota com retenção: editar fala das retenções e 'pagar uma parte' fica à vista, desabilitado com o porquê", () => {
+    const itens = itensDeConta({ status: "previsto", anexos: 0, retidoCentavos: 650_00 }, { tipo: "despesa", podeGerir: true });
+    expect(itens.find((i) => i.id === ACAO_EDITAR)).toMatchObject({ rotulo: "Editar conta e retenções…" });
+    expect(itens.find((i) => i.id === ACAO_PAGAR_PARTE)).toMatchObject({ desabilitado: motivoRetencaoParcial("despesa") });
+  });
+  it("conta do imposto retido: mudar vencimento, abrir a origem, ver no planejador; valor e exclusão desabilitados", () => {
+    const itens = itensDeConta({ status: "previsto", anexos: 0, retencaoDeId: "nf1", documentoOrigem: "NF 1207" }, { tipo: "despesa", podeGerir: true });
+    expect(itens.find((i) => i.id === ACAO_EDITAR)).toMatchObject({ rotulo: "Mudar vencimento…" });
+    expect(itens.find((i) => i.id === ACAO_ABRIR_ORIGEM)).toMatchObject({ tipo: "link", rotulo: "Abrir a conta de origem (NF 1207)", href: "/financeiro/lancamentos?lancamento=nf1" });
+    expect(itens.find((i) => i.id === ACAO_VER_PLANEJADOR)).toMatchObject({ tipo: "link" });
+    expect(itens.find((i) => i.id === ACAO_MUDAR_VALOR_IMPOSTO)).toMatchObject({ desabilitado: MOTIVO_RETENCAO_VALOR });
+    expect(itens.find((i) => i.id === ACAO_EXCLUIR_IMPOSTO)).toMatchObject({ desabilitado: MOTIVO_RETENCAO_ORIGEM });
+  });
+  it("lote só de impostos retidos paga junto, numa guia", () => {
+    expect(itensDeLoteContas("despesa", true, true)[0]).toMatchObject({ id: ACAO_LOTE_QUITAR, rotulo: "Pagar juntas (uma guia)" });
+    expect(itensDeLoteContas("despesa", true, false)[0]).toMatchObject({ rotulo: "Pagar" });
   });
 });
