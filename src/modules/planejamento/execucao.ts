@@ -33,6 +33,12 @@ export const registrarExecucaoSchema = z.object({
     .max(9_999_999_999, "Valor alto demais.")
     .nullable()
     .optional(),
+  /**
+   * As datas reais que a tela mostrava ao abrir. Diferentes das gravadas = outra pessoa (ou outra aba) salvou no meio:
+   * recusa em vez de sobrescrever as datas dela. Ausente = não confere (chamadas antigas, smoke). O % não entra: a tela
+   * mostra o % do motor (agrupamento, data de status), que pode diferir do gravado sem ninguém ter mexido.
+   */
+  esperado: z.object({ inicioReal: z.string().nullable(), fimReal: z.string().nullable() }).optional(),
 });
 
 export type EntradaExecucao = {

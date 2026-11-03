@@ -902,9 +902,9 @@ function NovoRecursoDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
-            <Label>Pessoa</Label>
+            <Label htmlFor="novo-recurso-pessoa">Pessoa</Label>
             <Select value={userId} onValueChange={(v) => setUserId(v ?? NONE)}>
-              <SelectTrigger>
+              <SelectTrigger id="novo-recurso-pessoa">
                 <SelectValue placeholder="Selecione…" />
               </SelectTrigger>
               <SelectContent>
@@ -917,15 +917,17 @@ function NovoRecursoDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Capacidade (multiplicador)</Label>
+            <Label htmlFor="novo-recurso-capacidade">Capacidade (multiplicador)</Label>
             <Input
+              id="novo-recurso-capacidade"
+              aria-describedby="novo-recurso-capacidade-dica"
               type="number"
               step="0.1"
               min="0.1"
               value={capacidade}
               onChange={(e) => setCapacidade(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
+            <p id="novo-recurso-capacidade-dica" className="text-xs text-muted-foreground">
               1 = jornada cheia; 0,5 = meio período. A carga em % vale sobre a capacidade da pessoa: 100% é tudo o
               que ela dedica a projetos.
             </p>
@@ -989,8 +991,9 @@ function RecursoDialog({
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Capacidade</Label>
+              <Label htmlFor="recurso-capacidade">Capacidade</Label>
               <Input
+                id="recurso-capacidade"
                 type="number"
                 step="0.1"
                 min="0.1"
@@ -1000,11 +1003,12 @@ function RecursoDialog({
             </div>
             {verCusto && (
               <div className="space-y-1.5">
-                <Label>Custo/hora (R$)</Label>
+                <Label htmlFor="recurso-custo-hora">Custo/hora (R$)</Label>
                 {editarCusto ? (
-                  <InputMoeda value={custoHora} onChange={setCustoHora} />
+                  <InputMoeda id="recurso-custo-hora" value={custoHora} onChange={setCustoHora} />
                 ) : (
                   <p
+                    id="recurso-custo-hora"
                     className="flex h-9 items-center font-mono text-sm text-muted-foreground"
                     title="Só quem gere o financeiro altera o custo por hora."
                   >
@@ -1015,8 +1019,9 @@ function RecursoDialog({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label>Cor</Label>
+            <Label htmlFor="recurso-cor">Cor</Label>
             <input
+              id="recurso-cor"
               type="color"
               value={cor}
               onChange={(e) => setCor(e.target.value)}

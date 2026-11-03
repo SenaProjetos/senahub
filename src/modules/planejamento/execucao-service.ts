@@ -39,6 +39,8 @@ export async function registrarExecucaoNaLinha(p: {
   custoRealTerceiro?: number | null;
   /** Quem chama diz se a pessoa vê financeiro — o valor é R$, como o resto do custo. */
   verCusto?: boolean;
+  /** O que a tela mostrava ao abrir; diferente do gravado = alguém salvou no meio (ver `registrarExecucaoSchema`). */
+  esperado?: { inicioReal: string | null; fimReal: string | null };
 }): Promise<{
   projetoId: string;
   nome: string;
@@ -54,6 +56,8 @@ export async function registrarExecucaoNaLinha(p: {
       tipoEap: true,
       status: true,
       progresso: true,
+      inicioReal: true,
+      fimReal: true,
       disciplinaId: true,
       etapaId: true,
       atribuicoes: { select: { papel: true } },
@@ -61,6 +65,11 @@ export async function registrarExecucaoNaLinha(p: {
     },
   });
   if (!linha) throw new ActionError("Tarefa não encontrada.");
+  if (p.esperado) {
+    const dia = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+    const mudou = dia(linha.inicioReal) !== p.esperado.inicioReal || dia(linha.fimReal) !== p.esperado.fimReal;
+    if (mudou) throw new ActionError("A tarefa mudou enquanto você editava. Atualize a tela e tente de novo.");
+  }
   if (p.custoRealTerceiro !== undefined) {
     if (!p.verCusto) throw new ActionError("Sem permissão para informar valores.");
     if (!ehEtapaDeTerceiro(linha.atribuicoes)) {

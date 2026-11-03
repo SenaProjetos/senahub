@@ -125,9 +125,23 @@ async function main() {
     );
     check("sem cópia pedida, sem Cco", enviados[1]?.bcc === undefined);
 
+    // clique duplo: o MESMO e-mail (mesmas revisões e destinatários) logo em seguida é recusado e não sai de novo
+    const saidosAntes = enviados.length;
+    let duplicado = "";
+    try {
+      await enviarAcompanhamento(
+        { projetoId: projeto.id, usuario, destinatarios: ["ana@cliente.com"], revisaoIds: [rev2.id], copiaParaMim: false },
+        falso(true),
+      );
+    } catch (e) {
+      duplicado = e instanceof Error ? e.message : String(e);
+    }
+    check("mesmo e-mail logo em seguida é recusado (clique duplo)", duplicado.startsWith("Este e-mail acabou de ser enviado"), duplicado);
+    check("e nada saiu de novo", enviados.length === saidosAntes);
+
     // texto livre sai escapado (sem HTML/link vindo do usuário)
     await enviarAcompanhamento(
-      { projetoId: projeto.id, usuario, destinatarios: ["ana@cliente.com"], revisaoIds: [rev2.id], observacao: "<a href='http://x.test'>clique</a>", copiaParaMim: false },
+      { projetoId: projeto.id, usuario, destinatarios: ["outra@cliente.com"], revisaoIds: [rev2.id], observacao: "<a href='http://x.test'>clique</a>", copiaParaMim: false },
       falso(true),
     );
     check(

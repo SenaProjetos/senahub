@@ -115,6 +115,8 @@ export function ExecucaoDialog({
         fimReal,
         progresso: opcoes.reabrir ? undefined : progressoParaEnviar(fimReal),
         custoRealTerceiro: valorParaEnviar(),
+        // O que a tela mostrava ao abrir: se outra pessoa salvou no meio, o servidor recusa em vez de sobrescrever.
+        esperado: { inicioReal: linha.inicioReal ?? null, fimReal: linha.fimReal ?? null },
       });
     } catch {
       toast.error("Não foi possível registrar a execução. Verifique a conexão e tente de novo.");

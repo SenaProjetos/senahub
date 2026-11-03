@@ -23,7 +23,7 @@ export default async function GestaoPessoasPage() {
   const user = await requireUser();
   const pode = user.gereRh || user.ehSocio === true || (await can(user, "recursos", "gerir"));
   if (!pode) redirect("/sem-permissao");
-  const p = await painelGestao();
+  const p = await painelGestao(user);
   const maxCap = Math.max(1, ...p.capacidadeDemanda.flatMap((s) => [s.capacidade, s.demanda]));
 
   return (
@@ -48,9 +48,13 @@ export default async function GestaoPessoasPage() {
                       Fonte: {s.fonte} · {s.periodo}
                     </p>
                   </div>
-                  <Link href={s.acao.href} className="shrink-0 text-xs font-medium text-foreground underline underline-offset-2 hover:text-primary">
-                    {s.acao.rotulo}
-                  </Link>
+                  {s.acao.href ? (
+                    <Link href={s.acao.href} className="shrink-0 text-xs font-medium text-foreground underline underline-offset-2 hover:text-primary">
+                      {s.acao.rotulo}
+                    </Link>
+                  ) : (
+                    <span className="shrink-0 text-xs text-muted-foreground">{s.acao.rotulo}</span>
+                  )}
                 </li>
               ))}
             </ul>

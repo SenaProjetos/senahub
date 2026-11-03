@@ -220,6 +220,14 @@ async function main() {
     check("100% sem término real é recusado", e100 === "Para marcar 100%, informe o término real.", e100);
     check("e nada foi gravado", (await ler(interna.id)).progresso === 35);
 
+    // dois diálogos na mesma linha: o segundo abriu ANTES de o primeiro gravar as datas e não as sobrescreve
+    await registrarExecucaoNaLinha({ id: interna.id, inicioReal: hojeL7, fimReal: null, hoje: hojeL7, esperado: { inicioReal: null, fimReal: null } });
+    const eVelho = await erroDe(() =>
+      registrarExecucaoNaLinha({ id: interna.id, inicioReal: null, fimReal: null, hoje: hojeL7, esperado: { inicioReal: null, fimReal: null } }),
+    );
+    check("diálogo aberto antes de outra gravação é recusado", eVelho === "A tarefa mudou enquanto você editava. Atualize a tela e tente de novo.", eVelho);
+    check("e o início real gravado pelo primeiro fica", (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: interna.id }, select: { inicioReal: true } })).inicioReal !== null);
+
     const terceiro = await nova("L7 terceiro", 4);
     await prisma.eapAtribuicao.create({ data: { tarefaId: terceiro.id, userId: null, papel: "ext", horasPrevistas: 0 } });
     await registrarExecucaoNaLinha({ id: terceiro.id, inicioReal: null, fimReal: null, custoRealTerceiro: 1250.5, verCusto: true, hoje: hojeL7 });

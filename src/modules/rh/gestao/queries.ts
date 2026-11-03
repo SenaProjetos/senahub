@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { CONTRATACAO_LABELS, SETOR_LABELS } from "@/modules/usuarios/vinculo/labels";
 import { cargaDaEquipe } from "@/modules/planejamento/recursos-queries";
-import { cargaSemanalPorRecurso } from "@/modules/planejamento/queries";
+import { cargaSemanalPorRecurso, projetoVisivel } from "@/modules/planejamento/queries";
 import { climaResumo } from "@/modules/rh/queries";
 import { saldoCorrenteEquipe } from "@/modules/rh/banco/queries";
 import { necessidadesDeHabilidade } from "@/modules/rh/habilidades/queries";
@@ -18,9 +18,10 @@ const br = (dia: string) => dia.split("-").reverse().join("/");
 /**
  * Painel de gestão de pessoas (F6): composição do que já existe — nada é calculado de novo aqui.
  * Nada de salário, conteúdo de 1:1, documento médico ou humor individual: só contagens e sinais
- * explicáveis, cada um com fonte e link.
+ * explicáveis, cada um com fonte e link. O link de um projeto só sai para quem o enxerga (`viewer`): o RH sem
+ * escopo global veria "Cobrir necessidade" e cairia em "página não encontrada".
  */
-export async function painelGestao() {
+export async function painelGestao(viewer: Parameters<typeof projetoVisivel>[0]) {
   const hoje = diaDeSaoPaulo();
   const agora = new Date();
   const em60 = new Date(Date.parse(`${hoje}T00:00:00Z`) + 60 * 86_400_000);
@@ -95,6 +96,12 @@ export async function painelGestao() {
   const lacunaMarco = lacunas.filter((l) => l.prazo && l.prazo >= hoje && l.prazo <= ymd(new Date(Date.parse(`${hoje}T00:00:00Z`) + 30 * 86_400_000))!);
   const parados = abertos.filter((c) => c.itens.some((i) => i.atrasado));
 
+  // Projetos das lacunas que quem vê o painel enxerga (o link só sai para esses).
+  const visiveis = new Set<string>();
+  for (const id of new Set(lacunaMarco.map((l) => l.projetoId))) {
+    if (await projetoVisivel(viewer, id)) visiveis.add(id);
+  }
+
   const sinais: Sinal[] = [
     ...superalocados.map((s) => ({
       tipo: "superalocacao" as const,
@@ -115,7 +122,9 @@ export async function painelGestao() {
       titulo: `${l.projeto}: ninguém com ${l.habilidade} no nível ${l.nivelMinimo}`,
       fonte: "Necessidades de competência do projeto × níveis das pessoas",
       periodo: `prazo ${br(l.prazo!)}`,
-      acao: { rotulo: "Cobrir necessidade", href: `/projetos/${l.projetoId}` },
+      acao: visiveis.has(l.projetoId)
+        ? { rotulo: "Cobrir necessidade", href: `/projetos/${l.projetoId}` }
+        : { rotulo: "Fale com a coordenação do projeto", href: null },
     })),
     ...umAUm.map((u) => ({
       tipo: "um_a_um" as const,

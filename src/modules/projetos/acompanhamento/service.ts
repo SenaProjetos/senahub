@@ -21,6 +21,21 @@ export type DependenciasEnvio = {
 };
 const REAIS: DependenciasEnvio = { smtpConfigurado, enviar: enviarEmail };
 
+/** Mesmo e-mail mandado de novo dentro desta janela é tratado como clique duplo. */
+const JANELA_DUPLICADO_MS = 2 * 60_000;
+
+function revisoesDoRegistro(itens: unknown): string[] {
+  if (!Array.isArray(itens)) return [];
+  return itens.flatMap((i) => {
+    const id = (i as { revisaoId?: unknown } | null)?.revisaoId;
+    return typeof id === "string" ? [id] : [];
+  });
+}
+
+function assinaturaDoEnvio(revisaoIds: readonly string[], destinatarios: readonly string[]): string {
+  return `${[...revisaoIds].sort().join(",")}|${[...destinatarios].sort().join(",")}`;
+}
+
 /** Domínio do `Message-ID`: o do APP_URL; sem ele, um domínio local estável. */
 function dominioDoMessageId(): string {
   try {
@@ -77,54 +92,73 @@ export async function enviarAcompanhamento(
     throw new ActionError("Nenhuma das revisões escolhidas está marcada como enviada ao cliente. Atualize a lista e tente de novo.");
   }
 
-  const anteriores = await prisma.emailAcompanhamento.findMany({
-    where: { projetoId: projeto.id },
-    orderBy: { enviadoEm: "asc" },
-    select: { messageId: true },
-  });
-  const conversa = cabecalhosDeConversa(anteriores.map((a) => a.messageId));
-  const messageId = novoMessageId(projeto.id, randomUUID().replace(/-/g, "").slice(0, 16), dominioDoMessageId());
-  const assunto = assuntoDoAcompanhamento(projeto.codigo, projeto.nome);
+  // Um envio por projeto de cada vez (dois cliques, duas abas): o segundo espera o primeiro terminar, relê o histórico e
+  // é recusado se o primeiro acabou de mandar o MESMO e-mail. O encadeamento (In-Reply-To) também sai certo — os dois
+  // não respondem ao mesmo e-mail anterior.
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`acompanhamento:${projeto.id}`}))`;
+      const recentes = await tx.emailAcompanhamento.findMany({
+        where: { projetoId: projeto.id, enviadoEm: { gte: new Date(Date.now() - JANELA_DUPLICADO_MS) } },
+        select: { itens: true, destinatarios: true },
+      });
+      const assinatura = assinaturaDoEnvio(itens.map((i) => i.revisaoId), destinatarios);
+      if (recentes.some((r) => assinaturaDoEnvio(revisoesDoRegistro(r.itens), r.destinatarios) === assinatura)) {
+        throw new ActionError("Este e-mail acabou de ser enviado, com as mesmas revisões e os mesmos destinatários. Confira em Envios anteriores.");
+      }
 
-  // Tudo que vem de gente (nome, título do arquivo, observação) é escapado: o corpo é Markdown e sai da empresa.
-  const { html } = await renderTemplate("acompanhamento-projeto", {
-    nomeCliente: escaparMarkdown(projeto.cliente?.nome || "cliente"),
-    projeto: escaparMarkdown(projeto.nome),
-    lista: listaEmMarkdown(itens.map((i) => ({ rotulo: escaparMarkdown(i.rotulo) }))),
-    observacao: escaparMarkdown(args.observacao?.trim() ?? ""),
-  });
+      const anteriores = await tx.emailAcompanhamento.findMany({
+        where: { projetoId: projeto.id },
+        orderBy: { enviadoEm: "asc" },
+        select: { messageId: true },
+      });
+      const conversa = cabecalhosDeConversa(anteriores.map((a) => a.messageId));
+      const messageId = novoMessageId(projeto.id, randomUUID().replace(/-/g, "").slice(0, 16), dominioDoMessageId());
+      const assunto = assuntoDoAcompanhamento(projeto.codigo, projeto.nome);
 
-  const enviado = await deps.enviar({
-    to: destinatarios.join(", "),
-    subject: assunto,
-    html,
-    bcc: args.copiaParaMim ? args.usuario.email : undefined,
-    replyTo: args.usuario.email,
-    messageId,
-    ...conversa,
-  });
-  if (!enviado) throw new ActionError("Não foi possível enviar o e-mail. Verifique a configuração de SMTP.");
+      // Tudo que vem de gente (nome, título do arquivo, observação) é escapado: o corpo é Markdown e sai da empresa.
+      const { html } = await renderTemplate("acompanhamento-projeto", {
+        nomeCliente: escaparMarkdown(projeto.cliente?.nome || "cliente"),
+        projeto: escaparMarkdown(projeto.nome),
+        lista: listaEmMarkdown(itens.map((i) => ({ rotulo: escaparMarkdown(i.rotulo) }))),
+        observacao: escaparMarkdown(args.observacao?.trim() ?? ""),
+      });
 
-  // O e-mail já saiu: se o registro falhar, a pessoa precisa saber — senão manda de novo e duplica para o cliente.
-  const registro = await prisma.emailAcompanhamento
-    .create({
-      data: {
-        projetoId: projeto.id,
-        enviadoPorId: args.usuario.id,
-        assunto,
+      const enviado = await deps.enviar({
+        to: destinatarios.join(", "),
+        subject: assunto,
+        html,
+        bcc: args.copiaParaMim ? args.usuario.email : undefined,
+        replyTo: args.usuario.email,
         messageId,
-        destinatarios,
-        copiaPara: args.copiaParaMim ? args.usuario.email : null,
-        observacao: args.observacao?.trim() || null,
-        itens: itens.map((i) => ({ revisaoId: i.revisaoId, rotulo: i.rotulo })),
-      },
-      select: { id: true },
-    })
-    .catch((err: unknown) => {
-      console.error("[acompanhamento] e-mail enviado, mas o registro falhou:", err);
-      throw new ActionError(
-        "O e-mail foi enviado ao cliente, mas não foi possível registrar o envio. Não envie de novo; avise a equipe de TI.",
-      );
-    });
-  return { id: registro.id, destinatarios, itens: itens.length };
+        ...conversa,
+      });
+      if (!enviado) throw new ActionError("Não foi possível enviar o e-mail. Verifique a configuração de SMTP.");
+
+      // O e-mail já saiu: se o registro falhar, a pessoa precisa saber — senão manda de novo e duplica para o cliente.
+      const registro = await tx.emailAcompanhamento
+        .create({
+          data: {
+            projetoId: projeto.id,
+            enviadoPorId: args.usuario.id,
+            assunto,
+            messageId,
+            destinatarios,
+            copiaPara: args.copiaParaMim ? args.usuario.email : null,
+            observacao: args.observacao?.trim() || null,
+            itens: itens.map((i) => ({ revisaoId: i.revisaoId, rotulo: i.rotulo })),
+          },
+          select: { id: true },
+        })
+        .catch((err: unknown) => {
+          console.error("[acompanhamento] e-mail enviado, mas o registro falhou:", err);
+          throw new ActionError(
+            "O e-mail foi enviado ao cliente, mas não foi possível registrar o envio. Não envie de novo; avise a equipe de TI.",
+          );
+        });
+      return { id: registro.id, destinatarios, itens: itens.length };
+    },
+    // O envio SMTP acontece dentro da transação (teto de 30 s no transporte): o padrão de 5 s não basta.
+    { timeout: 90_000, maxWait: 60_000 },
+  );
 }

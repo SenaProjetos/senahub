@@ -18,7 +18,8 @@ export type Sinal = {
   /** De onde vem o número — o gestor precisa conseguir explicar o alerta. */
   fonte: string;
   periodo: string;
-  acao: { rotulo: string; href: string };
+  /** `href: null` = quem vê o painel não abre o destino (projeto fora do escopo dele): a tela mostra só o rótulo. */
+  acao: { rotulo: string; href: string | null };
 };
 
 /** Maior sequência de semanas seguidas (na ordem dada) em que `acima` vale. */
