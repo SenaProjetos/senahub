@@ -21,6 +21,7 @@ import {
 import { formatarData, formatarDataHora } from "@/lib/utils";
 import {
   statusCertidao,
+  textoValidade,
   ordenarPorPrioridade,
   type PanoramaCompliance,
   type TipoObrigatorio,
@@ -747,6 +748,18 @@ function RenovacaoLoteDialog({
   );
 }
 
+/** Bolinha de situação na lista do link público — a cor sozinha não basta, o rótulo vai no title/aria-label. */
+const SITUACAO_BOLINHA = {
+  vencida: "bg-destructive",
+  vence_em_breve: "bg-warning",
+  ok: "bg-success",
+} as const;
+const SITUACAO_ROTULO = {
+  vencida: "Vencida",
+  vence_em_breve: "Vence em breve",
+  ok: "Válida",
+} as const;
+
 function CompartilharDialog({
   open,
   onClose,
@@ -763,12 +776,14 @@ function CompartilharDialog({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
+  const [titulo, setTitulo] = useState("");
   const [expiraEm, setExpiraEm] = useState("");
   const [gerado, setGerado] = useState<string | null>(null);
   const [editandoId, setEditandoId] = useState<string | null>(null);
 
   function abrir() {
     setMarcadas(new Set(preSelecionadas));
+    setTitulo("");
     setExpiraEm("");
     setGerado(null);
     setEditandoId(null);
@@ -786,6 +801,7 @@ function CompartilharDialog({
   function editar(l: LinkPublico) {
     setEditandoId(l.id);
     setMarcadas(new Set(l.certidaoIds));
+    setTitulo(l.titulo ?? "");
     setExpiraEm(l.expiraEm ? l.expiraEm.slice(0, 10) : "");
     setGerado(null);
   }
@@ -793,6 +809,7 @@ function CompartilharDialog({
   function cancelarEdicao() {
     setEditandoId(null);
     setMarcadas(new Set());
+    setTitulo("");
     setExpiraEm("");
   }
 
@@ -801,7 +818,13 @@ function CompartilharDialog({
     const expiraIso = expiraEm ? new Date(expiraEm).toISOString() : null;
     start(async () => {
       if (editandoId) {
-        const r = await atualizarLinkCertidoes({ id: editandoId, certidaoIds: [...marcadas], ativo: true, expiraEm: expiraIso });
+        const r = await atualizarLinkCertidoes({
+          id: editandoId,
+          certidaoIds: [...marcadas],
+          titulo,
+          ativo: true,
+          expiraEm: expiraIso,
+        });
         if (r.ok) {
           toast.success("Link atualizado.");
           cancelarEdicao();
@@ -809,10 +832,11 @@ function CompartilharDialog({
         } else toast.error(r.error);
         return;
       }
-      const r = await criarLinkCertidoes({ certidaoIds: [...marcadas], expiraEm: expiraIso });
+      const r = await criarLinkCertidoes({ certidaoIds: [...marcadas], titulo, expiraEm: expiraIso });
       if (r.ok) {
         const url = `${window.location.origin}/p/certidoes/${r.data.token}`;
         setGerado(url);
+        setTitulo("");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -877,12 +901,35 @@ function CompartilharDialog({
             </Button>
           </div>
           <div className="max-h-40 space-y-1 overflow-y-auto rounded-sm border p-2">
-            {certidoes.map((c) => (
-              <label key={c.id} className="flex items-center gap-2 py-0.5 text-sm">
-                <Checkbox checked={marcadas.has(c.id)} onCheckedChange={() => alternar(c.id)} />
-                {c.tipo}
-              </label>
-            ))}
+            {certidoes.map((c) => {
+              const situacao = statusCertidao(c.validade);
+              const { texto } = textoValidade(c.validade);
+              const rotulo = `${SITUACAO_ROTULO[situacao]} — ${texto}`;
+              return (
+                <label key={c.id} className="flex items-center gap-2 py-0.5 text-sm">
+                  <Checkbox checked={marcadas.has(c.id)} onCheckedChange={() => alternar(c.id)} />
+                  <span
+                    role="img"
+                    aria-label={rotulo}
+                    title={rotulo}
+                    className={`size-2.5 shrink-0 rounded-full ${SITUACAO_BOLINHA[situacao]}`}
+                  />
+                  {c.tipo}
+                </label>
+              );
+            })}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="link-titulo" className="text-xs text-muted-foreground">
+              Título do link (opcional)
+            </Label>
+            <Input
+              id="link-titulo"
+              value={titulo}
+              maxLength={80}
+              placeholder="Ex.: Prefeitura de Campinas — licitação 12/2026"
+              onChange={(e) => setTitulo(e.target.value)}
+            />
           </div>
           <div className="flex items-end gap-2">
             <div className="space-y-1.5">
@@ -917,6 +964,7 @@ function CompartilharDialog({
                       <Badge variant="outline" className={vigente ? "text-success border-success/40" : "text-muted-foreground"}>
                         {vigente ? "ativo" : l.ativo ? "expirado" : "revogado"}
                       </Badge>
+                      {l.titulo && <span className="w-full order-first font-medium text-foreground">{l.titulo}</span>}
                       <span className="text-muted-foreground">
                         {l.certidaoIds.length} certidão(ões) · gerado {formatarData(l.createdAt)}
                         {l.expiraEm ? <> · expira {formatarData(l.expiraEm)}</> : <> · sem expiração</>}

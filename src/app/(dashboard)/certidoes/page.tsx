@@ -109,6 +109,7 @@ export default async function CertidoesPage() {
       links={links.map((l) => ({
         id: l.id,
         token: l.token,
+        titulo: l.titulo,
         ativo: l.ativo,
         expiraEm: l.expiraEm ? l.expiraEm.toISOString() : null,
         certidaoIds: l.certidaoIds,

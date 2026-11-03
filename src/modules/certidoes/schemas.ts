@@ -21,6 +21,7 @@ export const idSchema = z.object({ id: z.string().min(1) });
 
 export const criarLinkCertidoesSchema = z.object({
   certidaoIds: z.array(z.string()).min(1, "Selecione ao menos uma certidão."),
+  titulo: z.string().trim().max(80, "O título aceita até 80 caracteres.").optional(),
   expiraEm: z.string().datetime().nullable().optional(),
 });
 
@@ -38,6 +39,7 @@ export const editarTipoCertidaoSchema = z.object({
 export const atualizarLinkCertidoesSchema = z.object({
   id: z.string().min(1),
   certidaoIds: z.array(z.string()).default([]),
+  titulo: z.string().trim().max(80, "O título aceita até 80 caracteres.").optional(),
   ativo: z.boolean(),
   expiraEm: z.string().datetime().nullable().optional(),
 });

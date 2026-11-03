@@ -64,6 +64,7 @@ export type Responsavel = { id: string; name: string };
 export type LinkPublico = {
   id: string;
   token: string;
+  titulo: string | null;
   ativo: boolean;
   expiraEm: string | null;
   certidaoIds: string[];

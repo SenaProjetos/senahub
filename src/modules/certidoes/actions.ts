@@ -145,6 +145,7 @@ export const criarLinkCertidoes = defineAction(
       data: {
         token,
         certidaoIds: i.certidaoIds,
+        titulo: i.titulo || null,
         expiraEm: i.expiraEm ? new Date(i.expiraEm) : null,
         criadoPorId: user.id,
       },
@@ -168,6 +169,7 @@ export const atualizarLinkCertidoes = defineAction(
       where: { id: i.id },
       data: {
         certidaoIds: i.certidaoIds,
+        titulo: i.titulo || null,
         ativo: i.ativo,
         expiraEm: i.expiraEm ? new Date(i.expiraEm) : null,
       },
