@@ -131,6 +131,11 @@ export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecuc
     if (marco && linha.status === "con") progresso = 0;
   }
   if (fimReal == null && pct !== undefined) progresso = pct;
+  // Reabrir sem dizer o % deixaria a linha em 100% sem término real, e o motor a trataria como concluída (a
+  // sucessora não voltaria a esperar). O % não é inventado (D19): quem reabre informa quanto falta.
+  if (!marco && linha.status === "con" && status !== "con" && progresso >= 100) {
+    return falha("Ao reabrir, informe o % concluído (até 99%).");
+  }
   return { ok: true, inicioReal, fimReal, status, progresso, concluiu: status === "con" && linha.status !== "con" };
 }
 

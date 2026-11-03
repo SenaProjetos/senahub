@@ -140,6 +140,7 @@ export async function desfazerUltimoPasso(projetoId: string, userId: string): Pr
         // Em revisão, marca o plano como alterado (e recusa se travou entre a leitura de cima e aqui): só quando vai gravar.
         await exigirPlanoEditavel(projetoId);
         await restaurar(tx, projetoId, planoDeRestauracao(atual, antes));
+        await apagarCardsDoPasso(tx, projetoId, passo.createdAt);
         await tx.eapPassoDesfazer.delete({ where: { id: passo.id } });
         return { ok: true, rotulo: passo.rotulo };
       },
@@ -156,6 +157,32 @@ export async function desfazerUltimoPasso(projetoId: string, userId: string): Pr
   }
   if (!resultado.ok) throw new ActionError(resultado.motivo);
   return { rotulo: resultado.rotulo };
+}
+
+/**
+ * Card que o passo fez nascer: em revisão, a pessoa herdada (troca de disciplina, linha nova) gera o card da linha na
+ * hora. Desfeito o passo, a linha volta sem ninguém e o card ficaria órfão no quadro — a sincronização nunca apaga card.
+ * Some só o card criado DEPOIS do passo, de linha agora sem pessoa, e ainda intocado (sem sessão de ponto, comentário,
+ * item nem dependência, não concluído): card com trabalho de alguém fica.
+ */
+async function apagarCardsDoPasso(tx: Prisma.TransactionClient, projetoId: string, desde: Date): Promise<void> {
+  const semPessoa = await tx.eapTarefa.findMany({
+    where: { projetoId, atribuicoes: { none: { userId: { not: null } } } },
+    select: { id: true },
+  });
+  if (semPessoa.length === 0) return;
+  await tx.tarefa.deleteMany({
+    where: {
+      eapTarefaId: { in: semPessoa.map((l) => l.id) },
+      createdAt: { gte: desde },
+      concluidaEm: null,
+      sessoesTrabalho: { none: {} },
+      comentarios: { none: {} },
+      itens: { none: {} },
+      dependeDe: { none: {} },
+      dependentes: { none: {} },
+    },
+  });
 }
 
 /** Aplica o plano de restauração. Ordem: início → linhas (criar, atualizar, apagar) → vínculos → pessoas → ganchos. */

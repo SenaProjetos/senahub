@@ -17,9 +17,13 @@ function diaValido(ano: number, mes: number, dia: number): Dia | null {
   return `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
 }
 
-/** Lê o que a pessoa digitou numa célula de data: `dd/mm/aaaa`, `dd/mm/aa`, `dd/mm` (ano de `hoje`) ou `aaaa-mm-dd`. */
+/**
+ * Lê o que a pessoa digitou numa célula de data: `dd/mm/aaaa`, `dd/mm/aa`, `dd/mm` (ano de `hoje`), `aaaa-mm-dd` ou só os
+ * 8 dígitos `ddmmaaaa` (o que a máscara aceita ao digitar e planilhas exportam ao colar).
+ */
 export function lerDataDigitada(texto: string, hoje: Dia): { ok: true; dia: Dia } | { ok: false; erro: string } {
-  const t = texto.trim();
+  const bruto = texto.trim();
+  const t = /^\d{8}$/.test(bruto) ? `${bruto.slice(0, 2)}/${bruto.slice(2, 4)}/${bruto.slice(4)}` : bruto;
   const falha = { ok: false as const, erro: MSG_DATA_INVALIDA };
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
   if (iso) {

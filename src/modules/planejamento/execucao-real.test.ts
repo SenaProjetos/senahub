@@ -36,6 +36,12 @@ describe("duracaoRestante", () => {
     expect(duracaoRestante({ ...base, status: "con", progresso: 100 }, cal)).toBe(0);
     expect(duracaoRestante({ ...base, progresso: 100 }, cal)).toBe(0);
   });
+  it("tarefa que ainda não começa: conta do início previsto, não de hoje", () => {
+    expect(duracaoRestante({ ...base, progresso: 0, inicioPrevisto: "2026-11-09", fimPrevisto: "2026-11-13" }, cal)).toBe(5);
+  });
+  it("data real com ano errado não derruba a conta", () => {
+    expect(duracaoReal({ marco: false, inicioReal: "2001-01-02", fimReal: null, hoje }, cal)).toBeNull();
+  });
   it("término previsto já passou: 0 (a tela pinta de vermelho)", () => {
     expect(duracaoRestante({ ...base, fimPrevisto: "2026-11-03" }, cal)).toBe(0);
   });

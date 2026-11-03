@@ -16,23 +16,39 @@ export type ValorReal = { valor: number | null; parcial: boolean };
 const FORA_DA_EXECUCAO = new Set<StatusEap>(["sus", "can", "arq"]);
 const centesimos = (v: number) => Math.round(v * 100);
 
+/**
+ * Dias úteis entre duas datas, ou `null` quando o intervalo é absurdo (data real digitada com o ano errado passa
+ * do limite de busca do calendário e lançaria erro — derrubaria a EAP inteira por uma linha).
+ */
+function diasUteisOuNulo(de: Dia, ate: Dia, cal: Calendario): number | null {
+  try {
+    return diasUteisEntre(de, ate, cal);
+  } catch {
+    return null;
+  }
+}
+
 /** Dias úteis do início real até o término real (ou hoje, se ainda não terminou). */
 export function duracaoReal(
   p: { marco: boolean; inicioReal: Dia | null; fimReal: Dia | null; hoje: Dia },
   cal: Calendario,
 ): number | null {
   if (p.marco || !p.inicioReal) return null;
-  return diasUteisEntre(p.inicioReal, p.fimReal ?? p.hoje, cal);
+  return diasUteisOuNulo(p.inicioReal, p.fimReal ?? p.hoje, cal);
 }
 
-/** Dias úteis de hoje até o término previsto pelo motor; 0 quando concluída ou já vencida. */
+/**
+ * Dias úteis do que falta: de hoje (ou do início previsto, se a tarefa ainda não começa) até o término previsto
+ * pelo motor — a espera antes do início não é duração. 0 quando concluída ou já vencida.
+ */
 export function duracaoRestante(
-  p: { marco: boolean; status: StatusEap; progresso: number; fimPrevisto: Dia; hoje: Dia },
+  p: { marco: boolean; status: StatusEap; progresso: number; inicioPrevisto?: Dia; fimPrevisto: Dia; hoje: Dia },
   cal: Calendario,
 ): number | null {
   if (p.marco || FORA_DA_EXECUCAO.has(p.status)) return null;
   if (p.status === "con" || p.progresso >= 100) return 0;
-  return diasUteisEntre(p.hoje, p.fimPrevisto, cal);
+  const de = p.inicioPrevisto && p.inicioPrevisto > p.hoje ? p.inicioPrevisto : p.hoje;
+  return diasUteisOuNulo(de, p.fimPrevisto, cal);
 }
 
 /**

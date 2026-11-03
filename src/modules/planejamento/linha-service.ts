@@ -100,6 +100,11 @@ export async function editarLinhaNoBanco(i: EdicaoLinha, autorId: string): Promi
   // Fase: ausente não mexe (quem não manda o campo não apaga a fase de ninguém); trocar de
   // disciplina sem mandar a fase a limpa — a fase de outra disciplina não aponta etapa desta.
   const mudouDisciplina = (antes.disciplinaId ?? null) !== (i.disciplinaId || null);
+  // A disciplina é DESTE projeto: um id de outro (chamada montada à mão) puxaria os responsáveis de lá para as linhas.
+  if (mudouDisciplina && i.disciplinaId) {
+    const daDisciplina = await prisma.disciplina.findUnique({ where: { id: i.disciplinaId }, select: { projetoId: true } });
+    if (daDisciplina?.projetoId !== antes.projetoId) throw new ActionError("Disciplina não encontrada neste projeto.");
+  }
   const etapaId =
     i.etapaId !== undefined
       ? await faseDaLinha(antes.projetoId, i.disciplinaId || null, i.etapaId)

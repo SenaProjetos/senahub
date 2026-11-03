@@ -188,7 +188,9 @@ export function ExecucaoDialog({
                 <p id="exec-pct-dica" className="text-xs text-muted-foreground">
                   {fim
                     ? "O término real conclui a tarefa (100%)."
-                    : "Registra o avanço sem concluir. Para 100%, informe o término real."}
+                    : concluida
+                      ? "Reabrindo: informe quanto está concluído (até 99%) e salve."
+                      : "Registra o avanço sem concluir. Para 100%, informe o término real."}
                 </p>
               </div>
             </>
@@ -221,7 +223,13 @@ export function ExecucaoDialog({
               variant="ghost"
               size="sm"
               disabled={salvando}
-              onClick={() => gravar(marco ? null : inicio || null, null, { reabrir: true })}
+              onClick={() => {
+                // Marco reaberto volta a 0% no servidor. Tarefa: tira o término e pede o % (100 só com término real).
+                if (marco) return void gravar(null, null, { reabrir: true });
+                setFim("");
+                setPct("");
+                requestAnimationFrame(() => document.getElementById("exec-pct")?.focus());
+              }}
             >
               Reabrir
             </Button>

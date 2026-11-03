@@ -30,9 +30,13 @@ describe("aplicarExecucao — atividade", () => {
     expect(r).toMatchObject({ ok: true, status: "con", progresso: 100, concluiu: true });
   });
 
-  it("apagar o término reabre (em andamento); o % não é inventado de volta", () => {
-    const r = aplicarExecucao(atv({ status: "con", progresso: 100 }), { inicioReal: "2026-10-01", fimReal: null }, HOJE);
-    expect(r).toMatchObject({ ok: true, status: "and", progresso: 100, concluiu: false });
+  it("apagar o término reabre (em andamento) com o % que a coordenação informa; sem ele, recusa", () => {
+    const r = aplicarExecucao(atv({ status: "con", progresso: 100 }), { inicioReal: "2026-10-01", fimReal: null, progresso: 80 }, HOJE);
+    expect(r).toMatchObject({ ok: true, status: "and", progresso: 80, concluiu: false });
+    expect(aplicarExecucao(atv({ status: "con", progresso: 100 }), { inicioReal: "2026-10-01", fimReal: null }, HOJE)).toEqual({
+      ok: false,
+      motivo: "Ao reabrir, informe o % concluído (até 99%).",
+    });
   });
 
   it("apagar as duas datas volta a não iniciada", () => {
@@ -145,10 +149,10 @@ describe("aplicarExecucao — percentual", () => {
     }
   });
 
-  it("sem progresso o % fica como estava (reabrir mantém 100)", () => {
+  it("sem progresso o % fica como estava", () => {
     expect(
-      aplicarExecucao(atv({ status: "con", progresso: 100 }), { inicioReal: "2026-10-20", fimReal: null }, hoje),
-    ).toMatchObject({ ok: true, progresso: 100, status: "and" });
+      aplicarExecucao(atv({ status: "and", progresso: 40 }), { inicioReal: "2026-10-20", fimReal: null }, hoje),
+    ).toMatchObject({ ok: true, progresso: 40, status: "and" });
   });
 
   it("bloqueada aceita o % sem sair do bloqueio", () => {

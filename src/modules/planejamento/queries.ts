@@ -216,6 +216,7 @@ async function realizadoDasLinhas(
               marco,
               status: t.status,
               progresso: agendada?.progresso ?? t.progresso,
+              inicioPrevisto: agendada?.inicio ?? iso(t.inicioPrevisto),
               fimPrevisto: agendada?.fim ?? iso(t.fimPrevisto),
               hoje,
             },

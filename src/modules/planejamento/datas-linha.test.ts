@@ -14,6 +14,11 @@ describe("lerDataDigitada", () => {
     expect(lerDataDigitada("  05/10/2026  ", "2026-01-01")).toEqual({ ok: true, dia: "2026-10-05" });
   });
 
+  it("só os 8 dígitos (colado de planilha) vale como ddmmaaaa", () => {
+    expect(lerDataDigitada("05112026", "2026-01-01")).toEqual({ ok: true, dia: "2026-11-05" });
+    expect(lerDataDigitada("31022026", "2026-01-01")).toEqual({ ok: false, erro: "Data inválida. Use dd/mm/aaaa." });
+  });
+
   it("dd/mm sem ano vale para o ano de hoje", () => {
     expect(lerDataDigitada("05/10", "2026-03-20")).toEqual({ ok: true, dia: "2026-10-05" });
     expect(lerDataDigitada("05/10", "2027-03-20")).toEqual({ ok: true, dia: "2027-10-05" });
