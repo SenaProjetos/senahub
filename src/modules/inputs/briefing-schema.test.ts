@@ -12,6 +12,7 @@ import {
   mesclarRespostasVisiveis,
   respostasVisiveis,
   respostaValida,
+  secoesDoProjeto,
 } from "./briefing-schema";
 
 describe("briefing-schema", () => {
@@ -171,5 +172,30 @@ describe("respostaValida (o link público não confia no tipo enviado)", () => {
   it("mesclar descarta o inválido e mantém a resposta guardada", () => {
     const visiveis = [{ id: "s", titulo: "S", campos: [c("radio", ["a", "b"])] }];
     expect(mesclarRespostasVisiveis({ k: "a" }, { k: "inventada" }, visiveis)).toEqual({ k: "a" });
+  });
+});
+
+describe("secoesDoProjeto (o que o projeto mostra é o que conta no status)", () => {
+  const secoes = [
+    { id: "geral", titulo: "Geral", campos: [{ chave: "nome", label: "Nome", tipo: "text", obrigatorio: true }] },
+    { id: "hidro", titulo: "Hidráulico", disciplinas: ["hidr"], campos: [{ chave: "reservatorio", label: "Reservatório", tipo: "text", obrigatorio: true }] },
+  ] as unknown as Parameters<typeof secoesDoProjeto>[0];
+
+  it("obrigatória de seção que a disciplina do projeto não pede não segura o status", () => {
+    const visiveis = secoesDoProjeto(secoes, ["Estrutural"], { secoes: [], campos: [] });
+    expect(visiveis.map((s) => s.id)).toEqual(["geral"]);
+    expect(calcularStatusBriefing({ nome: "Casa" }, visiveis)).toBe("completo");
+    // Sem o filtro (o que acontecia no envio) a mesma resposta ficava "em preenchimento".
+    expect(calcularStatusBriefing({ nome: "Casa" }, secoes)).toBe("em_preenchimento");
+  });
+
+  it("com a disciplina no projeto a obrigatória volta a contar", () => {
+    const visiveis = secoesDoProjeto(secoes, ["Hidrossanitário"], { secoes: [], campos: [] });
+    expect(calcularStatusBriefing({ nome: "Casa" }, visiveis)).toBe("em_preenchimento");
+  });
+
+  it("aplica as ocultações do projeto sobre o já filtrado", () => {
+    const visiveis = secoesDoProjeto(secoes, ["Hidrossanitário"], { secoes: ["hidro"], campos: [] });
+    expect(visiveis.map((s) => s.id)).toEqual(["geral"]);
   });
 });

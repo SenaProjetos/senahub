@@ -3,7 +3,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import type { Prisma } from "@/generated/prisma/client";
-import { aplicarOcultos, calcularStatusBriefing, type SecaoBriefing } from "@/modules/inputs/briefing-schema";
+import { recalcularBriefingsDosProjetos } from "@/modules/inputs/briefing-status";
 import { briefingsQueUsam } from "@/modules/inputs/modelo-queries";
 import { migrarRespostas, problemaDosRenomeios, problemasDeEvolucao, validarEsquema, type Renomeio } from "@/modules/inputs/modelo-schema";
 
@@ -16,31 +16,6 @@ export const MOTIVO_OUTRA_PESSOA = "Outra pessoa salvou este modelo enquanto voc
 
 export function ehConflitoDeNome(e: unknown): boolean {
   return typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
-}
-
-/**
- * O status do briefing é persistido para a listagem; quando o formulário muda (obrigatória nova,
- * pergunta removida, condição nova, outro modelo padrão), recalcula o dos briefings que o usam — os que o escolheram no
- * projeto e os que herdam dele (pelo cliente ou por ser o padrão). Sem trava de linha de propósito: o próximo
- * salvamento do briefing corrige qualquer corrida.
- */
-export async function recalcularStatusDoModelo(
-  modeloId: string,
-  ehPadrao: boolean,
-  secoes: readonly SecaoBriefing[],
-  db: Pick<typeof prisma, "briefingProjeto"> = prisma,
-) {
-  const briefings = await db.briefingProjeto.findMany({
-    where: briefingsQueUsam(modeloId, ehPadrao),
-    select: { id: true, status: true, respostasJson: true, secoesOcultas: true, camposOcultos: true },
-  });
-  for (const b of briefings) {
-    const novo = calcularStatusBriefing(
-      (b.respostasJson ?? {}) as Record<string, unknown>,
-      aplicarOcultos(secoes, { secoes: b.secoesOcultas, campos: b.camposOcultos }),
-    );
-    if (novo !== b.status) await db.briefingProjeto.update({ where: { id: b.id }, data: { status: novo } });
-  }
 }
 
 /**
@@ -83,7 +58,7 @@ export async function salvarModeloNoBanco(input: {
       if (count !== 1) throw new ActionError(MOTIVO_OUTRA_PESSOA);
       // `padrao` lido AQUI: se o modelo virou o padrão agora há pouco, quem herda dele também entra.
       const { padrao } = await tx.modeloBriefing.findUniqueOrThrow({ where: { id: input.id }, select: { padrao: true } });
-      const usam = await tx.briefingProjeto.findMany({ where: briefingsQueUsam(input.id, padrao), select: { id: true }, orderBy: { id: "asc" } });
+      const usam = await tx.briefingProjeto.findMany({ where: briefingsQueUsam(input.id, padrao), select: { id: true, projetoId: true }, orderBy: { id: "asc" } });
       const ids = usam.map((b) => b.id);
       // Trava as linhas (mesma trava do salvamento do briefing): uma resposta que chega no meio não é sobrescrita por cópia velha.
       if (ids.length > 0) await tx.$queryRaw`SELECT 1 FROM "briefing_projeto" WHERE "id" = ANY(${ids}) ORDER BY "id" FOR UPDATE`;
@@ -97,9 +72,13 @@ export async function salvarModeloNoBanco(input: {
           total += m.alteradas;
         }
       }
-      await recalcularStatusDoModelo(input.id, padrao, v.esquema, tx);
+      // O status é persistido para a tela; formulário mudou (obrigatória nova, pergunta removida, condição nova), quem usa o
+      // modelo é recalculado — sobre as disciplinas e ocultações de cada projeto. Sem zerar nada: o modelo é o MESMO.
+      if (ids.length > 0) {
+        await recalcularBriefingsDosProjetos(tx, usam.map((b) => b.projetoId));
+      }
       return total;
-    });
+    }, { timeout: 30_000 });
   } catch (e) {
     if (ehConflitoDeNome(e)) throw new ActionError(NOME_REPETIDO);
     throw e;

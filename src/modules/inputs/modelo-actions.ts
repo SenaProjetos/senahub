@@ -6,9 +6,10 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { aplicarOcultos, calcularStatusBriefing } from "@/modules/inputs/briefing-schema";
+import { calcularStatusBriefing, secoesDoProjeto } from "@/modules/inputs/briefing-schema";
+import { formulariosEfetivos, recalcularBriefingsDosProjetos } from "@/modules/inputs/briefing-status";
 import { renomeioSchema } from "@/modules/inputs/modelo-schema";
-import { NOME_REPETIDO, ehConflitoDeNome, recalcularStatusDoModelo, salvarModeloNoBanco } from "@/modules/inputs/modelo-service";
+import { NOME_REPETIDO, ehConflitoDeNome, salvarModeloNoBanco } from "@/modules/inputs/modelo-service";
 import { resolverModelo, resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
 
 const cfg = { modulo: "configuracoes", recurso: "configuracoes", permissao: "gerir", entidade: "ModeloBriefing" } as const;
@@ -92,26 +93,37 @@ export const definirModeloPadraoBriefing = defineAction(
     capturarAntes: () => prisma.modeloBriefing.findFirst({ where: { padrao: true }, select: { id: true, nome: true } }),
   },
   async (input) => {
+    let projetosAfetados = 0;
     try {
       await prisma.$transaction(async (tx) => {
         const alvo = await tx.modeloBriefing.findUnique({ where: { id: input.id }, select: { ativo: true, padrao: true } });
         if (!alvo) throw new ActionError("Modelo não encontrado.");
         if (!alvo.ativo) throw new ActionError("Restaure o modelo antes de torná-lo o padrão.");
         if (alvo.padrao) return;
+        // Esquema ilegível cairia no formulário embutido e zeraria as ocultações de quem herda o padrão por nada.
+        if ((await resolverModelo(input.id, tx)).invalido) throw new ActionError(ESQUEMA_ILEGIVEL);
+        // Quem não escolheu modelo (nem o cliente) passa a usar o novo padrão: foto do formulário de cada um ANTES da troca.
+        const herdeiros = await tx.briefingProjeto.findMany({
+          where: { modeloId: null, projeto: { cliente: { modeloBriefingId: null } } },
+          select: { projetoId: true },
+        });
+        const projetoIds = herdeiros.map((h) => h.projetoId);
+        const antes = await formulariosEfetivos(tx, projetoIds);
         await tx.modeloBriefing.updateMany({ where: { padrao: true }, data: { padrao: false } });
         // Condicionado ao estado lido: arquivar ao mesmo tempo não deixa um padrão arquivado (o throw desfaz tudo).
         const { count } = await tx.modeloBriefing.updateMany({ where: { id: input.id, ativo: true }, data: { padrao: true } });
         if (count !== 1) throw new ActionError("Restaure o modelo antes de torná-lo o padrão.");
-      });
+        // Mesma regra de trocar o modelo do projeto ou do cliente: o formulário efetivo mudou, as ocultações (feitas sobre o
+        // anterior) zeram e o status é recalculado; as respostas ficam.
+        projetosAfetados = await recalcularBriefingsDosProjetos(tx, projetoIds, antes);
+      }, { timeout: 30_000 });
     } catch (e) {
       if (ehConflitoDeNome(e)) throw new ActionError("Outra pessoa trocou o modelo padrão agora. Tente de novo.");
       throw e;
     }
-    // Quem não escolheu modelo passa a usar o novo padrão: o status deles muda junto.
-    const novo = await resolverModelo(input.id);
-    if (!novo.invalido) await recalcularStatusDoModelo(input.id, true, novo.secoes);
     revalidatePath("/configuracoes/inputs/modelos");
-    return { id: input.id };
+    // Quantos briefings mudaram de status ou perderam ocultações: fica no registro da auditoria.
+    return { id: input.id, projetosAfetados };
   },
 );
 
@@ -175,28 +187,15 @@ export const definirModeloDoCliente = defineAction(
         if (!novo.ativo && cliente.modeloBriefingId !== input.modeloId) throw new ActionError("Este modelo está arquivado. Restaure-o em Configurações para usá-lo.");
         if ((await resolverModelo(input.modeloId, tx)).invalido) throw new ActionError(ESQUEMA_ILEGIVEL);
       }
-      // O formulário efetivo dos projetos sem modelo próprio, antes e depois: só quando ele MUDA as ocultações (feitas sobre o anterior) zeram.
-      const antes = await resolverModelo(null, tx, cliente.modeloBriefingId);
-      const depois = await resolverModelo(null, tx, input.modeloId);
-      const mudouDeFormulario = antes.id !== depois.id;
-      const alvo = await tx.briefingProjeto.findMany({ where: { modeloId: null, projeto: { clienteId: input.clienteId } }, select: { id: true }, orderBy: { id: "asc" } });
-      const ids = alvo.map((b) => b.id);
-      if (ids.length > 0) await tx.$queryRaw`SELECT 1 FROM "briefing_projeto" WHERE "id" = ANY(${ids}) ORDER BY "id" FOR UPDATE`;
+      // Os projetos sem modelo próprio herdam do cliente: foto do formulário de cada um antes e recálculo depois — só quando
+      // o formulário efetivo MUDA as ocultações (feitas sobre o anterior) zeram.
+      const alvo = await tx.briefingProjeto.findMany({ where: { modeloId: null, projeto: { clienteId: input.clienteId } }, select: { projetoId: true }, orderBy: { id: "asc" } });
+      const projetoIds = alvo.map((b) => b.projetoId);
+      const antes = await formulariosEfetivos(tx, projetoIds);
       await tx.cliente.update({ where: { id: input.clienteId }, data: { modeloBriefingId: input.modeloId } });
-      const briefings = await tx.briefingProjeto.findMany({
-        where: { id: { in: ids } },
-        select: { id: true, status: true, respostasJson: true, secoesOcultas: true, camposOcultos: true },
-      });
-      for (const b of briefings) {
-        const ocultos = mudouDeFormulario ? { secoes: [], campos: [] } : { secoes: b.secoesOcultas, campos: b.camposOcultos };
-        const novoStatus = calcularStatusBriefing((b.respostasJson ?? {}) as Record<string, unknown>, aplicarOcultos(depois.secoes, ocultos));
-        await tx.briefingProjeto.update({
-          where: { id: b.id },
-          data: mudouDeFormulario ? { secoesOcultas: [], camposOcultos: [], status: novoStatus } : { status: novoStatus },
-        });
-      }
-      return briefings.length;
-    });
+      await recalcularBriefingsDosProjetos(tx, projetoIds, antes);
+      return projetoIds.length;
+    }, { timeout: 30_000 });
     revalidatePath(`/clientes/${input.clienteId}`);
     revalidatePath("/configuracoes/inputs/modelos");
     return { clienteId: input.clienteId, projetosAfetados: afetados };
@@ -246,9 +245,10 @@ export const definirModeloDoProjeto = defineAction(
       if (!novo.ativo) throw new ActionError("Este modelo está arquivado. Restaure-o em Configurações para usá-lo.");
       const modelo = await resolverModelo(input.modeloId, tx);
       if (modelo.invalido) throw new ActionError(ESQUEMA_ILEGIVEL);
+      const disciplinas = (await tx.disciplina.findMany({ where: { projetoId: input.projetoId }, select: { disciplinaTextoLegado: true } })).map((d) => d.disciplinaTextoLegado);
       const novoStatus = calcularStatusBriefing(
         (atual.respostasJson ?? {}) as Record<string, unknown>,
-        aplicarOcultos(modelo.secoes, { secoes: [], campos: [] }),
+        secoesDoProjeto(modelo.secoes, disciplinas, { secoes: [], campos: [] }),
       );
       await tx.briefingProjeto.update({
         where: { projetoId: input.projetoId },

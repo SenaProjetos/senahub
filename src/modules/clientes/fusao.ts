@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/with-action";
 import type { Prisma } from "@/generated/prisma/client";
+import { formulariosEfetivos, recalcularBriefingsDosProjetos } from "@/modules/inputs/briefing-status";
 
 /**
  * Fusão de clientes duplicados (F1.14).
@@ -104,6 +105,11 @@ export async function mesclarClientes(
       if (count > 0) movidos[chave] = count;
     };
 
+    // Briefing dos projetos que mudam de cliente: foto do formulário efetivo ANTES de repontar (o modelo padrão do cliente
+    // vem do cliente), para recalcular o status e zerar as ocultações de quem trocar de formulário.
+    const projetosAbsorvidos = (await tx.projeto.findMany({ where: { clienteId: absorvidoId }, select: { id: true } })).map((p) => p.id);
+    const formularioAntes = await formulariosEfetivos(tx, projetosAbsorvidos);
+
     await repontar("contatos", () =>
       tx.contatoCliente.updateMany({ where: { clienteId: absorvidoId }, data: { clienteId: sobreviventeId } }),
     );
@@ -156,12 +162,14 @@ export async function mesclarClientes(
       movidos["modeloBriefing"] = 1;
     }
 
+    await recalcularBriefingsDosProjetos(tx, projetosAbsorvidos, formularioAntes);
+
     // Arquiva o absorvido com a referência. NÃO deleta.
     await tx.cliente.update({
       where: { id: absorvidoId },
       data: { ativo: false, fundidoEmId: sobreviventeId, fusaoEm: new Date() },
     });
-  });
+  }, { timeout: 30_000 });
 
   return { sobreviventeId, absorvidoId, movidos };
 }

@@ -9,6 +9,7 @@ import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { motivoExclusao } from "@/modules/projetos/nomenclatura/catalogo/todas";
 import { projetosDoCard, usoParaExcluir } from "@/modules/projetos/nomenclatura/catalogo/queries";
 import { prisma } from "@/lib/prisma";
+import { formulariosEfetivos, recalcularBriefingsDosProjetos } from "@/modules/inputs/briefing-status";
 import type { Prisma } from "@/generated/prisma/client";
 import { can, podeAtuarEmDisciplinaAlheia, podeVerFinanceiro } from "@/lib/permissions";
 import { whereAudiencia } from "@/lib/audiencias";
@@ -228,24 +229,31 @@ export const editarProjeto = defineAction(
   },
   async (input) => {
     const { id, ...rest } = input;
-    await prisma.projeto.update({
-      where: { id },
-      data: {
-        nome: rest.nome,
-        tipo: rest.tipo,
-        situacao: rest.situacao,
-        descricao: rest.descricao,
-        areaM2: rest.areaM2,
-        endereco: rest.endereco,
-        prazoContrato: parseData(rest.prazoContrato),
-        prazoPlanejado: parseData(rest.prazoPlanejado ?? rest.prazoContrato),
-        valorContrato: rest.valorContrato,
-        // D13: `undefined` não mexe (formulário que não manda o campo), `null` limpa.
-        ...(rest.tipoEmpreendimentoId === undefined ? {} : { tipoEmpreendimentoId: rest.tipoEmpreendimentoId }),
-        abasConfig: rest.abasConfig,
-        // P-03: troca de cliente.
-        ...(rest.clienteId ? { clienteId: rest.clienteId } : {}),
-      },
+    await prisma.$transaction(async (tx) => {
+      // Trocar o cliente pode trocar o formulário do briefing (o modelo padrão é do cliente): foto de antes e recálculo depois.
+      const atual = rest.clienteId ? await tx.projeto.findUnique({ where: { id }, select: { clienteId: true } }) : null;
+      const trocouCliente = !!atual && atual.clienteId !== rest.clienteId;
+      const formularioAntes = trocouCliente ? await formulariosEfetivos(tx, [id]) : undefined;
+      await tx.projeto.update({
+        where: { id },
+        data: {
+          nome: rest.nome,
+          tipo: rest.tipo,
+          situacao: rest.situacao,
+          descricao: rest.descricao,
+          areaM2: rest.areaM2,
+          endereco: rest.endereco,
+          prazoContrato: parseData(rest.prazoContrato),
+          prazoPlanejado: parseData(rest.prazoPlanejado ?? rest.prazoContrato),
+          valorContrato: rest.valorContrato,
+          // D13: `undefined` não mexe (formulário que não manda o campo), `null` limpa.
+          ...(rest.tipoEmpreendimentoId === undefined ? {} : { tipoEmpreendimentoId: rest.tipoEmpreendimentoId }),
+          abasConfig: rest.abasConfig,
+          // P-03: troca de cliente.
+          ...(rest.clienteId ? { clienteId: rest.clienteId } : {}),
+        },
+      });
+      if (formularioAntes) await recalcularBriefingsDosProjetos(tx, [id], formularioAntes);
     });
     revalidatePath("/projetos");
     revalidatePath(`/projetos/${id}`);

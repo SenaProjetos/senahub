@@ -294,6 +294,19 @@ export function aplicarOcultos(secoes: readonly SecaoBriefing[], ocultos: Oculto
 }
 
 /**
+ * O que UM projeto mostra do formulário do modelo: filtra pelas disciplinas ativas e tira as ocultações. É a regra
+ * única da tela, do link público, do envio e do status gravado — quem decide "obrigatória que conta" não pode ver
+ * mais perguntas que o cliente.
+ */
+export function secoesDoProjeto(
+  secoesDoModelo: readonly SecaoBriefing[],
+  disciplinasAtivas: string[] | undefined,
+  ocultos: OcultosBriefing,
+): SecaoBriefing[] {
+  return aplicarOcultos(filtrarSecoes(disciplinasAtivas, secoesDoModelo), ocultos);
+}
+
+/**
  * Respostas a gravar: as já gravadas, com o que veio no envio APENAS para os campos visíveis.
  * Campo oculto (ou chave desconhecida) no envio é ignorado, e campo ausente do envio fica como
  * estava — o envio nunca apaga a resposta guardada de um campo que a tela não mostra.

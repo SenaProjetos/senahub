@@ -33,6 +33,7 @@
     "smoke:modelos-briefing": "tsx --tsconfig tsconfig.server.json scripts/smoke-modelos-briefing.ts",
     "smoke:estudos": "tsx --tsconfig tsconfig.server.json scripts/smoke-estudos.ts",
     "smoke:formularios-lote4b": "tsx --tsconfig tsconfig.server.json scripts/smoke-formularios-lote4b.ts",
+    "smoke:briefing-status": "tsx --tsconfig tsconfig.server.json scripts/smoke-briefing-status.ts",
     "smoke:competencias-projeto": "tsx --tsconfig tsconfig.server.json scripts/smoke-competencias-projeto.ts",
     "smoke:aviso-agendado": "tsx --tsconfig tsconfig.server.json scripts/smoke-aviso-agendado.ts",
     "smoke:sync-pagamento": "tsx --tsconfig tsconfig.server.json scripts/smoke-sync-pagamento.ts",

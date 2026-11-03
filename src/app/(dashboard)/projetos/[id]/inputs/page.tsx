@@ -7,7 +7,7 @@ import { obterProjeto } from "@/modules/projetos/queries";
 import { listarInputs, listarInputsRemovidos, linkInput, progressoInputs, obterBriefing } from "@/modules/inputs/queries";
 import { resolverModeloDoProjeto, modelosParaEscolha } from "@/modules/inputs/modelo-queries";
 import {
-  aplicarOcultos,
+  secoesDoProjeto,
   prePopularRespostas,
   calcularStatusBriefing,
   type StatusBriefing,
@@ -55,8 +55,9 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
     endereco: projetoCompleto.endereco ?? undefined,
   }, modelo.secoes);
   const ocultos = { secoes: briefing?.secoesOcultas ?? [], campos: briefing?.camposOcultos ?? [] };
-  const statusBriefing: StatusBriefing =
-    (briefing?.status as StatusBriefing) ?? calcularStatusBriefing(respostasSalvas, aplicarOcultos(modelo.secoes, ocultos));
+  // Calculado ao ler, sobre o que ESTE projeto mostra (disciplinas + ocultações): o gravado fica defasado quando uma
+  // disciplina entra ou sai do projeto.
+  const statusBriefing: StatusBriefing = calcularStatusBriefing(respostasSalvas, secoesDoProjeto(modelo.secoes, disciplinas, ocultos));
 
   // Situação do link em uma frase — o botão fica ACIMA do formulário, porque o
   // link abre o formulário inteiro (briefing + perguntas extras).

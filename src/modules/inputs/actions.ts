@@ -7,7 +7,7 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/session";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { aplicarOcultos, calcularStatusBriefing, existeNoBriefing } from "@/modules/inputs/briefing-schema";
+import { calcularStatusBriefing, existeNoBriefing, secoesDoProjeto } from "@/modules/inputs/briefing-schema";
 import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
 import { gravarRespostasBriefing } from "@/modules/inputs/briefing-service";
 import { perguntasDoPadraoParaCriar } from "@/modules/inputs/perguntas";
@@ -269,9 +269,10 @@ export const definirVisibilidadeBriefing = defineAction(
         secoes: input.alvo === "secao" ? nova : atual.secoesOcultas,
         campos: input.alvo === "campo" ? nova : atual.camposOcultos,
       };
+      const disciplinas = (await tx.disciplina.findMany({ where: { projetoId: input.projetoId }, select: { disciplinaTextoLegado: true } })).map((d) => d.disciplinaTextoLegado);
       const novoStatus = calcularStatusBriefing(
         (atual.respostasJson ?? {}) as Record<string, unknown>,
-        aplicarOcultos(modelo.secoes, ocultos),
+        secoesDoProjeto(modelo.secoes, disciplinas, ocultos),
       );
       await tx.briefingProjeto.update({
         where: { projetoId: input.projetoId },
