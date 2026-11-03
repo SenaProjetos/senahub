@@ -84,9 +84,9 @@ export function BlocoTrecho({ nome, t, automatico }: { nome: string; t: TrechoRe
 export function BlocoMotor({ m }: { m: DimensionamentoMotor }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2">
-      <Prop simbolo="P" valor={fmtNum(m.potenciaCv, 2)} un="cv" />
-      <Prop simbolo={`P + ${fmtNum(m.margem * 100, 0)} %`} valor={fmtNum(m.comMargemCv, 2)} un="cv" />
-      <Prop simbolo="Motor" valor={m.motorCv != null ? fmtNum(m.motorCv, 2) : "nenhum motor da tabela atende"} un={m.motorCv != null ? "cv" : ""} destaque />
+      <Prop simbolo="P" valor={fmtNum(Math.max(0, m.potenciaCv), 2)} un="cv" />
+      <Prop simbolo={`P + ${fmtNum(m.margem * 100, 0)} %`} valor={fmtNum(Math.max(0, m.comMargemCv), 2)} un="cv" />
+      <Prop simbolo="Motor" valor={m.motorCv != null ? fmtNum(m.motorCv, 2) : m.potenciaCv <= 0 ? "não se aplica (Hm ≤ 0)" : "nenhum motor da tabela atende"} un={m.motorCv != null ? "cv" : ""} destaque />
     </div>
   );
 }

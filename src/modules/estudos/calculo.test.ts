@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { calcular } from "@/modules/ferramentas/calc/electrical-demand";
 
-import { calcularEstudo, entradaDoMotor, ROTULO_SEM_TIPO, SEM_TIPO_PONTO } from "./calculo";
+import { calcularEstudo, descricaoNoMotor, entradaDoMotor, MAX_DESCRICAO_MOTOR, ROTULO_SEM_TIPO, SEM_TIPO_PONTO } from "./calculo";
 import { conteudoSchema, conteudoVazio, type ConteudoEstudo } from "./conteudo";
 
 const carga = (id: string, over: Record<string, unknown> = {}) => ({
@@ -119,5 +119,14 @@ describe("entradaDoMotor", () => {
   it("prefixa a descrição com o ambiente", () => {
     const e = entradaDoMotor(estudo());
     expect(e.cargas.map((x) => x.descricao)).toEqual(["Sala — lâmpadas", "Sala — tomadas", "Banheiro — chuveiro"]);
+  });
+});
+
+describe("descrição no motor", () => {
+  it("ambiente longo + carga longa cabem no teto do motor", () => {
+    const d = descricaoNoMotor("A".repeat(80), "B".repeat(120));
+    expect(d.length).toBe(MAX_DESCRICAO_MOTOR);
+    expect(d.endsWith("…")).toBe(true);
+    expect(descricaoNoMotor("Sala", "Tomadas")).toBe("Sala — Tomadas");
   });
 });

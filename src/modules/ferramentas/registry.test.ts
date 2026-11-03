@@ -58,11 +58,22 @@ describe("catálogo", () => {
     }
   });
 
-  it("registro de validação, quando existe, é da versão atual do motor e tem ficha", () => {
+  // Validação de uma versão ANTERIOR é o estado "em validação" de propósito (a fórmula mudou e ninguém conferiu a nova):
+  // o teste aceita, para que o atalho de fazê-lo passar nunca seja copiar a versão nova para a validação.
+  it("registro de validação, quando existe, não é de versão futura e tem ficha", () => {
     for (const f of FERRAMENTAS.filter((x) => x.validacao)) {
-      expect(f.validacao?.versaoCalc, f.key).toBe(f.versaoCalc ?? 1);
+      expect(f.validacao!.versaoCalc, f.key).toBeLessThanOrEqual(f.versaoCalc ?? 1);
       expect(f.validacao?.ficha, f.key).toMatch(/^docs\/engenharia\/validacao\//);
       expect(f.validacao?.em, f.key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     }
+  });
+
+  it("validação de versão anterior deixa a calculadora em validação", () => {
+    expect(situacaoValidacao({ exigeValidacao: true, versaoCalc: 2, validacao: { versaoCalc: 1, ficha: "docs/engenharia/validacao/x.md", em: "2026-11-10", por: "x" } })).toBe("em_validacao");
+  });
+
+  it("as duas bombas usam o mesmo calc/hidraulica.ts: mudou um, as duas sobem juntas de versão", () => {
+    const versao = (key: string) => FERRAMENTAS.find((x) => x.key === key)?.versaoCalc ?? 1;
+    expect(versao("bomba-recalque")).toBe(versao("bomba-piscina"));
   });
 });

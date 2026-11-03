@@ -40,6 +40,11 @@ export type EstudoResumo = {
   demandaKw: number | null;
 };
 
+/** Quantos estudos o projeto tem (o editor só precisa do número, sem calcular cada um). */
+export async function contarEstudosDoProjeto(projetoId: string): Promise<number> {
+  return prisma.estudoProjeto.count({ where: { projetoId } });
+}
+
 export async function estudosDoProjeto(projetoId: string): Promise<EstudoResumo[]> {
   const linhas = await prisma.estudoProjeto.findMany({
     where: { projetoId },
@@ -48,7 +53,13 @@ export async function estudosDoProjeto(projetoId: string): Promise<EstudoResumo[
   });
   return linhas.map((l) => {
     const c = lerConteudo(l.conteudo);
-    const demanda = c && totalDeCargas(c) > 0 ? calcularEstudo(c).total?.pDemandadaW ?? null : null;
+    // Um estudo que o motor recuse não derruba a lista inteira: fica sem a demanda.
+    let demanda: number | null = null;
+    try {
+      demanda = c && totalDeCargas(c) > 0 ? (calcularEstudo(c).total?.pDemandadaW ?? null) : null;
+    } catch {
+      demanda = null;
+    }
     return {
       id: l.id,
       nome: l.nome,

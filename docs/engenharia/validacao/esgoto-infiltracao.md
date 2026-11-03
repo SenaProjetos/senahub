@@ -61,6 +61,18 @@ Entrada: 5 pessoas × 150 L/dia · furos (10 min para 1 cm), (40 min para 2 cm),
 
 O mesmo caso está em `calc/soil-infiltration.test.ts`.
 
+## Perguntas da revisão de 03/11/2026
+
+Achados de uma revisão do código, que dependem da norma — responda junto com a ficha:
+
+- [ ] **Uso alternado × simultâneo.** Com 2 ou mais unidades, o cálculo divide a área A entre elas (A ÷ n), o que supõe
+  todas recebendo esgoto ao mesmo tempo. Se a norma exigir uso alternado, cada unidade (ou cada conjunto) precisa da
+  área A inteira — no caso da ficha, H passaria de 4,57 m para cerca de 9,1 m. Qual vale? Se for alternado, o cálculo
+  ganha a escolha "simultâneas × alternadas".
+- [ ] **Nível do lençol.** A tela pede o "nível d'água na sondagem". A distância de 1,50 m das normas antigas conta do
+  nível MÁXIMO do lençol (época de chuvas); sondagem feita na seca daria resultado do lado inseguro. Trocar o rótulo
+  para "nível máximo do lençol (época de chuvas)"? A NBR 17076:2024 mantém 1,50 m?
+
 ## Resultado
 
 ☐ Validada sem ressalvas  ☐ Validada com os ajustes anotados acima  ☐ Reprovada

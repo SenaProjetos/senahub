@@ -77,6 +77,13 @@ Não há fórmula nova, mas há duas agregações para o engenheiro conhecer:
 
 Enquanto esta calculadora estiver em validação, a aba Estudos só aparece para quem tem `ferramentas:gerir`.
 
+## Perguntas da revisão de 03/11/2026
+
+- [ ] **Linha enterrada (método D).** O FCT usa só a coluna de temperatura AMBIENTE da Tab. 40 (base 30 °C). Para cabo
+  enterrado vale a coluna do SOLO (base 20 °C): quem digita 20 °C pensando no solo recebe FCT 1,12 em vez de 1,00, e a
+  corrente corrigida sai 12 % menor (inseguro). Basta uma nota "linha enterrada: informe o FCT da coluna do solo", ou o
+  cálculo deve ter a coluna do solo?
+
 ## Resultado
 
 ☐ Validada sem ressalvas  ☐ Validada com os ajustes anotados acima  ☐ Reprovada

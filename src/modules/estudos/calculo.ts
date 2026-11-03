@@ -36,11 +36,20 @@ export type ResultadoEstudo = {
   porTipoPonto: SubtotalTipoPonto[];
 };
 
+/** Teto da descrição de carga no motor (`cargaSchema`): ambiente + carga juntos passariam dele. */
+export const MAX_DESCRICAO_MOTOR = 120;
+
+/** "Ambiente — carga", cortado no teto do motor (80 do ambiente + 120 da carga não cabem; o motor recusaria). */
+export function descricaoNoMotor(ambiente: string, carga: string): string {
+  const junto = `${ambiente} — ${carga}`;
+  return junto.length <= MAX_DESCRICAO_MOTOR ? junto : `${junto.slice(0, MAX_DESCRICAO_MOTOR - 1)}…`;
+}
+
 /** Entrada do motor para o estudo inteiro: uma lista só, com "Ambiente — carga" na descrição. */
 export function entradaDoMotor(c: ConteudoEstudo): EntradaDemandaInput {
   return {
     ...c.condicoes,
-    cargas: c.ambientes.flatMap((a) => a.cargas.map((x) => ({ ...x, descricao: `${a.nome} — ${x.descricao}` }))),
+    cargas: c.ambientes.flatMap((a) => a.cargas.map((x) => ({ ...x, descricao: descricaoNoMotor(a.nome, x.descricao) }))),
   };
 }
 

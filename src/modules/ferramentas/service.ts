@@ -439,6 +439,8 @@ type MemoriaOpts = {
   geradoEm?: string;
   /** Cabeçalho técnico (obra/ART/CREA). Preenchido pela camada que chama (UI/action). */
   identificacao?: MemoriaIdentificacao;
+  /** Versão do motor com que o cálculo SALVO foi feito. Diferente da atual, a memória avisa que refez a conta. */
+  versaoCalcSalva?: number;
 };
 
 /**
@@ -453,10 +455,17 @@ export function montarMemoria(
   const meta = getFerramenta(ferramenta);
   // Calculadora ainda sem validação do engenheiro: a memória sai marcada, nunca como documento final.
   const emValidacao = meta ? situacaoValidacao(meta) === "em_validacao" : false;
+  // A memória sempre roda o motor ATUAL: um cálculo salvo numa versão anterior pode sair com outros números — dito
+  // no cabeçalho, nunca em silêncio (registry: resultados antigos não são reinterpretados sem aviso).
+  const versaoAtual = meta?.versaoCalc ?? 1;
+  const refeito =
+    opts.versaoCalcSalva !== undefined && opts.versaoCalcSalva !== versaoAtual
+      ? ` — calculado na versão ${opts.versaoCalcSalva}, refeito na versão ${versaoAtual} do cálculo`
+      : "";
   const base = {
     ferramenta,
     titulo: opts.titulo,
-    subtitulo: emValidacao ? `${meta?.nome} — EM VALIDAÇÃO, não usar em projeto` : meta?.nome,
+    subtitulo: `${emValidacao ? `${meta?.nome} — EM VALIDAÇÃO, não usar em projeto` : (meta?.nome ?? "")}${refeito}` || undefined,
     norma: meta?.norma,
     autor: opts.autor,
     projeto: opts.projeto,
@@ -1082,10 +1091,16 @@ const COLUNAS_TRECHO = ["Trecho", "Diâmetro", "D interno (mm)", "v (m/s)", "J (
 
 function valoresMotor(m: DimensionamentoMotor) {
   return [
-    { simbolo: "P", descricao: "Potência absorvida", valor: fmtNum(m.potenciaCv, 2), unidade: "cv", formula: "γ·Q·Hm ÷ (η · 735,5)" },
+    { simbolo: "P", descricao: "Potência absorvida", valor: fmtNum(Math.max(0, m.potenciaCv), 2), unidade: "cv", formula: "γ·Q·Hm ÷ (η · 735,5)" },
     { simbolo: "margem", descricao: "Margem de segurança", valor: fmtNum(m.margem * 100, 0), unidade: "%", formula: "por faixa de potência" },
-    { simbolo: "P_motor", descricao: "Potência com margem", valor: fmtNum(m.comMargemCv, 2), unidade: "cv", formula: "P · (1 + margem)" },
-    { simbolo: "Motor", descricao: "Motor comercial", valor: m.motorCv != null ? fmtNum(m.motorCv, 2) : "acima da tabela", unidade: m.motorCv != null ? "cv" : "" },
+    { simbolo: "P_motor", descricao: "Potência com margem", valor: fmtNum(Math.max(0, m.comMargemCv), 2), unidade: "cv", formula: "P · (1 + margem)" },
+    {
+      simbolo: "Motor",
+      descricao: "Motor comercial",
+      // Sem motor: ou a altura manométrica não pede bomba (Hm ≤ 0, potência zero ou negativa), ou passa da tabela.
+      valor: m.motorCv != null ? fmtNum(m.motorCv, 2) : m.potenciaCv <= 0 ? "não se aplica (Hm ≤ 0)" : "acima da tabela",
+      unidade: m.motorCv != null ? "cv" : "",
+    },
   ];
 }
 

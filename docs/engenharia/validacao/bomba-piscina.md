@@ -60,6 +60,11 @@ Entrada: retangular 8 × 4 m, profundidade média 1,5 m · uso residencial · su
 
 O mesmo caso está em `calc/pool-pump.test.ts`.
 
+## Perguntas da revisão de 03/11/2026
+
+- [ ] **Fórmula de perda de carga e velocidade na sucção.** Mesmas perguntas da ficha da Bomba de Recalque (o cálculo é o
+  mesmo `calc/hidraulica.ts`): Hazen-Williams × Fair-Whipple-Hsiao em PVC pequeno, e o limite de 2,0 m/s na sucção.
+
 ## Resultado
 
 ☐ Validada sem ressalvas  ☐ Validada com os ajustes anotados acima  ☐ Reprovada

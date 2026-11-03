@@ -9,10 +9,10 @@ sinonimos: [calculadoras hidráulicas, calculadoras elétricas, levantamento de 
 
 # Calculadoras de instalações e aba Estudos
 
-> **RASCUNHO PARA VALIDAÇÃO — ainda não publicado no índice do manual.** Estas calculadoras só aparecem para quem tem
-> `ferramentas:gerir` até um engenheiro da casa validar fórmulas e tabelas (fichas em `docs/engenharia/validacao/`).
-> Este texto serve para o engenheiro conferir o que a ferramenta faz e, depois da validação, vira a página do manual
-> (ver "Para publicar" no fim).
+> **RASCUNHO PARA VALIDAÇÃO — ainda não publicado no manual.** Estas calculadoras só aparecem para quem tem
+> `ferramentas:gerir` até um engenheiro da casa validar fórmulas e tabelas (fichas nesta pasta). O texto fica FORA de
+> `docs/manual/` de propósito: lá, qualquer página abre em `/ajuda/...` para todo usuário logado (cliente do portal
+> incluído), mesmo fora do índice. Depois da validação, vira a página do manual (ver "Para publicar" no fim).
 
 ## Para que servem
 
@@ -235,5 +235,6 @@ tela deve bater com eles.
 
 1. Aplicar os ajustes pedidos na ficha (se mudar fórmula ou tabela, incrementar `versaoCalc` e validar de novo).
 2. Preencher `validacao` no registro de cada calculadora (`src/modules/ferramentas/registry.ts`).
-3. Remover o quadro "RASCUNHO PARA VALIDAÇÃO" deste texto, acrescentar a página ao `docs/manual/search-index.json`, ao
-   `docs/manual/engenharia/README.md` e ao catálogo de `ferramentas.md`, e registrar em `novidades.md`.
+3. Mover este arquivo para `docs/manual/engenharia/calculadoras-instalacoes.md`, remover o quadro "RASCUNHO PARA
+   VALIDAÇÃO", acrescentar a página ao `docs/manual/search-index.json`, ao `docs/manual/engenharia/README.md` e ao
+   catálogo de `ferramentas.md`, e registrar em `novidades.md`.

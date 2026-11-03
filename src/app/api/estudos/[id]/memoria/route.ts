@@ -44,7 +44,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!res) return new Response("Estudo não encontrado ou sem cargas para exportar.", { status: 404 });
     ({ doc, nome } = res);
   } catch (e) {
-    if (e instanceof ActionError) return new Response(e.message, { status: 403 });
+    // Mesma resposta da página (404) para projeto fora do escopo e motor em validação: não diz se o id existe.
+    if (e instanceof ActionError) return new Response("Estudo não encontrado.", { status: 404 });
     console.error("[estudos/memoria] falha ao montar a memória:", e);
     return new Response("Não foi possível montar a memória do estudo.", { status: 500 });
   }

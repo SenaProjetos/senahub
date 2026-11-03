@@ -4,8 +4,8 @@ import { requireInterno, requirePermission } from "@/lib/session";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import {
   alteracoesDoEstudo,
+  contarEstudosDoProjeto,
   estudoDoProjeto,
-  estudosDoProjeto,
   liberacaoDosEstudos,
   podeEditarEstudosDoProjeto,
 } from "@/modules/estudos/queries";
@@ -21,11 +21,11 @@ export default async function EstudoPage({ params }: { params: Promise<{ id: str
   if (!projeto || !liberacao.liberado) notFound();
 
   // `estudoDoProjeto` recorta por projeto: um id de outro projeto não abre por esta rota.
-  const [estudo, podeEditar, alteracoes, lista] = await Promise.all([
+  const [estudo, podeEditar, alteracoes, totalEstudos] = await Promise.all([
     estudoDoProjeto(id, estudoId),
     podeEditarEstudosDoProjeto(user, id),
     alteracoesDoEstudo(estudoId),
-    estudosDoProjeto(id),
+    contarEstudosDoProjeto(id),
   ]);
   if (!estudo) notFound();
 
@@ -36,7 +36,7 @@ export default async function EstudoPage({ params }: { params: Promise<{ id: str
       conteudoInicial={estudo.conteudo}
       podeEditar={podeEditar}
       emValidacao={liberacao.emValidacao}
-      totalEstudos={lista.length}
+      totalEstudos={totalEstudos}
       alteracoes={alteracoes}
     />
   );

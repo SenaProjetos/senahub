@@ -82,6 +82,7 @@ export async function memoriaDoCalculo(id: string) {
     projeto,
     identificacao,
     geradoEm: calc.createdAt.toISOString(),
+    versaoCalcSalva: calc.versaoCalc,
   });
   return { calc, doc };
 }

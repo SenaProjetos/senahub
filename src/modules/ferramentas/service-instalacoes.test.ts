@@ -191,3 +191,11 @@ describe("esgoto-infiltracao no service", () => {
     expect(parse(ruim, "esgoto-infiltracao").ok).toBe(false);
   });
 });
+
+describe("memória de cálculo salvo em versão anterior do motor", () => {
+  it("avisa no cabeçalho que a conta foi refeita na versão atual", () => {
+    const doc = montarMemoria("reservatorios", reservatorio, { titulo: "Teste", versaoCalcSalva: 0 });
+    expect(doc.subtitulo).toContain("calculado na versão 0, refeito na versão");
+    expect(montarMemoria("reservatorios", reservatorio, { titulo: "Teste" }).subtitulo).not.toContain("refeito");
+  });
+});

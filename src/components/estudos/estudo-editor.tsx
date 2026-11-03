@@ -85,7 +85,16 @@ export function EstudoEditor({ projetoId, estudo, conteudoInicial, podeEditar, e
   const [pendente, startTransition] = useTransition();
 
   const montagem = useMemo(() => montarConteudo(estado), [estado]);
-  const resultado = useMemo(() => (montagem.conteudo ? calcularEstudo(montagem.conteudo) : null), [montagem]);
+  // O motor ainda pode recusar uma entrada que o formulário aceitou: sem o try, a tela inteira cairia e o que não foi
+  // salvo se perderia. Sem resultado, a tela segue editável e o erro da montagem (se houver) aparece.
+  const resultado = useMemo(() => {
+    if (!montagem.conteudo) return null;
+    try {
+      return calcularEstudo(montagem.conteudo);
+    } catch {
+      return null;
+    }
+  }, [montagem]);
   const alterado = useMemo(() => assinatura(estado) !== salvo, [estado, salvo]);
   const totalCargas = totalDeLinhas(estado.ambientes);
   const erro = estado.nome.trim() === "" ? "Dê um nome ao estudo." : montagem.erro;

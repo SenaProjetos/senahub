@@ -80,6 +80,15 @@ Entrada: consumo diário informado 30 000 L/dia · 6 h/dia · altura de sucção
 
 O mesmo caso está em `calc/pump-recalque.test.ts`.
 
+## Perguntas da revisão de 03/11/2026
+
+- [ ] **Fórmula de perda de carga.** O cálculo usa Hazen-Williams (C = 140 para PVC). Para PVC de diâmetro pequeno a
+  NBR 5626:1998 recomendava Fair-Whipple-Hsiao: em DN25 com 0,3 L/s, HW dá J = 0,0447 m/m e FWH dá 0,0494 (HW ≈ 10 %
+  menos perda). Nos casos desta ficha a diferença é menor que 1 %. Mantém HW?
+- [ ] **Velocidade máxima na sucção.** O limite está em 2,0 m/s; a literatura costuma usar 1,0–1,5 m/s. Qual adotar?
+- [ ] **Horas de funcionamento.** Não há aviso para bomba ligada mais de 6,67 h/dia (vazão abaixo de 15 % do consumo
+  diário por hora, NB-92/Creder). Incluir o aviso? E qual edição da NBR 5626 a ficha deve citar (2020)?
+
 ## Resultado
 
 ☐ Validada sem ressalvas  ☐ Validada com os ajustes anotados acima  ☐ Reprovada
