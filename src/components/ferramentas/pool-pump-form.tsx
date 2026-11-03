@@ -16,6 +16,8 @@ import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { BlocoMotor, BlocoTrecho, Pendencia, Prop, SelectDn, invalidosDigitados, num, pend, percentual, texto, textoDasPendencias } from "./hidraulica-campos";
 import { AlertaCalculo } from "./alerta-calculo";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { BombaPiscinaSchematic } from "./guia/schematics/bomba-piscina";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -140,13 +142,14 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">1. Piscina</h2>
+      <GuiaFerramenta slug="bomba-piscina" desenho={<BombaPiscinaSchematic />}>
+<GuiaGrupo n={1}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h03-forma">Forma</Label>
             <Select value={st.forma} onValueChange={(v) => v && set("forma")(v)}>
-              <SelectTrigger id="h03-forma" aria-label="Forma da piscina"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" id="h03-forma" aria-label="Forma da piscina"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(FORMAS) as (keyof typeof FORMAS)[]).map((k) => (
                   <SelectItem key={k} value={k}>{FORMAS[k]}</SelectItem>
@@ -186,7 +189,7 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
           <div className="space-y-1.5">
             <Label htmlFor="h03-uso">Uso</Label>
             <Select value={st.uso} onValueChange={(v) => v && set("uso")(v)}>
-              <SelectTrigger id="h03-uso" aria-label="Uso da piscina"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" id="h03-uso" aria-label="Uso da piscina"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {CHAVES_USO.map((k) => (
                   <SelectItem key={k} value={k}>{USOS[k].label} — {USOS[k].horas} h</SelectItem>
@@ -202,10 +205,11 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
         <p className="text-xs text-muted-foreground">
           Sem tempo digitado, vale o do uso escolhido. Os tempos por uso são prática de projeto: confirme na NBR 10339.
         </p>
-      </section>
+      </div>
+</GuiaGrupo>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">2. Tubulações</h2>
+      <GuiaGrupo n={2}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h03-ls">Sucção: comprimento (m)</Label>
@@ -230,10 +234,11 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
             <Input id="h03-coef" aria-invalid={invalidos.has("h03-coef") || undefined} type="number" value={st.coef} onChange={(e) => set("coef")(e.target.value)} className="font-mono" />
           </div>
         </div>
-      </section>
+      </div>
+</GuiaGrupo>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">3. Equipamentos e bomba</h2>
+      <GuiaGrupo n={3}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h03-eq">Perda nos equipamentos (mca)</Label>
@@ -255,7 +260,9 @@ export function PoolPumpForm({ initialEntradas, onSalvo }: Props) {
         <p className="text-xs text-muted-foreground">
           Perda do filtro, do pré-filtro e do aquecedor, pressão dos retornos e taxa de filtração vêm do catálogo do fabricante e não têm valor padrão: 0 quer dizer não informado. Sem a taxa de filtração, a área filtrante não é calculada.
         </p>
-      </section>
+      </div>
+</GuiaGrupo>
+</GuiaFerramenta>
 
       {!resultado && orientacao && (
         <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>

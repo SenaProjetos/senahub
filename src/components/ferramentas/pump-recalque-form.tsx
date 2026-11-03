@@ -17,6 +17,8 @@ import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { BlocoMotor, BlocoTrecho, Pendencia, Prop, SelectDn, invalidosDigitados, num, pend, percentual, texto, textoDasPendencias } from "./hidraulica-campos";
 import { AlertaCalculo } from "./alerta-calculo";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { BombaRecalqueSchematic } from "./guia/schematics/bomba-recalque";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -128,13 +130,14 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">1. Vazão</h2>
+      <GuiaFerramenta slug="bomba-recalque" desenho={<BombaRecalqueSchematic />}>
+<GuiaGrupo n={1}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h02-origem">Origem do consumo</Label>
             <Select value={st.origem} onValueChange={(v) => v && set("origem")(v)}>
-              <SelectTrigger id="h02-origem" aria-label="Origem do consumo"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" id="h02-origem" aria-label="Origem do consumo"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(ORIGENS_CONSUMO) as (keyof typeof ORIGENS_CONSUMO)[]).map((k) => (
                   <SelectItem key={k} value={k}>{ORIGENS_CONSUMO[k]}</SelectItem>
@@ -147,7 +150,7 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
               <div className="space-y-1.5">
                 <Label htmlFor="h02-ocupacao">Ocupação</Label>
                 <Select value={st.ocupacao} onValueChange={(v) => v && set("ocupacao")(v)}>
-                  <SelectTrigger id="h02-ocupacao" aria-label="Ocupação"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full" id="h02-ocupacao" aria-label="Ocupação"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {CHAVES_OCUPACAO.map((k) => (
                       <SelectItem key={k} value={k}>{OCUPACOES[k].label}</SelectItem>
@@ -187,10 +190,11 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
         <p className="text-xs text-muted-foreground">
           Q = consumo diário ÷ horas de funcionamento. Os consumos da tabela são valores usuais de projeto (a NBR 5626 não os fixa).
         </p>
-      </section>
+      </div>
+</GuiaGrupo>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">2. Desníveis e tubulações</h2>
+      <GuiaGrupo n={2}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h02-hs">Altura de sucção (m)</Label>
@@ -226,10 +230,11 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
         <p className="text-xs text-muted-foreground">
           Altura de sucção: do nível mínimo da água ao eixo da bomba (negativa se a bomba for afogada). Altura de recalque: do eixo ao ponto de descarga. As perdas das conexões entram como comprimento equivalente (tabela do fabricante da conexão).
         </p>
-      </section>
+      </div>
+</GuiaGrupo>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">3. Conjunto motor-bomba</h2>
+      <GuiaGrupo n={3}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h02-eta">Rendimento (%)</Label>
@@ -237,7 +242,9 @@ export function PumpRecalqueForm({ initialEntradas, onSalvo }: Props) {
           </div>
         </div>
         <p className="text-xs text-muted-foreground">Use o rendimento da curva da bomba escolhida quando houver. O NPSH disponível não é calculado.</p>
-      </section>
+      </div>
+</GuiaGrupo>
+</GuiaFerramenta>
 
       {!resultado && orientacao && (
         <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>

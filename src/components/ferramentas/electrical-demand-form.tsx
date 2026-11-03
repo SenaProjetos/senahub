@@ -23,6 +23,7 @@ import { Footer } from "./anchorage-form";
 import { CondicoesInstalacao } from "./condicoes-instalacao";
 import { LinhaCarga, Prop } from "./linha-carga";
 import { AlertaCalculo } from "./alerta-calculo";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -79,9 +80,10 @@ export function ElectricalDemandForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-medium">1. Cargas</h2>
+      <GuiaFerramenta slug="corrente-demanda">
+      <GuiaGrupo n={1}>
+      <div className="space-y-3">
+        <div className="flex items-center justify-end gap-2">
           <Button
             type="button"
             variant="outline"
@@ -114,9 +116,11 @@ export function ElectricalDemandForm({ initialEntradas, onSalvo }: Props) {
           Potência nominal em W (de saída, no caso de motores). Fator de demanda: use o da concessionária; 100 % se a carga funciona toda junta.
           Clique com o botão direito numa carga (ou use o ⋯) para duplicar, mover ou remover.
         </p>
-      </section>
+      </div>
+      </GuiaGrupo>
 
-      <CondicoesInstalacao geral={geral} onChange={setGeral} idPrefixo="e01" numeracao={2} />
+      <CondicoesInstalacao geral={geral} onChange={setGeral} idPrefixo="e01" numeracao={2} agrupar />
+      </GuiaFerramenta>
 
       {!resultado && (
         <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">

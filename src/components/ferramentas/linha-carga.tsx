@@ -82,7 +82,7 @@ export function LinhaCarga({
         <div className="space-y-1">
           <Label className="text-xs">Ligação</Label>
           <Select value={linha.ligacao} onValueChange={(v) => v && onChange("ligacao", v)}>
-            <SelectTrigger aria-label={contexto ? `Ligação da carga ${numero} (${contexto})` : `Ligação da carga ${numero}`}><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full" aria-label={contexto ? `Ligação da carga ${numero} (${contexto})` : `Ligação da carga ${numero}`}><SelectValue /></SelectTrigger>
             <SelectContent>
               {(Object.keys(LIGACOES) as (keyof typeof LIGACOES)[]).map((k) => (
                 <SelectItem key={k} value={k}>{k === "mono" ? "Monofásica" : "Trifásica"}</SelectItem>

@@ -267,6 +267,80 @@ export const GUIAS: Record<string, GuiaMeta> = {
     ],
     dica: "Os coeficientes γ e ψ seguem a NBR 8681 / NBR 6118 conforme o tipo de cada ação variável. Marque uma permanente como favorável só quando ela alivia o efeito.",
   },
+  "reservatorios": {
+    subtitulo: "Guia dos dados de entrada para o pré-dimensionamento dos reservatórios inferior e superior.",
+    grupos: [
+      { n: 1, titulo: "Consumo", descricao: "Ocupação, quantidade de unidades (pessoas, leitos, alunos…) e o consumo por unidade. Escolhida a ocupação, o consumo vem da tabela de valores usuais (a NBR 5626 não os fixa); digitar um valor substitui o da tabela. CD = unidades × consumo." },
+      { n: 2, titulo: "Reserva e reservatórios", descricao: "Dias de reserva (padrão 2), sistema (inferior + superior, só um deles) e a parcela do consumo no inferior (padrão 60 %). V_res = CD × dias. Com as alturas úteis, a área em planta sai de V ÷ h." },
+      { n: 3, titulo: "Reserva técnica de incêndio", descricao: "Não há valor padrão: vem da instrução técnica do Corpo de Bombeiros do estado. Informe o volume pronto ou hidrantes × vazão × tempo, e em qual reservatório ela fica." },
+    ],
+    unidades: [
+      "Consumo: L/dia por unidade",
+      "Volumes: L (m³ na tabela de reservatórios)",
+      "Alturas úteis: m · Área em planta: m²",
+      "RTI: vazão em L/min, tempo em min",
+    ],
+    dica: "O engenheiro confere a tabela de consumo, os 2 dias de reserva e a divisão 60/40: são prática de projeto, não valores da norma. A reserva de incêndio nunca vem preenchida.",
+  },
+  "corrente-demanda": {
+    subtitulo: "Guia dos dados de entrada para corrente de projeto, corrente corrigida e carga demandada (NBR 5410).",
+    grupos: [
+      { n: 1, titulo: "Cargas", descricao: "Uma linha por carga: quantidade, potência unitária (W), tensão, ligação, fator de potência, rendimento e fator de demanda. P_abs = qtd × P ÷ η; Ib = P_abs ÷ (k·V·fp), com k = 1 (monofásica) ou √3 (trifásica)." },
+      { n: 2, titulo: "Condições de instalação", descricao: "Isolação, temperatura ambiente e circuitos agrupados definem FCT (Tabela 40) e FCA (Tabela 42). Ib′ = Ib ÷ (FCT × FCA). Outro método de instalação: informe os fatores à mão." },
+      { n: 3, titulo: "Alimentação geral", descricao: "Tensão e ligação da alimentação, para a corrente total a partir da demanda em kVA." },
+    ],
+    unidades: [
+      "Potência: W (de saída, no caso de motores)",
+      "Tensão: V · Corrente: A",
+      "Fatores de potência e rendimento: 0 a 1",
+      "Fator de demanda: % (da concessionária)",
+    ],
+    dica: "Fator de demanda não é da NBR 5410: use o da concessionária (100 % se tudo funciona junto). A demanda em kVA soma as potências aparentes aritmeticamente, a favor da segurança. Nenhuma potência vem preenchida.",
+  },
+  "bomba-recalque": {
+    subtitulo: "Guia dos dados de entrada para o dimensionamento da bomba de recalque (NBR 5626).",
+    grupos: [
+      { n: 1, titulo: "Vazão", descricao: "Consumo diário (informado ou por ocupação) e horas de funcionamento da bomba (padrão 6 h). Q = CD ÷ horas." },
+      { n: 2, titulo: "Desníveis e tubulações", descricao: "Altura de sucção (negativa se afogada), altura de recalque, comprimentos reais e equivalentes (Leq das conexões, digitado) e o coeficiente C de Hazen-Williams (padrão 140). O DN pode ser automático (Forchheimer)." },
+      { n: 3, titulo: "Conjunto motor-bomba", descricao: "Rendimento do conjunto (padrão 60 %). A potência sai de γ·Q·Hm ÷ (η·735,5), com margem por faixa e o motor comercial seguinte." },
+    ],
+    unidades: [
+      "Consumo: L/dia · Vazão: m³/h e L/s",
+      "Alturas e comprimentos: m",
+      "Perda de carga: mca · Altura manométrica: mca",
+      "Potência: cv",
+    ],
+    dica: "Hm = Hg + hf do recalque + hf da sucção. O NPSH disponível não é calculado: confira com a curva da bomba. Os padrões (6 h, C = 140, η = 60 %, margens e limites de velocidade) são prática de projeto.",
+  },
+  "bomba-piscina": {
+    subtitulo: "Guia dos dados de entrada para o dimensionamento da bomba de recirculação da piscina (NBR 10339).",
+    grupos: [
+      { n: 1, titulo: "Piscina", descricao: "Forma e dimensões (ou o volume pronto), profundidade média e uso, que sugere o tempo de recirculação (residencial 6 h, coletivo 4 h, infantil 2 h). Q = V ÷ tempo." },
+      { n: 2, titulo: "Tubulações", descricao: "Comprimentos reais e equivalentes de sucção e retorno, coeficiente C (padrão 140) e DN automático por velocidade (sucção até 1,8 m/s, retorno até 3,0 m/s)." },
+      { n: 3, titulo: "Equipamentos e bomba", descricao: "Perda no filtro e equipamentos e pressão nos retornos (do fabricante, sem padrão), rendimento (padrão 50 %) e, se quiser a área filtrante, a taxa de filtração." },
+    ],
+    unidades: [
+      "Dimensões: m · Volume: m³",
+      "Vazão: m³/h e L/s",
+      "Perdas e pressões: mca",
+      "Potência: cv · Taxa de filtração: m³/h·m²",
+    ],
+    dica: "Circuito fechado com superfície livre: a altura manométrica não soma desnível. Perda dos equipamentos, pressão nos retornos e taxa de filtração não têm valor padrão; sem a taxa, não há área filtrante.",
+  },
+  "esgoto-infiltracao": {
+    subtitulo: "Guia dos dados de entrada para o sumidouro por teste de percolação e leitura da sondagem.",
+    grupos: [
+      { n: 1, titulo: "Contribuição de esgoto", descricao: "Pessoas × contribuição por pessoa (sem valor padrão) ou o volume diário direto. V é o esgoto a infiltrar por dia." },
+      { n: 2, titulo: "Coeficiente de infiltração do solo", descricao: "Pelos furos do teste de percolação (tempo e rebaixamento): t = tempo ÷ rebaixamento e Ci = 490 ÷ (t + 2,5); vale o furo mais lento. Ou informe o Ci direto." },
+      { n: 3, titulo: "Sumidouro e sondagem", descricao: "Diâmetro, unidades, profundidade do topo, se o fundo conta como área (padrão: só a parede lateral), nível d'água da sondagem e distância mínima do fundo ao lençol (padrão 1,5 m). A = V ÷ Ci; H = A ÷ (unidades·π·D)." },
+    ],
+    unidades: [
+      "Volume: L/dia · Ci: L/m²·dia",
+      "Tempo: min · Rebaixamento: cm",
+      "Diâmetro, profundidades e distâncias: m · Área: m²",
+    ],
+    dica: "A NBR 7229 e a NBR 13969 foram substituídas pela NBR 17076:2024: a curva de Ci, os 1,5 m ao lençol e o uso só da parede lateral vêm das normas antigas e da prática, e o engenheiro confere na norma nova. Vala, filtro e distâncias a poços e divisas ficam de fora.",
+  },
 };
 
 export function getGuia(slug: string): GuiaMeta | undefined {

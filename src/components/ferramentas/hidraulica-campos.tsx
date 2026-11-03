@@ -47,7 +47,7 @@ export function SelectDn({
     <div className="space-y-1.5">
       <Label htmlFor={id}>{rotulo}</Label>
       <Select value={valor} onValueChange={(v) => v && onChange(v)}>
-        <SelectTrigger id={id} aria-label={rotulo}>
+        <SelectTrigger className="w-full" id={id} aria-label={rotulo}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

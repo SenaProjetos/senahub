@@ -5,6 +5,36 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ISOLACOES, temperaturasDaTabela, type Isolacao } from "@/modules/ferramentas/calc/electrical-demand";
 import { num, type Geral } from "@/modules/ferramentas/carga-linha";
+import { GuiaGrupo } from "./guia/guia-ferramenta";
+
+/** Seção do formulário. Fora do componente de propósito: definida dentro, remontaria os campos a cada tecla. */
+function Secao({
+  agrupar,
+  numeracao,
+  offset,
+  texto,
+  children,
+}: {
+  agrupar: boolean;
+  numeracao?: number;
+  offset: number;
+  texto: string;
+  children: React.ReactNode;
+}) {
+  if (agrupar && numeracao != null) {
+    return (
+      <GuiaGrupo n={numeracao + offset}>
+        <div className="space-y-3">{children}</div>
+      </GuiaGrupo>
+    );
+  }
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-medium">{numeracao != null ? `${numeracao + offset}. ${texto}` : texto}</h2>
+      {children}
+    </section>
+  );
+}
 
 /**
  * Condições de instalação (fatores de correção) e alimentação geral — as mesmas telas da calculadora
@@ -16,20 +46,21 @@ export function CondicoesInstalacao({
   onChange,
   idPrefixo,
   numeracao,
+  agrupar = false,
 }: {
   geral: Geral;
   onChange: (proximo: Geral) => void;
   idPrefixo: string;
   numeracao?: number;
+  /** Dentro de um `GuiaFerramenta`: as duas seções viram os grupos `numeracao` e `numeracao + 1` do guia. */
+  agrupar?: boolean;
 }) {
   const setG = <K extends keyof Geral>(k: K, v: Geral[K]) => onChange({ ...geral, [k]: v });
   const temperaturas = temperaturasDaTabela(geral.isolacao);
-  const titulo = (offset: number, texto: string) => (numeracao != null ? `${numeracao + offset}. ${texto}` : texto);
 
   return (
     <>
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">{titulo(0, "Condições de instalação (fatores de correção)")}</h2>
+      <Secao agrupar={agrupar} numeracao={numeracao} offset={0} texto="Condições de instalação (fatores de correção)">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="space-y-1.5">
             <Label>Isolação</Label>
@@ -45,7 +76,7 @@ export function CondicoesInstalacao({
                 });
               }}
             >
-              <SelectTrigger aria-label="Isolação dos condutores"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label="Isolação dos condutores"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(ISOLACOES) as Isolacao[]).map((k) => (
                   <SelectItem key={k} value={k}>{ISOLACOES[k]}</SelectItem>
@@ -56,7 +87,7 @@ export function CondicoesInstalacao({
           <div className="space-y-1.5">
             <Label>Temperatura ambiente</Label>
             <Select value={geral.temperaturaC} onValueChange={(v) => v && setG("temperaturaC", v)}>
-              <SelectTrigger aria-label="Temperatura ambiente"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label="Temperatura ambiente"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {temperaturas.map((t) => (
                   <SelectItem key={t} value={String(t)}>{t} °C</SelectItem>
@@ -82,15 +113,14 @@ export function CondicoesInstalacao({
         <p className="text-xs text-muted-foreground">
           FCT: Tabela 40 da NBR 5410 (base 30 °C). FCA: Tabela 42, condutores em feixe ou em conduto fechado. Outro método de instalação? Informe os fatores à mão.
         </p>
-      </section>
+      </Secao>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">{titulo(1, "Alimentação geral")}</h2>
+      <Secao agrupar={agrupar} numeracao={numeracao} offset={1} texto="Alimentação geral">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="space-y-1.5">
             <Label>Ligação</Label>
             <Select value={geral.alimentacaoLigacao} onValueChange={(v) => v && setG("alimentacaoLigacao", v as "mono" | "tri")}>
-              <SelectTrigger aria-label="Ligação da alimentação geral"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label="Ligação da alimentação geral"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="mono">Monofásica</SelectItem>
                 <SelectItem value="tri">Trifásica</SelectItem>
@@ -102,7 +132,7 @@ export function CondicoesInstalacao({
             <Input id={`${idPrefixo}-vali`} type="number" value={geral.alimentacaoTensaoV} onChange={(e) => setG("alimentacaoTensaoV", e.target.value)} className="font-mono" />
           </div>
         </div>
-      </section>
+      </Secao>
     </>
   );
 }

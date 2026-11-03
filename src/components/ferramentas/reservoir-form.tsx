@@ -24,6 +24,8 @@ import { Footer } from "./anchorage-form";
 import { percentual, texto } from "./hidraulica-campos";
 import { Prop } from "./prop";
 import { AlertaCalculo } from "./alerta-calculo";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { ReservatoriosSchematic } from "./guia/schematics/reservatorios";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -133,13 +135,14 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">1. Consumo</h2>
+      <GuiaFerramenta slug="reservatorios" desenho={<ReservatoriosSchematic />}>
+<GuiaGrupo n={1}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5 sm:col-span-1">
             <Label>Ocupação</Label>
             <Select value={st.ocupacao} onValueChange={(v) => v && set("ocupacao")(v)}>
-              <SelectTrigger aria-label="Ocupação"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label="Ocupação"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {CHAVES_OCUPACAO.map((k) => (
                   <SelectItem key={k} value={k}>{OCUPACOES[k].label}</SelectItem>
@@ -168,10 +171,11 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
         <p className="text-xs text-muted-foreground">
           Os valores da tabela são consumos usuais de projeto (a NBR 5626 não os fixa). Digite o consumo para substituí-lo.
         </p>
-      </section>
+      </div>
+</GuiaGrupo>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">2. Reserva e reservatórios</h2>
+      <GuiaGrupo n={2}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h01-dias">Dias de reserva</Label>
@@ -180,7 +184,7 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
           <div className="space-y-1.5">
             <Label>Sistema</Label>
             <Select value={st.sistema} onValueChange={(v) => v && set("sistema")(v)}>
-              <SelectTrigger aria-label="Sistema de reservatórios"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label="Sistema de reservatórios"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(SISTEMAS) as (keyof typeof SISTEMAS)[]).map((k) => (
                   <SelectItem key={k} value={k}>{SISTEMAS[k]}</SelectItem>
@@ -209,15 +213,16 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
             </div>
           )}
         </div>
-      </section>
+      </div>
+</GuiaGrupo>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">3. Reserva técnica de incêndio</h2>
+      <GuiaGrupo n={3}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label>Como informar</Label>
             <Select value={st.rtiModo} onValueChange={(v) => v && set("rtiModo")(v)}>
-              <SelectTrigger aria-label="Como informar a reserva técnica de incêndio"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" aria-label="Como informar a reserva técnica de incêndio"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="nenhuma">Não considerar</SelectItem>
                 <SelectItem value="informada">Volume informado</SelectItem>
@@ -251,7 +256,7 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
             <div className="space-y-1.5">
               <Label htmlFor="h01-rti-em">Fica no reservatório</Label>
               <Select value={st.rtiEm} onValueChange={(v) => v && set("rtiEm")(v)}>
-                <SelectTrigger id="h01-rti-em" aria-label="Fica no reservatório da reserva técnica de incêndio"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full" id="h01-rti-em" aria-label="Fica no reservatório da reserva técnica de incêndio"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="superior">Superior</SelectItem>
                   <SelectItem value="inferior">Inferior</SelectItem>
@@ -263,7 +268,9 @@ export function ReservoirForm({ initialEntradas, onSalvo }: Props) {
         <p className="text-xs text-muted-foreground">
           Número de hidrantes e tempo vêm da instrução técnica do Corpo de Bombeiros do estado (a NBR 13714 define a vazão mínima por tipo de hidrante). Não há valor padrão.
         </p>
-      </section>
+      </div>
+</GuiaGrupo>
+</GuiaFerramenta>
 
       {!resultado && orientacao && (
         <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>

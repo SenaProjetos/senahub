@@ -36,6 +36,8 @@ import { fmtNum } from "@/modules/ferramentas/memoria";
 import { Footer } from "./anchorage-form";
 import { Pendencia, Prop, invalidosDigitados, num, pend, texto, textoDasPendencias } from "./hidraulica-campos";
 import { AlertaCalculo } from "./alerta-calculo";
+import { GuiaFerramenta, GuiaGrupo } from "./guia/guia-ferramenta";
+import { EsgotoInfiltracaoSchematic } from "./guia/schematics/esgoto-infiltracao";
 
 type Props = { initialEntradas?: Record<string, unknown>; onSalvo: (id: string) => void };
 
@@ -186,13 +188,14 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">1. Contribuição de esgoto</h2>
+      <GuiaFerramenta slug="esgoto-infiltracao" desenho={<EsgotoInfiltracaoSchematic />}>
+<GuiaGrupo n={1}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h04-contrib">Como informar</Label>
             <Select value={g.contribuicao} onValueChange={(v) => v && setG("contribuicao", v)}>
-              <SelectTrigger id="h04-contrib" aria-label="Como informar a contribuição"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" id="h04-contrib" aria-label="Como informar a contribuição"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(CONTRIBUICOES) as (keyof typeof CONTRIBUICOES)[]).map((k) => (
                   <SelectItem key={k} value={k}>{CONTRIBUICOES[k]}</SelectItem>
@@ -221,15 +224,16 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
         <p className="text-xs text-muted-foreground">
           A contribuição por pessoa vem da tabela da norma e não tem valor padrão aqui: digite o valor adotado no projeto.
         </p>
-      </section>
+      </div>
+</GuiaGrupo>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">2. Coeficiente de infiltração do solo</h2>
+      <GuiaGrupo n={2}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h04-origem">Origem</Label>
             <Select value={g.origemCi} onValueChange={(v) => v && setG("origemCi", v)}>
-              <SelectTrigger id="h04-origem" aria-label="Origem do coeficiente de infiltração"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full" id="h04-origem" aria-label="Origem do coeficiente de infiltração"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {(Object.keys(ORIGENS_CI) as (keyof typeof ORIGENS_CI)[]).map((k) => (
                   <SelectItem key={k} value={k}>{ORIGENS_CI[k]}</SelectItem>
@@ -291,10 +295,11 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
             </p>
           </>
         )}
-      </section>
+      </div>
+</GuiaGrupo>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-medium">3. Sumidouro e sondagem</h2>
+      <GuiaGrupo n={3}>
+<div className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="h04-diam">Diâmetro (m)</Label>
@@ -325,7 +330,9 @@ export function SoilInfiltrationForm({ initialEntradas, onSalvo }: Props) {
           Nível d&apos;água: profundidade medida no furo de sondagem. A distância mínima padrão de 1,5 m vem das normas antigas: confirme na NBR 17076:2024.
           Por padrão só a parede lateral conta como área de infiltração.
         </p>
-      </section>
+      </div>
+</GuiaGrupo>
+</GuiaFerramenta>
 
       {!resultado && orientacao && (
         <p role="status" className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">{orientacao}</p>
