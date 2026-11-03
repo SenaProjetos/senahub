@@ -20,6 +20,12 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Certidões e cronograma: título do link e horas que não somem (novembro/2026)
+
+- **Certidões — título do link público:** ao compartilhar, dê um título ao link (ex.: "Licitação Prefeitura X") para lembrar para quem ele foi. Só a equipe vê o título. Na lista do diálogo, uma bolinha mostra a situação de cada certidão: vermelha (vencida), amarela (vence em breve) ou verde (válida).
+- **Cronograma — horas no agrupamento:** se uma tarefa já tinha horas apontadas no ponto e depois ganhou tarefas dentro dela, essas horas continuam contando no **Trab. real** e no **Custo real** dela.
+- **Briefing:** ao enviar, o formulário avisa quando uma resposta não foi gravada porque a pergunta saiu do formulário — recarregue a página para ver a versão atual.
+
 ## Formulários do briefing: pergunta condicional, padrão por cliente e opções renomeadas (novembro/2026)
 
 - **Pergunta condicional:** no editor de modelos, uma pergunta pode aparecer só quando outra (de escolha) tiver certa resposta — por exemplo, "Como aquecer?" só se "Terá piscina?" for Sim. Escondida, ela não é exigida e a resposta já dada fica guardada.

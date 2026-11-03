@@ -63,7 +63,11 @@ terceiros (contador, advogado) sem precisar de login.
   restaurar.
 - **Compartilhar (link público):** gera um link sem login para um conjunto de
   certidões — útil para mandar ao contador ou advogado. O link pode expirar numa
-  data e ser revogado a qualquer momento.
+  data e ser revogado a qualquer momento. Dê um **título** ao link (até 80
+  caracteres, ex.: "Licitação Prefeitura X") para saber depois para quem ele foi —
+  o título só aparece para a equipe, nunca na página pública. Na lista de
+  certidões do diálogo, uma bolinha mostra a situação de cada uma: vermelha
+  (vencida), amarela (vence em breve) ou verde (válida).
 - **Exportar:** baixa uma planilha `.xlsx` com o panorama completo (tipo, validade,
   status, responsável, versões).
 - **Responsável:** cada certidão pode ter um responsável — ele também recebe os
