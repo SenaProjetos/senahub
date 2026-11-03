@@ -71,6 +71,7 @@ npm run smoke:contabil              # integração contábil (M5): plano do cont
 npm run contabil:importar-plano     # importa/re-importa o plano do contador (CSV; sem argumento usa docs/financeiro/contabil/plano-de-contas-gama-2026-10.csv)
 npm run smoke:catalogo-nomenclatura # catálogo da versão: sigla que muda de dono (sinônimo/oficial), sair sem mexer em sigla, voltar escolhendo
 npm run verify:motor-cronograma     # motor do cronograma contra os projetos reais do banco
+npm run verify:fusoes-clientes      # (só leitura, transação READ ONLY) linhas que ficaram no cliente absorvido por fusão — a de antes de 56d73573 não movia funil, atividade, regra, próxima ação e de-para
 npm run smoke:ponto-disciplina     # rateio R2: disciplina na sessão, reunião ligada a projeto, quem pode marcar, tarefa obrigatória com 2+ disciplinas, correção do dia pelo responsável da data
 npm run smoke:rateio-fechamento    # rateio R3: fechar só mês terminado, reabrir com motivo (evento), recalcular mês antigo, divergência depois do fechamento
 npm run smoke:horas-disciplina     # rateio R5: orçado (linha de base) × planejado (EAP) × realizado (ponto), coordenador × projetista, reais só para quem vê custo
