@@ -66,7 +66,7 @@ export function InputsPublicForm({ token, itens }: { token: string; itens: Item[
                   id={it.id}
                   rows={2}
                   maxLength={LIMITE_TEXTO_RESPOSTA}
-                  className="w-full resize-y rounded-sm border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                  className="w-full resize-y rounded-sm border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-3 focus-visible:ring-ring/50"
                   value={valores[it.id] ?? ""}
                   onChange={(e) => setValores((v) => ({ ...v, [it.id]: e.target.value }))}
                   onBlur={() => salvar(it.id)}
@@ -77,7 +77,7 @@ export function InputsPublicForm({ token, itens }: { token: string; itens: Item[
         </section>
       ))}
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div role="status" aria-live="polite" className="flex items-center gap-2 text-xs text-muted-foreground">
         {salvando ? (
           <>
             <Loader2 className="size-3.5 animate-spin" /> Salvando…

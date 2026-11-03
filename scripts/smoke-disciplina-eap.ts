@@ -275,8 +275,10 @@ async function main() {
     // Fora do Next o `revalidatePath` do `aposMudarEap` lança quando um card muda: grava pelo editar da linha (a mesma
     // transação da propagação) e sincroniza os cards como o `aposMudarEap` faz depois.
     const { progresso: progressoA } = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: A.id }, select: { progresso: true } });
-    await editarLinhaNoBanco({ id: A.id, nome: "Agrupamento A", progresso: progressoA, marco: false, disciplinaId: est.id, etapaId: fase.id, propagarDisciplina: { esperadas: 5 } }, admin.id);
-    await sincronizarCards(prisma, projeto.id, admin.id);
+    await comPasso({ projetoId: projeto.id, userId: admin.id, rotulo: "smoke 6a em revisão" }, async () => {
+      await editarLinhaNoBanco({ id: A.id, nome: "Agrupamento A", progresso: progressoA, marco: false, disciplinaId: est.id, etapaId: fase.id, propagarDisciplina: { esperadas: 5 } }, admin.id);
+      await sincronizarCards(prisma, projeto.id, admin.id);
+    });
     const cardA1 = await prisma.tarefa.findUnique({ where: { eapTarefaId: a1.id }, select: { id: true, disciplinaId: true, titulo: true, responsaveis: { select: { userId: true } } } });
     check(
       "6a card aberto de a1: mesmo card, vai para a disciplina nova com a fase no título e a mesma pessoa",
@@ -285,6 +287,10 @@ async function main() {
     );
     const cardA3 = await prisma.tarefa.findUnique({ where: { eapTarefaId: a3.id }, select: { disciplinaId: true, responsaveis: { select: { userId: true } } } });
     check("6a a3 ganha card do responsável herdado, na disciplina nova", cardA3?.disciplinaId === est.id && cardA3?.responsaveis.map((r) => r.userId).join() === outro.id, cardA3);
+    // Ctrl+Z em revisão: a3 volta sem ninguém e o card que o passo criou para ela some; o card de a1 (que já existia) fica.
+    await desfazerUltimoPasso(projeto.id, admin.id);
+    check("6a desfazer em revisão apaga o card que o passo criou (a3 sem ninguém)", (await prisma.tarefa.findUnique({ where: { eapTarefaId: a3.id } })) === null);
+    check("6a e mantém o card que já existia antes (a1)", (await prisma.tarefa.findUnique({ where: { eapTarefaId: a1.id }, select: { id: true } }))?.id === cardA1Antes?.id);
 
     // plano aprovado e fechado: recusa antes de gravar qualquer coisa
     await prisma.cronogramaProjeto.update({ where: { projetoId: projeto.id }, data: { emRevisao: false } });

@@ -237,8 +237,9 @@ describe("camposDescartadosNoEnvio (o envio não cala o que não gravou)", () =>
   ];
   const visiveis = [{ ...modelo[0], campos: modelo[0].campos.filter((c) => c.chave !== "extra") }];
 
-  it("campo que o projeto deixou de mostrar, com valor novo, é descartado", () => {
-    expect(camposDescartadosNoEnvio({}, { extra: "novo" }, modelo, visiveis)).toEqual(["Extra"]);
+  it("campo que o projeto deixou de mostrar é descartado sem dizer qual (nem se difere do gravado)", () => {
+    expect(camposDescartadosNoEnvio({}, { extra: "novo" }, modelo, visiveis)).toEqual(["uma pergunta que saiu do formulário"]);
+    expect(camposDescartadosNoEnvio({ extra: "x" }, { extra: "x" }, modelo, visiveis)).toEqual(["uma pergunta que saiu do formulário"]);
   });
 
   it("valor que o tipo não aceita é descartado", () => {
@@ -246,7 +247,7 @@ describe("camposDescartadosNoEnvio (o envio não cala o que não gravou)", () =>
   });
 
   it("vazio, igual ao gravado, visível válido e chave desconhecida não entram", () => {
-    expect(camposDescartadosNoEnvio({ extra: "x" }, { extra: "x", nome: "Ana", tipo: "", inventada: "y" }, modelo, visiveis)).toEqual([]);
+    expect(camposDescartadosNoEnvio({ tipo: "c" }, { nome: "Ana", tipo: "c", inventada: "y" }, modelo, visiveis)).toEqual([]);
     expect(camposDescartadosNoEnvio({}, { extra: "" }, modelo, visiveis)).toEqual([]);
   });
 

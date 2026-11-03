@@ -14,6 +14,8 @@ const putSchema = z.object({
     .refine((r) => Object.keys(r).length <= 500, "Respostas demais."),
 });
 
+const LIMITE_CORPO_BYTES = 512 * 1024;
+
 async function projetoDoToken(token: string) {
   const link = await prisma.linkPublicoInput.findUnique({
     where: { token },
@@ -39,6 +41,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
   const projeto = await projetoDoToken(token);
   if (!projeto) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
 
+  // Teto de bytes ANTES de ler o corpo: o limite de chaves só vale depois do parse, e o processo é um só (chat incluso).
+  if (Number(req.headers.get("content-length") ?? 0) > LIMITE_CORPO_BYTES) {
+    return NextResponse.json({ error: "Respostas grandes demais." }, { status: 413 });
+  }
   const parsed = putSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 

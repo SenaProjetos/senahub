@@ -79,7 +79,13 @@ export function BriefingForm({
       const { payload, invalidos } = respostasParaSalvar(doFormulario, ultimoSalvo.current, todasAsSecoes);
       setACorrigir(invalidos.map((c) => c.label));
       setSaveStatus("saving");
-      const r = await onSalvar(payload);
+      // Falha de rede numa Server Action lança: sem o catch, o "Salvando…" ficaria preso e a fila andaria sem aviso.
+      let r: ResultadoSalvar;
+      try {
+        r = await onSalvar(payload);
+      } catch {
+        r = { ok: false, error: "Falha de conexão. A última alteração não foi salva." };
+      }
       if (r.ok) ultimoSalvo.current = payload;
       setDescartados(r.ok ? (r.descartados ?? []) : []);
       setErrosServidor(r.ok ? {} : (r.campos ?? {}));
@@ -151,7 +157,7 @@ export function BriefingForm({
 
       {descartados.length > 0 && (
         <p role="alert" className="text-xs text-warning-text">
-          Não foi possível salvar {descartados.join(", ")}: {descartados.length > 1 ? "estes campos mudaram" : "este campo mudou"} no formulário. Recarregue a página.
+          Não foi possível salvar: {descartados.join(", ")}. O formulário mudou enquanto estava aberto; recarregue a página.
         </p>
       )}
 

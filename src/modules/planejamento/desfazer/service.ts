@@ -73,6 +73,9 @@ export async function comPasso<R>(p: { projetoId: string; userId: string; rotulo
   } catch (e) {
     console.error("[desfazer] falha ao ler o plano antes da ação:", e);
   }
+  // O passo nasce com a hora de ANTES da ação (1 s de folga para relógio): o que a ação criou (o card da linha, por
+  // exemplo) tem `createdAt` depois dela, e é por essa hora que o desfazer acha o card que o passo fez nascer.
+  const inicio = new Date(Date.now() - 1000);
   const resultado = await fn();
   if (!antes) return resultado;
   try {
@@ -80,7 +83,14 @@ export async function comPasso<R>(p: { projetoId: string; userId: string; rotulo
     const depoisImpressao = impressaoDoPlano(await fotoConsistente(p.projetoId));
     if (depoisImpressao === impressaoAntes) return resultado;
     await prisma.eapPassoDesfazer.create({
-      data: { projetoId: p.projetoId, userId: p.userId, rotulo: p.rotulo.slice(0, 200), antes: antes as unknown as Prisma.InputJsonValue, depoisImpressao },
+      data: {
+        projetoId: p.projetoId,
+        userId: p.userId,
+        rotulo: p.rotulo.slice(0, 200),
+        antes: antes as unknown as Prisma.InputJsonValue,
+        depoisImpressao,
+        createdAt: inicio,
+      },
     });
     const velhos = await prisma.eapPassoDesfazer.findMany({
       where: { projetoId: p.projetoId, userId: p.userId },

@@ -334,8 +334,12 @@ export function mesclarRespostasVisiveis(
  * Campos que o envio trouxe e `mesclarRespostasVisiveis` NÃO gravou, para a tela avisar em vez de mostrar "salvo":
  * campo que o projeto deixou de mostrar (a equipe ocultou enquanto o formulário estava aberto) ou valor que o tipo do
  * campo não aceita (opção que mudou). Pergunta condicional escondida não conta — a tela do cliente também a esconde.
- * Valor vazio ou igual ao já gravado não perde nada e não entra. Devolve os rótulos, sem repetir.
+ * Valor vazio (ou, em campo visível, igual ao gravado) não perde nada e não entra. Devolve os rótulos, sem repetir. Campo
+ * que o projeto NÃO mostra sai como `ROTULO_PERGUNTA_FORA`, sem comparar com o gravado: o link é aberto ao mundo, e o
+ * rótulo (ou "difere do gravado") de uma pergunta oculta pela equipe diria o que ela esconde.
  */
+export const ROTULO_PERGUNTA_FORA = "uma pergunta que saiu do formulário";
+
 export function camposDescartadosNoEnvio(
   anteriores: Record<string, unknown>,
   enviadas: Record<string, unknown>,
@@ -348,8 +352,12 @@ export function camposDescartadosNoEnvio(
   for (const campo of doModelo.flatMap((s) => s.campos)) {
     if (!Object.hasOwn(enviadas, campo.chave)) continue;
     const v = enviadas[campo.chave];
-    if (vazio(v) || JSON.stringify(v) === JSON.stringify(anteriores[campo.chave])) continue;
-    if (!chavesVisiveis.has(campo.chave) || !respostaValida(campo, v).ok) rotulos.add(campo.label);
+    if (vazio(v)) continue;
+    if (!chavesVisiveis.has(campo.chave)) {
+      rotulos.add(ROTULO_PERGUNTA_FORA);
+      continue;
+    }
+    if (JSON.stringify(v) !== JSON.stringify(anteriores[campo.chave]) && !respostaValida(campo, v).ok) rotulos.add(campo.label);
   }
   return [...rotulos];
 }
