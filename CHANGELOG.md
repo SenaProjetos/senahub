@@ -2,6 +2,95 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.30.0](https://github.com/SenaProjetos/senahub/compare/v1.29.1...v1.30.0) (2026-11-03)
+
+
+### ✨ Funcionalidades
+
+* **acompanhamento:** diálogo de e-mail de acompanhamento no menu de Arquivos ([f2a1b26](https://github.com/SenaProjetos/senahub/commit/f2a1b26c59a752b695451698ef31692665b151c3))
+* **acompanhamento:** envio do e-mail de acompanhamento, modelo e registro ([abb03af](https://github.com/SenaProjetos/senahub/commit/abb03af9bba09cc1c0a423df0835deccb33a8d4b))
+* **acompanhamento:** regras puras e cabeçalhos de conversa no e-mail ([608d3b6](https://github.com/SenaProjetos/senahub/commit/608d3b60e16f3e593eefe89f6240119400cffddb))
+* **arquivos:** cada tipo de documento define quais arquivos exige para publicar ([5cfcaf6](https://github.com/SenaProjetos/senahub/commit/5cfcaf6dad18e82287a08a2dccc49ad84c62938a))
+* **arquivos:** filtro de disciplinas na lista de pranchas do visualizador ([af538e8](https://github.com/SenaProjetos/senahub/commit/af538e8b1f6bb2f905a6c7d27d827c3afff8d1b6))
+* **avisos:** atalho de Avisos ao lado do sino, com ponto de aviso recente ([531694a](https://github.com/SenaProjetos/senahub/commit/531694a77caff3e77d8649a6548c9a8f75503282))
+* **contabil:** bloco Cartões no de-para (C1, acréscimo 1 do §6) ([c22184e](https://github.com/SenaProjetos/senahub/commit/c22184e2c6afd75738b93f9c6314300e0be3f1d8))
+* **contabil:** cartão a pagar e adiantamento de sócios no plano; cartões ligados ([173ec4e](https://github.com/SenaProjetos/senahub/commit/173ec4e2f78c2bdca5da09fe33fc4d3291830a37))
+* **contabil:** centro de custo e projeto como colunas extras à direita no layout do contador ([c36a6eb](https://github.com/SenaProjetos/senahub/commit/c36a6eb5a0cda6251041a89bcb55d2d30085d15f))
+* **contabil:** conta pela classificação, complemento em 200 caracteres e chave da NF-e em coluna própria ([d53a046](https://github.com/SenaProjetos/senahub/commit/d53a04683ee0357eb87438c27da9ebfbead1cf46))
+* **contabil:** integração contábil — plano do contador, de-para e exportação do mês fechado ([575e7e8](https://github.com/SenaProjetos/senahub/commit/575e7e819326051a1e9e17bbfdc845c99e3f4539))
+* **contabil:** layout do contador (C5) — modelo de importação do Alterdata ([6d99706](https://github.com/SenaProjetos/senahub/commit/6d99706740d5a1a2424e000df6dfa858871b0002))
+* **contabil:** provisiona ISS a Recolher, ISS a Compensar e INSS a Compensar ([fabe0b7](https://github.com/SenaProjetos/senahub/commit/fabe0b798f9cdf2605d82b288560055cfa68ed98))
+* **estudos:** aba Estudos do projeto, levantamento de cargas por ambiente (lote 5d) ([94325ed](https://github.com/SenaProjetos/senahub/commit/94325ed10dee1e4957a1589e9104359594fdeac7))
+* **ferramentas:** calculadora de destino final do esgoto, sumidouro por percolação e sondagem (lote 5c) ([08e5c9e](https://github.com/SenaProjetos/senahub/commit/08e5c9eebd5e2241fc2e51649b4bde49718b39e7))
+* **ferramentas:** calculadoras de bomba de recalque e de piscina (lote 5b) ([a1b2808](https://github.com/SenaProjetos/senahub/commit/a1b28086bb34ae8e4aa54c08195ddfb5fb6ba48b))
+* **ferramentas:** trava de validação e calculadoras de reservatórios e corrente/demanda (lote 5a) ([348431c](https://github.com/SenaProjetos/senahub/commit/348431c28d79367c5692f602ff7d62c92eb3ccef))
+* **financeiro:** retenções na nota (C4 da integração contábil) ([e12280f](https://github.com/SenaProjetos/senahub/commit/e12280f47b5752cc760c819d3a04612d9ae954e5))
+* **inputs:** editor de modelos de formulário, escolha do modelo no projeto e manual ([e23377b](https://github.com/SenaProjetos/senahub/commit/e23377b7d8bf3323318e1eec5b47ef4ad076a252))
+* **inputs:** modelos de formulário do briefing no banco (esquema, resolvedor, ações e seed) ([0c26e30](https://github.com/SenaProjetos/senahub/commit/0c26e309bfd72661dead62921e75c82c5578d797))
+* **inputs:** pergunta condicional, formulário padrão por cliente e migração de resposta ao renomear opção (lote 4b) ([8adacb5](https://github.com/SenaProjetos/senahub/commit/8adacb57439f66ded7f9069205a4565c00cd1b4e))
+* **pendencias:** leitura dos problemas de um projeto ([9904a73](https://github.com/SenaProjetos/senahub/commit/9904a738108344b7582c4668dbceea20438e654b))
+* **pendencias:** regras puras e descritor de ações da aba Problemas ([35c924e](https://github.com/SenaProjetos/senahub/commit/35c924e0f053087b9ed5b79c6154f7daa9fe5c47))
+* **planejamento:** Atualizar tarefa informa percentual e valor do terceiro ([3d148c0](https://github.com/SenaProjetos/senahub/commit/3d148c06588de0c2804a93c4d0bfec8f21786b92))
+* **planejamento:** base e execução com a mesma espessura no Gantt de controle ([ff9d13d](https://github.com/SenaProjetos/senahub/commit/ff9d13d8353aca0eed3ff2d06f201632c78a870f))
+* **planejamento:** colunas de execução real no Gantt de controle ([f86eb5a](https://github.com/SenaProjetos/senahub/commit/f86eb5a801f06af3f55dcb729fde623d9812c666))
+* **planejamento:** datas da grade da EAP com máscara e calendário ([5d542b2](https://github.com/SenaProjetos/senahub/commit/5d542b25ac68f3888862359f83597a9a10a65422))
+* **planejamento:** execução grava percentual e valor da tarefa de terceiro ([b64398f](https://github.com/SenaProjetos/senahub/commit/b64398f433cc08a6f27b0860069b1797c05afc35))
+* **planejamento:** máscara dd/mm/aaaa para a data digitada na grade ([f1cf7d1](https://github.com/SenaProjetos/senahub/commit/f1cf7d11687ea461525ff6a1debd25b251d4ce03))
+* **planejamento:** modo Variação no cronograma do projeto ([f086e33](https://github.com/SenaProjetos/senahub/commit/f086e33c11aeb4200d1184979cc92dd9ecbd6be1))
+* **planejamento:** painel da linha confirma a troca de disciplina das linhas de dentro ([8b296eb](https://github.com/SenaProjetos/senahub/commit/8b296eb0bb83d95c3f1c065704acb6e85d239908))
+* **planejamento:** percentual na execução da linha sem concluir ([98fc111](https://github.com/SenaProjetos/senahub/commit/98fc1112cfcc9e75aef210d3ead8bf367bddbbae))
+* **planejamento:** realizado por linha no DTO da EAP ([ee00310](https://github.com/SenaProjetos/senahub/commit/ee0031034893da448637fce33d735300b85c02cb))
+* **planejamento:** regra pura da propagação de disciplina do agrupamento ([9721a69](https://github.com/SenaProjetos/senahub/commit/9721a69212c63147c3f9bfdb3ab3c0eba3fa58e8))
+* **planejamento:** regras puras do realizado por linha da EAP ([8b55cb2](https://github.com/SenaProjetos/senahub/commit/8b55cb22a016c01d9804f5a928de471ca0b7a8e0))
+* **planejamento:** trocar a disciplina do agrupamento leva as linhas de dentro ([dbc7fc7](https://github.com/SenaProjetos/senahub/commit/dbc7fc72ee02bf41770393ef9526d684a4a84080))
+* **projetos:** aba Problemas no projeto (acesso e registro) ([43f693f](https://github.com/SenaProjetos/senahub/commit/43f693f88ddadd9020103594969abef7a0d0570a))
+* **projetos:** competências que o projeto precisa passam para a Visão Geral ([43e1026](https://github.com/SenaProjetos/senahub/commit/43e1026c6c8d4ad7990c43ebf534c29c1b3b6bd4))
+* **projetos:** conversa do problema na aba Problemas ([1983e50](https://github.com/SenaProjetos/senahub/commit/1983e50e00a5f7223ac0d02160181098c3c4a742))
+* **projetos:** página da aba Problemas ([cf705f2](https://github.com/SenaProjetos/senahub/commit/cf705f29b22ee20518366b9625ee4adf3cfa5e42))
+* **projetos:** papéis Gerente e Analista para membros do projeto ([a8a0304](https://github.com/SenaProjetos/senahub/commit/a8a03040f32c177f3fc38aab54f0f255e4a6596a))
+* **projetos:** tela da aba Problemas ([12123f8](https://github.com/SenaProjetos/senahub/commit/12123f89e65d2abaa16b0461434a7fc7f1f18be1))
+* **recursos:** matriz lê só as EAPs e traz disciplinas e sinal de projeto sem cronograma ([596ddd8](https://github.com/SenaProjetos/senahub/commit/596ddd87c4c296d51a20242b97dfeb8be60849f5))
+* **recursos:** regras puras de filtro, janela e sinal ([3132d20](https://github.com/SenaProjetos/senahub/commit/3132d20d0f48746156152c4f8d6f4a287ffe7ea7))
+* **recursos:** sugestões da carga planejada viram leitura com link da EAP ([e90b2b7](https://github.com/SenaProjetos/senahub/commit/e90b2b7e426501bd3994d5963256f3c0170516ee))
+* **recursos:** tela só leitura com filtros e sinal de projeto sem cronograma ([f36d0af](https://github.com/SenaProjetos/senahub/commit/f36d0af6b0b858e9b4ca7376512a14f3e28e2368))
+
+
+### 🐛 Correções
+
+* **acompanhamento:** escopo do projeto, optOut e escape no servidor, novos pela lista enviada e ajustes de acessibilidade ([1482337](https://github.com/SenaProjetos/senahub/commit/1482337dd1d9ce78c4afd23abca17da950540297))
+* **ciclo:** carimbo lê código gravado um caractere por item no PDF ([79602b0](https://github.com/SenaProjetos/senahub/commit/79602b0c851915d7964aa4ea38cd5ce43502409b))
+* **ciclo:** junção de caracteres do carimbo exige proximidade horizontal ([58848ae](https://github.com/SenaProjetos/senahub/commit/58848ae8187bfc34c7dbe10ad726253a79e40d5f))
+* **contabil:** classificação repetida no plano do contador é aceita ([e115969](https://github.com/SenaProjetos/senahub/commit/e11596986346a420cea772975e7eccb7903e565e))
+* **contabil:** smoke acha o admin por superUsuario (User.role saiu na Onda F) ([70f30b6](https://github.com/SenaProjetos/senahub/commit/70f30b656e87fb3d11fe4e17498758c7aa287c65))
+* **ferramentas:** vírgula decimal, mensagens de erro, acessibilidade dos alertas e dos campos ([e68bcd6](https://github.com/SenaProjetos/senahub/commit/e68bcd6b0f806dd7ec292c4818ddeaac60ea7742))
+* **financeiro:** chave de acesso aceita NFS-e nacional ([06b7ab4](https://github.com/SenaProjetos/senahub/commit/06b7ab4f96f1d2954a6d41b1dd031cc03e5f7d82))
+* **inputs:** abas do editor de modelos, foco depois de excluir e contraste do texto pequeno ([8e80c97](https://github.com/SenaProjetos/senahub/commit/8e80c97a2ab8f458a9e65db41f097043f41bdedf))
+* **inputs:** correções da auditoria do lote 4b ([592d06e](https://github.com/SenaProjetos/senahub/commit/592d06edf142a43b74e8dab2617b7b9d58609745))
+* **inputs:** correções da auditoria dos modelos de formulário ([680b957](https://github.com/SenaProjetos/senahub/commit/680b957cc1750005b7d41bf37022397cddf21598))
+* **notificacoes:** atalho de Avisos com rótulo do ponto e visita à prova de relógio ([6812e5b](https://github.com/SenaProjetos/senahub/commit/6812e5ba5732a38dc1b29b1f09562643c0ace1a9))
+* **pendencias:** vigente do problema só entre arquivos da mesma extensão da origem ([6a7fb93](https://github.com/SenaProjetos/senahub/commit/6a7fb93f26b3695885a2a12c29207a69fb7aa979))
+* **planejamento:** a bandeira do calendário não sobrevive ao calendário fechado ([0be81b2](https://github.com/SenaProjetos/senahub/commit/0be81b250a0b726c6f58711cf75dcec35cae55d6))
+* **planejamento:** auditoria legível e mensagens em português na execução ([905ec5f](https://github.com/SenaProjetos/senahub/commit/905ec5fbfae4714554b27ed2997f8c370f2f808b))
+* **planejamento:** base visível no Variação e Custo real com espaço para "parcial" ([5c23efb](https://github.com/SenaProjetos/senahub/commit/5c23efbfc3700a3fa56cabbdc76a6f6411665a89))
+* **planejamento:** coluna de data da EAP comporta dd/mm/aaaa com o ícone do calendário ([05b7ce8](https://github.com/SenaProjetos/senahub/commit/05b7ce8ac0d4ffdea7a5ba6cbfa3c31f7e11f66f))
+* **planejamento:** execução grava condicionada ao estado lido e a tela não trava sem rede ([ab2bf42](https://github.com/SenaProjetos/senahub/commit/ab2bf4229328df21e29d0968562651340f8792f9))
+* **planejamento:** propagação da disciplina recusa em vez de pular em silêncio ([1cb7516](https://github.com/SenaProjetos/senahub/commit/1cb7516fa416ce841de671635b8983a55cb130a3))
+* **planejamento:** restaura o espaço perdido em MOTIVO_DURACAO_GRANDE ([5eedc68](https://github.com/SenaProjetos/senahub/commit/5eedc6824c1cb13f58674e54f92fa4727cbfbf83))
+* **planejamento:** semana ISO errava quando a quinta-feira caía num dia do ano múltiplo de 7 ([e1103a2](https://github.com/SenaProjetos/senahub/commit/e1103a2b217db63c4446bfb0eedf7b1b35c65865))
+* **planejamento:** textos da propagação, calendário fora do leitor e base suave no escuro ([b7eaa29](https://github.com/SenaProjetos/senahub/commit/b7eaa2935eccc711711725d055f4180a098919b7))
+* **projetos,inputs:** correções da revisão das competências e do editor de modelos ([e37de5f](https://github.com/SenaProjetos/senahub/commit/e37de5fcf52eb97fcb5cd7fc8bc19b9bae18cc64))
+* **projetos:** aba Problemas mostra só a linha cuja prancha a pessoa abre ([dea151b](https://github.com/SenaProjetos/senahub/commit/dea151b59c6126c38f99050a67772f8757933fb3))
+* **projetos:** aba Problemas segue a muralha por disciplina do download ([4e1550e](https://github.com/SenaProjetos/senahub/commit/4e1550e2c7db575fe903dcd562fe7bfe72483b3a))
+* **projetos:** menu da aba Problemas só some quando a ação única já é botão da linha ([75b93f3](https://github.com/SenaProjetos/senahub/commit/75b93f3b1d8cc1dd26ff93cfe1e52d33bb4e1666))
+* **projetos:** tela da aba Problemas — menu fora do texto, Resolver na Rxx direto, estados ([7a24f13](https://github.com/SenaProjetos/senahub/commit/7a24f13a7466b68be1345de5c6f1de5f541b49ba))
+* **recursos:** ajustes da revisão final — filtros, links da EAP e textos sem alocação digitada ([3a8f6a3](https://github.com/SenaProjetos/senahub/commit/3a8f6a395d8358eae71a3fd621055d6ddc0963bd))
+* **recursos:** janela inválida avisa, limpar filtros e ajustes de acessibilidade da auditoria ([6350ef1](https://github.com/SenaProjetos/senahub/commit/6350ef12a4063237eff5cfaef37396a31720c882))
+
+
+### ♻️ Refatorações
+
+* **pendencias:** extrai papeisSobre e a regra de participação da conversa ([11b94a8](https://github.com/SenaProjetos/senahub/commit/11b94a8428ab738291c56f9b368b3329c4254f66))
+
 ## [1.29.1](https://github.com/SenaProjetos/senahub/compare/v1.29.0...v1.29.1) (2026-10-24)
 
 
