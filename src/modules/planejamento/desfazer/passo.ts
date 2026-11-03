@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import type { ActionContext } from "@/lib/with-action";
 import { comPasso } from "./service";
+import { exigirProjetoNoEscopo } from "../escopo";
 
 /**
  * Liga uma Server Action do plano ao desfazer (Ctrl+Z): embrulha o HANDLER do `defineAction` (sessão, permissão,
@@ -23,6 +24,8 @@ export function comPassoDaAction<I, R>(
     } catch {
       return handler(i, ctx);
     }
+    // Escopo de dados: toda action do plano com passo de desfazer passa por aqui — o projeto tem de ser um que a pessoa vê.
+    await exigirProjetoNoEscopo(ctx.user, projetoId);
     return comPasso({ projetoId, userId: ctx.user.id, rotulo }, () => handler(i, ctx));
   };
 }

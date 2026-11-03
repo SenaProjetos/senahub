@@ -1,5 +1,6 @@
 "use server";
 
+import { noEscopoDoProjeto } from "@/modules/planejamento/escopo";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
@@ -169,7 +170,7 @@ export const aplicarModeloEap = defineAction(
     entidade: "EapTarefa",
     schema: z.object({ projetoId: z.string().min(1), modeloId: z.string().min(1) }),
   },
-  async (i, { user }) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i, { user }) => {
     const r = await aplicarModeloNoProjeto({ projetoId: i.projetoId, modeloId: i.modeloId });
     // Aplicar um modelo não tem desfazer: a pilha de antes não vale mais.
     await descartarPassos(i.projetoId);
@@ -180,5 +181,5 @@ export const aplicarModeloEap = defineAction(
     revalidatePath("/planejamento");
     revalidatePath(`/projetos/${i.projetoId}`);
     return r;
-  },
+  }),
 );

@@ -34,6 +34,7 @@ import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
 import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "@/modules/planejamento/desfazer/passo";
+import { noEscopoDoProjeto } from "@/modules/planejamento/escopo";
 import { lerDataDigitada } from "@/modules/planejamento/datas-linha";
 import { definirInicioDaLinha, definirTerminoDaLinha, moverRestricoesDoProjeto } from "@/modules/planejamento/datas-linha-service";
 import { desfazerUltimoPasso, descartarPassos } from "@/modules/planejamento/desfazer/service";
@@ -145,7 +146,7 @@ const gerarTarefaSchema = z.object({ eapTarefaId: z.string().min(1) });
  */
 export const gerarTarefaDeEap = defineAction(
   { ...plan, acao: "gerar-tarefa-eap", entidade: "Tarefa", schema: gerarTarefaSchema },
-  async (i, { user }) => {
+  noEscopoDoProjeto(async (i) => projetoDaLinha(i.eapTarefaId), async (i, { user }) => {
     const existente = await prisma.tarefa.findUnique({
       where: { eapTarefaId: i.eapTarefaId },
       select: { id: true },
@@ -170,7 +171,7 @@ export const gerarTarefaDeEap = defineAction(
     }
     revalidatePath("/tarefas");
     return { id: card.id, jaExistia: false };
-  },
+  }),
 );
 
 export const criarEapTarefa = defineAction(
@@ -572,12 +573,12 @@ export const alinharDisciplinaAoAgrupamento = defineAction(
  */
 export const desfazerEap = defineAction(
   { ...plan, acao: "desfazer-eap", entidade: "EapTarefa", schema: projetoIdSchema, entidadeId: (_d, i) => i.projetoId },
-  async (i, { user }) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i, { user }) => {
     const { rotulo } = await desfazerUltimoPasso(i.projetoId, user.id);
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return { rotulo };
-  },
+  }),
 );
 
 export const excluirEapTarefa = defineAction(
@@ -607,7 +608,7 @@ export const excluirEapTarefa = defineAction(
 /** Aplica o plano à execução: tarefas com disciplina vinculada gravam o prazo da disciplina. */
 export const aplicarAoProjeto = defineAction(
   { ...plan, acao: "aplicar-plano", entidade: "Disciplina", schema: projetoIdSchema },
-  async (i) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i) => {
     const [tarefas, todasDiscs] = await Promise.all([
       prisma.eapTarefa.findMany({
         where: { projetoId: i.projetoId, disciplinaId: { not: null } },
@@ -652,7 +653,7 @@ export const aplicarAoProjeto = defineAction(
       semEap,
       ignoradas: plano.ignoradas,
     };
-  },
+  }),
 );
 
 /**
@@ -670,7 +671,7 @@ export const gerarEapDasDisciplinas = defineAction(
       escolhas: z.array(z.object({ disciplinaId: z.string().min(1), modeloId: z.string().min(1).nullable() })).max(200).optional(),
     }),
   },
-  async (i, { user }) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i, { user }) => {
     await exigirPlanoEditavel(i.projetoId);
     const r = await gerarEapDasDisciplinasNoProjeto({ projetoId: i.projetoId, escolhas: i.escolhas });
     // Gerar a EAP não tem desfazer: os passos de antes ficaram para trás (e responderiam "o plano mudou").
@@ -678,7 +679,7 @@ export const gerarEapDasDisciplinas = defineAction(
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;
-  },
+  }),
 );
 
 /**
@@ -700,14 +701,14 @@ export const apagarEap = defineAction(
       ).map((r) => r.nome),
     }),
   },
-  async (i, { user }) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i, { user }) => {
     const r = await apagarEapDoProjeto(i.projetoId);
     // Apagar a EAP inteira não tem desfazer: a pilha de antes não vale mais.
     await descartarPassos(i.projetoId);
     await aposMudarEap(i.projetoId, user.id);
     revProjeto(i.projetoId);
     return r;
-  },
+  }),
 );
 
 /**
@@ -719,14 +720,14 @@ export const apagarEap = defineAction(
  */
 export const reagendarPlano = defineAction(
   { ...plan, acao: "reagendar-plano", entidade: "EapTarefa", schema: projetoIdSchema },
-  async (i, ctx) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i, ctx) => {
     const total = await prisma.eapTarefa.count({ where: { projetoId: i.projetoId } });
     if (total === 0) throw new ActionError("Sem tarefas para reagendar.");
 
     const r = await aposMudarEap(i.projetoId, ctx.user.id);
     if (r.reagendadas > 0 || r.codigosAtualizados > 0) revProjeto(i.projetoId);
     return r;
-  },
+  }),
 );
 
 /**
@@ -795,7 +796,7 @@ export const definirDataStatus = defineAction(
       dataStatus: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data."),
     }),
   },
-  async (i, { user }) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i, { user }) => {
     if (i.dataStatus > paraDia(inicioDoDiaUtc())) {
       throw new ActionError("A Data de Status não pode ser no futuro — é até quando o andamento está informado.");
     }
@@ -819,7 +820,7 @@ export const definirDataStatus = defineAction(
     }
     revProjeto(i.projetoId);
     return { dataStatus: i.dataStatus };
-  },
+  }),
 );
 
 /**
@@ -835,7 +836,7 @@ export const aprovarCronogramaAction = defineAction(
     entidade: "CronogramaProjeto",
     schema: projetoIdSchema,
   },
-  async (i, ctx) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i, ctx) => {
     try {
       const r = await aprovarCronograma(i.projetoId, ctx.user.id);
       // O plano congelou: o que havia para desfazer deixa de valer (e o desfazer só existe com o plano editável).
@@ -846,7 +847,7 @@ export const aprovarCronogramaAction = defineAction(
     } catch (e) {
       throw new ActionError(e instanceof Error ? e.message : "Não foi possível aprovar o cronograma.");
     }
-  },
+  }),
 );
 
 /**
@@ -866,7 +867,7 @@ export const replanejarCronograma = defineAction(
       observacao: opt(z.string()),
     }),
   },
-  async (i, ctx) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i, ctx) => {
     try {
       const r = await replanejar(i.projetoId, ctx.user.id, i.motivo, i.observacao || null);
       // A revisão fechou com nova linha de base: o plano voltou a travar e os passos de antes ficaram para trás.
@@ -876,7 +877,7 @@ export const replanejarCronograma = defineAction(
     } catch (e) {
       throw new ActionError(e instanceof Error ? e.message : "Não foi possível replanejar.");
     }
-  },
+  }),
 );
 
 /**
@@ -894,11 +895,11 @@ export const abrirRevisaoPlanejamento = defineAction(
     schema: projetoIdSchema,
     entidadeId: (_d, i) => i.projetoId,
   },
-  async (i) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i) => {
     await abrirRevisao(i.projetoId);
     revProjeto(i.projetoId);
     return { ok: true };
-  },
+  }),
 );
 
 export const cancelarRevisaoPlanejamento = defineAction(
@@ -911,13 +912,13 @@ export const cancelarRevisaoPlanejamento = defineAction(
     schema: projetoIdSchema,
     entidadeId: (_d, i) => i.projetoId,
   },
-  async (i) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i) => {
     await cancelarRevisao(i.projetoId);
     // Revisão cancelada: o que se fez nela não deve reaparecer como desfazível na próxima.
     await descartarPassos(i.projetoId);
     revProjeto(i.projetoId);
     return { ok: true };
-  },
+  }),
 );
 
 /** Roda o verificador sob demanda, para a tela mostrar os achados sem esperar o job. */
@@ -930,7 +931,7 @@ export const conferirQualidade = defineAction(
     entidade: "CronogramaProjeto",
     schema: projetoIdSchema,
   },
-  async (i) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (i) => {
     const r = await avaliarQualidade(i.projetoId);
     if (!r) throw new ActionError("Projeto sem EAP: não há o que conferir.");
     return {
@@ -940,7 +941,7 @@ export const conferirQualidade = defineAction(
       provisoria: r.saude?.provisoria ?? true,
       dataStatus: r.dataStatus,
     };
-  },
+  }),
 );
 
 /** Caminho de predecessoras leva a alvo? (detecção de ciclo). */
@@ -1056,7 +1057,7 @@ export const editarVinculo = defineAction(
  */
 export const definirBloqueio = defineAction(
   { ...plan, acao: "bloquear-eap", entidade: "EapTarefa", schema: bloqueioSchema },
-  async (i) => {
+  noEscopoDoProjeto(async (i) => projetoDaLinha(i.id), async (i) => {
     const atual = await prisma.eapTarefa.findUnique({ where: { id: i.id }, select: { status: true } });
     // Bloquear uma concluída apagaria a conclusão (o status é um só) sem ninguém pedir.
     if (atual?.status === "con") throw new ActionError("Linha concluída não se bloqueia — reabra a execução antes.");
@@ -1072,7 +1073,7 @@ export const definirBloqueio = defineAction(
     });
     revProjeto(t.projetoId);
     return { ok: true };
-  },
+  }),
 );
 
 /**
@@ -1081,7 +1082,7 @@ export const definirBloqueio = defineAction(
  */
 export const desbloquear = defineAction(
   { ...plan, acao: "desbloquear-eap", entidade: "EapTarefa", schema: idSchema },
-  async (i) => {
+  noEscopoDoProjeto(async (i) => projetoDaLinha(i.id), async (i) => {
     const atual = await prisma.eapTarefa.findUnique({
       where: { id: i.id },
       select: { inicioReal: true, fimReal: true },
@@ -1101,7 +1102,7 @@ export const desbloquear = defineAction(
     });
     revProjeto(t.projetoId);
     return { ok: true };
-  },
+  }),
 );
 
 /**
@@ -1222,13 +1223,14 @@ export const registrarExecucao = defineAction(
       return l ? fotoDaExecucao(l) : null;
     },
   },
-  async (i, { user }) => {
+  noEscopoDoProjeto(async (i) => projetoDaLinha(i.id), async (i, { user }) => {
     const { projetoId, nome, status, fase, parcelasAFaturar } = await registrarExecucaoNaLinha({
       id: i.id,
       inicioReal: i.inicioReal,
       fimReal: i.fimReal,
       progresso: i.progresso,
       custoRealTerceiro: i.custoRealTerceiro,
+      esperado: i.esperado,
       // O valor do terceiro é R$: a mesma régua de quem vê o custo na EAP.
       verCusto: i.custoRealTerceiro !== undefined ? await podeVerFinanceiro(user) : false,
       hoje: paraDia(inicioDoDiaUtc()),
@@ -1282,7 +1284,7 @@ export const registrarExecucao = defineAction(
     // A fase que o marco entregou aparece no card da disciplina, na aba do projeto.
     if (fase?.marcadaEntregue) revalidatePath(`/projetos/${projetoId}`);
     return { status, fase };
-  },
+  }),
 );
 
 /**

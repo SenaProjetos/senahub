@@ -58,6 +58,7 @@ import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagament
 import { duplicarProjetoNoBanco } from "@/modules/projetos/duplicar-service";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { projetoVisivel } from "@/modules/planejamento/queries";
+import { noEscopoDoProjeto } from "@/modules/planejamento/escopo";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
@@ -94,6 +95,14 @@ function parseData(s?: string): Date | undefined {
   const d = new Date(s);
   return isNaN(d.getTime()) ? undefined : d;
 }
+
+/** O projeto de uma disciplina — para a checagem de escopo das actions que recebem só o id da disciplina. */
+async function projetoDaDisciplina(disciplinaId: string): Promise<string> {
+  const d = await prisma.disciplina.findUnique({ where: { id: disciplinaId }, select: { projetoId: true } });
+  if (!d) throw new ActionError("Disciplina não encontrada.");
+  return d.projetoId;
+}
+
 
 /** Salva a organização pessoal da Visão Geral, restrita aos projetos que a pessoa pode acessar. */
 export const salvarLayoutPainelProjeto = defineAction(
@@ -288,7 +297,7 @@ export const atualizarStatusDisciplina = defineAction(
         select: { disciplinaTextoLegado: true, status: true },
       }),
   },
-  async (input, { user }) => {
+  noEscopoDoProjeto(async (i) => projetoDaDisciplina(i.disciplinaId), async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       include: {
@@ -376,7 +385,7 @@ export const atualizarStatusDisciplina = defineAction(
     }
 
     return { disciplinaId: input.disciplinaId, status: input.status };
-  },
+  }),
 );
 
 /**
@@ -406,7 +415,7 @@ export const reabrirDisciplina = defineAction(
         select: { disciplinaTextoLegado: true, status: true, prazo: true },
       }),
   },
-  async (input, ctx) => {
+  noEscopoDoProjeto(async (i) => projetoDaDisciplina(i.disciplinaId), async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       include: {
@@ -505,7 +514,7 @@ export const reabrirDisciplina = defineAction(
       /** O prazo que a disciplina ficou — com etapa pode diferir do digitado (consolidação). */
       prazoFinal: prazoFinal.toISOString().slice(0, 10),
     };
-  },
+  }),
 );
 
 export const definirResponsaveis = defineAction(
@@ -527,7 +536,7 @@ export const definirResponsaveis = defineAction(
       ).map((r) => r.userId),
     }),
   },
-  async (input, ctx) => {
+  noEscopoDoProjeto(async (i) => projetoDaDisciplina(i.disciplinaId), async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       select: { projetoId: true, disciplinaTextoLegado: true, projeto: { select: { codigo: true } } },
@@ -566,7 +575,7 @@ export const definirResponsaveis = defineAction(
     refletirSincroniaCanais(await ensureCanaisProjeto(disciplina.projetoId));
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { disciplinaId: input.disciplinaId };
-  },
+  }),
 );
 
 /** Registra uma revisão (RVxx). Permitida a globais OU responsável. */
@@ -581,7 +590,7 @@ export const registrarRevisao = defineAction(
     // Correlação no histórico pela disciplina — o id da revisão não está no id-set.
     entidadeId: (d, i) => (i as { disciplinaId: string }).disciplinaId,
   },
-  async (input, { user }) => {
+  noEscopoDoProjeto(async (i) => projetoDaDisciplina(i.disciplinaId), async (input, { user }) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       include: { responsaveis: true },
@@ -622,7 +631,7 @@ export const registrarRevisao = defineAction(
 
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { id: revisao.id, numero: revisao.numero };
-  },
+  }),
 );
 
 export const definirMembros = defineAction(
@@ -635,7 +644,7 @@ export const definirMembros = defineAction(
     schema: membrosProjetoSchema,
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
-  async (input) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (input) => {
     // P-04: grava papel por membro.
     await prisma.$transaction([
       prisma.projetoMembro.deleteMany({ where: { projetoId: input.projetoId } }),
@@ -648,7 +657,7 @@ export const definirMembros = defineAction(
     refletirSincroniaCanais(await ensureCanaisProjeto(input.projetoId));
     revalidatePath(`/projetos/${input.projetoId}`);
     return { projetoId: input.projetoId };
-  },
+  }),
 );
 
 /**
@@ -685,7 +694,7 @@ export const duplicarProjeto = defineAction(
 /** P-48: editar várias disciplinas de uma só vez (status, prazo, responsável único). */
 export const editarDisciplinasEmMassa = defineAction(
   { modulo: "projetos", acao: "editar-disciplinas-em-massa", recurso: "projetos", permissao: "gerir", entidade: "Disciplina", schema: editarDisciplinasEmMassaSchema, entidadeId: (d, i) => (i as { projetoId: string }).projetoId },
-  async (input, ctx) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (input, ctx) => {
     const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(ctx.user);
     const projeto = await prisma.projeto.findFirst({
       where: { id: input.projetoId, AND: [atuaEmDisciplinaAlheia ? {} : { OR: [
@@ -788,7 +797,7 @@ export const editarDisciplinasEmMassa = defineAction(
     }
 
     revalidatePath(`/projetos/${input.projetoId}`);
-  },
+  }),
 );
 
 // ─── P-02: CRUD de disciplina pós-criação ────────────────────────────────────
@@ -804,7 +813,7 @@ export const criarDisciplina = defineAction(
     // Correlação no histórico: a disciplina recém-criada entra no id-set do projeto.
     entidadeId: (d) => (d as { disciplinaId: string }).disciplinaId,
   },
-  async (input) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (input) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: input.projetoId },
       select: { id: true, tipo: true, prazoPlanejado: true, tipoEmpreendimentoId: true },
@@ -861,7 +870,7 @@ export const criarDisciplina = defineAction(
     refletirSincroniaCanais(await ensureCanaisProjeto(input.projetoId));
     revalidatePath(`/projetos/${input.projetoId}`);
     return { disciplinaId: disciplina.id };
-  },
+  }),
 );
 
 export const editarDisciplina = defineAction(
@@ -892,7 +901,7 @@ export const editarDisciplina = defineAction(
       };
     },
   },
-  async (input, ctx) => {
+  noEscopoDoProjeto(async (i) => projetoDaDisciplina(i.disciplinaId), async (input, ctx) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       select: {
@@ -994,7 +1003,7 @@ export const editarDisciplina = defineAction(
     refletirSincroniaCanais(await ensureCanaisProjeto(disciplina.projetoId));
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { disciplinaId: input.disciplinaId };
-  },
+  }),
 );
 
 export const excluirDisciplina = defineAction(
@@ -1014,7 +1023,7 @@ export const excluirDisciplina = defineAction(
         select: { disciplinaTextoLegado: true, projetoId: true },
       }),
   },
-  async (input) => {
+  noEscopoDoProjeto(async (i) => projetoDaDisciplina(i.disciplinaId), async (input) => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       select: {
@@ -1047,7 +1056,7 @@ export const excluirDisciplina = defineAction(
     refletirSincroniaCanais(await ensureCanaisProjeto(disciplina.projetoId));
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     return { projetoId: disciplina.projetoId };
-  },
+  }),
 );
 
 // ─── P-05: cancelar / arquivar projeto ────────────────────────────────────────
@@ -1061,21 +1070,22 @@ export const cancelarOuArquivarProjeto = defineAction(
     entidade: "Projeto",
     schema: cancelarProjetoSchema,
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
+    capturarAntes: (i) => prisma.projeto.findUnique({ where: { id: i.projetoId }, select: { situacao: true, descricao: true } }),
   },
-  async (input) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (input) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: input.projetoId },
-      select: { id: true, membros: { select: { userId: true } } },
+      select: { id: true, descricao: true, membros: { select: { userId: true } } },
     });
     if (!projeto) throw new ActionError("Projeto não encontrado.");
 
+    // O motivo vai ao FIM da descrição: antes ele a substituía, e a descrição original do projeto se perdia.
+    const marca = input.motivo ? `[${input.situacao === "cancelado" ? "CANCELADO" : "ARQUIVADO"}] ${input.motivo}` : null;
     await prisma.projeto.update({
       where: { id: input.projetoId },
       data: {
         situacao: input.situacao,
-        descricao: input.motivo
-          ? `[${input.situacao === "cancelado" ? "CANCELADO" : "ARQUIVADO"}] ${input.motivo}`
-          : undefined,
+        descricao: marca ? (projeto.descricao?.trim() ? `${projeto.descricao.trim()}\n\n${marca}` : marca) : undefined,
       },
     });
 
@@ -1095,7 +1105,7 @@ export const cancelarOuArquivarProjeto = defineAction(
 
     revalidatePath(`/projetos/${input.projetoId}`);
     revalidatePath("/projetos");
-  },
+  }),
 );
 
 /**
@@ -1114,7 +1124,7 @@ export const concluirProjeto = defineAction(
     schema: concluirProjetoSchema,
     entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
   },
-  async (input) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (input) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: input.projetoId },
       select: {
@@ -1154,7 +1164,7 @@ export const concluirProjeto = defineAction(
 
     revalidatePath(`/projetos/${input.projetoId}`);
     revalidatePath("/projetos");
-  },
+  }),
 );
 
 /** P-09: adiciona disciplinas do catálogo a um projeto, ignorando nomes já existentes. */
@@ -1168,7 +1178,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
     schema: adicionarDoCatalogoSchema,
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
-  async (input) => {
+  noEscopoDoProjeto(async (i) => i.projetoId, async (input) => {
     const projeto = await prisma.projeto.findUnique({
       where: { id: input.projetoId },
       select: {
@@ -1208,7 +1218,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
 
     revalidatePath(`/projetos/${input.projetoId}`);
     return { criadas: novas.length };
-  },
+  }),
 );
 
 // ─── Item 15: catálogo de disciplinas (Configurações → Disciplinas e nomenclatura) ────────────

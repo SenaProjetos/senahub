@@ -153,7 +153,7 @@ async function main() {
     check("e a mãe voltou uma vez só", (await prisma.eapTarefa.count({ where: { projetoId: projeto.id } })) === 4);
 
     // ── o invólucro das actions (`comPassoDaAction`) ─────────────────────────
-    const ctx = { user: { id: admin.id } } as never;
+    const ctx = { user: { id: admin.id, superUsuario: true, escopoGlobalPerfil: true, tipo: "interno" } } as never;
     const renomear = comPassoDaAction(
       { projetoDe: (i: { id: string; nome: string }) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Renomear") },
       async (i: { id: string; nome: string }) => prisma.eapTarefa.update({ where: { id: i.id }, data: { nome: i.nome } }),
@@ -165,6 +165,10 @@ async function main() {
     const antesDoErro = await passos();
     const semLinha = await erroDe(() => renomear({ id: "nao-existe", nome: "x" }, ctx));
     check("linha inexistente: o handler responde o erro dele e nenhum passo nasce", !!semLinha && (await passos()) === antesDoErro, semLinha);
+    // escopo de dados: quem tem a permissão mas não enxerga o projeto não mexe nele (nem ganha passo)
+    const deFora = { user: { id: "smoke-fora-do-projeto", superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" } } as never;
+    const foraDoEscopo = await erroDe(() => renomear({ id: A.id, nome: "Invasor" }, deFora));
+    check("fora do escopo: 'Projeto não encontrado.' e nada muda", foraDoEscopo === "Projeto não encontrado." && (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: A.id } })).nome === "Minha edição", foraDoEscopo);
 
     // ── pilha de 20 ──────────────────────────────────────────────────────────
     for (let i = 0; i < MAX_PASSOS + 2; i++) await comPasso({ ...p, rotulo: `Passo ${i}` }, () => prisma.eapTarefa.update({ where: { id: A.id }, data: { nome: `Nome ${i}` } }));
