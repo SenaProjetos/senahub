@@ -4,7 +4,7 @@
  * grupos de tipo (o que pode mudar de tipo sem quebrar respostas já gravadas) e a regra de evolução.
  */
 import { z } from "zod";
-import { OPCOES_SIM_NAO, type CampoTipo, type SecaoBriefing } from "./briefing-schema";
+import { OPCOES_SIM_NAO, TIPOS_CONTROLADORES, type CampoBriefing, type CampoTipo, type SecaoBriefing } from "./briefing-schema";
 
 export const TIPOS_DE_CAMPO = ["text", "textarea", "sim-nao", "radio", "select", "checkbox", "checkbox-single"] as const;
 
@@ -62,6 +62,15 @@ const campoSchema = z
     hint: textoOpc(500),
     importarDoCadastro: z.enum(["email", "nome", "telefone", "endereco"], "Origem de cadastro inválida.").optional(),
     formato: z.enum(FORMATOS_PERMITIDOS, "Formato de campo inválido.").optional(),
+    condicao: z
+      .object({
+        campo: z.string("Pergunta de condição inválida.").regex(/^[A-Za-z][A-Za-z0-9_]{0,59}$/, "Pergunta de condição inválida."),
+        igual: z
+          .array(z.string("Resposta de condição inválida.").trim().min(1, "Resposta de condição em branco.").max(300, "Resposta de condição muito longa."))
+          .min(1, "Escolha pelo menos uma resposta que mostra a pergunta.")
+          .max(40, "No máximo 40 respostas na condição."),
+      })
+      .optional(),
   })
   .transform((c, ctx) => {
     const base = { ...c, opcoes: c.opcoes?.filter((o) => o !== "") };
@@ -96,6 +105,7 @@ export const esquemaBriefingSchema = z
   .superRefine((secoes, ctx) => {
     const ids = new Set<string>();
     const chaves = new Set<string>();
+    const anteriores = new Map<string, { label: string; tipo: CampoTipo; opcoes: readonly string[] }>();
     let total = 0;
     for (const s of secoes) {
       if (ids.has(s.id)) ctx.addIssue({ code: "custom", message: "Há seções repetidas." });
@@ -104,10 +114,31 @@ export const esquemaBriefingSchema = z
         total += 1;
         if (chaves.has(c.chave)) ctx.addIssue({ code: "custom", message: `Pergunta repetida: “${c.label}”.` });
         chaves.add(c.chave);
+        const problema = c.condicao ? problemaDaCondicao(c.label, c.condicao, anteriores) : null;
+        if (problema) ctx.addIssue({ code: "custom", message: problema });
+        anteriores.set(c.chave, { label: c.label, tipo: c.tipo, opcoes: c.tipo === "sim-nao" ? OPCOES_SIM_NAO : (c.opcoes ?? []) });
       }
     }
     if (total > 300) ctx.addIssue({ code: "custom", message: "No máximo 300 perguntas no formulário." });
   });
+
+/**
+ * A condição vale? A controladora tem de vir ANTES (já vista), ser de escolha e as respostas da condição
+ * têm de ser opções dela. Devolve a frase do problema, ou `null`.
+ */
+function problemaDaCondicao(
+  label: string,
+  condicao: NonNullable<CampoBriefing["condicao"]>,
+  anteriores: ReadonlyMap<string, { label: string; tipo: CampoTipo; opcoes: readonly string[] }>,
+): string | null {
+  const ctrl = anteriores.get(condicao.campo);
+  if (!ctrl) return `“${label}”: a pergunta que a controla precisa existir e vir antes dela no formulário.`;
+  if (!TIPOS_CONTROLADORES.includes(ctrl.tipo)) return `“${label}”: só pergunta de escolha pode controlar outra (“${ctrl.label}” é ${ROTULO_TIPO[ctrl.tipo].toLowerCase()}).`;
+  const fora = condicao.igual.find((r) => !ctrl.opcoes.includes(r));
+  if (fora !== undefined) return `“${label}”: a resposta “${fora}” não é uma opção de “${ctrl.label}”.`;
+  if (new Set(condicao.igual).size !== condicao.igual.length) return `“${label}”: há respostas repetidas na condição.`;
+  return null;
+}
 
 /** O esquema como o servidor grava: validado, com as opções do sim/não e sem lixo por tipo. */
 export type EsquemaBriefing = SecaoBriefing[];
@@ -157,4 +188,62 @@ export function novaChave(sorteio: () => number = Math.random): string {
 /** Identificador novo de seção. */
 export function novoIdSecao(sorteio: () => number = Math.random): string {
   return `s${sufixo(sorteio)}`;
+}
+
+// ── Renomear opção: migração das respostas já gravadas (Lote 4b) ─────────────────────────────
+
+export type Renomeio = { chave: string; de: string; para: string };
+
+export const renomeioSchema = z.object({
+  chave: z.string("Pergunta inválida.").regex(/^[A-Za-z][A-Za-z0-9_]{0,59}$/, "Pergunta inválida."),
+  de: z.string("Opção inválida.").min(1, "Opção inválida.").max(300, "Opção inválida."),
+  para: z.string("Opção inválida.").min(1, "Opção inválida.").max(300, "Opção inválida."),
+});
+
+/**
+ * Os renomeios que o editor mandou conferem com o esquema novo? Só pergunta de escolha com lista de
+ * opções (escolha única, lista, caixas) migra; `para` tem de ser opção da pergunta; sem `de` repetido.
+ * Devolve a frase do problema ou `null`.
+ */
+export function problemaDosRenomeios(renomeios: readonly Renomeio[], depois: readonly SecaoBriefing[]): string | null {
+  const campos = new Map(depois.flatMap((s) => s.campos).map((c) => [c.chave, c]));
+  const vistos = new Set<string>();
+  for (const r of renomeios) {
+    const c = campos.get(r.chave);
+    if (!c || !["radio", "select", "checkbox"].includes(c.tipo)) return "Renomeio de uma opção que não existe mais no formulário.";
+    if (r.de === r.para || !(c.opcoes ?? []).includes(r.para)) return `“${c.label}”: o renomeio da opção “${r.de}” não confere com o formulário.`;
+    const k = `${r.chave} ${r.de}`;
+    if (vistos.has(k)) return `“${c.label}”: a opção “${r.de}” foi renomeada duas vezes.`;
+    vistos.add(k);
+  }
+  return null;
+}
+
+/**
+ * Aplica os renomeios às respostas de UM briefing: escolha única troca o valor, caixas trocam na lista (sem
+ * repetir). A troca é simultânea (A↔B funciona). `alteradas` = quantas respostas mudaram.
+ */
+export function migrarRespostas(
+  respostas: Record<string, unknown>,
+  renomeios: readonly Renomeio[],
+): { respostas: Record<string, unknown>; alteradas: number } {
+  const porChave = new Map<string, Map<string, string>>();
+  for (const r of renomeios) {
+    const m = porChave.get(r.chave) ?? new Map<string, string>();
+    m.set(r.de, r.para);
+    porChave.set(r.chave, m);
+  }
+  const saida = { ...respostas };
+  let alteradas = 0;
+  for (const [chave, mapa] of porChave) {
+    const v = saida[chave];
+    if (typeof v === "string" && mapa.has(v)) {
+      saida[chave] = mapa.get(v);
+      alteradas += 1;
+    } else if (Array.isArray(v) && v.some((x) => typeof x === "string" && mapa.has(x))) {
+      saida[chave] = [...new Set(v.map((x) => (typeof x === "string" && mapa.has(x) ? mapa.get(x)! : x)))];
+      alteradas += 1;
+    }
+  }
+  return { respostas: saida, alteradas };
 }

@@ -18,7 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { ChevronDown, ChevronRight, GripVertical, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { CampoBriefing, CampoTipo } from "@/modules/inputs/briefing-schema";
+import { OPCOES_SIM_NAO, type CampoBriefing, type CampoTipo } from "@/modules/inputs/briefing-schema";
 import {
   FORMATOS_PERMITIDOS,
   ROTULO_FORMATO,
@@ -41,6 +41,14 @@ import { Switch } from "@/components/ui/switch";
 
 const SEM_FORMATO = "__sem_formato";
 
+/** O que a lista de opções pede ao editor: cada mudança vai pelo esquema (a condição e a origem acompanham). */
+export type OperacoesDeOpcao = {
+  renomear: (chave: string, indice: number, texto: string) => void;
+  remover: (chave: string, indice: number) => void;
+  adicionar: (chave: string) => void;
+  reordenar: (chave: string, de: number, para: number) => void;
+};
+
 function estiloArrasto(transform: { x: number; y: number } | null, transition: string | undefined, arrastando: boolean): CSSProperties {
   return {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
@@ -60,7 +68,12 @@ export function CampoDoModelo({
   onAbrir,
   onMudar,
   onAcao,
+  controladoras,
+  onOpcao,
 }: {
+  /** Perguntas de escolha que vêm antes desta (podem controlar quando ela aparece). */
+  controladoras: CampoBriefing[];
+  onOpcao: OperacoesDeOpcao;
   campo: CampoBriefing;
   numero: number;
   aberto: boolean;
@@ -126,12 +139,17 @@ export function CampoDoModelo({
             Incompleta
           </Badge>
         )}
+        {campo.condicao && (
+          <Badge variant="secondary" className="shrink-0" title="Só aparece conforme a resposta de outra pergunta.">
+            Condicional
+          </Badge>
+        )}
         <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
           {ROTULO_TIPO[campo.tipo]}
         </Badge>
         <BotaoAcoes itens={itens} onSelect={onAcao} rotulo={`Ações da pergunta ${campo.label || "sem texto"}`} />
       </div>
-      {aberto && <EditorDoCampo campo={campo} tipoSalvo={tipoSalvo} focar={focar} onMudar={onMudar} />}
+      {aberto && <EditorDoCampo campo={campo} tipoSalvo={tipoSalvo} focar={focar} onMudar={onMudar} controladoras={controladoras} onOpcao={onOpcao} />}
     </LinhaComMenu>
   );
 }
@@ -141,7 +159,11 @@ function EditorDoCampo({
   tipoSalvo,
   focar,
   onMudar,
+  controladoras,
+  onOpcao,
 }: {
+  controladoras: CampoBriefing[];
+  onOpcao: OperacoesDeOpcao;
   campo: CampoBriefing;
   tipoSalvo: CampoTipo | null;
   /** Pergunta recém-criada: o foco vai para o campo do texto. */
@@ -245,8 +267,10 @@ function EditorDoCampo({
       )}
 
       {tipoUsaOpcoes(campo.tipo) && campo.tipo !== "checkbox-single" && (
-        <OpcoesDoCampo opcoes={campo.opcoes ?? []} onMudar={(opcoes) => onMudar({ opcoes })} />
+        <OpcoesDoCampo chave={campo.chave} opcoes={campo.opcoes ?? []} onOpcao={onOpcao} />
       )}
+
+      <CondicaoDoCampo campo={campo} controladoras={controladoras} onMudar={onMudar} />
 
       <div className="flex items-center gap-2 pt-1">
         <Switch id={`${id}-obrig`} checked={campo.obrigatorio} onCheckedChange={(v: boolean) => onMudar({ obrigatorio: v })} />
@@ -258,7 +282,103 @@ function EditorDoCampo({
   );
 }
 
-function OpcoesDoCampo({ opcoes, onMudar }: { opcoes: string[]; onMudar: (opcoes: string[]) => void }) {
+/** "Aparece só se…": a pergunta controladora e as respostas dela que mostram esta pergunta. */
+function CondicaoDoCampo({
+  campo,
+  controladoras,
+  onMudar,
+}: {
+  campo: CampoBriefing;
+  controladoras: CampoBriefing[];
+  onMudar: (patch: Partial<Omit<CampoBriefing, "chave">>) => void;
+}) {
+  const id = useId();
+  const condicao = campo.condicao;
+  const ctrl = condicao ? controladoras.find((c) => c.chave === condicao.campo) : undefined;
+  const opcoes = ctrl ? (ctrl.tipo === "sim-nao" ? [...OPCOES_SIM_NAO] : (ctrl.opcoes ?? [])) : [];
+
+  if (controladoras.length === 0 && !condicao) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        Para esta pergunta aparecer só conforme outra resposta, crie antes dela uma pergunta de escolha (sim ou não, lista, escolha única ou caixas).
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-sm border bg-muted/20 p-3">
+      <div className="flex items-center gap-2">
+        <Switch
+          id={`${id}-cond`}
+          checked={!!condicao}
+          onCheckedChange={(v: boolean) => {
+            if (!v) return onMudar({ condicao: undefined });
+            const primeira = controladoras[0];
+            const ops = primeira.tipo === "sim-nao" ? OPCOES_SIM_NAO[0] : (primeira.opcoes?.[0] ?? "");
+            onMudar({ condicao: { campo: primeira.chave, igual: [ops] } });
+          }}
+        />
+        <Label htmlFor={`${id}-cond`} className="text-sm">
+          Mostrar só quando outra pergunta tiver certa resposta
+        </Label>
+      </div>
+      {condicao && (
+        <div className="space-y-2 sm:pl-10">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${id}-ctrl`} className="text-xs">
+              Pergunta que controla
+            </Label>
+            <Select
+              value={condicao.campo}
+              onValueChange={(v) => {
+                const nova = controladoras.find((c) => c.chave === v);
+                if (!nova) return;
+                const ops = nova.tipo === "sim-nao" ? OPCOES_SIM_NAO[0] : (nova.opcoes?.[0] ?? "");
+                onMudar({ condicao: { campo: nova.chave, igual: [ops] } });
+              }}
+            >
+              <SelectTrigger id={`${id}-ctrl`} className="w-full" aria-label="Pergunta que controla">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {controladoras.map((c) => (
+                  <SelectItem key={c.chave} value={c.chave}>
+                    {c.label.trim() || "Pergunta sem texto"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <fieldset className="space-y-1">
+            <legend className="text-xs font-medium">A pergunta aparece quando a resposta for</legend>
+            {opcoes.map((o) => {
+              const marcada = condicao.igual.includes(o);
+              const ultima = marcada && condicao.igual.length === 1;
+              return (
+                <label key={o} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={marcada}
+                    disabled={ultima}
+                    onChange={() =>
+                      onMudar({ condicao: { campo: condicao.campo, igual: marcada ? condicao.igual.filter((x) => x !== o) : [...condicao.igual, o] } })
+                    }
+                  />
+                  <span>{o}</span>
+                </label>
+              );
+            })}
+            <p className="text-xs text-muted-foreground">
+              Marque ao menos uma. Quando a pergunta fica escondida, ela não é exigida e a resposta já dada fica guardada.
+            </p>
+          </fieldset>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OpcoesDoCampo({ chave, opcoes, onOpcao }: { chave: string; opcoes: string[]; onOpcao: OperacoesDeOpcao }) {
   const rotuloId = useId();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -272,10 +392,7 @@ function OpcoesDoCampo({ opcoes, onMudar }: { opcoes: string[]; onMudar: (opcoes
     const de = ids.indexOf(String(active.id));
     const para = ids.indexOf(String(over.id));
     if (de < 0 || para < 0) return;
-    const nova = [...opcoes];
-    const [item] = nova.splice(de, 1);
-    nova.splice(para, 0, item);
-    onMudar(nova);
+    onOpcao.reordenar(chave, de, para);
   }
 
   return (
@@ -298,9 +415,9 @@ function OpcoesDoCampo({ opcoes, onMudar }: { opcoes: string[]; onMudar: (opcoes
                 valor={op}
                 indice={i}
                 podeRemover={opcoes.length > 2}
-                onMudar={(v) => onMudar(opcoes.map((o, j) => (j === i ? v : o)))}
+                onMudar={(v) => onOpcao.renomear(chave, i, v)}
                 onRemover={() => {
-                  onMudar(opcoes.filter((_, j) => j !== i));
+                  onOpcao.remover(chave, i);
                   // A linha some e leva o foco junto: devolve ao botão de adicionar opção.
                   requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(`${rotuloId}-add`)?.focus()));
                 }}
@@ -309,7 +426,7 @@ function OpcoesDoCampo({ opcoes, onMudar }: { opcoes: string[]; onMudar: (opcoes
           </ul>
         </SortableContext>
       </DndContext>
-      <Button id={`${rotuloId}-add`} type="button" variant="outline" size="sm" onClick={() => onMudar([...opcoes, `Opção ${opcoes.length + 1}`])}>
+      <Button id={`${rotuloId}-add`} type="button" variant="outline" size="sm" onClick={() => onOpcao.adicionar(chave)}>
         <Plus className="size-3.5" /> Adicionar opção
       </Button>
       <p className="text-xs text-muted-foreground">

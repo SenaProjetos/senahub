@@ -24,14 +24,22 @@ import { SEM_OCULTOS, aplicarOcultos, type CampoTipo, type SecaoBriefing } from 
 import { itensDaSecaoDoModelo } from "@/modules/inputs/acoes-modelo";
 import {
   adicionarCampo,
+  adicionarOpcao,
   adicionarSecao,
   atualizarCampo,
   atualizarSecao,
+  comOrigens,
+  controladorasPossiveis,
   duplicarCampo,
+  esquemaParaGravar,
   moverCampoParaSecao,
   removerCampo,
+  removerOpcao,
   removerSecao,
+  renomearOpcao,
+  renomeiosDoRascunho,
   reordenarCampos,
+  reordenarOpcoes,
   reordenarSecoes,
 } from "@/modules/inputs/modelo-editor";
 import { validarEsquema } from "@/modules/inputs/modelo-schema";
@@ -49,7 +57,7 @@ import { instrucoesDnd, anunciosDnd } from "./dnd-pt-br";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { CampoDoModelo } from "./editor-modelo-campo";
+import { CampoDoModelo, type OperacoesDeOpcao } from "./editor-modelo-campo";
 
 type Modelo = {
   id: string;
@@ -75,10 +83,11 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
   const [pending, start] = useTransition();
   const [nome, setNome] = useState(modelo.nome);
   const [descricao, setDescricao] = useState(modelo.descricao ?? "");
-  const [secoes, setSecoes] = useState<SecaoBriefing[]>(modelo.secoes);
+  // Cada opção salva guarda de onde veio (`opcoesOrigem`): é o que permite migrar as respostas ao renomear.
+  const [secoes, setSecoes] = useState<SecaoBriefing[]>(() => comOrigens(modelo.secoes));
   const [versao, setVersao] = useState(modelo.versao);
   const [salvo, setSalvo] = useState(() => ({
-    foto: instantaneo(modelo.nome, modelo.descricao ?? "", modelo.secoes),
+    foto: instantaneo(modelo.nome, modelo.descricao ?? "", comOrigens(modelo.secoes)),
     tipos: tiposDe(modelo.secoes),
   }));
   const [aba, setAba] = useState<"editar" | "previa">("editar");
@@ -106,18 +115,27 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
   }
 
   function salvar() {
-    const v = validarEsquema(secoes);
+    const esquema = esquemaParaGravar(secoes);
+    const v = validarEsquema(esquema);
     if (!v.ok) {
       toast.error(v.erro);
       return;
     }
+    const renomeios = renomeiosDoRascunho(secoes);
     start(async () => {
       try {
-        const r = await salvarModeloBriefing({ id: modelo.id, versao, nome, descricao, esquema: secoes });
+        const r = await salvarModeloBriefing({ id: modelo.id, versao, nome, descricao, esquema, renomeios });
         if (r.ok) {
           setVersao(r.data.versao);
-          setSalvo({ foto: instantaneo(nome, descricao, secoes), tipos: tiposDe(secoes) });
-          toast.success("Modelo salvo.");
+          // O que acabou de ser salvo vira a nova origem de cada opção.
+          const novas = comOrigens(secoes);
+          setSecoes(novas);
+          setSalvo({ foto: instantaneo(nome, descricao, novas), tipos: tiposDe(novas) });
+          toast.success(
+            r.data.migradas > 0
+              ? `Modelo salvo. ${r.data.migradas} resposta${r.data.migradas > 1 ? "s" : ""} já dada${r.data.migradas > 1 ? "s" : ""} acompanhou${r.data.migradas > 1 ? "ram" : ""} o novo texto das opções.`
+              : "Modelo salvo.",
+          );
           router.refresh();
         } else toast.error(r.error);
       } catch {
@@ -292,6 +310,13 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
                     onAcaoCampo={aoAcaoCampo}
                     onAcaoSecao={(a) => aoAcaoSecao(secao.id, a)}
                     onNovaPergunta={() => novaPergunta(secao.id)}
+                    esquema={secoes}
+                    onOpcao={{
+                      renomear: (chave, i, texto) => setSecoes((s) => renomearOpcao(s, chave, i, texto)),
+                      remover: (chave, i) => setSecoes((s) => removerOpcao(s, chave, i)),
+                      adicionar: (chave) => setSecoes((s) => adicionarOpcao(s, chave)),
+                      reordenar: (chave, de, para) => setSecoes((s) => reordenarOpcoes(s, chave, de, para)),
+                    }}
                   />
                 ))}
               </ul>
@@ -327,7 +352,11 @@ function SecaoDoModelo({
   onAcaoCampo,
   onAcaoSecao,
   onNovaPergunta,
+  esquema,
+  onOpcao,
 }: {
+  esquema: SecaoBriefing[];
+  onOpcao: OperacoesDeOpcao;
   secao: SecaoBriefing;
   numero: number;
   ultima: boolean;
@@ -426,6 +455,8 @@ function SecaoDoModelo({
                     onAbrir={() => onAbrir(campo.chave)}
                     onMudar={(patch) => onCampo(campo.chave, patch)}
                     onAcao={(a) => onAcaoCampo(campo.chave, a)}
+                    controladoras={controladorasPossiveis(esquema, campo.chave)}
+                    onOpcao={onOpcao}
                   />
                 ))}
               </ul>

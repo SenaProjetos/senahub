@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import {
   type SecaoBriefing,
   type CampoBriefing,
   OPCOES_SIM_NAO,
+  aplicarCondicoes,
   progressoObrigatorios,
 } from "@/modules/inputs/briefing-schema";
 
@@ -24,7 +25,7 @@ type ResultadoSalvar = { ok: boolean; error?: string; campos?: Record<string, st
  */
 export function BriefingForm({
   respostasIniciais,
-  secoes,
+  secoes: todasAsSecoes,
   canEdit = true,
   previa = false,
   onSalvar,
@@ -37,6 +38,8 @@ export function BriefingForm({
   onSalvar: (respostas: Record<string, unknown>) => Promise<ResultadoSalvar>;
 }) {
   const [respostas, setRespostas] = useState<Record<string, unknown>>(respostasIniciais);
+  // Pergunta condicional: só as que aparecem com as respostas de agora (a regra é a mesma do servidor).
+  const secoes = useMemo(() => aplicarCondicoes(todasAsSecoes, respostas), [todasAsSecoes, respostas]);
   const [secaoEscolhida, setSecaoAtiva] = useState(secoes[0]?.id ?? "");
   // A seção escolhida pode ter sido ocultada (Personalizar): cai na primeira visível.
   const secaoAtiva = secoes.some((s) => s.id === secaoEscolhida) ? secaoEscolhida : (secoes[0]?.id ?? "");
@@ -52,7 +55,7 @@ export function BriefingForm({
 
   const salvar = useCallback(
     async (dados: Record<string, unknown>) => {
-      const { payload, invalidos } = respostasParaSalvar(dados, ultimoSalvo.current, secoes);
+      const { payload, invalidos } = respostasParaSalvar(dados, ultimoSalvo.current, todasAsSecoes);
       setACorrigir(invalidos.map((c) => c.label));
       setSaveStatus("saving");
       const r = await onSalvar(payload);
@@ -62,7 +65,7 @@ export function BriefingForm({
       setSaveStatus(r.ok ? "saved" : "error");
       setTimeout(() => setSaveStatus("idle"), r.ok ? 2000 : 3000);
     },
-    [onSalvar, secoes],
+    [onSalvar, todasAsSecoes],
   );
 
   const alterar = useCallback(

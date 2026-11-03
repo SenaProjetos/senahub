@@ -16,6 +16,8 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { ContatoDialog } from "@/components/clientes/contato-dialog";
+import { ModeloBriefingCliente } from "@/components/clientes/modelo-briefing-cliente";
+import { modelosParaEscolha, resolverModelo } from "@/modules/inputs/modelo-queries";
 import { Empresa360View } from "@/components/comercial/empresa-360-view";
 import { GerarDocumentoButton } from "@/components/documentos/gerar-documento-button";
 import { Badge } from "@/components/ui/badge";
@@ -44,7 +46,7 @@ export default async function ClienteDetalhePage({
   const cliente = await obterCliente(id);
   if (!cliente) notFound();
 
-  const [fin, projetos, modelosDoc, gruposDoc, dados360] = await Promise.all([
+  const [fin, projetos, modelosDoc, gruposDoc, dados360, modelosBriefing, padraoBriefing] = await Promise.all([
     resumoFinanceiroCliente(id),
     projetosDoCliente(id),
     modelosPorFonte("cliente"),
@@ -54,6 +56,9 @@ export default async function ClienteDetalhePage({
     // de createdAt de projeto/proposta/lançamento a cada leitura. A função continua exportada
     // por enquanto; some quando nenhuma tela chamar.
     podeVerComercial ? empresa360(id) : Promise.resolve(null),
+    // Lote 4b: o formulário de briefing padrão do cliente (ver o cartão abaixo dos contatos).
+    modelosParaEscolha(cliente.modeloBriefingId),
+    resolverModelo(null),
   ]);
   const totalDocs = gruposDoc.reduce((s, g) => s + g.documentos.length, 0);
   const endereco = [
@@ -194,6 +199,14 @@ export default async function ClienteDetalhePage({
           )}
         </CardContent>
       </Card>
+
+      <ModeloBriefingCliente
+        clienteId={cliente.id}
+        atual={cliente.modeloBriefingId}
+        modelos={modelosBriefing}
+        padraoNome={padraoBriefing.nome}
+        podeEditar={podeGerir}
+      />
 
       <Card>
         <CardHeader>

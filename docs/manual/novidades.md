@@ -20,6 +20,12 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Formulários do briefing: pergunta condicional, padrão por cliente e opções renomeadas (novembro/2026)
+
+- **Pergunta condicional:** no editor de modelos, uma pergunta pode aparecer só quando outra (de escolha) tiver certa resposta — por exemplo, "Como aquecer?" só se "Terá piscina?" for Sim. Escondida, ela não é exigida e a resposta já dada fica guardada.
+- **Formulário padrão do cliente:** na ficha do cliente, o cartão **Formulário de briefing** define o modelo dos projetos dele que não escolheram um próprio.
+- **Renomear uma opção** (ex.: "Solar" para "Solar térmico") agora atualiza as respostas já dadas, em vez de deixá-las com o texto antigo.
+
 ## Competências do projeto e números das calculadoras (novembro/2026)
 
 - **Competências que o projeto precisa:** agora ficam na **Visão Geral do projeto** (cartão novo). Quem gere o projeto adiciona a competência e o nível mínimo, e o cartão mostra quantas pessoas já cobrem — com a lacuna em destaque. O aviso de lacuna do painel de Gestão de pessoas abre esse cartão.

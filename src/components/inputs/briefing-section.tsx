@@ -49,7 +49,7 @@ export function BriefingSection({
   /** Seções do modelo de formulário do projeto (antes do filtro por disciplina e dos ocultos). */
   modeloSecoes: SecaoBriefing[];
   /** Modelo em uso (`id` nulo = formulário embutido) e os que a equipe pode escolher. */
-  modelo: { id: string | null; nome: string; invalido: boolean };
+  modelo: { id: string | null; nome: string; invalido: boolean; origem: "projeto" | "cliente" | "padrao" | "embutido" };
   modelosEscolha: { id: string; nome: string; padrao: boolean; ativo: boolean }[];
 }) {
   const [personalizando, setPersonalizando] = useState(false);
@@ -97,7 +97,7 @@ export function BriefingSection({
       </CardHeader>
       <CardContent>
         {canEdit && modelosEscolha.length > 1 && (
-          <SeletorModeloBriefing projetoId={projetoId} atual={modelo.id} modelos={modelosEscolha} />
+          <SeletorModeloBriefing projetoId={projetoId} atual={modelo.id} modelos={modelosEscolha} origem={modelo.origem} />
         )}
         {modelo.invalido && (
           <p role="alert" className="mb-4 rounded-sm border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">

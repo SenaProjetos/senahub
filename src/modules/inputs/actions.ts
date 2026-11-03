@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/session";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { aplicarOcultos, calcularStatusBriefing, existeNoBriefing } from "@/modules/inputs/briefing-schema";
-import { resolverModelo } from "@/modules/inputs/modelo-queries";
+import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
 import { gravarRespostasBriefing } from "@/modules/inputs/briefing-service";
 import { perguntasDoPadraoParaCriar } from "@/modules/inputs/perguntas";
 import {
@@ -258,7 +258,7 @@ export const definirVisibilidadeBriefing = defineAction(
         where: { projetoId: input.projetoId },
         select: { respostasJson: true, secoesOcultas: true, camposOcultos: true, modeloId: true },
       });
-      const modelo = await resolverModelo(atual.modeloId, tx);
+      const modelo = await resolverModeloDoProjeto(input.projetoId, atual.modeloId, tx);
       // Mostrar de novo vale mesmo para chave que saiu do modelo (limpa a ocultação órfã).
       if (input.oculto && !existeNoBriefing(input.alvo, input.chave, modelo.secoes)) {
         throw new ActionError("Pergunta do briefing não encontrada.");

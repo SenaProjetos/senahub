@@ -15,6 +15,15 @@ export type CampoTipo = "text" | "textarea" | "select" | "radio" | "checkbox" | 
 /** Opções fixas do tipo `sim-nao` (a resposta é gravada como esse texto, igual aos radios Sim/Não antigos). */
 export const OPCOES_SIM_NAO = ["Sim", "Não"] as const;
 
+/**
+ * Condição de uma pergunta: ela só aparece quando a pergunta `campo` (que vem ANTES no formulário e é de escolha)
+ * tem como resposta alguma das opções de `igual` (em caixas de marcação, basta uma das marcadas estar em `igual`).
+ */
+export interface CondicaoCampo {
+  campo: string;
+  igual: string[];
+}
+
 export interface CampoBriefing {
   chave: string;
   label: string;
@@ -27,6 +36,23 @@ export interface CampoBriefing {
   importarDoCadastro?: "email" | "nome" | "telefone" | "endereco";
   /** Campo do catálogo `lib/campos/` (só `tipo: "text"`): máscara na tela e validação ao gravar. */
   formato?: NomeCampo;
+  /** Pergunta condicional (ver `CondicaoCampo`). Ausente = sempre aparece. */
+  condicao?: CondicaoCampo;
+  /**
+   * SÓ DO EDITOR (nunca gravado): de qual opção SALVA veio cada opção de hoje (`null` = opção nova). É o que
+   * permite migrar as respostas quando uma opção é renomeada. Acompanha `opcoes` posição a posição.
+   */
+  opcoesOrigem?: (string | null)[];
+}
+
+/** Tipos de pergunta que podem controlar outra (resposta de escolha). */
+export const TIPOS_CONTROLADORES: readonly CampoTipo[] = ["radio", "select", "sim-nao", "checkbox"];
+
+/** A resposta dada atende a condição? (resposta vazia nunca atende.) */
+export function condicaoAtendida(condicao: CondicaoCampo, resposta: unknown): boolean {
+  if (typeof resposta === "string") return resposta !== "" && condicao.igual.includes(resposta);
+  if (Array.isArray(resposta)) return resposta.some((r) => typeof r === "string" && condicao.igual.includes(r));
+  return false;
 }
 
 export interface SecaoBriefing {
@@ -234,6 +260,26 @@ export type OcultosBriefing = { secoes: readonly string[]; campos: readonly stri
 export const SEM_OCULTOS: OcultosBriefing = { secoes: [], campos: [] };
 
 /**
+ * Aplica as condições das perguntas às respostas dadas: a pergunta condicional só fica se a controladora está
+ * visível (antes dela, na ordem do formulário) e a resposta atende a condição — então a cadeia de condições funciona e uma
+ * controladora oculta (por condição, disciplina ou ocultação do projeto) esconde quem depende dela. Seção que ficou sem
+ * pergunta sai. É a regra única da tela, do envio, do status e do link público.
+ */
+export function aplicarCondicoes(secoes: readonly SecaoBriefing[], respostas: Record<string, unknown>): SecaoBriefing[] {
+  const visiveis = new Set<string>();
+  const saida: SecaoBriefing[] = [];
+  for (const s of secoes) {
+    const campos = s.campos.filter((c) => {
+      const ok = !c.condicao || (visiveis.has(c.condicao.campo) && condicaoAtendida(c.condicao, respostas[c.condicao.campo]));
+      if (ok) visiveis.add(c.chave);
+      return ok;
+    });
+    if (campos.length > 0 || s.campos.length === 0) saida.push(campos.length === s.campos.length ? s : { ...s, campos });
+  }
+  return saida;
+}
+
+/**
  * Tira das seções o que o projeto ocultou: a seção oculta sai inteira, o campo oculto sai da
  * sua seção, e a seção que ficou sem campo nenhum sai também. É a regra única do que o cliente
  * vê, do que a equipe preenche e do que conta no status.
@@ -258,7 +304,12 @@ export function mesclarRespostasVisiveis(
   visiveis: readonly SecaoBriefing[],
 ): Record<string, unknown> {
   const resultado = { ...anteriores };
+  // Pergunta condicional oculta não grava: a condição é avaliada NA ORDEM, com o que o próprio envio já mudou.
+  const naTela = new Set<string>();
   for (const campo of visiveis.flatMap((s) => s.campos)) {
+    const aparece = !campo.condicao || (naTela.has(campo.condicao.campo) && condicaoAtendida(campo.condicao, resultado[campo.condicao.campo]));
+    if (!aparece) continue;
+    naTela.add(campo.chave);
     if (!(campo.chave in enviadas)) continue;
     const v = respostaValida(campo, enviadas[campo.chave]);
     if (v.ok) resultado[campo.chave] = v.valor;
@@ -301,7 +352,7 @@ export function respostasVisiveis(
   respostas: Record<string, unknown>,
   visiveis: readonly SecaoBriefing[],
 ): Record<string, unknown> {
-  const chaves = new Set(visiveis.flatMap((s) => s.campos.map((c) => c.chave)));
+  const chaves = new Set(aplicarCondicoes(visiveis, respostas).flatMap((s) => s.campos.map((c) => c.chave)));
   return Object.fromEntries(Object.entries(respostas).filter(([k]) => chaves.has(k)));
 }
 
@@ -331,7 +382,7 @@ export function calcularStatusBriefing(
   respostas: Record<string, unknown>,
   secoes: readonly SecaoBriefing[] = BRIEFING_SCHEMA,
 ): StatusBriefing {
-  const campos = secoes.flatMap((s) => s.campos);
+  const campos = aplicarCondicoes(secoes, respostas).flatMap((s) => s.campos);
   const obrigatorios = campos.filter((c) => c.obrigatorio);
   if (obrigatorios.length === 0) {
     return campos.some((c) => respondido(respostas[c.chave])) ? "completo" : "nao_iniciado";
@@ -352,7 +403,7 @@ export function progressoObrigatorios(
   respostas: Record<string, unknown>,
   secoes: SecaoBriefing[] = BRIEFING_SCHEMA,
 ): { preenchidos: number; total: number } {
-  const obrigatorios = secoes.flatMap((s) => s.campos).filter((c) => c.obrigatorio);
+  const obrigatorios = aplicarCondicoes(secoes, respostas).flatMap((s) => s.campos).filter((c) => c.obrigatorio);
   const preenchidos = obrigatorios.filter((c) => {
     const v = respostas[c.chave];
     if (v === undefined || v === null || v === "") return false;

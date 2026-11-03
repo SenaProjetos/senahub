@@ -5,7 +5,7 @@ import { can } from "@/lib/permissions";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { obterProjeto } from "@/modules/projetos/queries";
 import { listarInputs, listarInputsRemovidos, linkInput, progressoInputs, obterBriefing } from "@/modules/inputs/queries";
-import { resolverModelo, modelosParaEscolha } from "@/modules/inputs/modelo-queries";
+import { resolverModeloDoProjeto, modelosParaEscolha } from "@/modules/inputs/modelo-queries";
 import {
   aplicarOcultos,
   prePopularRespostas,
@@ -39,7 +39,7 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
   ]);
   if (!projetoCompleto) notFound();
 
-  const modelo = await resolverModelo(briefing?.modeloId);
+  const modelo = await resolverModeloDoProjeto(id, briefing?.modeloId);
   const modelosEscolha = podeGerir ? await modelosParaEscolha(modelo.id) : [];
 
   const baseUrl = process.env.APP_URL ?? "";
@@ -101,7 +101,7 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
         status={statusBriefing}
         ocultos={ocultos}
         modeloSecoes={modelo.secoes}
-        modelo={{ id: modelo.id, nome: modelo.nome, invalido: modelo.invalido === true }}
+        modelo={{ id: modelo.id, nome: modelo.nome, invalido: modelo.invalido === true, origem: modelo.origem }}
         modelosEscolha={modelosEscolha}
       />
 

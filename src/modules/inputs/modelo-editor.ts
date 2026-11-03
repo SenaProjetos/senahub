@@ -2,8 +2,8 @@
  * Operações do editor de modelos de formulário — puras e imutáveis (a tela guarda o rascunho em
  * estado e aplica estas funções). Chaves e ids novos vêm de `modelo-schema.ts` e nunca mudam depois.
  */
-import { OPCOES_SIM_NAO, type CampoBriefing, type CampoTipo, type SecaoBriefing } from "./briefing-schema";
-import { novaChave, novoIdSecao, tipoUsaOpcoes } from "./modelo-schema";
+import { OPCOES_SIM_NAO, TIPOS_CONTROLADORES, type CampoBriefing, type CampoTipo, type SecaoBriefing } from "./briefing-schema";
+import { novaChave, novoIdSecao, tipoUsaOpcoes, type Renomeio } from "./modelo-schema";
 
 export type Esquema = readonly SecaoBriefing[];
 
@@ -31,7 +31,7 @@ export function adicionarSecao(esquema: Esquema, sorteio?: Sorteio): SecaoBriefi
 }
 
 export function removerSecao(esquema: Esquema, id: string): SecaoBriefing[] {
-  return esquema.filter((s) => s.id !== id);
+  return normalizarCondicoes(esquema.filter((s) => s.id !== id));
 }
 
 export function atualizarSecao(
@@ -43,7 +43,7 @@ export function atualizarSecao(
 }
 
 export function reordenarSecoes(esquema: Esquema, deId: string, paraId: string): SecaoBriefing[] {
-  return moverItem(esquema, esquema.findIndex((s) => s.id === deId), esquema.findIndex((s) => s.id === paraId));
+  return normalizarCondicoes(moverItem(esquema, esquema.findIndex((s) => s.id === deId), esquema.findIndex((s) => s.id === paraId)));
 }
 
 export function adicionarCampo(esquema: Esquema, secaoId: string, sorteio?: Sorteio): SecaoBriefing[] {
@@ -52,23 +52,27 @@ export function adicionarCampo(esquema: Esquema, secaoId: string, sorteio?: Sort
 }
 
 export function atualizarCampo(esquema: Esquema, chave: string, patch: Partial<Omit<CampoBriefing, "chave">>): SecaoBriefing[] {
-  return esquema.map((s) => ({
+  return normalizarCondicoes(
+    esquema.map((s) => ({
     ...s,
     campos: s.campos.map((c) => {
       if (c.chave !== chave) return c;
       const novo = { ...c, ...patch };
       if (patch.tipo && patch.tipo !== c.tipo) {
         novo.opcoes = opcoesPara(patch.tipo, c.opcoes, novo.label);
+        // Trocou de tipo: as opções são outras, não há de onde migrar resposta.
+        delete novo.opcoesOrigem;
         if (patch.tipo !== "text") delete novo.formato;
         if (patch.tipo !== "text" && patch.tipo !== "textarea") delete novo.placeholder;
       }
       return novo;
     }),
-  }));
+  })),
+  );
 }
 
 export function removerCampo(esquema: Esquema, chave: string): SecaoBriefing[] {
-  return esquema.map((s) => ({ ...s, campos: s.campos.filter((c) => c.chave !== chave) }));
+  return normalizarCondicoes(esquema.map((s) => ({ ...s, campos: s.campos.filter((c) => c.chave !== chave) })));
 }
 
 /** Cópia logo abaixo do original, com chave própria (resposta própria). */
@@ -79,6 +83,8 @@ export function duplicarCampo(esquema: Esquema, chave: string, sorteio?: Sorteio
     const original = s.campos[i];
     const copia: CampoBriefing = { ...original, chave: novaChave(sorteio), label: `${original.label} (cópia)` };
     delete copia.importarDoCadastro;
+    // A cópia é pergunta nova: não há resposta antiga para migrar.
+    delete copia.opcoesOrigem;
     return { ...s, campos: [...s.campos.slice(0, i + 1), copia, ...s.campos.slice(i + 1)] };
   });
 }
@@ -87,23 +93,145 @@ export function duplicarCampo(esquema: Esquema, chave: string, sorteio?: Sorteio
 export function moverCampoParaSecao(esquema: Esquema, chave: string, secaoId: string): SecaoBriefing[] {
   const campo = esquema.flatMap((s) => s.campos).find((c) => c.chave === chave);
   if (!campo || !esquema.some((s) => s.id === secaoId)) return [...esquema];
-  return esquema.map((s) => {
-    const sem = s.campos.filter((c) => c.chave !== chave);
-    return s.id === secaoId ? { ...s, campos: [...sem, campo] } : { ...s, campos: sem };
-  });
-}
-
-export function reordenarCampos(esquema: Esquema, secaoId: string, deChave: string, paraChave: string): SecaoBriefing[] {
-  return esquema.map((s) =>
-    s.id !== secaoId
-      ? s
-      : { ...s, campos: moverItem(s.campos, s.campos.findIndex((c) => c.chave === deChave), s.campos.findIndex((c) => c.chave === paraChave)) },
+  return normalizarCondicoes(
+    esquema.map((s) => {
+      const sem = s.campos.filter((c) => c.chave !== chave);
+      return s.id === secaoId ? { ...s, campos: [...sem, campo] } : { ...s, campos: sem };
+    }),
   );
 }
 
+export function reordenarCampos(esquema: Esquema, secaoId: string, deChave: string, paraChave: string): SecaoBriefing[] {
+  return normalizarCondicoes(
+    esquema.map((s) =>
+      s.id !== secaoId
+        ? s
+        : { ...s, campos: moverItem(s.campos, s.campos.findIndex((c) => c.chave === deChave), s.campos.findIndex((c) => c.chave === paraChave)) },
+    ),
+  );
+}
+
+function mapearCampo(esquema: Esquema, chave: string, f: (c: CampoBriefing) => CampoBriefing): SecaoBriefing[] {
+  return esquema.map((s) => ({ ...s, campos: s.campos.map((c) => (c.chave === chave ? f(c) : c)) }));
+}
+
+/** A origem de cada opção (a de hoje, se o campo ainda não tem — tudo que está salvo veio de si mesmo). */
+function origensDe(c: CampoBriefing): (string | null)[] {
+  return c.opcoesOrigem && c.opcoesOrigem.length === (c.opcoes?.length ?? 0) ? [...c.opcoesOrigem] : [...(c.opcoes ?? [])];
+}
+
 export function reordenarOpcoes(esquema: Esquema, chave: string, de: number, para: number): SecaoBriefing[] {
+  return mapearCampo(esquema, chave, (c) =>
+    c.opcoes ? { ...c, opcoes: moverItem(c.opcoes, de, para), opcoesOrigem: moverItem(origensDe(c), de, para) } : c,
+  );
+}
+
+/** Opção nova no fim (sem origem: não migra resposta nenhuma). */
+export function adicionarOpcao(esquema: Esquema, chave: string): SecaoBriefing[] {
+  return mapearCampo(esquema, chave, (c) => {
+    const opcoes = c.opcoes ?? [];
+    return { ...c, opcoes: [...opcoes, `Opção ${opcoes.length + 1}`], opcoesOrigem: [...origensDe(c), null] };
+  });
+}
+
+/**
+ * Renomeia a opção `indice`. Pergunta condicional que usava o texto antigo passa a usar o novo — a cada letra
+ * digitada (o texto antigo é sempre o de antes da letra), então a condição acompanha o nome.
+ */
+export function renomearOpcao(esquema: Esquema, chave: string, indice: number, texto: string): SecaoBriefing[] {
+  const alvo = esquema.flatMap((s) => s.campos).find((c) => c.chave === chave);
+  const antigo = alvo?.opcoes?.[indice];
+  if (antigo === undefined) return [...esquema];
   return esquema.map((s) => ({
     ...s,
-    campos: s.campos.map((c) => (c.chave === chave && c.opcoes ? { ...c, opcoes: moverItem(c.opcoes, de, para) } : c)),
+    campos: s.campos.map((c) => {
+      if (c.chave === chave) return { ...c, opcoes: (c.opcoes ?? []).map((o, i) => (i === indice ? texto : o)) };
+      if (c.condicao?.campo === chave && c.condicao.igual.includes(antigo)) {
+        return { ...c, condicao: { ...c.condicao, igual: c.condicao.igual.map((r) => (r === antigo ? texto : r)) } };
+      }
+      return c;
+    }),
   }));
+}
+
+/** Tira a opção `indice`; a condição que dependia só dela some junto (via `normalizarCondicoes`). */
+export function removerOpcao(esquema: Esquema, chave: string, indice: number): SecaoBriefing[] {
+  return normalizarCondicoes(
+    mapearCampo(esquema, chave, (c) =>
+      c.opcoes
+        ? { ...c, opcoes: c.opcoes.filter((_, i) => i !== indice), opcoesOrigem: origensDe(c).filter((_, i) => i !== indice) }
+        : c,
+    ),
+  );
+}
+
+/**
+ * Tira do rascunho a condição que deixou de valer: controladora excluída, movida para depois, trocada para um tipo
+ * que não é de escolha ou sem a resposta da condição entre as opções. Respostas que sobraram são podadas; sem
+ * nenhuma resposta, a condição inteira sai (a pergunta volta a aparecer sempre).
+ */
+export function normalizarCondicoes(esquema: Esquema): SecaoBriefing[] {
+  const vistos = new Map<string, CampoBriefing>();
+  return esquema.map((s) => ({
+    ...s,
+    campos: s.campos.map((c) => {
+      let saida = c;
+      if (c.condicao) {
+        const ctrl = vistos.get(c.condicao.campo);
+        const opcoes: readonly string[] = ctrl ? (ctrl.tipo === "sim-nao" ? OPCOES_SIM_NAO : (ctrl.opcoes ?? [])) : [];
+        const igual = ctrl && TIPOS_CONTROLADORES.includes(ctrl.tipo) ? c.condicao.igual.filter((r) => opcoes.includes(r)) : [];
+        if (igual.length === 0) {
+          const { condicao: _descartada, ...resto } = c;
+          void _descartada;
+          saida = resto;
+        } else if (igual.length !== c.condicao.igual.length) {
+          saida = { ...c, condicao: { ...c.condicao, igual } };
+        }
+      }
+      vistos.set(c.chave, saida);
+      return saida;
+    }),
+  }));
+}
+
+/** Perguntas que podem controlar a de chave `chave`: de escolha e antes dela, na ordem do formulário. */
+export function controladorasPossiveis(esquema: Esquema, chave: string): CampoBriefing[] {
+  const todas = esquema.flatMap((s) => s.campos);
+  const i = todas.findIndex((c) => c.chave === chave);
+  return todas.slice(0, Math.max(i, 0)).filter((c) => TIPOS_CONTROLADORES.includes(c.tipo));
+}
+
+const COM_LISTA: readonly CampoTipo[] = ["radio", "select", "checkbox"];
+
+/** Marca cada opção salva como sua própria origem — chamado ao abrir o editor e depois de cada salvamento. */
+export function comOrigens(esquema: Esquema): SecaoBriefing[] {
+  return esquema.map((s) => ({
+    ...s,
+    campos: s.campos.map((c) => (COM_LISTA.includes(c.tipo) && c.opcoes ? { ...c, opcoesOrigem: [...c.opcoes] } : c)),
+  }));
+}
+
+/** O esquema que vai ao servidor: sem o que é só do editor. */
+export function esquemaParaGravar(esquema: Esquema): SecaoBriefing[] {
+  return esquema.map((s) => ({
+    ...s,
+    campos: s.campos.map((c) => {
+      const { opcoesOrigem: _origem, ...resto } = c;
+      void _origem;
+      return resto;
+    }),
+  }));
+}
+
+/** Renomeios do rascunho: toda opção cuja origem salva é outra de hoje. Opção nova, tipo trocado e opção removida não entram. */
+export function renomeiosDoRascunho(esquema: Esquema): Renomeio[] {
+  const saida: Renomeio[] = [];
+  for (const c of esquema.flatMap((s) => s.campos)) {
+    if (!COM_LISTA.includes(c.tipo) || !c.opcoes || !c.opcoesOrigem || c.opcoesOrigem.length !== c.opcoes.length) continue;
+    c.opcoes.forEach((atual, i) => {
+      const origem = c.opcoesOrigem![i];
+      if (origem !== null && origem !== atual) saida.push({ chave: c.chave, de: origem, para: atual });
+    });
+  }
+  return saida;
 }

@@ -931,6 +931,11 @@ model Cliente {
   // Login externo opcional do cliente (criado sob demanda).
   usuarioId String? @unique
 
+  /// Modelo de formulário do briefing PADRÃO deste cliente (Lote 4b). Projeto sem modelo próprio herda daqui;
+  /// nulo = o padrão do sistema. Modelo apagado/arquivado não quebra: SetNull / segue valendo para quem já usa.
+  modeloBriefingId String?
+  modeloBriefing   ModeloBriefing? @relation(fields: [modeloBriefingId], references: [id], onDelete: SetNull)
+
   // ── Fusão de duplicata (CRM F1.14) ──────────────────────────
   /// Quando preenchido, este cliente foi ABSORVIDO pelo apontado. Nada é apagado: o registro
   /// continua existindo, arquivado (`ativo: false`), com a referência ao sobrevivente — é o
@@ -976,6 +981,7 @@ model Cliente {
   @@index([segmentoId])
   @@index([fundidoEmId])
   @@index([excluidoEm])
+  @@index([modeloBriefingId])
   regrasPreenchimento RegraCategorizacao[]
   @@map("cliente")
 }
@@ -1433,6 +1439,8 @@ model ModeloBriefing {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   briefings  BriefingProjeto[]
+  /// Clientes que adotam este modelo como o seu padrão (Lote 4b).
+  clientes   Cliente[]
 
   @@map("modelo_briefing")
 }

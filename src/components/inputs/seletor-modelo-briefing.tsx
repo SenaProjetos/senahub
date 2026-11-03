@@ -16,10 +16,13 @@ export function SeletorModeloBriefing({
   projetoId,
   atual,
   modelos,
+  origem,
 }: {
   projetoId: string;
   atual: string | null;
   modelos: { id: string; nome: string; padrao: boolean; ativo: boolean }[];
+  /** De onde vem o modelo em uso: escolhido no projeto, herdado do cliente ou o padrão do sistema. */
+  origem: "projeto" | "cliente" | "padrao" | "embutido";
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -53,6 +56,7 @@ export function SeletorModeloBriefing({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-sm border bg-muted/30 px-3 py-2">
+      {/* (o aviso de origem vem logo depois do seletor) */}
       <Label htmlFor="modelo-briefing" className="text-xs text-muted-foreground">
         Modelo do formulário
       </Label>
@@ -70,6 +74,11 @@ export function SeletorModeloBriefing({
           ))}
         </SelectContent>
       </Select>
+      {origem !== "projeto" && (
+        <span className="text-xs text-muted-foreground">
+          {origem === "cliente" ? "Herdado do formulário padrão do cliente." : "Vem do modelo padrão do sistema."}
+        </span>
+      )}
     </div>
   );
 }

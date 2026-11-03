@@ -8,7 +8,7 @@ import {
   type StatusBriefing,
 } from "@/modules/inputs/briefing-schema";
 import { aplicarFormatosDoBriefing } from "@/modules/inputs/briefing-formato";
-import { resolverModelo } from "@/modules/inputs/modelo-queries";
+import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
 
 type Resultado =
   | { ok: true; status: StatusBriefing; statusAnterior: StatusBriefing | null }
@@ -34,7 +34,7 @@ export async function gravarRespostasBriefing(
       select: { respostasJson: true, status: true, secoesOcultas: true, camposOcultos: true, preenchidoEm: true, modeloId: true },
     });
     const anteriores = (gravado.respostasJson ?? {}) as Record<string, unknown>;
-    const modelo = await resolverModelo(gravado.modeloId, tx);
+    const modelo = await resolverModeloDoProjeto(projetoId, gravado.modeloId, tx);
     const visiveis = aplicarOcultos(modelo.secoes, { secoes: gravado.secoesOcultas, campos: gravado.camposOcultos });
     const formatos = aplicarFormatosDoBriefing(mesclarRespostasVisiveis(anteriores, enviadas, visiveis), anteriores, modelo.secoes);
     if (!formatos.ok) return { ok: false, erro: formatos.erro, campos: formatos.campos };

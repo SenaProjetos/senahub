@@ -43,10 +43,14 @@ lugar.
 - **Modelos de formulário** — monte o formulário de briefing do cliente como num editor de
   formulários: tipos de pergunta (texto curto, parágrafo, sim/não, escolha única, lista suspensa,
   caixas de marcação, caixa de ciência), **arrastar para reordenar** seções, perguntas e opções,
-  perguntas obrigatórias e **pré-visualização**. Cada projeto usa um modelo (o **padrão** ou o
-  escolhido na aba Inputs); crie um por perfil de cliente (**Duplicar** copia as perguntas).
-  Regras: a pergunta já existente só troca de tipo por um parecido; renomear uma opção não muda
-  respostas já dadas; o modelo **arquiva** em vez de excluir; o padrão não arquiva.
+  perguntas obrigatórias e **pré-visualização**. Cada projeto usa um modelo: o escolhido na aba
+  Inputs, senão o **padrão do cliente** (na ficha do cliente, cartão **Formulário de briefing**),
+  senão o **padrão do sistema**; crie um por perfil de cliente (**Duplicar** copia as perguntas).
+  **Pergunta condicional:** abra a pergunta e ligue "Mostrar só quando outra pergunta tiver certa
+  resposta" — vale para perguntas de escolha que vêm antes; escondida, a pergunta não é exigida e a
+  resposta já dada fica guardada. **Renomear uma opção** leva junto as respostas já dadas (o aviso ao
+  salvar diz quantas). Regras: a pergunta já existente só troca de tipo por um parecido; o modelo
+  **arquiva** em vez de excluir; o padrão não arquiva.
 - **Feriados** — calendário (ponto, escala, banco de horas).
 - **Modalidades de licitação** — lista usada no cadastro de licitações.
 - **Parâmetros de licitação** — prazos de recurso, limite de aditivo, modo PNCP/reajuste,
