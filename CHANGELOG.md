@@ -2,6 +2,31 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.31.0](https://github.com/SenaProjetos/senahub/compare/v1.30.0...v1.31.0) (2026-11-03)
+
+
+### ✨ Funcionalidades
+
+* **certidoes:** título do link público e bolinha de situação na lista de certidões ([8ede5a5](https://github.com/SenaProjetos/senahub/commit/8ede5a5eb2ad05f1d46a0b18d208adfdf6308cda))
+
+
+### 🐛 Correções
+
+* **acompanhamento,planejamento,recursos,rh:** clique duplo no e-mail, diálogo de execução desatualizado, rótulos e link do RH ([36810be](https://github.com/SenaProjetos/senahub/commit/36810bee68e3a319011411c90f6a49a90aaf38c4))
+* **acompanhamento:** contato excluído fora, link e e-mail inteiros na observação, limites em português e timeout do SMTP ([901ef58](https://github.com/SenaProjetos/senahub/commit/901ef58463d76e469eebd4d3687cde752fd1babf))
+* **clientes,inputs,projetos:** fusão relê após a trava e leva CRM, regras, próxima ação e de-para ([56d7357](https://github.com/SenaProjetos/senahub/commit/56d73573664d8279df56e53593b4f07ab827de50))
+* **estudos,ferramentas:** nome longo não derruba o editor, memória avisa versão refeita e rascunho do manual fora do /ajuda ([235ab1f](https://github.com/SenaProjetos/senahub/commit/235ab1f7be336f80fddcd8ae94186f3690b89117))
+* **inputs,planejamento:** correções da auditoria da revisão — pergunta oculta sem rótulo no link, teto de bytes, erro de rede no autosave, passo de desfazer pela hora da ação ([cda379f](https://github.com/SenaProjetos/senahub/commit/cda379f86ce589a7f53c4bd733605315ed3e8c5e))
+* **inputs:** briefing avisa o que não gravou, status acompanha disciplina e adiados da auditoria ([26f7f01](https://github.com/SenaProjetos/senahub/commit/26f7f014c785988c68584b0bd2f1342da2d88782))
+* **inputs:** revisão da reunião — aviso de descartado só do que o formulário mostra, autosave em fila, condicional e status pelas opções válidas ([c2cef81](https://github.com/SenaProjetos/senahub/commit/c2cef814cf16023a22bbd0af8621ad46825204ef))
+* **inputs:** status do briefing filtra por disciplina e acompanha fusão, troca de cliente e modelo padrão ([e22e7ef](https://github.com/SenaProjetos/senahub/commit/e22e7efb15d044c09d92aa0cfc6657f768304b21))
+* **planejamento,projetos:** escopo de dados nas escritas do cronograma e das disciplinas ([fc6fcb1](https://github.com/SenaProjetos/senahub/commit/fc6fcb1b6db5126bded89b8522382c78a3084bb9))
+* **planejamento:** "hoje" pelo dia de São Paulo e hora apontada no agrupamento ([537207f](https://github.com/SenaProjetos/senahub/commit/537207fcdbfa16071b1955577b3fe522d5072623))
+* **planejamento:** corridas da aprovação, da nova linha de base e da revisão ([f28f5f6](https://github.com/SenaProjetos/senahub/commit/f28f5f6179dde6426968ce54c1d198ee9cc32ea7))
+* **planejamento:** revisão da reunião — reabrir pede o %, duração restante sem a espera, Ctrl+Z tira o card que o passo criou ([704bf2c](https://github.com/SenaProjetos/senahub/commit/704bf2c5a112e8597bb53ce018ec5ae86c7384f5))
+* **projetos:** aba Problemas — prancha abre para quem participa, Resolver só em revisão posterior, adiado sem contador ([089f3e4](https://github.com/SenaProjetos/senahub/commit/089f3e4b996ea3d42000aab0cd1ff8b9b5519998))
+* **recursos:** projeto cancelado ou arquivado fora da carga, Heatmap pelo projeto filtrado e semana ISO da produtividade ([8ea24a3](https://github.com/SenaProjetos/senahub/commit/8ea24a352ad4e8d7e8e3b66955675e72f48ae2e2))
+
 ## [1.30.0](https://github.com/SenaProjetos/senahub/compare/v1.29.1...v1.30.0) (2026-11-03)
 
 
