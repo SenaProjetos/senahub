@@ -61,8 +61,8 @@ export function SeletorModeloBriefing({
         Modelo do formulário
       </Label>
       <Select value={valor || undefined} onValueChange={trocar} disabled={pending}>
-        <SelectTrigger id="modelo-briefing" className="w-64 max-w-full">
-          <SelectValue placeholder="Modelo padrão" />
+        <SelectTrigger id="modelo-briefing" className="w-64 max-w-full" aria-describedby={origem !== "projeto" ? "modelo-briefing-origem" : undefined}>
+          <SelectValue placeholder="Padrão do sistema" />
         </SelectTrigger>
         <SelectContent>
           {modelos.map((m) => (
@@ -75,8 +75,12 @@ export function SeletorModeloBriefing({
         </SelectContent>
       </Select>
       {origem !== "projeto" && (
-        <span className="text-xs text-muted-foreground">
-          {origem === "cliente" ? "Herdado do formulário padrão do cliente." : "Vem do modelo padrão do sistema."}
+        <span id="modelo-briefing-origem" className="text-xs text-muted-foreground">
+          {origem === "cliente"
+            ? "Herdado do formulário padrão do cliente."
+            : origem === "embutido"
+              ? "Formulário original do sistema (nenhum modelo padrão salvo ainda)."
+              : "Vem do modelo padrão do sistema."}
         </span>
       )}
     </div>

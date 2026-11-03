@@ -263,4 +263,35 @@ describe("renomear opção migra resposta", () => {
       ),
     ).toMatch(/duas vezes/);
   });
+
+  it("com o esquema antigo: 'de' tem de ter existido e ter saído; esquema ilegível não aceita renomeio", () => {
+    const antes = esquema();
+    const depois = esquema();
+    depois[0].campos[1].opcoes = ["Solar térmico", "Elétrico", "Gás"];
+    expect(problemaDosRenomeios([{ chave: "aquecimento", de: "Solar", para: "Solar térmico" }], depois, antes)).toBeNull();
+    // 'de' que nunca existiu (pedido forjado)
+    expect(problemaDosRenomeios([{ chave: "aquecimento", de: "Nuclear", para: "Solar térmico" }], depois, antes)).toMatch(/não confere/);
+    // 'de' ainda existe no esquema novo (opção viva): não migra
+    expect(problemaDosRenomeios([{ chave: "aquecimento", de: "Gás", para: "Solar térmico" }], depois, antes)).toMatch(/não confere/);
+    expect(problemaDosRenomeios([{ chave: "aquecimento", de: "Solar", para: "Solar térmico" }], depois, null)).toMatch(/não confere/);
+    // troca A↔B: cada 'de' continua no esquema novo, mas só porque o outro foi renomeado para ele
+    const trocado = esquema();
+    trocado[0].campos[1].opcoes = ["Elétrico", "Solar", "Gás"];
+    expect(
+      problemaDosRenomeios(
+        [
+          { chave: "aquecimento", de: "Solar", para: "Elétrico" },
+          { chave: "aquecimento", de: "Elétrico", para: "Solar" },
+        ],
+        trocado,
+        antes,
+      ),
+    ).toBeNull();
+  });
+
+  it("controladora com menos de duas opções não é oferecida", () => {
+    const e = esquema();
+    e[0].campos[1].opcoes = ["Solar"];
+    expect(controladorasPossiveis(e, "detalhe").map((c) => c.chave)).toEqual(["piscina"]);
+  });
 });

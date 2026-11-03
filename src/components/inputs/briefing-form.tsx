@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,16 @@ export function BriefingForm({
   const [respostas, setRespostas] = useState<Record<string, unknown>>(respostasIniciais);
   // Pergunta condicional: só as que aparecem com as respostas de agora (a regra é a mesma do servidor).
   const secoes = useMemo(() => aplicarCondicoes(todasAsSecoes, respostas), [todasAsSecoes, respostas]);
+  const totalPerguntas = secoes.reduce((n, s) => n + s.campos.length, 0);
+  const perguntasAntes = useRef(totalPerguntas);
+  const [avisoPerguntas, setAvisoPerguntas] = useState("");
+  // Pergunta condicional que aparece ou some muda o formulário em silêncio: avisa (só quando a contagem muda).
+  useEffect(() => {
+    const delta = totalPerguntas - perguntasAntes.current;
+    perguntasAntes.current = totalPerguntas;
+    if (delta > 0) setAvisoPerguntas(`${delta} pergunta${delta > 1 ? "s" : ""} nova${delta > 1 ? "s" : ""} no formulário.`);
+    else if (delta < 0) setAvisoPerguntas(`${-delta} pergunta${-delta > 1 ? "s" : ""} deixou${-delta > 1 ? "ram" : ""} de aparecer.`);
+  }, [totalPerguntas]);
   const [secaoEscolhida, setSecaoAtiva] = useState(secoes[0]?.id ?? "");
   // A seção escolhida pode ter sido ocultada (Personalizar): cai na primeira visível.
   const secaoAtiva = secoes.some((s) => s.id === secaoEscolhida) ? secaoEscolhida : (secoes[0]?.id ?? "");
@@ -102,6 +112,10 @@ export function BriefingForm({
         </span>
       </div>
 
+      <p role="status" aria-live="polite" className="sr-only">
+        {avisoPerguntas}
+      </p>
+
       {aCorrigir.length > 0 && (
         <p role="alert" className="text-xs text-destructive">
           {aCorrigir.join(", ")}: corrija o formato para salvar {aCorrigir.length > 1 ? "estes campos" : "este campo"}.
@@ -157,11 +171,11 @@ export function BriefingForm({
           disabled={idxAtivo <= 0}
           onClick={() => setSecaoAtiva(secoes[idxAtivo - 1].id)}
         >
-          ← Anterior
+          <span aria-hidden>←</span> Anterior
         </Button>
         {idxAtivo < total - 1 ? (
           <Button type="button" size="sm" onClick={() => setSecaoAtiva(secoes[idxAtivo + 1].id)}>
-            Próximo →
+            Próximo <span aria-hidden>→</span>
           </Button>
         ) : (
           canEdit && !previa && (

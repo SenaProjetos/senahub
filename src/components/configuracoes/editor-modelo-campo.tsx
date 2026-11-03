@@ -137,11 +137,13 @@ export function CampoDoModelo({
             title={!campo.label.trim() ? "Falta o texto da pergunta." : "Informe pelo menos duas opções."}
           >
             Incompleta
+            <span className="sr-only">: {!campo.label.trim() ? "falta o texto da pergunta." : "informe pelo menos duas opções."}</span>
           </Badge>
         )}
         {campo.condicao && (
           <Badge variant="secondary" className="shrink-0" title="Só aparece conforme a resposta de outra pergunta.">
             Condicional
+            <span className="sr-only">: só aparece conforme a resposta de outra pergunta.</span>
           </Badge>
         )}
         <Badge variant="outline" className="hidden shrink-0 sm:inline-flex">
@@ -350,7 +352,7 @@ function CondicaoDoCampo({
             </Select>
           </div>
           <fieldset className="space-y-1">
-            <legend className="text-xs font-medium">A pergunta aparece quando a resposta for</legend>
+            <legend className="text-xs font-medium">A pergunta aparece quando a resposta for uma destas:</legend>
             {opcoes.map((o) => {
               const marcada = condicao.igual.includes(o);
               const ultima = marcada && condicao.igual.length === 1;
@@ -360,6 +362,7 @@ function CondicaoDoCampo({
                     type="checkbox"
                     checked={marcada}
                     disabled={ultima}
+                    aria-describedby={ultima ? `${id}-cond-ajuda` : undefined}
                     onChange={() =>
                       onMudar({ condicao: { campo: condicao.campo, igual: marcada ? condicao.igual.filter((x) => x !== o) : [...condicao.igual, o] } })
                     }
@@ -368,7 +371,7 @@ function CondicaoDoCampo({
                 </label>
               );
             })}
-            <p className="text-xs text-muted-foreground">
+            <p id={`${id}-cond-ajuda`} className="text-xs text-muted-foreground">
               Marque ao menos uma. Quando a pergunta fica escondida, ela não é exigida e a resposta já dada fica guardada.
             </p>
           </fieldset>
@@ -430,7 +433,7 @@ function OpcoesDoCampo({ chave, opcoes, onOpcao }: { chave: string; opcoes: stri
         <Plus className="size-3.5" /> Adicionar opção
       </Button>
       <p className="text-xs text-muted-foreground">
-        Renomear uma opção não altera as respostas já dadas: quem escolheu o texto antigo continua com ele guardado.
+        Renomear uma opção atualiza também as respostas já dadas a ela, ao salvar o modelo.
       </p>
     </div>
   );

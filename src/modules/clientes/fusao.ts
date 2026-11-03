@@ -147,6 +147,15 @@ export async function mesclarClientes(
       movidos["loginPortal"] = 1;
     }
 
+    // Formulário de briefing padrão (Lote 4b): se só o absorvido tinha, o sobrevivente herda (os projetos já foram
+    // para ele); se os dois têm, vale o do sobrevivente.
+    const absorvidoModelo = await tx.cliente.findUnique({ where: { id: absorvidoId }, select: { modeloBriefingId: true } });
+    const sobreviventeModelo = await tx.cliente.findUnique({ where: { id: sobreviventeId }, select: { modeloBriefingId: true } });
+    if (absorvidoModelo?.modeloBriefingId && !sobreviventeModelo?.modeloBriefingId) {
+      await tx.cliente.update({ where: { id: sobreviventeId }, data: { modeloBriefingId: absorvidoModelo.modeloBriefingId } });
+      movidos["modeloBriefing"] = 1;
+    }
+
     // Arquiva o absorvido com a referência. NÃO deleta.
     await tx.cliente.update({
       where: { id: absorvidoId },

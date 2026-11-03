@@ -35,11 +35,12 @@ export function ModeloBriefingCliente({
   const confirm = useConfirm();
   const [pendente, startTransition] = useTransition();
   const [valor, setValor] = useState(atual ?? PADRAO_DO_SISTEMA);
-  const nomeAtual = atual ? (modelos.find((m) => m.id === atual)?.nome ?? "modelo escolhido") : `${padraoNome} (padrão do sistema)`;
+  const modeloAtual = atual ? modelos.find((m) => m.id === atual) : undefined;
+  const nomeAtual = atual ? `${modeloAtual?.nome ?? "Modelo escolhido"}${modeloAtual && !modeloAtual.ativo ? " (arquivado)" : ""}` : `Padrão do sistema — ${padraoNome}`;
 
   async function trocar(novo: string | null) {
     if (!novo || novo === valor) return;
-    const nome = novo === PADRAO_DO_SISTEMA ? `${padraoNome} (padrão do sistema)` : (modelos.find((m) => m.id === novo)?.nome ?? "");
+    const nome = novo === PADRAO_DO_SISTEMA ? `Padrão do sistema — ${padraoNome}` : (modelos.find((m) => m.id === novo)?.nome ?? "");
     // Confirma ANTES de abrir a transição (o diálogo não pode ficar dentro dela).
     const ok = await confirm({
       title: `Usar o formulário “${nome}” para este cliente?`,
@@ -53,11 +54,19 @@ export function ModeloBriefingCliente({
         const r = await definirModeloDoCliente({ clienteId, modeloId: novo === PADRAO_DO_SISTEMA ? null : novo });
         if (r.ok) {
           setValor(novo);
-          toast.success(r.data.projetosAfetados > 0 ? `Formulário do cliente alterado (${r.data.projetosAfetados} briefing(s) recalculado(s)).` : "Formulário do cliente alterado.");
+          toast.success(
+            r.data.projetosAfetados > 0
+              ? `Formulário do cliente alterado. ${r.data.projetosAfetados} projeto${r.data.projetosAfetados > 1 ? "s" : ""} com o briefing recalculado.`
+              : "Formulário do cliente alterado.",
+          );
           router.refresh();
-        } else toast.error(r.error);
+        } else {
+          toast.error(r.error);
+          router.refresh(); // o banco é a verdade: a tela volta ao que está gravado
+        }
       } catch {
         toast.error("Não foi possível trocar o formulário. Verifique a conexão e tente de novo.");
+        router.refresh();
       }
     });
   }
@@ -91,6 +100,7 @@ export function ModeloBriefingCliente({
                 ))}
               </SelectContent>
             </Select>
+            {pendente && <span role="status" className="text-xs text-muted-foreground">Salvando…</span>}
           </div>
         ) : (
           <p className="text-sm">{nomeAtual}</p>

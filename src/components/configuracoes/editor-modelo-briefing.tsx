@@ -213,7 +213,7 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
 
       {!modelo.esquemaValido && (
         <p role="alert" className="rounded-sm border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-          O esquema gravado neste modelo está ilegível; os projetos que o usam mostram o formulário padrão embutido. Monte as
+          O formulário salvo neste modelo não pôde ser lido; os projetos que o usam mostram o formulário padrão do sistema. Monte as
           seções de novo e salve.
         </p>
       )}
@@ -260,7 +260,7 @@ export function EditorModeloBriefing({ modelo }: { modelo: Modelo }) {
             description={
               modelo.esquemaValido
                 ? "Adicione perguntas na aba Editar para ver como o cliente as enxerga."
-                : "O esquema gravado não pôde ser lido. Monte as seções de novo na aba Editar e salve."
+                : "O formulário salvo não pôde ser lido. Monte as seções de novo na aba Editar e salve."
             }
             action={
               <Button size="sm" variant="outline" onClick={() => setAba("editar")}>
@@ -490,7 +490,7 @@ function TermosDeDisciplina({
       <Input
         id={id}
         value={texto}
-        placeholder="Ex.: elétric, hidro — vazio = sempre aparece"
+        placeholder="Ex.: elétrica, hidrossanitário — vazio = sempre aparece"
         maxLength={200}
         onChange={(e) => setTexto(e.target.value)}
         onBlur={() => {

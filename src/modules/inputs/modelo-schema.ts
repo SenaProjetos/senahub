@@ -69,9 +69,9 @@ const campoSchema = z
           .array(z.string("Resposta de condição inválida.").trim().min(1, "Resposta de condição em branco.").max(300, "Resposta de condição muito longa."))
           .min(1, "Escolha pelo menos uma resposta que mostra a pergunta.")
           .max(40, "No máximo 40 respostas na condição."),
-      })
+      }, "Condição inválida.")
       .optional(),
-  })
+  }, "Pergunta inválida.")
   .transform((c, ctx) => {
     const base = { ...c, opcoes: c.opcoes?.filter((o) => o !== "") };
     if (c.tipo === "sim-nao") return { ...base, opcoes: [...OPCOES_SIM_NAO], formato: undefined };
@@ -96,7 +96,7 @@ const secaoSchema = z.object({
     .optional()
     .transform((d) => (d && d.length > 0 ? [...new Set(d)] : undefined)),
   campos: z.array(campoSchema, "Perguntas inválidas.").max(60, "No máximo 60 perguntas por seção."),
-});
+}, "Seção inválida.");
 
 export const esquemaBriefingSchema = z
   .array(secaoSchema, "Formulário inválido.")
@@ -198,22 +198,34 @@ export const renomeioSchema = z.object({
   chave: z.string("Pergunta inválida.").regex(/^[A-Za-z][A-Za-z0-9_]{0,59}$/, "Pergunta inválida."),
   de: z.string("Opção inválida.").min(1, "Opção inválida.").max(300, "Opção inválida."),
   para: z.string("Opção inválida.").min(1, "Opção inválida.").max(300, "Opção inválida."),
-});
+}, "Alteração de opção inválida.");
 
 /**
  * Os renomeios que o editor mandou conferem com o esquema novo? Só pergunta de escolha com lista de
  * opções (escolha única, lista, caixas) migra; `para` tem de ser opção da pergunta; sem `de` repetido.
  * Devolve a frase do problema ou `null`.
  */
-export function problemaDosRenomeios(renomeios: readonly Renomeio[], depois: readonly SecaoBriefing[]): string | null {
+export function problemaDosRenomeios(
+  renomeios: readonly Renomeio[],
+  depois: readonly SecaoBriefing[],
+  /** Esquema que estava salvo (`null` = ilegível: nada é conhecido, nenhum renomeio vale); omitido = não confere o antigo. */
+  antes?: readonly SecaoBriefing[] | null,
+): string | null {
   const campos = new Map(depois.flatMap((s) => s.campos).map((c) => [c.chave, c]));
+  const antigos = antes === undefined ? null : new Map((antes ?? []).flatMap((s) => s.campos).map((c) => [c.chave, c]));
   const vistos = new Set<string>();
   for (const r of renomeios) {
     const c = campos.get(r.chave);
-    if (!c || !["radio", "select", "checkbox"].includes(c.tipo)) return "Renomeio de uma opção que não existe mais no formulário.";
-    if (r.de === r.para || !(c.opcoes ?? []).includes(r.para)) return `“${c.label}”: o renomeio da opção “${r.de}” não confere com o formulário.`;
+    if (!c || !["radio", "select", "checkbox"].includes(c.tipo)) return "Uma opção alterada não existe mais neste formulário. Recarregue a página e tente de novo.";
+    if (r.de === r.para || !(c.opcoes ?? []).includes(r.para)) return `“${c.label}”: a mudança de nome da opção “${r.de}” não confere com o formulário.`;
+    // `de` tem de ser uma opção que ESTAVA salva e que saiu (ou que só continua existindo porque outra opção foi
+    // renomeada para o texto dela, como na troca A↔B): senão um pedido forjado reescreveria resposta de opção viva.
+    const ocupadaPorOutra = renomeios.some((o) => o.chave === r.chave && o.para === r.de);
+    if (antigos && (!(antigos.get(r.chave)?.opcoes ?? []).includes(r.de) || ((c.opcoes ?? []).includes(r.de) && !ocupadaPorOutra))) {
+      return `“${c.label}”: a mudança de nome da opção “${r.de}” não confere com o formulário salvo. Recarregue a página e tente de novo.`;
+    }
     const k = `${r.chave} ${r.de}`;
-    if (vistos.has(k)) return `“${c.label}”: a opção “${r.de}” foi renomeada duas vezes.`;
+    if (vistos.has(k)) return `“${c.label}”: a opção “${r.de}” aparece renomeada duas vezes.`;
     vistos.add(k);
   }
   return null;

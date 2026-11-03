@@ -149,7 +149,7 @@ export default async function ClienteDetalhePage({
         </CardHeader>
         <CardContent>
           {cliente.contatos.length === 0 ? (
-            <EmptyState icon={Users} title="Nenhum contato cadastrado." />
+            <EmptyState icon={Users} title="Nenhum contato cadastrado." action={podeGerir ? <ContatoDialog clienteId={cliente.id} /> : undefined} />
           ) : (
             <ul className="divide-y text-sm">
               {cliente.contatos.map((c: ContatoItem) => (

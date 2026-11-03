@@ -310,7 +310,7 @@ export function mesclarRespostasVisiveis(
     const aparece = !campo.condicao || (naTela.has(campo.condicao.campo) && condicaoAtendida(campo.condicao, resultado[campo.condicao.campo]));
     if (!aparece) continue;
     naTela.add(campo.chave);
-    if (!(campo.chave in enviadas)) continue;
+    if (!Object.hasOwn(enviadas, campo.chave)) continue;
     const v = respostaValida(campo, enviadas[campo.chave]);
     if (v.ok) resultado[campo.chave] = v.valor;
   }

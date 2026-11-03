@@ -24,8 +24,13 @@ export function ehConflitoDeNome(e: unknown): boolean {
  * projeto e os que herdam dele (pelo cliente ou por ser o padrão). Sem trava de linha de propósito: o próximo
  * salvamento do briefing corrige qualquer corrida.
  */
-export async function recalcularStatusDoModelo(modeloId: string, ehPadrao: boolean, secoes: readonly SecaoBriefing[]) {
-  const briefings = await prisma.briefingProjeto.findMany({
+export async function recalcularStatusDoModelo(
+  modeloId: string,
+  ehPadrao: boolean,
+  secoes: readonly SecaoBriefing[],
+  db: Pick<typeof prisma, "briefingProjeto"> = prisma,
+) {
+  const briefings = await db.briefingProjeto.findMany({
     where: briefingsQueUsam(modeloId, ehPadrao),
     select: { id: true, status: true, respostasJson: true, secoesOcultas: true, camposOcultos: true },
   });
@@ -34,7 +39,7 @@ export async function recalcularStatusDoModelo(modeloId: string, ehPadrao: boole
       (b.respostasJson ?? {}) as Record<string, unknown>,
       aplicarOcultos(secoes, { secoes: b.secoesOcultas, campos: b.camposOcultos }),
     );
-    if (novo !== b.status) await prisma.briefingProjeto.update({ where: { id: b.id }, data: { status: novo } });
+    if (novo !== b.status) await db.briefingProjeto.update({ where: { id: b.id }, data: { status: novo } });
   }
 }
 
@@ -55,14 +60,16 @@ export async function salvarModeloNoBanco(input: {
   if (!v.ok) throw new ActionError(v.erro);
   const atual = await prisma.modeloBriefing.findUnique({ where: { id: input.id } });
   if (!atual) throw new ActionError("Modelo não encontrado.");
+  // Versão velha primeiro: a explicação certa é "outra pessoa salvou", não uma regra de tipo sobre o que ela já mudou.
+  if (atual.versao !== input.versao) throw new ActionError(MOTIVO_OUTRA_PESSOA);
   const antes = validarEsquema(atual.esquema);
   const problemas = problemasDeEvolucao(antes.ok ? antes.esquema : null, v.esquema);
   if (problemas.length > 0) throw new ActionError(problemas[0]);
-  const problemaRenomeio = problemaDosRenomeios(input.renomeios, v.esquema);
+  const problemaRenomeio = problemaDosRenomeios(input.renomeios, v.esquema, antes.ok ? antes.esquema : null);
   if (problemaRenomeio) throw new ActionError(problemaRenomeio);
   let migradas = 0;
   try {
-    // Esquema e respostas mudam JUNTOS: se uma migração falhar, o modelo não fica com o texto novo e respostas com o velho.
+    // Esquema, respostas e status mudam JUNTOS: se algo falhar, o modelo não fica com o texto novo e respostas com o velho.
     migradas = await prisma.$transaction(async (tx) => {
       const { count } = await tx.modeloBriefing.updateMany({
         where: { id: input.id, versao: input.versao },
@@ -74,24 +81,28 @@ export async function salvarModeloNoBanco(input: {
         },
       });
       if (count !== 1) throw new ActionError(MOTIVO_OUTRA_PESSOA);
-      if (input.renomeios.length === 0) return 0;
-      const briefings = await tx.briefingProjeto.findMany({
-        where: briefingsQueUsam(input.id, atual.padrao),
-        select: { id: true, respostasJson: true },
-      });
+      // `padrao` lido AQUI: se o modelo virou o padrão agora há pouco, quem herda dele também entra.
+      const { padrao } = await tx.modeloBriefing.findUniqueOrThrow({ where: { id: input.id }, select: { padrao: true } });
+      const usam = await tx.briefingProjeto.findMany({ where: briefingsQueUsam(input.id, padrao), select: { id: true }, orderBy: { id: "asc" } });
+      const ids = usam.map((b) => b.id);
+      // Trava as linhas (mesma trava do salvamento do briefing): uma resposta que chega no meio não é sobrescrita por cópia velha.
+      if (ids.length > 0) await tx.$queryRaw`SELECT 1 FROM "briefing_projeto" WHERE "id" = ANY(${ids}) ORDER BY "id" FOR UPDATE`;
       let total = 0;
-      for (const b of briefings) {
-        const m = migrarRespostas((b.respostasJson ?? {}) as Record<string, unknown>, input.renomeios);
-        if (m.alteradas === 0) continue;
-        await tx.briefingProjeto.update({ where: { id: b.id }, data: { respostasJson: m.respostas as unknown as Prisma.InputJsonValue } });
-        total += m.alteradas;
+      if (input.renomeios.length > 0) {
+        const briefings = await tx.briefingProjeto.findMany({ where: { id: { in: ids } }, select: { id: true, respostasJson: true } });
+        for (const b of briefings) {
+          const m = migrarRespostas((b.respostasJson ?? {}) as Record<string, unknown>, input.renomeios);
+          if (m.alteradas === 0) continue;
+          await tx.briefingProjeto.update({ where: { id: b.id }, data: { respostasJson: m.respostas as unknown as Prisma.InputJsonValue } });
+          total += m.alteradas;
+        }
       }
+      await recalcularStatusDoModelo(input.id, padrao, v.esquema, tx);
       return total;
     });
   } catch (e) {
     if (ehConflitoDeNome(e)) throw new ActionError(NOME_REPETIDO);
     throw e;
   }
-  await recalcularStatusDoModelo(input.id, atual.padrao, v.esquema);
   return { versao: input.versao + 1, migradas };
 }

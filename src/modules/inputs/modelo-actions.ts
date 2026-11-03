@@ -69,7 +69,7 @@ export const salvarModeloBriefing = defineAction(
       descricao: descricaoSchema,
       esquema: z.array(z.unknown(), "Formulário inválido."),
       /** Opções renomeadas no editor: as respostas já gravadas acompanham o novo texto (na mesma transação). */
-      renomeios: z.array(renomeioSchema, "Renomeios inválidos.").max(400, "Renomeios demais de uma vez.").default([]),
+      renomeios: z.array(renomeioSchema, "Alterações de opção inválidas.").max(400, "Alterações de opção demais de uma vez.").default([]),
     }),
     entidadeId: (_d, i) => (i as { id: string }).id,
     capturarAntes: modeloAntes,
@@ -160,31 +160,46 @@ export const definirModeloDoCliente = defineAction(
     capturarAntes: (i) => prisma.cliente.findUnique({ where: { id: i.clienteId }, select: { modeloBriefingId: true } }),
   },
   async (input) => {
-    const cliente = await prisma.cliente.findUnique({ where: { id: input.clienteId }, select: { id: true, modeloBriefingId: true } });
-    if (!cliente) throw new ActionError("Cliente não encontrado.");
-    if (input.modeloId) {
-      const novo = await prisma.modeloBriefing.findUnique({ where: { id: input.modeloId }, select: { ativo: true } });
-      if (!novo) throw new ActionError("Modelo não encontrado.");
-      // Quem já usa um modelo arquivado segue nele; escolher um arquivado de novo é que não vale.
-      if (!novo.ativo && cliente.modeloBriefingId !== input.modeloId) throw new ActionError("Este modelo está arquivado. Restaure-o em Configurações para usá-lo.");
-      const m = await resolverModelo(input.modeloId);
-      if (m.invalido) throw new ActionError(ESQUEMA_ILEGIVEL);
-    }
-    await prisma.cliente.update({ where: { id: input.clienteId }, data: { modeloBriefingId: input.modeloId } });
-    // Os projetos dele sem modelo próprio mudam de formulário: o status acompanha.
-    const briefings = await prisma.briefingProjeto.findMany({
-      where: { modeloId: null, projeto: { clienteId: input.clienteId } },
-      select: { id: true, projetoId: true, status: true, respostasJson: true, secoesOcultas: true, camposOcultos: true },
+    const afetados = await prisma.$transaction(async (tx) => {
+      const cliente = await tx.cliente.findUnique({
+        where: { id: input.clienteId },
+        select: { id: true, modeloBriefingId: true, excluidoEm: true, fundidoEmId: true },
+      });
+      // `findUnique` não passa pelo filtro de soft delete: cliente excluído ou fundido não recebe formulário novo.
+      if (!cliente || cliente.excluidoEm || cliente.fundidoEmId) throw new ActionError("Cliente não encontrado.");
+      if (cliente.modeloBriefingId === input.modeloId) return 0;
+      if (input.modeloId) {
+        const novo = await tx.modeloBriefing.findUnique({ where: { id: input.modeloId }, select: { ativo: true } });
+        if (!novo) throw new ActionError("Modelo não encontrado.");
+        // Quem já usa um modelo arquivado segue nele; escolher um arquivado de novo é que não vale.
+        if (!novo.ativo && cliente.modeloBriefingId !== input.modeloId) throw new ActionError("Este modelo está arquivado. Restaure-o em Configurações para usá-lo.");
+        if ((await resolverModelo(input.modeloId, tx)).invalido) throw new ActionError(ESQUEMA_ILEGIVEL);
+      }
+      // O formulário efetivo dos projetos sem modelo próprio, antes e depois: só quando ele MUDA as ocultações (feitas sobre o anterior) zeram.
+      const antes = await resolverModelo(null, tx, cliente.modeloBriefingId);
+      const depois = await resolverModelo(null, tx, input.modeloId);
+      const mudouDeFormulario = antes.id !== depois.id;
+      const alvo = await tx.briefingProjeto.findMany({ where: { modeloId: null, projeto: { clienteId: input.clienteId } }, select: { id: true }, orderBy: { id: "asc" } });
+      const ids = alvo.map((b) => b.id);
+      if (ids.length > 0) await tx.$queryRaw`SELECT 1 FROM "briefing_projeto" WHERE "id" = ANY(${ids}) ORDER BY "id" FOR UPDATE`;
+      await tx.cliente.update({ where: { id: input.clienteId }, data: { modeloBriefingId: input.modeloId } });
+      const briefings = await tx.briefingProjeto.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, status: true, respostasJson: true, secoesOcultas: true, camposOcultos: true },
+      });
+      for (const b of briefings) {
+        const ocultos = mudouDeFormulario ? { secoes: [], campos: [] } : { secoes: b.secoesOcultas, campos: b.camposOcultos };
+        const novoStatus = calcularStatusBriefing((b.respostasJson ?? {}) as Record<string, unknown>, aplicarOcultos(depois.secoes, ocultos));
+        await tx.briefingProjeto.update({
+          where: { id: b.id },
+          data: mudouDeFormulario ? { secoesOcultas: [], camposOcultos: [], status: novoStatus } : { status: novoStatus },
+        });
+      }
+      return briefings.length;
     });
-    for (const b of briefings) {
-      const modelo = await resolverModeloDoProjeto(b.projetoId, null);
-      // Ocultações foram feitas sobre o formulário anterior: zeram, como na troca de modelo do projeto.
-      const novoStatus = calcularStatusBriefing((b.respostasJson ?? {}) as Record<string, unknown>, aplicarOcultos(modelo.secoes, { secoes: [], campos: [] }));
-      await prisma.briefingProjeto.update({ where: { id: b.id }, data: { secoesOcultas: [], camposOcultos: [], status: novoStatus } });
-    }
     revalidatePath(`/clientes/${input.clienteId}`);
     revalidatePath("/configuracoes/inputs/modelos");
-    return { clienteId: input.clienteId, projetosAfetados: briefings.length };
+    return { clienteId: input.clienteId, projetosAfetados: afetados };
   },
 );
 

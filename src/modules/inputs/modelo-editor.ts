@@ -198,7 +198,8 @@ export function normalizarCondicoes(esquema: Esquema): SecaoBriefing[] {
 export function controladorasPossiveis(esquema: Esquema, chave: string): CampoBriefing[] {
   const todas = esquema.flatMap((s) => s.campos);
   const i = todas.findIndex((c) => c.chave === chave);
-  return todas.slice(0, Math.max(i, 0)).filter((c) => TIPOS_CONTROLADORES.includes(c.tipo));
+  // Sem opções (lista ainda incompleta) não há resposta para a condição apontar.
+  return todas.slice(0, Math.max(i, 0)).filter((c) => TIPOS_CONTROLADORES.includes(c.tipo) && (c.tipo === "sim-nao" || (c.opcoes?.length ?? 0) >= 2));
 }
 
 const COM_LISTA: readonly CampoTipo[] = ["radio", "select", "checkbox"];

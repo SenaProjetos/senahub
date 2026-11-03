@@ -78,7 +78,7 @@ export function itensDaSecaoDoModelo(s: { titulo: string; perguntas: number }, u
         titulo: `Excluir a seção “${s.titulo || "sem título"}”?`,
         descricao:
           s.perguntas > 0
-            ? `As ${s.perguntas} pergunta(s) dela saem do formulário. As respostas já dadas ficam guardadas nos projetos, mas deixam de aparecer.`
+            ? `${s.perguntas === 1 ? "A pergunta dela sai" : `As ${s.perguntas} perguntas dela saem`} do formulário. As respostas já dadas ficam guardadas nos projetos, mas deixam de aparecer.`
             : "A seção está vazia.",
         rotuloConfirmar: "Excluir seção",
       },
