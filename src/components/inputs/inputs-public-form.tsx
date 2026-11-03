@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Check, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { LIMITE_TEXTO_RESPOSTA } from "@/modules/inputs/briefing-schema";
 
 type Item = { id: string; disciplina: string | null; pergunta: string; resposta: string };
 
@@ -64,6 +65,7 @@ export function InputsPublicForm({ token, itens }: { token: string; itens: Item[
                 <textarea
                   id={it.id}
                   rows={2}
+                  maxLength={LIMITE_TEXTO_RESPOSTA}
                   className="w-full resize-y rounded-sm border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
                   value={valores[it.id] ?? ""}
                   onChange={(e) => setValores((v) => ({ ...v, [it.id]: e.target.value }))}

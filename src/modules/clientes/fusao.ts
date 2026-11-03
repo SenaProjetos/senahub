@@ -105,6 +105,10 @@ export async function mesclarClientes(
       if (count > 0) movidos[chave] = count;
     };
 
+    // Trava o absorvido: quem cria projeto ou troca o cliente de um projeto para ele toma a trava da FK e espera o fim da
+    // fusão — a lista abaixo não perde projeto que entra no meio.
+    await tx.$queryRaw`SELECT 1 FROM "cliente" WHERE "id" = ${absorvidoId} FOR UPDATE`;
+
     // Briefing dos projetos que mudam de cliente: foto do formulário efetivo ANTES de repontar (o modelo padrão do cliente
     // vem do cliente), para recalcular o status e zerar as ocultações de quem trocar de formulário.
     const projetosAbsorvidos = (await tx.projeto.findMany({ where: { clienteId: absorvidoId }, select: { id: true } })).map((p) => p.id);

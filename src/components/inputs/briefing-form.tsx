@@ -16,7 +16,7 @@ import {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-type ResultadoSalvar = { ok: boolean; error?: string; campos?: Record<string, string> };
+type ResultadoSalvar = { ok: boolean; error?: string; campos?: Record<string, string>; descartados?: string[] };
 
 /**
  * Briefing de Start multi-etapas (Mód 3). Reusável: a persistência é injetada via `onSalvar`
@@ -62,6 +62,8 @@ export function BriefingForm({
   // inválido NÃO vai no envio — o servidor recusaria tudo —, fica no valor salvo; o resto segue salvando.
   const ultimoSalvo = useRef<Record<string, unknown>>(respostasIniciais);
   const [aCorrigir, setACorrigir] = useState<string[]>([]);
+  // Campos que o servidor não gravou porque saíram do formulário (ou a opção mudou) no meio do preenchimento.
+  const [descartados, setDescartados] = useState<string[]>([]);
 
   const salvar = useCallback(
     async (dados: Record<string, unknown>) => {
@@ -70,6 +72,7 @@ export function BriefingForm({
       setSaveStatus("saving");
       const r = await onSalvar(payload);
       if (r.ok) ultimoSalvo.current = payload;
+      setDescartados(r.ok ? (r.descartados ?? []) : []);
       setErrosServidor(r.ok ? {} : (r.campos ?? {}));
       setMensagemErro(r.ok ? undefined : r.error);
       setSaveStatus(r.ok ? "saved" : "error");
@@ -115,6 +118,12 @@ export function BriefingForm({
       <p role="status" aria-live="polite" className="sr-only">
         {avisoPerguntas}
       </p>
+
+      {descartados.length > 0 && (
+        <p role="alert" className="text-xs text-warning-text">
+          Não foi possível salvar {descartados.join(", ")}: {descartados.length > 1 ? "estes campos mudaram" : "este campo mudou"} no formulário. Recarregue a página.
+        </p>
+      )}
 
       {aCorrigir.length > 0 && (
         <p role="alert" className="text-xs text-destructive">

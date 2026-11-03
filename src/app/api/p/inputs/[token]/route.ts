@@ -4,9 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
 import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
+import { LIMITE_TEXTO_RESPOSTA } from "@/modules/inputs/briefing-schema";
 
+// O link é aberto ao mundo: lista e texto com teto (o mesmo da resposta do briefing).
 const putSchema = z.object({
-  respostas: z.array(z.object({ id: z.string(), resposta: z.string() })),
+  respostas: z.array(z.object({ id: z.string().max(64), resposta: z.string().max(LIMITE_TEXTO_RESPOSTA) })).max(200),
 });
 
 async function projetoDoToken(token: string) {

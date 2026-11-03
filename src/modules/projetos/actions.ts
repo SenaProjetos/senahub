@@ -57,6 +57,7 @@ import { semearPastasTemplate, projetoUsaTemplate } from "@/modules/projetos/pas
 import { sincronizarPagamentosPorDisciplinaId } from "@/modules/uploads/pagamento";
 import { duplicarProjetoNoBanco } from "@/modules/projetos/duplicar-service";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { projetoVisivel } from "@/modules/planejamento/queries";
 import { chaveLayoutPainelProjeto } from "@/modules/projetos/painel-layout";
 import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura";
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
@@ -227,12 +228,20 @@ export const editarProjeto = defineAction(
     schema: editarProjetoSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (input) => {
+  async (input, { user }) => {
     const { id, ...rest } = input;
+    if (!(await projetoVisivel(user, id))) throw new ActionError("Projeto não encontrado.");
     await prisma.$transaction(async (tx) => {
       // Trocar o cliente pode trocar o formulário do briefing (o modelo padrão é do cliente): foto de antes e recálculo depois.
       const atual = rest.clienteId ? await tx.projeto.findUnique({ where: { id }, select: { clienteId: true } }) : null;
       const trocouCliente = !!atual && atual.clienteId !== rest.clienteId;
+      if (trocouCliente) {
+        // Cliente fundido ou inativo não recebe projeto: a fusão já levou os projetos dele para o sobrevivente.
+        const destino = await tx.cliente.findUnique({ where: { id: rest.clienteId! }, select: { ativo: true, fundidoEmId: true } });
+        if (!destino) throw new ActionError("Cliente não encontrado.");
+        if (destino.fundidoEmId) throw new ActionError("Este cliente foi unificado com outro. Escolha o cliente que o absorveu.");
+        if (!destino.ativo) throw new ActionError("Este cliente está inativo. Reative-o antes de vincular o projeto.");
+      }
       const formularioAntes = trocouCliente ? await formulariosEfetivos(tx, [id]) : undefined;
       await tx.projeto.update({
         where: { id },
@@ -844,6 +853,8 @@ export const criarDisciplina = defineAction(
       if (usaEstruturaCustom(projeto.tipo) && (await projetoUsaTemplate(tx, input.projetoId))) {
         await semearPastasTemplate(tx, d.id, projeto.tipo);
       }
+      // As seções do briefing dependem das disciplinas: o status gravado acompanha.
+      await recalcularBriefingsDosProjetos(tx, [input.projetoId]);
       return d;
     });
 
@@ -964,6 +975,7 @@ export const editarDisciplina = defineAction(
       }
       const removidosIds = [...anteriorIds].filter((id) => !input.responsaveisIds.includes(id));
       await podarMembrosSemVinculo(tx, disciplina.projetoId, removidosIds);
+      await recalcularBriefingsDosProjetos(tx, [disciplina.projetoId]);
       if (mudouValor || mudouEquipe) {
         await sincronizarPagamentosPorDisciplinaId(tx, input.disciplinaId, ctx.user.id);
       }
@@ -1029,6 +1041,7 @@ export const excluirDisciplina = defineAction(
         disciplina.projetoId,
         disciplina.responsaveis.map((r) => r.userId),
       );
+      await recalcularBriefingsDosProjetos(tx, [disciplina.projetoId]);
     });
     // O canal da disciplina cai em cascata; o do projeto ainda precisa soltar quem ficou sem vínculo.
     refletirSincroniaCanais(await ensureCanaisProjeto(disciplina.projetoId));
@@ -1190,6 +1203,7 @@ export const adicionarDisciplinasDoCatalogo = defineAction(
         if (semear) await semearPastasTemplate(tx, d.id, projeto.tipo);
         await semearEtapasPadrao(tx, [d.id], { tipoProjeto: projeto.tipo, tipoEmpreendimentoId: projeto.tipoEmpreendimentoId });
       }
+      await recalcularBriefingsDosProjetos(tx, [input.projetoId]);
     });
 
     revalidatePath(`/projetos/${input.projetoId}`);

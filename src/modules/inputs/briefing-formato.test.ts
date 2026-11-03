@@ -62,3 +62,17 @@ describe("briefing: envio do autosave com campo inválido", () => {
     expect(r.invalidos.map((c) => c.label)).toEqual(["E-mail", "Telefone para contato"]);
   });
 });
+
+describe("aplicarFormatosDoBriefing — valor gravado não é reescrito", () => {
+  const secoes = [{ id: "s", titulo: "S", campos: [{ chave: "tel", label: "Telefone", tipo: "text" as const, obrigatorio: false, formato: "telefone" as const }] }];
+
+  it("telefone já gravado, mesmo fora do padrão, segue como está", () => {
+    const r = aplicarFormatosDoBriefing({ tel: "81999998888" }, { tel: "81999998888" }, secoes);
+    expect(r).toEqual({ ok: true, respostas: { tel: "81999998888" } });
+  });
+
+  it("telefone digitado agora é gravado no formato padrão", () => {
+    const r = aplicarFormatosDoBriefing({ tel: "81999998888" }, {}, secoes);
+    expect(r).toEqual({ ok: true, respostas: { tel: "(81) 99999-8888" } });
+  });
+});

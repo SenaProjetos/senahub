@@ -65,7 +65,8 @@ export function aplicarFormatosDoBriefing(
   const saida = { ...respostas };
   for (const [chave, nome] of Object.entries(mapa)) {
     const v = saida[chave];
-    if (typeof v === "string" && v.trim() !== "") saida[chave] = CAMPOS[nome].normalizar(v);
+    // Só o que MUDOU: o valor já gravado (oculto, antigo, inválido de legado) fica exatamente como está.
+    if (typeof v === "string" && v.trim() !== "" && v !== anteriores?.[chave]) saida[chave] = CAMPOS[nome].normalizar(v);
   }
   return { ok: true, respostas: saida };
 }

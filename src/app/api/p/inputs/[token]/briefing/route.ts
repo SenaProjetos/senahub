@@ -44,5 +44,5 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
   // Só a TRANSIÇÃO para completo fura a janela de 6 h; o resto é aviso de "mexeu".
   const concluiu = status === "completo" && r.statusAnterior !== "completo";
   await notificarPreenchimentoInput(projeto.id, concluiu ? "completo" : "parcial");
-  return NextResponse.json({ ok: true, status });
+  return NextResponse.json({ ok: true, status, descartados: r.descartados });
 }

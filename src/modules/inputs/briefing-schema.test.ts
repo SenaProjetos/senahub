@@ -8,6 +8,7 @@ import {
   calcularStatusBriefing,
   progressoObrigatorios,
   aplicarOcultos,
+  camposDescartadosNoEnvio,
   existeNoBriefing,
   mesclarRespostasVisiveis,
   respostasVisiveis,
@@ -197,5 +198,38 @@ describe("secoesDoProjeto (o que o projeto mostra é o que conta no status)", ()
   it("aplica as ocultações do projeto sobre o já filtrado", () => {
     const visiveis = secoesDoProjeto(secoes, ["Hidrossanitário"], { secoes: ["hidro"], campos: [] });
     expect(visiveis.map((s) => s.id)).toEqual(["geral"]);
+  });
+});
+
+describe("camposDescartadosNoEnvio (o envio não cala o que não gravou)", () => {
+  const modelo = [
+    {
+      id: "s",
+      titulo: "S",
+      campos: [
+        { chave: "nome", label: "Nome", tipo: "text" as const, obrigatorio: false },
+        { chave: "tipo", label: "Tipo", tipo: "radio" as const, obrigatorio: false, opcoes: ["a", "b"] },
+        { chave: "extra", label: "Extra", tipo: "text" as const, obrigatorio: false },
+      ],
+    },
+  ];
+  const visiveis = [{ ...modelo[0], campos: modelo[0].campos.filter((c) => c.chave !== "extra") }];
+
+  it("campo que o projeto deixou de mostrar, com valor novo, é descartado", () => {
+    expect(camposDescartadosNoEnvio({}, { extra: "novo" }, modelo, visiveis)).toEqual(["Extra"]);
+  });
+
+  it("valor que o tipo não aceita é descartado", () => {
+    expect(camposDescartadosNoEnvio({}, { tipo: "c" }, modelo, visiveis)).toEqual(["Tipo"]);
+  });
+
+  it("vazio, igual ao gravado, visível válido e chave desconhecida não entram", () => {
+    expect(camposDescartadosNoEnvio({ extra: "x" }, { extra: "x", nome: "Ana", tipo: "", inventada: "y" }, modelo, visiveis)).toEqual([]);
+    expect(camposDescartadosNoEnvio({}, { extra: "" }, modelo, visiveis)).toEqual([]);
+  });
+
+  it("pergunta condicional escondida não conta (visível no projeto, a tela do cliente a esconde)", () => {
+    const cond = [{ ...modelo[0], campos: [modelo[0].campos[0], { ...modelo[0].campos[2], condicao: { campo: "tipo", igual: ["b"] } }] }];
+    expect(camposDescartadosNoEnvio({}, { extra: "algo" }, cond, cond)).toEqual([]);
   });
 });

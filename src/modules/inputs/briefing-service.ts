@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import {
   calcularStatusBriefing,
+  camposDescartadosNoEnvio,
   mesclarRespostasVisiveis,
   secoesDoProjeto,
   type StatusBriefing,
@@ -11,7 +12,7 @@ import { aplicarFormatosDoBriefing } from "@/modules/inputs/briefing-formato";
 import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
 
 type Resultado =
-  | { ok: true; status: StatusBriefing; statusAnterior: StatusBriefing | null }
+  | { ok: true; status: StatusBriefing; statusAnterior: StatusBriefing | null; descartados: string[] }
   | { ok: false; erro: string; campos: Record<string, string> };
 
 /**
@@ -52,6 +53,8 @@ export async function gravarRespostasBriefing(
     });
     // Linha recém-criada aqui (nunca preenchida) não tinha status de verdade.
     const statusAnterior = gravado.preenchidoEm ? (gravado.status as StatusBriefing) : null;
-    return { ok: true, status, statusAnterior };
+    // O que o envio trouxe e não foi gravado (campo que saiu do formulário no meio do preenchimento): a tela avisa.
+    const descartados = camposDescartadosNoEnvio(anteriores, enviadas, modelo.secoes, visiveis);
+    return { ok: true, status, statusAnterior, descartados };
   });
 }

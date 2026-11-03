@@ -330,6 +330,30 @@ export function mesclarRespostasVisiveis(
   return resultado;
 }
 
+/**
+ * Campos que o envio trouxe e `mesclarRespostasVisiveis` NÃO gravou, para a tela avisar em vez de mostrar "salvo":
+ * campo que o projeto deixou de mostrar (a equipe ocultou enquanto o formulário estava aberto) ou valor que o tipo do
+ * campo não aceita (opção que mudou). Pergunta condicional escondida não conta — a tela do cliente também a esconde.
+ * Valor vazio ou igual ao já gravado não perde nada e não entra. Devolve os rótulos, sem repetir.
+ */
+export function camposDescartadosNoEnvio(
+  anteriores: Record<string, unknown>,
+  enviadas: Record<string, unknown>,
+  doModelo: readonly SecaoBriefing[],
+  visiveis: readonly SecaoBriefing[],
+): string[] {
+  const chavesVisiveis = new Set(visiveis.flatMap((s) => s.campos.map((c) => c.chave)));
+  const vazio = (v: unknown) => v == null || v === "" || v === false || (Array.isArray(v) && v.length === 0);
+  const rotulos = new Set<string>();
+  for (const campo of doModelo.flatMap((s) => s.campos)) {
+    if (!Object.hasOwn(enviadas, campo.chave)) continue;
+    const v = enviadas[campo.chave];
+    if (vazio(v) || JSON.stringify(v) === JSON.stringify(anteriores[campo.chave])) continue;
+    if (!chavesVisiveis.has(campo.chave) || !respostaValida(campo, v).ok) rotulos.add(campo.label);
+  }
+  return [...rotulos];
+}
+
 /** Limite de tamanho de uma resposta de texto (o link público é aberto ao mundo). */
 export const LIMITE_TEXTO_RESPOSTA = 5000;
 

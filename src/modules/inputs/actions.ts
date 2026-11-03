@@ -224,7 +224,7 @@ export const salvarBriefing = defineAction(
     const r = await gravarRespostasBriefing(input.projetoId, input.respostas, user.name);
     if (!r.ok) throw new ActionError(r.erro, r.campos);
     revalidatePath(`/projetos/${input.projetoId}`);
-    return { projetoId: input.projetoId, status: r.status };
+    return { projetoId: input.projetoId, status: r.status, descartados: r.descartados };
   },
 );
 

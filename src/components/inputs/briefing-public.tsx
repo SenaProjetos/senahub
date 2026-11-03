@@ -22,7 +22,10 @@ export function BriefingPublico({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ respostas }),
       });
-      if (res.ok) return { ok: true as const };
+      if (res.ok) {
+        const j = await res.json().catch(() => null);
+        return { ok: true as const, descartados: Array.isArray(j?.descartados) ? (j.descartados as string[]) : [] };
+      }
       // 400 de formato traz a mensagem e o campo (`campos`); qualquer outra recusa segue genérica.
       const j = res.status === 400 ? await res.json().catch(() => null) : null;
       return {
