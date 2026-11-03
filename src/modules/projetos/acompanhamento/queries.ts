@@ -56,7 +56,8 @@ export async function dadosDoAcompanhamento(projetoId: string) {
           select: {
             nome: true,
             // `optOut` fica fora aqui — a regra de quem pode receber contato é do cadastro do contato.
-            contatos: { where: { optOut: false, email: { not: null } }, orderBy: [{ principal: "desc" }, { nome: "asc" }], select: { id: true, nome: true, email: true } },
+            // Leitura aninhada não passa pelo filtro de exclusão: contato excluído (ou que saiu da empresa) fica fora à mão.
+            contatos: { where: { optOut: false, email: { not: null }, excluidoEm: null, statusRelacionamento: { not: "SAIU_DA_EMPRESA" } }, orderBy: [{ principal: "desc" }, { nome: "asc" }], select: { id: true, nome: true, email: true } },
           },
         },
       },
@@ -83,8 +84,9 @@ export async function dadosDoAcompanhamento(projetoId: string) {
     smtp: smtpConfigurado(),
     cliente: projeto?.cliente?.nome ?? null,
     contatos: (projeto?.cliente?.contatos ?? []).flatMap((c) => {
+      // E-mail antigo inválido não vira opção: a action o recusaria e travaria o envio inteiro sem dizer qual é.
       const email = CAMPOS.email.normalizar(c.email ?? "");
-      return email ? [{ id: c.id, nome: c.nome, email }] : [];
+      return email && CAMPOS.email.validar(email) ? [{ id: c.id, nome: c.nome, email }] : [];
     }),
     itens,
     jaAvisadas,

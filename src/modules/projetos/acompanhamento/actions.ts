@@ -21,8 +21,9 @@ export const enviarAcompanhamentoProjeto = defineAction(
     entidade: "EmailAcompanhamento",
     schema: z.object({
       projetoId: z.string().min(1),
-      destinatarios: z.array(campo.email({ obrigatorio: true, mensagemObrigatorio: "E-mail inválido." })).min(1, "Informe ao menos um destinatário.").max(20),
-      revisaoIds: z.array(z.string().min(1)).min(1, "Escolha ao menos uma revisão.").max(200),
+      destinatarios: z.array(campo.email({ obrigatorio: true, mensagemObrigatorio: "E-mail inválido." })).min(1, "Informe ao menos um destinatário.").max(20, "No máximo 20 destinatários por e-mail."),
+      // O primeiro e-mail de um projeto antigo pode listar centenas (a migração do ciclo marcou tudo que estava em Compartilhado).
+      revisaoIds: z.array(z.string().min(1)).min(1, "Escolha ao menos uma revisão.").max(1000, "Escolha no máximo 1000 revisões por e-mail."),
       observacao: z.string().trim().max(1000, "A observação passa de 1000 caracteres.").optional(),
       copiaParaMim: z.boolean(),
     }),

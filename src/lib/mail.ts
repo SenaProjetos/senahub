@@ -15,6 +15,11 @@ function getTransporter(): Transporter | null {
     auth: process.env.SMTP_USER
       ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
       : undefined,
+    // Sem teto, o nodemailer espera minutos; a borda (Cloudflare) corta a requisição em 100 s, a pessoa vê erro,
+    // o envio termina mesmo assim e ela manda de novo. Com teto, o erro chega antes e é o de verdade.
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
   });
   return transporter;
 }

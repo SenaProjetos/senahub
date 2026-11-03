@@ -154,7 +154,7 @@ export function AcompanhamentoDialog({ projetoId, dados }: { projetoId: string; 
                 Nenhuma revisão está marcada como “Enviado ao cliente” neste projeto. Marque no menu da revisão antes de enviar.
               </p>
             )}
-            {novos.length > 0 && <p className="text-xs text-muted-foreground">Novos desde o último e-mail</p>}
+            {novos.length > 0 && <p className="text-xs text-muted-foreground">Ainda não avisados</p>}
             {novos.map((i) => (
               <label key={i.revisaoId} className="flex items-start gap-2 text-sm">
                 <Checkbox className="mt-0.5" checked={itens.has(i.revisaoId)} onCheckedChange={() => alternar(itens, i.revisaoId, setItens)} />

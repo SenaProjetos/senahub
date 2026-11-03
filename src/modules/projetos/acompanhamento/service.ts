@@ -60,7 +60,8 @@ export async function enviarAcompanhamento(
   // Quem pediu para não receber contato (`optOut`) não recebe, nem digitado à mão: a regra vale no servidor.
   const optOuts = projeto.clienteId
     ? await prisma.contatoCliente.findMany({
-        where: { clienteId: projeto.clienteId, optOut: true, email: { not: null } },
+        // Também o contato excluído: o pedido de não receber vale mesmo depois que o cadastro saiu.
+        where: { clienteId: projeto.clienteId, optOut: true, email: { not: null }, excluidoEm: { not: undefined } },
         select: { email: true },
       })
     : [];

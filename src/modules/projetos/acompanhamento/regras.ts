@@ -38,12 +38,39 @@ export function separarItens(
   };
 }
 
+/** Endereço web ou de e-mail: o GFM o transforma em link sozinho, e escapar por dentro quebraria o endereço. */
+const ENDERECO = /(?:https?:\/\/|www\.)[^\s<>"'`\\]+|[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g;
+
+function escaparTrecho(texto: string): string {
+  return texto.replace(/[\\`*_[\]()<>#!|~&]/g, "\\$&");
+}
+
+/** Início de linha que o Markdown leria como lista, título sublinhado ou bloco de código: sai como texto. */
+function escaparInicioDeLinha(linha: string): string {
+  return linha
+    .replace(/^\s+/, "")
+    .replace(/^([-+=])/, "\\$1")
+    .replace(/^(\d+)([.)])/, "$1\\$2");
+}
+
 /**
  * Texto digitado por gente (observação, título de arquivo) entra no corpo em Markdown e vai para fora da
- * empresa: escapa o que viraria HTML, link, imagem ou formatação, para sair como texto.
+ * empresa: escapa o que viraria HTML, link, imagem ou formatação, para sair como texto. Endereço web ou de
+ * e-mail fica inteiro (vira o link certo), e o início de cada linha não vira lista, título nem código.
  */
 export function escaparMarkdown(texto: string): string {
-  return texto.replace(/[\\`*_[\]()<>#!|~&]/g, "\\$&");
+  return texto
+    .split("\n")
+    .map((linha) => {
+      let saida = "";
+      let ultimo = 0;
+      for (const m of linha.matchAll(ENDERECO)) {
+        saida += escaparTrecho(linha.slice(ultimo, m.index)) + m[0];
+        ultimo = m.index + m[0].length;
+      }
+      return escaparInicioDeLinha(saida + escaparTrecho(linha.slice(ultimo)));
+    })
+    .join("\n");
 }
 
 export function listaEmMarkdown(itens: readonly { rotulo: string }[]): string {

@@ -9,6 +9,7 @@ import {
   separarItens,
   type ItemEnviado,
 } from "./regras";
+import { markdownParaHtml } from "@/lib/email-markdown";
 
 describe("destinatariosValidos", () => {
   it("tira optOut, sem e-mail e formato inválido", () => {
@@ -48,7 +49,30 @@ describe("separarItens", () => {
 describe("escaparMarkdown", () => {
   it("neutraliza HTML, links e formatação vindos de texto livre", () => {
     expect(escaparMarkdown("<a href=x>clique</a>")).toBe("\\<a href=x\\>clique\\</a\\>");
-    expect(escaparMarkdown("[ver](http://x.com) **forte** _it_")).toBe("\\[ver\\]\\(http://x.com\\) \\*\\*forte\\*\\* \\_it\\_");
+    expect(escaparMarkdown("[ver](x) **forte** _it_")).toBe("\\[ver\\]\\(x\\) \\*\\*forte\\*\\* \\_it\\_");
+  });
+
+  it("endereço web e e-mail saem inteiros e viram o link certo", () => {
+    const html = markdownParaHtml(
+      escaparMarkdown("Veja https://hub.x/a/Ab_c?x=1&y=2 e (https://x.com/y). Fale com joao_silva@empresa.com.br"),
+    );
+    expect(html).toContain('href="https://hub.x/a/Ab_c?x=1&y=2"');
+    expect(html).toContain('href="https://x.com/y"');
+    expect(html).toContain('href="mailto:joao_silva@empresa.com.br"');
+    expect(html).not.toContain("%5C");
+  });
+
+  it("endereço não abre brecha para HTML nem para link escondido", () => {
+    const html = markdownParaHtml(escaparMarkdown("https://x.com/<script>alert(1)</script> [a](javascript:alert(1))"));
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain('href="javascript');
+  });
+
+  it("início de linha não vira lista, título nem código", () => {
+    const html = markdownParaHtml(escaparMarkdown("Obs\n---\n1. item\n- outro\n    recuado"));
+    expect(html).not.toMatch(/<h2|<ol|<ul|<pre|<code|<hr/);
+    expect(html).toContain("1. item");
+    expect(html).toContain("- outro");
   });
 
   it("texto comum fica como está", () => {

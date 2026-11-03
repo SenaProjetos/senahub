@@ -45,7 +45,7 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   a ele, escolhida por você, com uma observação opcional.
 - **Conversa só:** cada e-mail responde ao anterior (mesmo assunto), então a caixa do cliente mostra tudo junto. Você recebe uma
   cópia oculta e as respostas do cliente chegam para o seu e-mail.
-- **Novos desde o último:** o sistema separa o que foi enviado depois do último e-mail e deixa já marcado.
+- **Ainda não avisados:** o sistema separa o que nenhum e-mail anterior listou e deixa já marcado.
 - **Registro:** cada envio fica guardado no projeto. O texto é um modelo editável em Configurações → E-mails.
 
 ## Recursos: tela só de leitura, com filtros (novembro/2026)
