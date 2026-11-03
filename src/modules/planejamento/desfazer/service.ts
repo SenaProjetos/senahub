@@ -148,7 +148,8 @@ export async function desfazerUltimoPasso(projetoId: string, userId: string): Pr
           return { ok: false, motivo: MOTIVO_PLANO_MUDOU };
         }
         // Em revisão, marca o plano como alterado (e recusa se travou entre a leitura de cima e aqui): só quando vai gravar.
-        await exigirPlanoEditavel(projetoId);
+        // Na transação: se a restauração falhar, a marca volta junto (a revisão não fica "alterada" sem ter sido).
+        await exigirPlanoEditavel(projetoId, tx);
         await restaurar(tx, projetoId, planoDeRestauracao(atual, antes));
         await apagarCardsDoPasso(tx, projetoId, passo.createdAt);
         await tx.eapPassoDesfazer.delete({ where: { id: passo.id } });

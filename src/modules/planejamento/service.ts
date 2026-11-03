@@ -1,6 +1,8 @@
 import "server-only";
 
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ActionError } from "@/lib/action-error";
 import type { Dia } from "@/lib/calendario-trabalho";
 import { paraDataUtc, paraDia, planoDoProjeto } from "./agenda";
 import { agendar } from "./motor";
@@ -146,86 +148,116 @@ export type ResultadoAprovacao = {
 export async function congelarBaseline(
   projetoId: string,
   autorId: string | null,
-  opcoes: { motivo?: string | null; observacao?: string | null } = {},
+  opcoes: {
+    motivo?: string | null;
+    observacao?: string | null;
+    /**
+     * Roda PRIMEIRO, dentro da transação da linha de base: é onde quem chama "toma" o cronograma com um `updateMany`
+     * condicionado ao estado lido (aprovar: ainda rascunho; nova linha de base: ainda em revisão). A segunda chamada
+     * simultânea espera a primeira e recusa aqui, sem chegar a gravar outra baseline.
+     */
+    travar?: (tx: Prisma.TransactionClient) => Promise<void>;
+  } = {},
 ): Promise<ResultadoAprovacao> {
   const plano = await planoDoProjeto(projetoId);
-  if (!plano) throw new Error("Projeto sem EAP: não há o que congelar.");
+  if (!plano) throw new ActionError("Projeto sem EAP: não há o que congelar.");
 
-  const [tarefas, ultima] = await Promise.all([
-    prisma.eapTarefa.findMany({
-      where: { projetoId },
-      select: {
-        id: true,
-        parentId: true,
-        nome: true,
-        codigoEap: true,
-        progresso: true,
-        atribuicoes: { select: { userId: true, horasPrevistas: true } },
-      },
-    }),
-    prisma.eapBaseline.findFirst({
-      where: { projetoId },
-      orderBy: { numero: "desc" },
-      select: { numero: true },
-    }),
-  ]);
+  // Ordem estável: duas gravações de várias linhas travam as linhas na mesma sequência (sem deadlock entre elas).
+  const tarefas = await prisma.eapTarefa.findMany({
+    where: { projetoId },
+    orderBy: { id: "asc" },
+    select: {
+      id: true,
+      parentId: true,
+      nome: true,
+      codigoEap: true,
+      progresso: true,
+      atribuicoes: { select: { userId: true, horasPrevistas: true } },
+    },
+  });
 
-  const numero = ultima ? ultima.numero + 1 : 0;
   // F7.1: o custo previsto congela junto (VP da F8). Taxa que mudar depois não mexe no combinado.
   const { porLinha: custos } = await custosDoProjeto(plano, tarefas);
 
-  await prisma.$transaction(async (tx) => {
-    const baseline = await tx.eapBaseline.create({
-      data: {
-        projetoId,
-        numero,
-        motivo: opcoes.motivo ?? null,
-        observacao: opcoes.observacao ?? null,
-        autorId,
-      },
-      select: { id: true },
-    });
-
-    await tx.eapBaselineLinha.createMany({
-      data: tarefas.flatMap((t) => {
-        const a = plano.resultado.linhas.get(t.id);
-        if (!a) return [];
-        return [
-          {
-            baselineId: baseline.id,
-            tarefaId: t.id,
-            nome: t.nome,
-            codigoEap: t.codigoEap,
-            inicio: paraDataUtc(a.inicio),
-            fim: paraDataUtc(a.fim),
-            duracaoDias: a.duracaoDias,
-            // Horas combinadas (D23): o "trabalho da linha de base" do MS Project, que o Valor
-            // Agregado (F8) lê. `null` quando a linha não estava estimada ao congelar.
-            trabalhoHoras: a.trabalhoHoras,
-            custoPrevisto: custos.get(t.id)?.custo ?? null,
-            avancoPlanejado: a.progresso,
-            // F8: o Valor Agregado soma só as folhas DESTA baseline (a árvore de hoje pode ser outra).
-            resumo: a.ehResumo,
-          },
-        ];
-      }),
-    });
-
-    // Cache da baseline ATIVA nas colunas antigas, para as telas atuais não quebrarem.
-    // Escrita só aqui, nunca direto — é o que impede virar a segunda fonte de verdade.
-    // Some na troca do caminho de leitura (ver nota no schema).
-    for (const t of tarefas) {
-      const a = plano.resultado.linhas.get(t.id);
-      if (!a) continue;
-      await tx.eapTarefa.update({
-        where: { id: t.id },
-        data: { inicioBaseline: paraDataUtc(a.inicio), fimBaseline: paraDataUtc(a.fim) },
+  // Limite conhecido: o plano e as tarefas são lidos ANTES da transação (o motor lê pelo cliente global). Uma edição
+  // que termina entre essa leitura e o commit fica fora da foto; com a revisão já marcada, a guarda da edição não
+  // toma a trava do cronograma e pode gravar logo depois da nova linha de base. A janela é de segundos e a tela só
+  // oferece a nova linha de base a quem aprova; a próxima revisão a mostra como desvio.
+  let numero = 0;
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (opcoes.travar) await opcoes.travar(tx);
+      // O número sai DEPOIS da trava: lido antes, duas gravações seguidas escolheriam o mesmo.
+      const ultima = await tx.eapBaseline.findFirst({
+        where: { projetoId },
+        orderBy: { numero: "desc" },
+        select: { numero: true },
       });
-    }
-  });
+      numero = ultima ? ultima.numero + 1 : 0;
+      const baseline = await tx.eapBaseline.create({
+        data: {
+          projetoId,
+          numero,
+          motivo: opcoes.motivo ?? null,
+          observacao: opcoes.observacao ?? null,
+          autorId,
+        },
+        select: { id: true },
+      });
+
+      await tx.eapBaselineLinha.createMany({
+        data: tarefas.flatMap((t) => {
+          const a = plano.resultado.linhas.get(t.id);
+          if (!a) return [];
+          return [
+            {
+              baselineId: baseline.id,
+              tarefaId: t.id,
+              nome: t.nome,
+              codigoEap: t.codigoEap,
+              inicio: paraDataUtc(a.inicio),
+              fim: paraDataUtc(a.fim),
+              duracaoDias: a.duracaoDias,
+              // Horas combinadas (D23): o "trabalho da linha de base" do MS Project, que o Valor
+              // Agregado (F8) lê. `null` quando a linha não estava estimada ao congelar.
+              trabalhoHoras: a.trabalhoHoras,
+              custoPrevisto: custos.get(t.id)?.custo ?? null,
+              avancoPlanejado: a.progresso,
+              // F8: o Valor Agregado soma só as folhas DESTA baseline (a árvore de hoje pode ser outra).
+              resumo: a.ehResumo,
+            },
+          ];
+        }),
+      });
+
+      // Cache da baseline ATIVA nas colunas antigas, para as telas atuais não quebrarem.
+      // Escrita só aqui, nunca direto — é o que impede virar a segunda fonte de verdade.
+      // Some na troca do caminho de leitura (ver nota no schema).
+      for (const t of tarefas) {
+        const a = plano.resultado.linhas.get(t.id);
+        if (!a) continue;
+        await tx.eapTarefa.update({
+          where: { id: t.id },
+          data: { inicioBaseline: paraDataUtc(a.inicio), fimBaseline: paraDataUtc(a.fim) },
+        });
+      }
+    },
+    // Um update por linha da EAP, com a linha do cronograma travada: o padrão de 5 s do Prisma não basta para uma EAP grande.
+    { timeout: 60_000 },
+    );
+  } catch (e) {
+    // `@@unique([projetoId, numero])`: outra linha de base deste projeto entrou ao mesmo tempo (quem chama sem `travar`).
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new ActionError(MOTIVO_BASELINE_CONCORRENTE);
+    throw e;
+  }
 
   return { baselineNumero: numero, linhas: tarefas.length };
 }
+
+export const MOTIVO_BASELINE_CONCORRENTE = "Outra linha de base deste projeto foi gravada ao mesmo tempo; recarregue a página e confira.";
+export const MOTIVO_JA_APROVADO = "Este cronograma já está aprovado.";
+export const MOTIVO_NOVA_BASE_SEM_REVISAO =
+  "O planejamento não está mais em revisão (outra pessoa fechou ou cancelou a revisão); recarregue a página e confira.";
 
 /**
  * Aprova o cronograma: valida, congela `BL-00` e libera.
@@ -242,24 +274,31 @@ export async function aprovarCronograma(
     where: { projetoId },
     select: { aprovado: true, inicioProjeto: true },
   });
-  if (cronograma?.aprovado) throw new Error("Este cronograma já está aprovado.");
+  if (cronograma?.aprovado) throw new ActionError(MOTIVO_JA_APROVADO);
   if (!cronograma?.inicioProjeto) {
-    throw new Error("Defina a data de início do projeto antes de aprovar o cronograma.");
+    throw new ActionError("Defina a data de início do projeto antes de aprovar o cronograma.");
   }
 
   const avaliacao = await avaliarQualidade(projetoId);
-  if (!avaliacao) throw new Error("Projeto sem EAP: não há o que aprovar.");
+  if (!avaliacao) throw new ActionError("Projeto sem EAP: não há o que aprovar.");
   const { erro, alerta } = contarPorSeveridade(avaliacao.achados);
   if (erro > 0) {
-    throw new Error(
+    throw new ActionError(
       `Corrija os ${erro} erro(s) de qualidade antes de aprovar — aprovar transforma estas datas no combinado com o cliente.`,
     );
   }
 
-  const r = await congelarBaseline(projetoId, autorId, { motivo: "Aprovação do cronograma." });
-  await prisma.cronogramaProjeto.update({
-    where: { projetoId },
-    data: { aprovado: true, aprovadoEm: new Date(), aprovadoPorId: autorId },
+  // Aprovar e congelar a BL-00 são UMA gravação, condicionada a "ainda rascunho": dois cliques (ou duas pessoas) ao
+  // mesmo tempo aprovam uma vez só — a segunda espera a primeira e recusa com a frase de já aprovado.
+  const r = await congelarBaseline(projetoId, autorId, {
+    motivo: "Aprovação do cronograma.",
+    travar: async (tx) => {
+      const t = await tx.cronogramaProjeto.updateMany({
+        where: { projetoId, aprovado: false },
+        data: { aprovado: true, aprovadoEm: new Date(), aprovadoPorId: autorId },
+      });
+      if (t.count !== 1) throw new ActionError(MOTIVO_JA_APROVADO);
+    },
   });
   // Aprovado, a EAP passa a criar os cards de quem está escalado (D14/D24).
   const cards = await sincronizarCards(prisma, projetoId, autorId);
@@ -290,15 +329,22 @@ export async function replanejar(
     select: { aprovado: true },
   });
   if (!cronograma?.aprovado) {
-    throw new Error("Aprove o cronograma antes de replanejar — não há linha de base para comparar.");
+    throw new ActionError("Aprove o cronograma antes de replanejar — não há linha de base para comparar.");
   }
-  const r = await congelarBaseline(projetoId, autorId, { motivo, observacao: observacao ?? null });
-  // A nova linha de base FECHA a revisão (`trava-plano.ts`): o plano volta a travar sobre o combinado novo.
-  await prisma.cronogramaProjeto.update({
-    where: { projetoId },
-    data: { emRevisao: false, revisaoAbertaEm: null, revisaoAlterada: false },
+  // A nova linha de base FECHA a revisão (`trava-plano.ts`): o plano volta a travar sobre o combinado novo. Fechar e
+  // congelar são UMA gravação, condicionada a "ainda em revisão" — a tela só oferece a nova linha de base durante a
+  // revisão, e dois cliques ao mesmo tempo gravariam duas baselines seguidas com o mesmo motivo.
+  return congelarBaseline(projetoId, autorId, {
+    motivo,
+    observacao: observacao ?? null,
+    travar: async (tx) => {
+      const t = await tx.cronogramaProjeto.updateMany({
+        where: { projetoId, aprovado: true, emRevisao: true },
+        data: { emRevisao: false, revisaoAbertaEm: null, revisaoAlterada: false },
+      });
+      if (t.count !== 1) throw new ActionError(MOTIVO_NOVA_BASE_SEM_REVISAO);
+    },
   });
-  return r;
 }
 
 /** Grava a foto da Saúde do dia. Idempotente: rodar duas vezes no mesmo dia atualiza. */

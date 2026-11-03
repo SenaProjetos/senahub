@@ -837,16 +837,14 @@ export const aprovarCronogramaAction = defineAction(
     schema: projetoIdSchema,
   },
   noEscopoDoProjeto(async (i) => i.projetoId, async (i, ctx) => {
-    try {
-      const r = await aprovarCronograma(i.projetoId, ctx.user.id);
-      // O plano congelou: o que havia para desfazer deixa de valer (e o desfazer só existe com o plano editável).
-      await descartarPassos(i.projetoId);
-      revProjeto(i.projetoId);
-      revalidatePath(`/projetos/${i.projetoId}`);
-      return r;
-    } catch (e) {
-      throw new ActionError(e instanceof Error ? e.message : "Não foi possível aprovar o cronograma.");
-    }
+    // As recusas de negócio já saem como `ActionError`; erro técnico (banco, motor) vira a mensagem genérica do
+    // `defineAction`, em vez de vazar o texto do Prisma para a tela.
+    const r = await aprovarCronograma(i.projetoId, ctx.user.id);
+    // O plano congelou: o que havia para desfazer deixa de valer (e o desfazer só existe com o plano editável).
+    await descartarPassos(i.projetoId);
+    revProjeto(i.projetoId);
+    revalidatePath(`/projetos/${i.projetoId}`);
+    return r;
   }),
 );
 
@@ -868,15 +866,11 @@ export const replanejarCronograma = defineAction(
     }),
   },
   noEscopoDoProjeto(async (i) => i.projetoId, async (i, ctx) => {
-    try {
-      const r = await replanejar(i.projetoId, ctx.user.id, i.motivo, i.observacao || null);
-      // A revisão fechou com nova linha de base: o plano voltou a travar e os passos de antes ficaram para trás.
-      await descartarPassos(i.projetoId);
-      revProjeto(i.projetoId);
-      return r;
-    } catch (e) {
-      throw new ActionError(e instanceof Error ? e.message : "Não foi possível replanejar.");
-    }
+    const r = await replanejar(i.projetoId, ctx.user.id, i.motivo, i.observacao || null);
+    // A revisão fechou com nova linha de base: o plano voltou a travar e os passos de antes ficaram para trás.
+    await descartarPassos(i.projetoId);
+    revProjeto(i.projetoId);
+    return r;
   }),
 );
 

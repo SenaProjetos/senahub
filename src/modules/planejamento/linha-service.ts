@@ -6,7 +6,7 @@ import type { Dia } from "@/lib/calendario-trabalho";
 import { paraDataUtc, paraDia } from "./agenda";
 import { regrasDeEdicao } from "./edicao-linha";
 import { mudaCampoDoPlano } from "./trava-plano";
-import { exigirPlanoEditavel } from "./trava-plano-service";
+import { exigirPlanoEditavel, recusarSePlanoTravado } from "./trava-plano-service";
 import { registrarProgresso } from "./progresso-historico-service";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
 import { propagarDisciplinaNoTx } from "./disciplina-linha-service";
@@ -88,7 +88,10 @@ export async function editarLinhaNoBanco(i: EdicaoLinha, autorId: string): Promi
   // 6a: a propagação grava nas linhas de dentro mesmo quando o agrupamento já está na disciplina (então `mudaPlano` pode
   // ser falso) — com o plano aprovado ela nunca pode passar.
   const pedePropagacao = !!(i.propagarDisciplina && i.disciplinaId);
-  if (mudaPlano || pedePropagacao) await exigirPlanoEditavel(antes.projetoId);
+  // Recusa cedo (antes das outras validações) sem marcar nada; a marca de "o plano mudou na revisão" vai DENTRO da
+  // transação, junto com a gravação: a recusa da contagem da propagação desfaz também a marca.
+  const exigePlano = mudaPlano || pedePropagacao;
+  if (exigePlano) await recusarSePlanoTravado(antes.projetoId);
   if (regra.virouMarco) {
     // Marco não tem dia para espalhar hora: as horas ficariam gravadas e fora de toda
     // conta — carga, custo e rollup — sem ninguém ver.
@@ -123,6 +126,7 @@ export async function editarLinhaNoBanco(i: EdicaoLinha, autorId: string): Promi
   // pelo número que o Valor Agregado publica numa data passada.
   const { linha: t, propagadas } = await prisma.$transaction(
     async (tx) => {
+      if (exigePlano) await exigirPlanoEditavel(antes.projetoId, tx);
       const linha = await tx.eapTarefa.update({
         where: { id: i.id },
         data: {

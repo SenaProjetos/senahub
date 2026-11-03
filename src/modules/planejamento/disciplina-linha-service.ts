@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { divergenciasDeDisciplina, faseQueAcompanha, propagacaoDeDisciplina } from "./disciplina-linha";
 import { herdarResponsaveisNoProjeto } from "./recursos-service";
-import { exigirPlanoEditavel } from "./trava-plano-service";
+import { exigirPlanoEditavel, recusarSePlanoTravado } from "./trava-plano-service";
 
 type Db = Prisma.TransactionClient | typeof prisma;
 
@@ -38,13 +38,16 @@ export async function alinharDisciplinasNoBanco(
   };
   if ((await divergentes(prisma)).lista.length === 0) return { corrigidas: [] };
 
-  await exigirPlanoEditavel(projetoId);
+  await recusarSePlanoTravado(projetoId);
   // Lê DE NOVO dentro da transação e grava só se a linha ainda está na disciplina que se achou errada: edição
   // concorrente (da linha ou do pai) entre a leitura e a gravação não é sobrescrita em silêncio.
   const corrigidas = await prisma.$transaction(
     async (tx) => {
       const feitas: string[] = [];
       const { proprias, lista } = await divergentes(tx);
+      if (lista.length === 0) return feitas;
+      // A marca da revisão vai na mesma transação: só fica se houver o que gravar.
+      await exigirPlanoEditavel(projetoId, tx);
       const fasesDe = new Map<string, Set<string>>();
       for (const d of lista) {
         if (!fasesDe.has(d.esperadaId)) {

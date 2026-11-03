@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ActionError } from "@/lib/action-error";
 import { paraDataUtc, planoDoProjeto } from "./agenda";
 import { ehEtapaDeTerceiro, escolherPrincipal, herdarResponsaveis, linhaGeraCard, tituloDoCard } from "./recursos";
 
@@ -171,7 +172,7 @@ export async function sincronizarCards(
     }),
     db.tarefaStatus.findFirst({ where: { ativo: true }, orderBy: { ordem: "asc" }, select: { id: true } }),
   ]);
-  if (!primeira) throw new Error("Nenhuma coluna de tarefas configurada.");
+  if (!primeira) throw new ActionError("Nenhuma coluna de tarefas configurada.");
   const cardPorLinha = new Map(cards.map((c) => [c.eapTarefaId!, c]));
 
   let criados = 0;
