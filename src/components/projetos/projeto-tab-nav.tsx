@@ -46,7 +46,8 @@ export function ProjetoTabNav({
       {ordem.map((suffix) => {
         const label = ABA_LABEL[suffix as "" | (typeof ABAS_CONFIGURAVEIS)[number]];
         const href = `${base}${suffix}`;
-        const isActive = suffix === "" ? pathname === base : pathname === href;
+        // Sub-rotas (ex.: /coordenacao/sobreposicao) mantêm a aba da seção marcada.
+        const isActive = suffix === "" ? pathname === base : pathname === href || pathname.startsWith(`${href}/`);
         // undefined = não avaliada (Visão Geral/Histórico); false = módulo ainda não usado neste projeto.
         const vazia = conteudoPorAba?.[suffix] === false;
         return (

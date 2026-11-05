@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Boxes } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
@@ -21,7 +21,9 @@ import { ultimaGeracao } from "@/modules/coordenacao/federado/service";
 import { opcoesTarefa } from "@/modules/tarefas/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { rotuloRevisao } from "@/lib/utils";
+import { abaInicialDaCoordenacao } from "@/modules/coordenacao/nav";
 import { EmptyState } from "@/components/ui/empty-state";
+import { NavCoordenacao } from "@/components/coordenacao/nav-coordenacao";
 import { ConversaoStatusView } from "@/components/coordenacao/conversao-status-view";
 import { CoordenacaoView } from "@/components/coordenacao/coordenacao-view";
 import { DashboardCoordenacao } from "@/components/coordenacao/dashboard-coordenacao";
@@ -33,7 +35,7 @@ export default async function CoordenacaoPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ apontamento?: string }>;
+  searchParams: Promise<{ apontamento?: string; "3d"?: string }>;
 }) {
   const user = await requirePermission("coordenacao", "ver");
   const { id } = await params;
@@ -55,13 +57,22 @@ export default async function CoordenacaoPage({
     ultimaGeracao(id),
   ]);
 
+  // Sem nenhum IFC (EP típico) a Coordenação abre na Sobreposição 2D. O param se chama
+  // `temIfcConvertido` no contrato da nav, mas aqui vale "há algum modelo IFC": com IFC ainda em
+  // conversão fica no 3D, que é onde essa conversão aparece.
+  const aba = abaInicialDaCoordenacao({ temIfcConvertido: modelos.length > 0, pediu3d: sp["3d"] === "1" });
+  if (aba === "sobreposicao") redirect(`/projetos/${id}/coordenacao/sobreposicao`);
+
   if (modelos.length === 0) {
     return (
-      <EmptyState
-        icon={Boxes}
-        title="Nenhum modelo IFC neste projeto"
-        description="Envie o modelo .ifc de cada disciplina na aba Arquivos para montar a maquete federada."
-      />
+      <div className="space-y-4">
+        <NavCoordenacao projetoId={id} />
+        <EmptyState
+          icon={Boxes}
+          title="Nenhum modelo IFC neste projeto"
+          description="Envie o modelo .ifc de cada disciplina na aba Arquivos para montar a maquete federada."
+        />
+      </div>
     );
   }
 
@@ -112,6 +123,7 @@ export default async function CoordenacaoPage({
 
   return (
     <div className="space-y-6">
+      <NavCoordenacao projetoId={id} />
       {temConvertido ? (
         <CoordenacaoView
           modelos={rows}
