@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   aplicar,
+  caixaAplicada,
   compor,
   DISTANCIA_MINIMA,
   encaixeInicial,
@@ -124,5 +125,25 @@ describe("transformação do alinhamento", () => {
   it("compor devolve giro normalizado", () => {
     const c = compor({ tx: 0, ty: 0, giro: 170, escala: 1 }, { tx: 0, ty: 0, giro: 170, escala: 1 });
     expect(c.giro).toBeCloseTo(-20, 9);
+  });
+});
+
+describe("caixaAplicada", () => {
+  const caixa = { minX: 0, minY: 0, maxX: 100, maxY: 50 };
+
+  it("identidade devolve a mesma caixa", () => {
+    expect(caixaAplicada(IDENTIDADE, caixa)).toEqual(caixa);
+  });
+
+  it("escala e translação movem os cantos", () => {
+    expect(caixaAplicada({ tx: 10, ty: 20, giro: 0, escala: 2 }, caixa)).toEqual({ minX: 10, minY: 20, maxX: 210, maxY: 120 });
+  });
+
+  it("giro de 90° troca largura por altura (caixa dos quatro cantos)", () => {
+    const c = caixaAplicada({ tx: 0, ty: 0, giro: 90, escala: 1 }, caixa);
+    expect(c.minX).toBeCloseTo(-50, 9);
+    expect(c.maxX).toBeCloseTo(0, 9);
+    expect(c.minY).toBeCloseTo(0, 9);
+    expect(c.maxY).toBeCloseTo(100, 9);
   });
 });

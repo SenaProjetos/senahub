@@ -106,3 +106,16 @@ export function encaixeInicial(caixaCamada: Caixa, caixaMundo: Caixa): Alinhamen
   const cMundo = { x: (caixaMundo.minX + caixaMundo.maxX) / 2, y: (caixaMundo.minY + caixaMundo.maxY) / 2 };
   return { tx: cMundo.x - escala * cCamada.x, ty: cMundo.y - escala * cCamada.y, giro: 0, escala };
 }
+
+/** Caixa (alinhada aos eixos) dos quatro cantos de `c` depois de `aplicar(a, …)`. */
+export function caixaAplicada(a: Alinhamento, c: Caixa): Caixa {
+  const cantos = [
+    aplicar(a, { x: c.minX, y: c.minY }),
+    aplicar(a, { x: c.maxX, y: c.minY }),
+    aplicar(a, { x: c.minX, y: c.maxY }),
+    aplicar(a, { x: c.maxX, y: c.maxY }),
+  ];
+  const xs = cantos.map((p) => p.x);
+  const ys = cantos.map((p) => p.y);
+  return { minX: Math.min(...xs), minY: Math.min(...ys), maxX: Math.max(...xs), maxY: Math.max(...ys) };
+}

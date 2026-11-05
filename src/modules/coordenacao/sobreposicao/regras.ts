@@ -1,6 +1,6 @@
 // Regras puras da sobreposição 2D. Sem I/O, sem Prisma/Next/node:* — roda também no navegador.
 import type { Primitiva } from "@/modules/dwg/parse";
-import { aplicar, inverter, type Alinhamento, type Ponto } from "./transformacao";
+import { IDENTIDADE, aplicar, encaixeInicial, inverter, type Alinhamento, type Caixa, type Ponto } from "./transformacao";
 
 export type Formato = "pdf" | "dwg";
 
@@ -124,4 +124,19 @@ export function motivoParaNaoRemover(camada: { base: boolean }, totalCamadas: nu
     return "Defina outra camada como base antes de remover esta.";
   }
   return null;
+}
+
+/**
+ * Alinhamento com que a camada é desenhada: o salvo do formato em uso; sem ele, a base fica no lugar
+ * (ela define o mundo) e as demais começam com a caixa delas encaixada na do mundo.
+ */
+export function alinhamentoEfetivo(
+  camada: { formato: Formato; base: boolean; alinhamentos: Partial<Record<Formato, { alinhamento: Alinhamento }>> },
+  caixaMundo: Caixa,
+  caixaNativa: Caixa,
+): Alinhamento {
+  const salvo = camada.alinhamentos[camada.formato];
+  if (salvo) return salvo.alinhamento;
+  if (camada.base) return IDENTIDADE;
+  return encaixeInicial(caixaNativa, caixaMundo);
 }

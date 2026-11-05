@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Primitiva } from "@/modules/dwg/parse";
-import { IDENTIDADE, type Alinhamento } from "./transformacao";
+import { IDENTIDADE, encaixeInicial, type Alinhamento, type Caixa } from "./transformacao";
 import {
   COR_BASE,
   LAYER_ARQUITETURA,
   PALETA_CAMADAS,
+  alinhamentoEfetivo,
   arquivoVigente,
   corSugerida,
   ehLayerArquitetura,
@@ -168,5 +169,38 @@ describe("motivoParaNaoRemover", () => {
   it("base sozinha ou camada comum pode", () => {
     expect(motivoParaNaoRemover({ base: true }, 1)).toBeNull();
     expect(motivoParaNaoRemover({ base: false }, 3)).toBeNull();
+  });
+});
+
+describe("alinhamentoEfetivo", () => {
+  const mundo: Caixa = { minX: 0, minY: 0, maxX: 1000, maxY: 700 };
+  const nativa: Caixa = { minX: -50, minY: -20, maxX: 50, maxY: 50 };
+  const salvo: Alinhamento = { tx: 12, ty: -4, giro: 30, escala: 2.5 };
+  const camada = (formato: "pdf" | "dwg", base: boolean, alinhamentos: Partial<Record<"pdf" | "dwg", { alinhamento: Alinhamento }>>) => ({
+    formato,
+    base,
+    alinhamentos,
+  });
+
+  it("usa o alinhamento salvo do formato em uso", () => {
+    expect(alinhamentoEfetivo(camada("dwg", false, { dwg: { alinhamento: salvo } }), mundo, nativa)).toEqual(salvo);
+  });
+
+  it("o alinhamento do OUTRO formato não vale: cai no encaixe inicial", () => {
+    expect(alinhamentoEfetivo(camada("dwg", false, { pdf: { alinhamento: salvo } }), mundo, nativa)).toEqual(
+      encaixeInicial(nativa, mundo),
+    );
+  });
+
+  it("camada sem alinhamento encaixa a caixa dela na do mundo", () => {
+    expect(alinhamentoEfetivo(camada("pdf", false, {}), mundo, nativa)).toEqual(encaixeInicial(nativa, mundo));
+  });
+
+  it("base sem alinhamento define o mundo: identidade", () => {
+    expect(alinhamentoEfetivo(camada("pdf", true, {}), mundo, nativa)).toEqual(IDENTIDADE);
+  });
+
+  it("base com alinhamento salvo usa o salvo", () => {
+    expect(alinhamentoEfetivo(camada("pdf", true, { pdf: { alinhamento: salvo } }), mundo, nativa)).toEqual(salvo);
   });
 });
