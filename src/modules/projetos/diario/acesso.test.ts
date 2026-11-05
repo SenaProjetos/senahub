@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
+import { podeEscreverNaCoordenacao, podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
 
 describe("diario/acesso", () => {
   describe("podeEscreverNoDiario", () => {
@@ -11,6 +11,18 @@ describe("diario/acesso", () => {
     });
     it("quem atua em disciplina alheia escreve mesmo sem ser responsável", () => {
       expect(podeEscreverNoDiario({ atuaEmDisciplinaAlheia: true, ehResponsavelDaDisciplina: false })).toBe(true);
+    });
+  });
+
+  describe("podeEscreverNaCoordenacao", () => {
+    it("coordenador do projeto escreve", () => {
+      expect(podeEscreverNaCoordenacao({ atuaEmDisciplinaAlheia: false, ehCoordenadorDoProjeto: true })).toBe(true);
+    });
+    it("projetista comum não escreve", () => {
+      expect(podeEscreverNaCoordenacao({ atuaEmDisciplinaAlheia: false, ehCoordenadorDoProjeto: false })).toBe(false);
+    });
+    it("quem atua em disciplina alheia escreve mesmo sem ser coordenador", () => {
+      expect(podeEscreverNaCoordenacao({ atuaEmDisciplinaAlheia: true, ehCoordenadorDoProjeto: false })).toBe(true);
     });
   });
 

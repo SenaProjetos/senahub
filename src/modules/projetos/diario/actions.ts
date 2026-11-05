@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { criarEntradaDiarioSchema, editarEntradaDiarioSchema } from "./schemas";
-import { podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
-import { ultimasEntradasDisciplina } from "./queries";
+import { criarEntradaCoordenacaoSchema, criarEntradaDiarioSchema, editarEntradaDiarioSchema } from "./schemas";
+import { podeEscreverNaCoordenacao, podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
+import { ehCoordenadorDoProjeto, ultimasEntradasDisciplina } from "./queries";
 import { escopoProjeto } from "@/modules/projetos/queries";
 
 import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
@@ -43,14 +43,53 @@ export const criarEntradaDiario = defineAction(
   },
 );
 
+/** Projeto visível para a pessoa (escopo de dados) — entrada de projeto fora dele "não existe". */
+async function projetoNoEscopo(user: Parameters<typeof escopoProjeto>[0], projetoId: string): Promise<boolean> {
+  const projeto = await prisma.projeto.findFirst({ where: { id: projetoId, AND: [escopoProjeto(user)] }, select: { id: true } });
+  return !!projeto;
+}
+
+/** Entrada do diário da coordenação: sem disciplina, vale para o projeto inteiro. */
+export const criarEntradaCoordenacao = defineAction(
+  {
+    ...base,
+    // Mesmo par da página da aba (`projetos:diario`), não só `projetos:ver`.
+    permissao: "diario",
+    acao: "criar-entrada-coordenacao",
+    interno: true,
+    schema: criarEntradaCoordenacaoSchema,
+    entidadeId: (d) => (d as { projetoId: string }).projetoId,
+  },
+  async (i, { user }) => {
+    if (!(await projetoNoEscopo(user, i.projetoId))) throw new ActionError("Projeto não encontrado.");
+    const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(user);
+    const coordenador = await ehCoordenadorDoProjeto(user, i.projetoId);
+    if (!podeEscreverNaCoordenacao({ atuaEmDisciplinaAlheia, ehCoordenadorDoProjeto: coordenador })) {
+      throw new ActionError("Só o coordenador do projeto (ou quem coordena as disciplinas) pode escrever no diário da coordenação.");
+    }
+    const entrada = await prisma.diarioEntrada.create({
+      data: {
+        projetoId: i.projetoId,
+        disciplinaId: null,
+        autorId: user.id,
+        data: new Date(`${i.data}T00:00:00.000Z`),
+        texto: i.texto,
+      },
+      select: { id: true },
+    });
+    revalidatePath(`/projetos/${i.projetoId}/diario`);
+    return { id: entrada.id, projetoId: i.projetoId };
+  },
+);
+
 export const editarEntradaDiario = defineAction(
-  { ...base, acao: "editar-entrada-diario", schema: editarEntradaDiarioSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
+  { ...base, permissao: "diario", interno: true, acao: "editar-entrada-diario", schema: editarEntradaDiarioSchema, entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (i, { user }) => {
     const entrada = await prisma.diarioEntrada.findUnique({
       where: { id: i.id },
       select: { autorId: true, projetoId: true },
     });
-    if (!entrada) throw new ActionError("Entrada não encontrada.");
+    if (!entrada || !(await projetoNoEscopo(user, entrada.projetoId))) throw new ActionError("Entrada não encontrada.");
     const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(user);
     if (!podeGerirEntrada({ userId: user.id, atuaEmDisciplinaAlheia, autorId: entrada.autorId })) {
       throw new ActionError("Só o autor (ou quem coordena as disciplinas) pode editar esta entrada.");
@@ -62,13 +101,13 @@ export const editarEntradaDiario = defineAction(
 );
 
 export const excluirEntradaDiario = defineAction(
-  { ...base, acao: "excluir-entrada-diario", schema: z.object({ id: z.string().min(1) }), entidadeId: (d) => (d as { projetoId: string }).projetoId },
+  { ...base, permissao: "diario", interno: true, acao: "excluir-entrada-diario", schema: z.object({ id: z.string().min(1) }), entidadeId: (d) => (d as { projetoId: string }).projetoId },
   async (i, { user }) => {
     const entrada = await prisma.diarioEntrada.findUnique({
       where: { id: i.id },
       select: { autorId: true, projetoId: true },
     });
-    if (!entrada) throw new ActionError("Entrada não encontrada.");
+    if (!entrada || !(await projetoNoEscopo(user, entrada.projetoId))) throw new ActionError("Entrada não encontrada.");
     const atuaEmDisciplinaAlheia = await podeAtuarEmDisciplinaAlheia(user);
     if (!podeGerirEntrada({ userId: user.id, atuaEmDisciplinaAlheia, autorId: entrada.autorId })) {
       throw new ActionError("Só o autor (ou quem coordena as disciplinas) pode excluir esta entrada.");

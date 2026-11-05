@@ -201,6 +201,18 @@ validações, revisões, tarefas e diário, um card por disciplina.
 - **Botão direito no espaço vazio da página:** adicionar disciplina, adicionar do catálogo e
   filtrar por status — as mesmas opções do ⋯ ao lado de **Adicionar disciplina**.
 
+### Aba Diário: coordenação e disciplinas
+
+A aba **Diário** tem dois tipos de registro, cada um com data e texto:
+
+- **Coordenação** (o primeiro card): decisões e análises da coordenação que valem para o projeto
+  inteiro. Só escreve o **coordenador do projeto** (papel Coordenador na equipe ou perfil de acesso
+  de coordenação) ou quem coordena as disciplinas. A equipe inteira lê.
+- **Um card por disciplina**: os projetistas responsáveis registram os passos da disciplina.
+
+Em qualquer card, o autor edita ou exclui o próprio registro, e quem coordena as disciplinas edita
+ou exclui qualquer um. O cliente nunca vê o diário.
+
 ### Organizar a Visão Geral
 
 Em uma tela ampla, use **Personalizar painel** para ajustar a Visão Geral à sua rotina.

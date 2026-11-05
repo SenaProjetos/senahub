@@ -16,6 +16,17 @@ export function podeEscreverNoDiario(params: {
   return params.atuaEmDisciplinaAlheia || params.ehResponsavelDaDisciplina;
 }
 
+/**
+ * Pode escrever no diário da COORDENAÇÃO (entrada sem disciplina, vale para o projeto inteiro):
+ * coordenador do projeto (`ehCoordenador`: papel no projeto ou perfil) OU atua em disciplina alheia.
+ */
+export function podeEscreverNaCoordenacao(params: {
+  atuaEmDisciplinaAlheia: boolean;
+  ehCoordenadorDoProjeto: boolean;
+}): boolean {
+  return params.atuaEmDisciplinaAlheia || params.ehCoordenadorDoProjeto;
+}
+
 /** Pode editar/excluir uma entrada: autor dela OU atua em disciplina alheia. */
 export function podeGerirEntrada(params: {
   userId: string;

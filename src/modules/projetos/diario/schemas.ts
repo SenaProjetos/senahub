@@ -7,6 +7,13 @@ export const criarEntradaDiarioSchema = z.object({
   texto: z.string().trim().min(1, "Escreva a evolução do dia.").max(5000),
 });
 
+/** Nova entrada do diário da coordenação (sem disciplina — vale para o projeto inteiro). */
+export const criarEntradaCoordenacaoSchema = z.object({
+  projetoId: z.string().min(1),
+  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."),
+  texto: z.string().trim().min(1, "Escreva a decisão ou análise.").max(5000),
+});
+
 export const editarEntradaDiarioSchema = z.object({
   id: z.string().min(1),
   texto: z.string().trim().min(1, "Escreva a evolução do dia.").max(5000),

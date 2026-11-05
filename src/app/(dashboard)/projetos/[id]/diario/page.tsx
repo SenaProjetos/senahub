@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { projetoVisivel } from "@/modules/planejamento/queries";
-import { diarioDoProjeto } from "@/modules/projetos/diario/queries";
+import { diarioCoordenacao, diarioDoProjeto } from "@/modules/projetos/diario/queries";
 import { DiarioView } from "@/components/projetos/diario-view";
 
 export const metadata: Metadata = { title: "Diário — projeto" };
@@ -18,7 +18,7 @@ export default async function DiarioProjetoPage({ params }: { params: Promise<{ 
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
 
-  const disciplinas = await diarioDoProjeto(user, id);
+  const [disciplinas, coordenacao] = await Promise.all([diarioDoProjeto(user, id), diarioCoordenacao(user, id)]);
 
-  return <DiarioView disciplinas={disciplinas} projetoId={id} />;
+  return <DiarioView disciplinas={disciplinas} coordenacao={coordenacao} projetoId={id} />;
 }

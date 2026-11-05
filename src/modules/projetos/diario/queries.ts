@@ -1,7 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
-import { podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
+import { podeEscreverNaCoordenacao, podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
+import { ehCoordenador } from "@/modules/projetos/papeis";
 import type { SessionUser } from "@/lib/session";
 
 export type EntradaDiario = {
@@ -63,7 +64,7 @@ export async function diarioDoProjeto(user: SessionUser, projetoId: string): Pro
       podeEscrever: podeEscreverNoDiario({ atuaEmDisciplinaAlheia, ehResponsavelDaDisciplina: ehResp }),
       entradas: d.diarioEntradas.map((e) => ({
         id: e.id,
-        disciplinaId: e.disciplinaId,
+        disciplinaId: d.id,
         data: e.data.toISOString().slice(0, 10),
         texto: e.texto,
         autorId: e.autorId,
@@ -75,6 +76,57 @@ export async function diarioDoProjeto(user: SessionUser, projetoId: string): Pro
       })),
     };
   });
+}
+
+export type EntradaCoordenacao = Omit<EntradaDiario, "disciplinaId">;
+
+export type DiarioCoordenacao = {
+  podeEscrever: boolean;
+  entradas: EntradaCoordenacao[];
+};
+
+/** Coordenador DESTE projeto: papel `coordenador` como membro OU perfil de acesso coordenador. */
+export async function ehCoordenadorDoProjeto(user: SessionUser, projetoId: string): Promise<boolean> {
+  const membro = await prisma.projetoMembro.findFirst({ where: { projetoId, userId: user.id }, select: { papel: true } });
+  return ehCoordenador({ papelNoProjeto: membro?.papel ?? null, perfilChave: user.perfilChave });
+}
+
+/**
+ * Diário da coordenação: entradas SEM disciplina (decisões e análises que valem para o projeto
+ * inteiro). Visibilidade do projeto garantida pelo caller, como em `diarioDoProjeto`.
+ */
+export async function diarioCoordenacao(user: SessionUser, projetoId: string): Promise<DiarioCoordenacao> {
+  const [entradas, atuaEmDisciplinaAlheia, coordenador] = await Promise.all([
+    prisma.diarioEntrada.findMany({
+      where: { projetoId, disciplinaId: null },
+      orderBy: [{ data: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        data: true,
+        texto: true,
+        autorId: true,
+        createdAt: true,
+        updatedAt: true,
+        autor: { select: { name: true, image: true } },
+      },
+    }),
+    podeAtuarEmDisciplinaAlheia(user),
+    ehCoordenadorDoProjeto(user, projetoId),
+  ]);
+  return {
+    podeEscrever: podeEscreverNaCoordenacao({ atuaEmDisciplinaAlheia, ehCoordenadorDoProjeto: coordenador }),
+    entradas: entradas.map((e) => ({
+      id: e.id,
+      data: e.data.toISOString().slice(0, 10),
+      texto: e.texto,
+      autorId: e.autorId,
+      autorNome: e.autor.name,
+      autorImage: e.autor.image,
+      editado: e.updatedAt.getTime() - e.createdAt.getTime() > 1000,
+      criadoEm: e.createdAt.toISOString(),
+      podeGerir: podeGerirEntrada({ userId: user.id, atuaEmDisciplinaAlheia, autorId: e.autorId }),
+    })),
+  };
 }
 
 export type UltimaEntradaDiario = {
