@@ -258,24 +258,29 @@ model SobreposicaoAlinhamento {
 
 ---
 
-### Task 5: Entrada na aba Coordenação e rota da tela
+### Task 5: Abas internas da Coordenação e rota da tela
+
+Decisão do dono (2026-11-05): a aba Coordenação ganha duas abas internas, **Modelo 3D (IFC)** | **Sobreposição 2D**, cada
+uma com seu endereço. Com IFC convertido o padrão é o Modelo 3D, que fica exatamente como hoje. Sem IFC (EP típico) a
+aba Coordenação abre na Sobreposição 2D. O IFC não vira camada da sobreposição.
 
 **Files:**
-- Modify: `src/app/(dashboard)/projetos/[id]/coordenacao/page.tsx` — cartão "Sobreposição 2D" **antes** do `EmptyState` de "Nenhum modelo IFC", para aparecer no EP sem IFC
-- Create: `src/components/coordenacao/sobreposicao/cartao-sobreposicoes.tsx` (lista os pavimentos com link, "Nova sobreposição" para quem gere)
-- Create: `src/components/coordenacao/sobreposicao/nova-sobreposicao-dialog.tsx` (`FormData`, só o nome)
+- Create: `src/components/coordenacao/nav-coordenacao.tsx` — duas abas (links), a ativa pela rota; renderizada logo DEPOIS do `CabecalhoPagina` de cada página (nunca antes dele)
+- Modify: `src/app/(dashboard)/projetos/[id]/coordenacao/page.tsx` — sem IFC convertido E sem `?3d=1` → `redirect` para `/projetos/[id]/coordenacao/sobreposicao`; com IFC, nada muda além da `NavCoordenacao` no topo. O link "Modelo 3D (IFC)" da nav leva `?3d=1`, para o projeto sem IFC ainda mostrar o "Nenhum modelo IFC" de hoje
 - Create: `src/app/(dashboard)/projetos/[id]/coordenacao/sobreposicao/page.tsx` — `?s=<id>`; sem `s` abre a primeira; sem nenhuma, `EmptyState` com "Nova sobreposição"
+- Create: `src/components/coordenacao/sobreposicao/nova-sobreposicao-dialog.tsx` (`FormData`, só o nome)
 - Create: `src/modules/coordenacao/sobreposicao/acoes.ts` + `acoes.test.ts` — `itensDaSobreposicao({ podeGerir })` (renomear, excluir com confirmação) e `itensDaCamada({ podeGerir, base, formato, temPdf, temDwg, totalCamadas })` (definir como base, usar PDF/DWG, alinhar, remover desabilitado com o motivo de `motivoParaNaoRemover`)
+- Create: `src/modules/coordenacao/nav.ts` + `nav.test.ts` — `abaInicialDaCoordenacao({ temIfcConvertido: boolean, pediu3d: boolean }): "3d" | "sobreposicao"` (pura) e a lista das 2 abas com `href`; teste que cada `href` tem `page.tsx`, no molde de `financeiro/nav.ts`
 
 **Interfaces:**
 - Consumes: `sobreposicoesDoProjeto`, `cenaDaSobreposicao`, `documentosParaCamada`, actions da Task 4.
 - Produces: a página entrega `CenaSobreposicao` + `documentos` para `SobreposicaoView` (Task 6) via `next/dynamic({ ssr: false })`.
 
-- [ ] **Step 1:** Testes de `acoes.test.ts`: sem `podeGerir` → nenhum item de escrita; base → "Definir como base" omitido; camada só com PDF → "Usar o DWG" desabilitado com `"Este documento não tem arquivo DWG vigente."`; remover a base com 2 camadas → desabilitado com o motivo.
-- [ ] **Step 2:** `npx vitest run src/modules/coordenacao/sobreposicao/acoes.test.ts` → FAIL; implementar; → PASS.
-- [ ] **Step 3:** Página e cartão. A página abre com `CabecalhoPagina` (título "Sobreposição 2D", uma frase de descrição, ações: seletor de pavimento e "Nova sobreposição"). Gate: `requirePermission("coordenacao", "ver")` + `projetoVisivel`.
+- [ ] **Step 1:** Testes de `nav.test.ts` (sem IFC e sem `?3d=1` → `"sobreposicao"`; com IFC → `"3d"`; sem IFC com `?3d=1` → `"3d"`) e de `acoes.test.ts`: sem `podeGerir` → nenhum item de escrita; base → "Definir como base" omitido; camada só com PDF → "Usar o DWG" desabilitado com `"Este documento não tem arquivo DWG vigente."`; remover a base com 2 camadas → desabilitado com o motivo.
+- [ ] **Step 2:** `npx vitest run src/modules/coordenacao/sobreposicao/acoes.test.ts src/modules/coordenacao/nav.test.ts` → FAIL; implementar; → PASS.
+- [ ] **Step 3:** Páginas e nav. Conferir na tela que o 3D de um projeto com IFC fica igual ao de antes (mesma posição, sem nada acima além da nav). A página abre com `CabecalhoPagina` (título "Sobreposição 2D", uma frase de descrição, ações: seletor de pavimento e "Nova sobreposição"). Gate: `requirePermission("coordenacao", "ver")` + `projetoVisivel`.
 - [ ] **Step 4:** `npm run lint` e `npm test` → verdes.
-- [ ] **Step 5: Commit** `feat(coordenacao): entrada da sobreposição 2D na aba Coordenação`
+- [ ] **Step 5: Commit** `feat(coordenacao): abas Modelo 3D e Sobreposição 2D na Coordenação`
 
 ---
 

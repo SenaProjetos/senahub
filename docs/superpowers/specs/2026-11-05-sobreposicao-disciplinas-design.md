@@ -60,7 +60,7 @@ sobreposição tingida, cortina, diferenças), estendido para mais de 2 arquivos
 
 ### Onde fica e quem pode
 
-- Uma seção **"Sobreposição 2D"** na aba **Coordenação** do projeto (`/projetos/[id]/coordenacao`). *Chamada minha.*
+- A aba **Coordenação** do projeto ganha duas abas internas, **Modelo 3D (IFC)** | **Sobreposição 2D**, cada uma com seu endereço (decisão do dono, 2026-11-05). Com IFC convertido (da disciplina ou recebido do cliente) abre no Modelo 3D, igual a hoje; sem IFC abre na Sobreposição 2D. O IFC não vira camada da sobreposição, e os apontamentos 3D (`ApontamentoCoordenacao`) e 2D (`Pendencia` na prancha) continuam separados.
 - Ver: `coordenacao:ver` + enxergar o projeto (`projetoVisivel`), o mesmo gate da aba.
 - Montar, alinhar, trocar arquivo e excluir: `coordenacao:gerir`.
 - Apontar interferência: `coordenacao:gerir` **e** o gate que `criarPendencia` já exige (`uploads:validar`). O apontamento
@@ -201,7 +201,6 @@ N vezes e o modo Cruzamentos acusaria quase tudo.
 
 ## O que conferir com o dono (chamadas minhas)
 
-- Aba Coordenação como lugar da função.
 - "Diferenças" virou **Cruzamentos** (tinta das duas disciplinas no mesmo lugar).
 - A base pode receber apontamento? Proposta: **sim**. Se a arquitetura é quem deve mudar, o coordenador escolhe a base.
 - `SENA_ARQ` escondido nas camadas que não são a base, mostrado em cinza só enquanto se alinha; PDF só esconde se tiver layers.
