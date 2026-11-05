@@ -36,6 +36,15 @@ describe("destinoNoCiclo", () => {
     });
   });
 
+  it("em análise com os arquivos só na lixeira: a recusa diz onde eles estão", () => {
+    expect(destinoNoCiclo({ ultima: ultima("compartilhado"), revisaoDoEnvio: null, arquivosNaLixeira: true })).toEqual({
+      tipo: "recusar",
+      motivo: "A R01 está em análise e os arquivos dela estão na lixeira. Restaure-os, ou exclua-os em definitivo, para enviar arquivos.",
+    });
+    // Fora de análise a lixeira não muda nada.
+    expect(destinoNoCiclo({ ultima: ultima("publicado"), revisaoDoEnvio: null, arquivosNaLixeira: true }).tipo).toBe("nova_revisao");
+  });
+
   it("publicada ou arquivada: nasce a revisão seguinte (I2 — publicado não recebe arquivo)", () => {
     expect(destinoNoCiclo({ ultima: ultima("publicado"), revisaoDoEnvio: null })).toEqual({ tipo: "nova_revisao", numero: 3, versao: 1 });
     expect(destinoNoCiclo({ ultima: ultima("arquivado"), revisaoDoEnvio: "r2" })).toEqual({ tipo: "nova_revisao", numero: 3, versao: 1 });

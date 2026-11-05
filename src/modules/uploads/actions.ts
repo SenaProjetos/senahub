@@ -30,6 +30,7 @@ import { expiraAceiteEm, linkAceiteEstaAtivo } from "@/modules/uploads/aceite";
 import { registrarEventoDocumento, registrarEventoUploads } from "@/modules/uploads/historico/service";
 import { exigirEscopoDocumento } from "@/modules/uploads/escopo-documento";
 import {
+  devolverRevisoesSemArquivo,
   documentosPendentesDePublicacao,
   motivoBloqueioDosUploads,
   motivoExclusaoProtegida,
@@ -1105,6 +1106,7 @@ export const excluirUploadDefinitivo = defineAction(
         excluidoEm: true,
         disciplinaId: true,
         documentoId: true,
+        revisaoId: true,
         versao: true,
         disciplina: { select: { projetoId: true, responsaveis: { select: { userId: true } } } },
         conversao: { select: { caminhoFrag: true } },
@@ -1118,6 +1120,9 @@ export const excluirUploadDefinitivo = defineAction(
 
     // Cascata (schema): remove Pendencia, AceiteCliente e ConversaoModelo vinculados.
     await prisma.upload.delete({ where: { id: upload.id } });
+    // Revisão em análise que ficou sem arquivo nenhum volta para em andamento — senão trava o próximo envio.
+    // Logo depois do delete, antes do resto: a falha de um passo seguinte não pode deixar a revisão presa.
+    await devolverRevisoesSemArquivo([upload.revisaoId]);
     // Depois do delete o Upload já não resolve o documento — por isso o id veio no select acima.
     if (upload.documentoId) {
       await registrarEventoDocumento({

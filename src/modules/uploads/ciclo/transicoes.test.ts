@@ -66,6 +66,13 @@ describe("tabela de transições", () => {
     expect(motivoParaNaoTransicionar("substituir", r("publicado"), pessoa)).toMatch(/só pelo sistema/);
   });
 
+  it("o sistema devolve revisão em análise (ficou sem arquivo), com motivo e respeitando o bloqueio", () => {
+    expect(motivoParaNaoTransicionar("devolver", r("compartilhado"), { ator: "sistema", motivo: "x" })).toBeNull();
+    expect(motivoParaNaoTransicionar("devolver", r("compartilhado"), { ator: "sistema" })).toBe(MOTIVO_EXIGE_MOTIVO);
+    expect(motivoParaNaoTransicionar("devolver", r("compartilhado", { bloqueada: true }), { ator: "sistema", motivo: "x" })).toBe(MOTIVO_BLOQUEADA);
+    expect(motivoParaNaoTransicionar("devolver", r("publicado"), { ator: "sistema", motivo: "x" })).toMatch(/nova revisão/);
+  });
+
   it("documento fora do ciclo não transiciona", () => {
     expect(motivoParaNaoTransicionar("enviar_analise", r("em_andamento", { participa: false }), pessoa)).toBe(MOTIVO_FORA_DO_CICLO_ACAO);
   });

@@ -17,7 +17,9 @@ type Regra = { de: readonly EstadoRevisao[]; para: EstadoRevisao; ator: readonly
 /** A tabela. O que não está aqui não existe — inclusive qualquer saída de `publicado` que não seja arquivar. */
 export const TRANSICOES: Record<AcaoCiclo, Regra> = {
   enviar_analise: { de: ["em_andamento"], para: "compartilhado", ator: ["pessoa"], exigeMotivo: false },
-  devolver: { de: ["compartilhado"], para: "em_andamento", ator: ["pessoa"], exigeMotivo: true },
+  // O sistema também devolve: revisão em análise que ficou sem nenhum arquivo (exclusão definitiva)
+  // volta para em andamento, senão o documento trava todo envio novo (`devolverRevisoesSemArquivo`).
+  devolver: { de: ["compartilhado"], para: "em_andamento", ator: ["pessoa", "sistema"], exigeMotivo: true },
   publicar: { de: ["compartilhado"], para: "publicado", ator: ["pessoa"], exigeMotivo: false },
   // Arquivar à mão: documento cancelado/obsoleto. Só uma revisão publicada (a aberta se devolve).
   arquivar: { de: ["publicado"], para: "arquivado", ator: ["pessoa"], exigeMotivo: true },
@@ -36,6 +38,8 @@ export const ROTULO_ACAO: Record<AcaoCiclo, string> = {
 export const MOTIVO_MUDOU = "A revisão mudou enquanto você decidia. Recarregue a página e tente de novo.";
 export const MOTIVO_EXIGE_MOTIVO = "Informe o motivo.";
 export const MOTIVO_BLOQUEADA = "Esta revisão está bloqueada. Remova o bloqueio antes de mudar o estado.";
+/** Motivo da devolução automática da revisão em análise que ficou sem arquivo (`devolverRevisoesSemArquivo`). */
+export const MOTIVO_REVISAO_SEM_ARQUIVO = "Os arquivos da revisão foram excluídos em definitivo.";
 export const MOTIVO_FORA_DO_CICLO_ACAO = "Este arquivo não participa do ciclo documental.";
 
 /** Validação de arquivo numa revisão publicada ou arquivada: a mesma frase no menu e no servidor. */

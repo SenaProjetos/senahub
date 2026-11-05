@@ -17,6 +17,7 @@ import {
 } from "./regras";
 import {
   MOTIVO_MUDOU,
+  MOTIVO_REVISAO_SEM_ARQUIVO,
   TRANSICOES,
   motivoParaNaoAplicar,
   motivoParaNaoRemover,
@@ -322,6 +323,42 @@ export async function devolverNoBanco(p: { revisaoId: string; quem: { userId: st
     const para = await transicionarNoTx(tx, r, "devolver", { quem: p.quem, motivo: p.motivo });
     return resultado(r, para);
   });
+}
+
+/**
+ * Revisão em análise que ficou SEM NENHUM arquivo volta para "em andamento", pelo sistema e com evento.
+ * Chamada depois de toda exclusão definitiva de Upload (botão da lixeira e purga de 30 dias).
+ *
+ * Sem isto a revisão vazia fica "em análise" para sempre: o documento some da árvore (não tem arquivo),
+ * ninguém alcança o "Devolver", e todo envio com o mesmo nome cai nela e é recusado com "está em análise"
+ * (caso 260042-SENA-ELE-PRE, 2026-11-05). Devolvida, o próximo envio entra como versão nova da revisão.
+ *
+ * "Nenhum arquivo" = nenhuma linha de Upload, nem na lixeira nem substituída: o que está na lixeira ainda
+ * pode ser restaurado, e aí a revisão tem de continuar onde estava. Revisão bloqueada fica como está (I7).
+ * Cada revisão na sua transação, e a falha de uma só é registrada no log; devolve quantas voltaram.
+ */
+export async function devolverRevisoesSemArquivo(revisaoIds: readonly (string | null | undefined)[]): Promise<number> {
+  const ids = [...new Set(revisaoIds.filter((id): id is string => !!id))];
+  let devolvidas = 0;
+  for (const id of ids) {
+    // Uma revisão que falha (corrida com quem devolveu ou publicou à mão, erro de banco) não segura as outras.
+    const voltou = await emTransacao(async (tx) => {
+      // Leitura aninhada (`uploads: none`): os filtros de lixeira e de versão atual não se aplicam.
+      const vazia = await tx.documentoRevisao.findFirst({ where: { id, estado: "compartilhado", uploads: { none: {} } }, select: { id: true } });
+      if (!vazia) return false;
+      const r = await carregarRevisao(tx, id);
+      const estado = estadoParaTransicao(r);
+      if (!estado.participa || estado.bloqueada) return false;
+      // Sem lock de propósito: envio novo não entra em revisão em análise, e a escrita é condicionada ao estado lido.
+      await transicionarNoTx(tx, r, "devolver", { quem: null, motivo: MOTIVO_REVISAO_SEM_ARQUIVO });
+      return true;
+    }).catch((err) => {
+      if (!(err instanceof ActionError && err.message === MOTIVO_MUDOU)) console.error(`[ciclo] devolver revisão sem arquivo ${id}:`, err);
+      return false;
+    });
+    if (voltou) devolvidas++;
+  }
+  return devolvidas;
 }
 
 /** Publicado → arquivado à mão (documento cancelado/obsoleto), com motivo. */

@@ -6,7 +6,8 @@
  *  - Sem revisão → nasce a R00 (número 1), versão 1, em andamento (I1).
  *  - Última revisão em andamento → o arquivo entra NELA como versão nova (ajuste interno). O segundo
  *    arquivo do MESMO envio (PDF + DWG, `revisaoDoEnvio`) fica na mesma versão.
- *  - Última em análise → recusa (V2-a): uma revisão aberta por documento; a devolução reabre.
+ *  - Última em análise → recusa (V2-a): uma revisão aberta por documento; a devolução reabre. Com os
+ *    arquivos só na lixeira, a frase diz isso (excluídos em definitivo, a revisão é devolvida antes).
  *  - Última publicada ou arquivada → nasce a revisão seguinte, versão 1 (publicado nunca recebe nada — I2).
  *
  * Mesma extensão já presente na revisão: de uma versão anterior, o arquivo antigo é SUBSTITUÍDO
@@ -23,7 +24,12 @@ export type DestinoNoCiclo =
   | { tipo: "mesma_versao"; revisaoId: string; numero: number; versao: number }
   | { tipo: "recusar"; motivo: string };
 
-export function destinoNoCiclo(p: { ultima: UltimaRevisao; revisaoDoEnvio: string | null }): DestinoNoCiclo {
+export function destinoNoCiclo(p: {
+  ultima: UltimaRevisao;
+  revisaoDoEnvio: string | null;
+  /** A revisão em análise só tem arquivos na lixeira (nenhum atual): a recusa aponta a saída. */
+  arquivosNaLixeira?: boolean;
+}): DestinoNoCiclo {
   const { ultima } = p;
   if (!ultima) return { tipo: "nova_revisao", numero: 1, versao: 1 };
   switch (ultima.estado) {
@@ -33,6 +39,12 @@ export function destinoNoCiclo(p: { ultima: UltimaRevisao; revisaoDoEnvio: strin
       }
       return { tipo: "nova_versao", revisaoId: ultima.id, numero: ultima.numero, versao: ultima.ultimaVersao + 1, versaoAnterior: ultima.ultimaVersao };
     case "compartilhado":
+      if (p.arquivosNaLixeira) {
+        return {
+          tipo: "recusar",
+          motivo: `A ${rotuloRevisao(ultima.numero)} está em análise e os arquivos dela estão na lixeira. Restaure-os, ou exclua-os em definitivo, para enviar arquivos.`,
+        };
+      }
       return {
         tipo: "recusar",
         motivo: `A ${rotuloRevisao(ultima.numero)} está em análise. Aguarde a devolução ou a publicação para enviar arquivos.`,

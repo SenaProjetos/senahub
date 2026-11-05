@@ -56,6 +56,7 @@ import { executarConversaoDwg } from "@/modules/dwg/conversao";
 import { removerArquivo } from "@/lib/storage";
 import { limitePurga } from "@/modules/uploads/lixeira";
 import { removerArquivoDeUploadSemDono } from "@/modules/uploads/arquivo-fisico";
+import { devolverRevisoesSemArquivo } from "@/modules/uploads/ciclo/service";
 import { executarImportacaoCusto } from "@/modules/custos/composicoes/service";
 import { dispatcharAviso } from "@/modules/notificacoes/avisos/service";
 import { Prisma } from "@/generated/prisma/client";
@@ -1657,6 +1658,7 @@ export async function purgarLixeiraArquivos(): Promise<number> {
     select: {
       id: true,
       caminho: true,
+      revisaoId: true,
       conversao: { select: { caminhoFrag: true } },
       conversaoDesenho: { select: { caminhoDxf: true } },
     },
@@ -1664,9 +1666,11 @@ export async function purgarLixeiraArquivos(): Promise<number> {
   if (vencidos.length === 0) return 0;
 
   let removidos = 0;
+  const revisoesTocadas: (string | null)[] = [];
   for (const u of vencidos) {
     try {
       await prisma.upload.delete({ where: { id: u.id } });
+      revisoesTocadas.push(u.revisaoId);
       // Outra linha pode dividir o caminho (envio antigo sobre arquivo da lixeira): o arquivo fica.
       await removerArquivoDeUploadSemDono(u.caminho);
       if (u.conversao?.caminhoFrag) await removerArquivo(u.conversao.caminhoFrag);
@@ -1675,6 +1679,12 @@ export async function purgarLixeiraArquivos(): Promise<number> {
     } catch (err) {
       console.error(`[lixeira] falha ao purgar upload ${u.id}:`, err);
     }
+  }
+  // Revisão em análise que ficou sem arquivo nenhum volta para em andamento — senão trava o próximo envio.
+  try {
+    await devolverRevisoesSemArquivo(revisoesTocadas);
+  } catch (err) {
+    console.error("[lixeira] falha ao devolver revisões sem arquivo:", err);
   }
   return removidos;
 }

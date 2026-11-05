@@ -13,6 +13,7 @@ import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import {
   aplicarControleNoBanco,
   devolverNoBanco,
+  devolverRevisoesSemArquivo,
   enviarParaAnaliseNoBanco,
   liberarRestricaoDePendencias,
   motivoBloqueioDosUploads,
@@ -32,6 +33,7 @@ import {
 import { verificarIntegridadeCiclo } from "../src/modules/uploads/ciclo/integridade-service";
 import { MOTIVO_CORRECAO_INTEGRIDADE } from "../src/modules/uploads/ciclo/integridade";
 import { MOTIVO_SEM_DWG_SEM_TIPO } from "../src/modules/uploads/ciclo/regras";
+import { MOTIVO_REVISAO_SEM_ARQUIVO } from "../src/modules/uploads/ciclo/transicoes";
 import { conteudoPublicoPorToken, type ConteudoPublico } from "../src/modules/projetos/arquivos/link-publico";
 
 async function main() {
@@ -453,6 +455,35 @@ async function main() {
       "envio automático desligado = herança antiga",
       pubF1.envioAoCliente === "herdado" && (await ativos(rF1.id)).includes("enviado_cliente") && !(await ativos(rF0.id)).includes("em_revisao"),
     );
+    // ── Revisão em análise que ficou sem arquivo (exclusão definitiva) volta para em andamento ──
+    const dV = await documento("vazia");
+    const rV = await revisao(dV.id, 1, { dwg: true });
+    await prisma.documentoRevisao.update({ where: { id: rV.id }, data: { estado: "compartilhado" } });
+    await prisma.upload.update({ where: { id: rV.uploads[0].id }, data: { excluidoEm: new Date() } });
+    await prisma.upload.delete({ where: { id: rV.uploads[1].id } });
+    check(
+      "revisão em análise com arquivo na lixeira NÃO é devolvida (ainda pode ser restaurado)",
+      (await devolverRevisoesSemArquivo([rV.id])) === 0 && (await estado(rV.id)) === "compartilhado",
+    );
+    await prisma.upload.delete({ where: { id: rV.uploads[0].id } });
+    const devolvidasV = await devolverRevisoesSemArquivo([rV.id, rV.id, null]);
+    const eventoV = await prisma.documentoEvento.findFirst({
+      where: { revisaoId: rV.id, tipo: "estado" },
+      orderBy: { createdAt: "desc" },
+      select: { userId: true, detalhe: true },
+    });
+    const detalheV = eventoV?.detalhe as { de?: string; para?: string; motivo?: string; automatico?: boolean } | undefined;
+    check(
+      "sem nenhum arquivo: volta para em andamento, uma vez, com evento do sistema e motivo",
+      devolvidasV === 1 &&
+        (await estado(rV.id)) === "em_andamento" &&
+        eventoV?.userId === null &&
+        detalheV?.de === "compartilhado" &&
+        detalheV?.para === "em_andamento" &&
+        detalheV?.motivo === MOTIVO_REVISAO_SEM_ARQUIVO &&
+        detalheV?.automatico === true,
+    );
+    check("devolver de novo não faz nada (idempotente)", (await devolverRevisoesSemArquivo([rV.id])) === 0);
   } finally {
     await prisma.linkPublicoArquivos.deleteMany({ where: { token: tokenLink } });
     await prisma.projeto.delete({ where: { id: projeto.id } });

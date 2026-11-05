@@ -22,7 +22,7 @@ import {
 import { montarVocabulario } from "@/modules/uploads/nomenclatura/vocabulario";
 import { resolverMetadado } from "@/modules/uploads/nomenclatura/precedencia";
 import { destinoNoCiclo, trocaDeExtensao, type DestinoNoCiclo } from "@/modules/uploads/ciclo/envio-arquivo";
-import { motivoBloqueioDoDocumento } from "@/modules/uploads/ciclo/service";
+import { devolverRevisoesSemArquivo, motivoBloqueioDoDocumento } from "@/modules/uploads/ciclo/service";
 import { resolverNomenclatura } from "@/modules/projetos/nomenclatura/queries";
 import { registrarEventoDocumento } from "@/modules/uploads/historico/service";
 import { statusAposEnvio } from "@/modules/uploads/status-automatico";
@@ -311,14 +311,26 @@ export async function POST(req: Request) {
         const bloqueio = await motivoBloqueioDoDocumento(prisma, documentoExistente.id);
         if (bloqueio) return { nome, ok: false, motivo: bloqueio };
       }
-      const ultima = documentoExistente
-        ? await prisma.documentoRevisao.findFirst({
-            where: { documentoId: documentoExistente.id },
-            orderBy: { numero: "desc" },
-            select: { id: true, numero: true, estado: true, ultimaVersao: true },
-          })
-        : null;
-      const plano = destinoNoCiclo({ ultima, revisaoDoEnvio: revisaoDeIdEfetiva });
+      const lerUltima = () =>
+        documentoExistente
+          ? prisma.documentoRevisao.findFirst({
+              where: { documentoId: documentoExistente.id },
+              orderBy: { numero: "desc" },
+              select: { id: true, numero: true, estado: true, ultimaVersao: true },
+            })
+          : Promise.resolve(null);
+      let ultima = await lerUltima();
+      // Em análise sem arquivo atual: sem linha nenhuma (exclusão definitiva) a revisão volta para em
+      // andamento aqui mesmo e o envio segue; com arquivo só na lixeira, a recusa diz onde ele está.
+      let arquivosNaLixeira = false;
+      if (ultima?.estado === "compartilhado" && (await prisma.upload.count({ where: { revisaoId: ultima.id, substituidoPorId: { not: undefined } } })) === 0) {
+        const naLixeira = await prisma.upload.count({
+          where: { revisaoId: ultima.id, excluidoEm: { not: null }, substituidoPorId: { not: undefined } },
+        });
+        if (naLixeira > 0) arquivosNaLixeira = true;
+        else if ((await devolverRevisoesSemArquivo([ultima.id])) > 0) ultima = await lerUltima();
+      }
+      const plano = destinoNoCiclo({ ultima, revisaoDoEnvio: revisaoDeIdEfetiva, arquivosNaLixeira });
       if (plano.tipo === "recusar") return { nome, ok: false, motivo: plano.motivo };
       planoCiclo = plano;
       if (plano.tipo !== "nova_revisao") {
