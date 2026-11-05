@@ -10,6 +10,8 @@ import {
   prontasPorProjeto,
 } from "@/modules/projetos/queries";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
+import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
+import { valeNaVersao } from "@/modules/uploads/nomenclatura/siglas-versao";
 import { listarClientes } from "@/modules/clientes/queries";
 import { ProjetosView } from "@/components/projetos/projetos-view";
 import { parseListParams, pageCount } from "@/lib/list-params";
@@ -65,7 +67,7 @@ export default async function ProjetosPage({
   );
 
   const podeMontarEap = podeGerir && (await can(user, "planejamento", "gerir"));
-  const [clientes, catalogo, internos, tiposEmpreendimento, modelosEap] = podeGerir
+  const [clientes, catalogo, internos, tiposEmpreendimento, modelosEap, versaoAtual] = podeGerir
     ? await Promise.all([
         listarClientes({ incluirInativos: false }),
         catalogoDisciplinas(),
@@ -84,8 +86,12 @@ export default async function ProjetosPage({
               orderBy: [{ updatedAt: "desc" }],
             })
           : Promise.resolve([]),
+        versaoVigenteHoje(),
       ])
-    : [[], [], [], [], []];
+    : [[], [], [], [], [], null];
+  // D11: projeto novo nasce no padrão mais atual, então o formulário só oferece os cards válidos
+  // nele. O filtro da lista segue com o catálogo inteiro (projeto antigo usa card que saiu).
+  const catalogoProjetoNovo = versaoAtual ? catalogo.filter((d) => valeNaVersao(d, versaoAtual.numero)) : catalogo;
 
   return (
     <ProjetosView
@@ -106,6 +112,7 @@ export default async function ProjetosPage({
       tiposEmpreendimento={tiposEmpreendimento}
       modelosEap={modelosEap}
       catalogo={catalogo.map((d) => d.nome)}
+      catalogoProjetoNovo={catalogoProjetoNovo.map((d) => d.nome)}
       internos={internos}
       prontasPorProjeto={prontas}
       mostrarGuia={user.tipo === "interno"}

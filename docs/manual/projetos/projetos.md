@@ -407,8 +407,10 @@ alguém validá-la na aba Arquivos.
 O padrão de nomenclatura é **versionado**: o escritório publica versões em
 **Configurações → Disciplinas e nomenclatura** (v1, v2…), e cada projeto segue uma delas. Uma versão
 publicada é **fixa** — corrigi-la significa publicar uma versão nova, nunca editar a que já
-está em uso. Um projeto **novo** recebe automaticamente a versão vigente na data em que é
-criado; publicar uma versão nova **não muda** projeto nenhum que já existe.
+está em uso. Todo projeto **novo** — criado na tela, pelo aceite de proposta, pela importação de
+licitação ou duplicado de outro — nasce na versão **publicada mais recente** (a marcada como
+"vigente"); publicar uma versão nova **não muda** projeto nenhum que já existe. O formulário de
+projeto novo só oferece as disciplinas válidas nessa versão.
 
 No botão **Nomenclatura**, ao lado de "Enviar documentos", a seção **Padrão de
 nomenclatura** mostra botões — **v1**, **v2**… e **Personalizado** — com o vigente

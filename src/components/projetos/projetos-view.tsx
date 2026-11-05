@@ -120,6 +120,7 @@ export function ProjetosView({
   total,
   clientes,
   catalogo,
+  catalogoProjetoNovo,
   internos,
   tiposEmpreendimento = [],
   modelosEap = [],
@@ -140,7 +141,10 @@ export function ProjetosView({
   pageSize: number;
   total: number;
   clientes: { id: string; nome: string }[];
+  /** Catálogo inteiro — filtro da lista (projeto antigo pode ter card que saiu do padrão). */
   catalogo: string[];
+  /** Só os cards válidos no padrão de nomenclatura mais atual — o formulário de projeto novo (D11). */
+  catalogoProjetoNovo: string[];
   internos: { id: string; name: string; contratacao: Contratacao | null }[];
   /** D13: tipos de empreendimento para o formulário de projeto novo. */
   tiposEmpreendimento?: { id: string; nome: string }[];
@@ -372,7 +376,7 @@ export function ProjetosView({
           open={formOpen}
           onOpenChange={setFormOpen}
           clientes={clientes}
-          catalogo={catalogo}
+          catalogo={catalogoProjetoNovo}
           internos={internos}
           tiposEmpreendimento={tiposEmpreendimento}
           modelosEap={modelosEap}

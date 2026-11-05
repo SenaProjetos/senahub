@@ -25,11 +25,6 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
-function paraInputDate(d: Date | string): string {
-  const dt = typeof d === "string" ? new Date(d) : d;
-  return dt.toISOString().slice(0, 10);
-}
-
 const SEQUENCIA_LABEL: Record<string, string> = {
   faixa: "Por faixa da disciplina (padrão original)",
   card: "Recomeça por disciplina",
@@ -135,7 +130,6 @@ function VersaoDetalhe({
   const [modelo, setModelo] = useState(versao.modelo ?? "");
   const [larguraNumero, setLarguraNumero] = useState(String(versao.larguraNumero));
   const [sequenciaPor, setSequenciaPor] = useState(versao.sequenciaPor);
-  const [vigenteDesde, setVigenteDesde] = useState(paraInputDate(versao.vigenteDesde));
   const [redefinicoes, setRedefinicoes] = useState<Redefinicao[] | null>(null);
 
   if (versao.id !== lastId) {
@@ -145,7 +139,6 @@ function VersaoDetalhe({
     setModelo(versao.modelo ?? "");
     setLarguraNumero(String(versao.larguraNumero));
     setSequenciaPor(versao.sequenciaPor);
-    setVigenteDesde(paraInputDate(versao.vigenteDesde));
     setRedefinicoes(null);
   }
 
@@ -164,7 +157,6 @@ function VersaoDetalhe({
         modelo: modelo.trim(),
         larguraNumero: Number(larguraNumero) || 3,
         sequenciaPor,
-        vigenteDesde,
       });
       if (r.ok) {
         toast.success("Rascunho salvo.");
@@ -218,7 +210,7 @@ function VersaoDetalhe({
           <p className="text-xs text-muted-foreground">
             {versao.publicadaEm
               ? `Publicada em ${new Date(versao.publicadaEm).toLocaleDateString("pt-BR")}${versao.publicadaPor?.name ? ` por ${versao.publicadaPor.name}` : ""} — imutável.`
-              : "Rascunho — só vale para projeto nenhum até ser publicada."}
+              : "Rascunho — só vale para projeto nenhum até ser publicada. Ao publicar, todo projeto novo nasce nesta versão."}
             {versao.projetosFixados > 0 && ` · ${versao.projetosFixados} projeto(s) nesta versão.`}
           </p>
         </div>
@@ -243,10 +235,6 @@ function VersaoDetalhe({
           <div className="space-y-1">
             <Label className="text-xs">Nome</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} disabled={!editavel} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Vigente a partir de (projeto novo, D2)</Label>
-            <Input type="date" value={vigenteDesde} onChange={(e) => setVigenteDesde(e.target.value)} disabled={!editavel} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Dígitos do número da folha</Label>

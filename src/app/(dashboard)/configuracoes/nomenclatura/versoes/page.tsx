@@ -24,7 +24,7 @@ export default async function NomenclaturaVersoesPage() {
         ]}
       />
       <p className="text-sm text-muted-foreground">
-        Projeto novo recebe a versão vigente na data em que é criado; publicar não muda projeto nenhum já existente.
+        Todo projeto novo nasce na versão publicada mais recente (a vigente); publicar não muda projeto nenhum já existente.
       </p>
       <NomenclaturaVersoesView versoes={versoes} />
       <section aria-labelledby="regras-globais" className="space-y-2">

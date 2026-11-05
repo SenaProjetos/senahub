@@ -35,8 +35,8 @@ lugar.
   versão: ver
   [Montar uma versão do padrão](#montar-uma-versão-do-padrão-de-nomenclatura). Pelo botão
   **Versões** do topo se criam e se publicam as versões. Uma versão publicada é **imutável**;
-  corrigi-la é publicar uma versão nova. Um projeto novo recebe a versão vigente na data em que
-  é criado; publicar não muda projeto já existente. Publicar avisa (sem bloquear) quando uma
+  corrigi-la é publicar uma versão nova. Ao publicar, ela passa a ser a "vigente": todo projeto
+  novo nasce nela; publicar não muda projeto já existente. Publicar avisa (sem bloquear) quando uma
   sigla já significou outra coisa numa versão anterior.
 - **Documentos padrão** — modelo do Estúdio usado por padrão em cada fonte.
 - **Inputs padrão** — perguntas padrão por disciplina no link do cliente.

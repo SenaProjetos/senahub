@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { versaoDoProjeto } from "./versao";
+import { versaoMaisRecente } from "./versao";
 
 /** Toda versão (rascunho e publicada), para a tela de administração. */
 export async function listarVersoesAdmin() {
@@ -38,15 +38,16 @@ export async function listarVersoesPublicadas() {
 }
 
 /**
- * A versão vigente hoje (a que um projeto criado agora receberia) — usada como referência para
- * D11 (filtrar catálogo pela validade) fora do contexto de um projeto já existente.
+ * A versão vigente hoje — a publicada mais recente, que todo projeto criado agora recebe
+ * (`versaoMaisRecente`). Também é a referência do D11 (filtrar catálogo pela validade) fora do
+ * contexto de um projeto já existente.
  */
 export async function versaoVigenteHoje() {
   const versoes = await prisma.nomenclaturaVersao.findMany({
     where: { publicadaEm: { not: null } },
     select: { id: true, numero: true, nome: true, modelo: true, larguraNumero: true, sequenciaPor: true, vigenteDesde: true, publicadaEm: true },
   });
-  return versaoDoProjeto({ nomenclaturaVersaoId: null, createdAt: new Date() }, versoes);
+  return versaoMaisRecente(versoes);
 }
 
 /**

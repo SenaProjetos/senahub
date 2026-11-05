@@ -19,6 +19,7 @@ import { prisma } from "../src/lib/prisma";
 import { paraDia } from "../src/modules/planejamento/agenda";
 import { duplicarProjetoNoBanco } from "../src/modules/projetos/duplicar-service";
 import { reservarIdsParaLinhas } from "../src/modules/planejamento/id-corporativo";
+import { versaoVigenteHoje } from "../src/modules/projetos/nomenclatura/versoes-queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -95,6 +96,14 @@ async function main() {
     // ── 1–3. Duplica com EAP e início pedido ─────────────────────────────
     const dup = await duplicarProjetoNoBanco({ id: projeto.id, ...OPCOES, copiarEap: true, inicioCronograma: "2026-11-09" }, admin.id);
     clones.push(dup.id);
+    // A cópia é projeto novo: nasce fixada no padrão de nomenclatura mais atual, não no da origem.
+    const vigente = await versaoVigenteHoje();
+    const dupProjeto = await prisma.projeto.findUnique({ where: { id: dup.id }, select: { nomenclaturaVersaoId: true } });
+    check(
+      "cópia nasce fixada na versão de nomenclatura mais atual",
+      dupProjeto?.nomenclaturaVersaoId === (vigente?.id ?? null),
+      { clone: dupProjeto?.nomenclaturaVersaoId, vigente: vigente?.id },
+    );
     const linhas = await prisma.eapTarefa.findMany({ where: { projetoId: dup.id }, orderBy: { ordem: "asc" } });
     const [cR, cA, cM] = linhas;
     check("3 linhas copiadas, na mesma ordem", linhas.length === 3 && cR?.nome === "Elétrica" && cA?.nome === "Modelagem" && cM?.nome === "Entrega do executivo", linhas.map((l) => l.nome));

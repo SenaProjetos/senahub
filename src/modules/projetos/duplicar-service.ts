@@ -5,6 +5,7 @@ import type { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { proximoCodigoProjeto } from "@/modules/projetos/numbering";
+import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 import { usaEstruturaCustom } from "@/modules/projetos/estrutura-tipo";
 import { semearPastasTemplate } from "@/modules/projetos/pastas/seed";
 import type { duplicarProjetoSchema } from "@/modules/projetos/schemas";
@@ -94,6 +95,8 @@ export async function duplicarProjetoNoBanco(
 
   const copiouEap = input.copiarEap && origem.eapTarefas.length > 0;
 
+  // A cópia é projeto NOVO: nasce no padrão de nomenclatura mais atual, não no da origem.
+  const versaoNomenclatura = await versaoVigenteHoje();
   const novo = await prisma.$transaction(async (tx) => {
     const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
     const criado = await tx.projeto.create({
@@ -110,6 +113,7 @@ export async function duplicarProjetoNoBanco(
         prazoContrato: origem.prazoContrato,
         prazoPlanejado: origem.prazoPlanejado,
         valorContrato: origem.valorContrato,
+        nomenclaturaVersaoId: versaoNomenclatura?.id ?? null,
         disciplinas: {
           create: origem.disciplinas.map((d) => ({
             disciplinaId: d.disciplinaId,

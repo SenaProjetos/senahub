@@ -54,6 +54,20 @@ export function versaoDoProjeto(
 }
 
 /**
+ * A versão de um projeto NOVO: a publicada de maior número — a mesma que a tela de versões marca
+ * como "vigente". Regra do dono (2026-11-05): todo projeto nasce no padrão mais atual do
+ * escritório. A data de vigência deixou de decidir isso: com ela no futuro (ou anterior à de
+ * outra versão), a tela dizia "vigente" e o projeto nascia na versão antiga.
+ */
+export function versaoMaisRecente(versoes: readonly VersaoNomenclatura[]): VersaoNomenclatura | null {
+  return (
+    versoes
+      .filter((v) => v.publicadaEm !== null)
+      .sort((a, b) => b.numero - a.numero)[0] ?? null
+  );
+}
+
+/**
  * Padrões das outras versões publicadas, para o aviso D6. `excetoId` é a versão do projeto
  * (projeto personalizado passa `null` e recebe todas).
  */

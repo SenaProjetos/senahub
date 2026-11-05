@@ -21,6 +21,7 @@ import {
   textoExclusaoVersaoDoc,
 } from "./historico";
 import { removerArquivo } from "@/lib/storage";
+import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 import { saldoContratual, somaDeltas } from "./contrato/saldo";
 
 /** Valida que a modalidade (se informada) pertence à lista configurável ativa. */
@@ -196,6 +197,8 @@ export const importarLicitacao = defineAction(
       throw new ActionError("Apenas licitações GANHAS podem ser importadas.");
     if (lic.projetoId) throw new ActionError("Licitação já importada.");
 
+    // Todo projeto nasce no padrão de nomenclatura mais atual, fixado na criação (como em criarProjeto).
+    const versaoNomenclatura = await versaoVigenteHoje();
     const projeto = await prisma.$transaction(async (tx) => {
       const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
       const prj = await tx.projeto.create({
@@ -206,6 +209,7 @@ export const importarLicitacao = defineAction(
           tipo: "licitacao",
           nome: lic.titulo,
           clienteId: i.clienteId,
+          nomenclaturaVersaoId: versaoNomenclatura?.id ?? null,
         },
       });
       await tx.licitacao.update({

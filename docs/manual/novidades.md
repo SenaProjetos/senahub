@@ -20,6 +20,12 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Projeto novo nasce no padrão de nomenclatura mais atual (novembro/2026)
+
+- Todo projeto novo — criado na tela, pelo aceite de proposta, importado de licitação ou duplicado — nasce na versão do padrão de nomenclatura **publicada mais recente**, a mesma que aparece como "vigente" em Configurações → Disciplinas e nomenclatura → Versões. A cópia de um projeto não herda mais o padrão do original.
+- A versão deixou de ter o campo "Vigente a partir de": publicar é o que a torna vigente.
+- O formulário de projeto novo só oferece as disciplinas válidas no padrão atual.
+
 ## Certidões e cronograma: título do link e horas que não somem (novembro/2026)
 
 - **Certidões — título do link público:** ao compartilhar, dê um título ao link (ex.: "Licitação Prefeitura X") para lembrar para quem ele foi. Só a equipe vê o título. Na lista do diálogo, uma bolinha mostra a situação de cada certidão: vermelha (vencida), amarela (vence em breve) ou verde (válida).

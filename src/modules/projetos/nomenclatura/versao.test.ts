@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MODELO_PADRAO_ORIGINAL, outrosPadroes, versaoDoProjeto, type VersaoNomenclatura } from "./versao";
+import { MODELO_PADRAO_ORIGINAL, outrosPadroes, versaoDoProjeto, versaoMaisRecente, type VersaoNomenclatura } from "./versao";
 
 const v = (numero: number, vigenteDesde: string, extra: Partial<VersaoNomenclatura> = {}): VersaoNomenclatura => ({
   id: `v${numero}`,
@@ -39,6 +39,21 @@ describe("versaoDoProjeto", () => {
 
   it("sem versão publicada: null", () => {
     expect(versaoDoProjeto({ nomenclaturaVersaoId: null, createdAt: new Date() }, [RASCUNHO])).toBeNull();
+  });
+});
+
+describe("versaoMaisRecente (projeto novo)", () => {
+  it("é a publicada de maior número, mesmo com a data de vigência no futuro ou fora de ordem", () => {
+    const futura = v(3, "2099-01-01");
+    const anterior = v(4, "2000-06-01");
+    expect(versaoMaisRecente([V1, V2])?.numero).toBe(2);
+    expect(versaoMaisRecente([V1, V2, futura])?.numero).toBe(3);
+    expect(versaoMaisRecente([V1, V2, futura, anterior])?.numero).toBe(4);
+  });
+
+  it("rascunho nunca entra, e sem publicada é null", () => {
+    expect(versaoMaisRecente([V1, V2, RASCUNHO])?.numero).toBe(2);
+    expect(versaoMaisRecente([RASCUNHO])).toBeNull();
   });
 });
 

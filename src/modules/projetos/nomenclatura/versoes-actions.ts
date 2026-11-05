@@ -40,7 +40,7 @@ export const criarRascunhoVersao = defineAction(
         modelo: base_?.modelo ?? null,
         larguraNumero: base_?.larguraNumero ?? 3,
         sequenciaPor: base_?.sequenciaPor ?? SequenciaNomenclatura.sub,
-        // Data de vigência sugerida: hoje. Editável no rascunho até publicar (D1).
+        // Provisória: publicar regrava com o instante da publicação (vigência = publicação).
         vigenteDesde: new Date(),
       },
     });
@@ -56,7 +56,6 @@ const editarSchema = z.object({
   modelo: z.string().trim().min(1).max(200),
   larguraNumero: z.number().int().min(1).max(6),
   sequenciaPor: z.enum(["faixa", "card", "sub"]),
-  vigenteDesde: z.string(), // yyyy-mm-dd
 });
 
 export const editarRascunhoVersao = defineAction(
@@ -66,8 +65,6 @@ export const editarRascunhoVersao = defineAction(
     if (!v) throw new ActionError("Versão não encontrada.");
     if (v.publicadaEm) throw new ActionError("Versão publicada é imutável (D1) — crie uma versão nova para corrigir.");
     if (!compilarPadrao(i.modelo)) throw new ActionError("Modelo inválido — confira o texto ou monte pelo editor visual.");
-    const vigenteDesde = new Date(`${i.vigenteDesde}T00:00:00`);
-    if (Number.isNaN(vigenteDesde.getTime())) throw new ActionError("Data de vigência inválida.");
     await prisma.nomenclaturaVersao.update({
       where: { id: i.id },
       data: {
@@ -76,7 +73,6 @@ export const editarRascunhoVersao = defineAction(
         modelo: i.modelo,
         larguraNumero: i.larguraNumero,
         sequenciaPor: i.sequenciaPor,
-        vigenteDesde,
       },
     });
     rev();
@@ -135,9 +131,12 @@ export const publicarVersaoNomenclatura = defineAction(
       }
     }
 
+    // Vigência = publicação: a versão publicada vira a de todo projeto novo (`versaoMaisRecente`),
+    // e a data acompanha para quem ainda resolve pela criação (projeto sem versão fixada).
+    const agora = new Date();
     await prisma.nomenclaturaVersao.update({
       where: { id: i.id },
-      data: { publicadaEm: new Date(), publicadaPorId: ctx.user.id },
+      data: { publicadaEm: agora, publicadaPorId: ctx.user.id, vigenteDesde: agora },
     });
     rev();
     return { publicado: true as const, redefinicoes: [] as Redefinicao[] };
