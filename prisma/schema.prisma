@@ -1337,6 +1337,7 @@ model Projeto {
   regrasPreenchimento RegraCategorizacao[]
   geracoesModeloFederado GeracaoModeloFederado[]
   modelosForaDaCompatibilizacao ModeloCoordenacaoOculto[]
+  sobreposicoes SobreposicaoPlanta[]
   @@map("projeto")
 }
 
@@ -7338,6 +7339,7 @@ model Upload {
   pendencias            Pendencia[]                 @relation("UploadPendencias")
   pendenciasVerificadas Pendencia[]                 @relation("PendenciaVerificacao")
   calibracoes           CalibracaoPrancha[]         @relation("UploadCalibracoes")
+  sobreposicaoAlinhamentos SobreposicaoAlinhamento[]
   conversao             ConversaoModelo?
   conversaoDesenho      ConversaoDesenho?
 
@@ -7462,6 +7464,7 @@ model DocumentoDisciplina {
   leituras    LeituraDocumento[]
   listas      ListaDocumentoItem[]
   eventos     DocumentoEvento[]
+  sobreposicaoCamadas SobreposicaoCamada[]
 
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
@@ -8003,6 +8006,71 @@ model ModeloCoordenacaoOculto {
 
   @@unique([projetoId, serie])
   @@map("modelo_coordenacao_oculto")
+}
+
+/// Sobreposição 2D de disciplinas (aba da Coordenação): um desenho por pavimento/área. Uma por pavimento —
+/// o nome é único no projeto. A arquitetura vira a base e as outras disciplinas entram como camadas.
+model SobreposicaoPlanta {
+  id          String               @id @default(cuid())
+  projetoId   String
+  projeto     Projeto              @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  nome        String
+  ordem       Int                  @default(0)
+  /// Denormalizado, sem FK (como os apontamentos): só para o histórico.
+  criadoPorId String
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  camadas     SobreposicaoCamada[]
+
+  @@unique([projetoId, nome])
+  @@map("sobreposicao_planta")
+}
+
+/// Camada = documento + formato (pdf | dwg) dentro de uma sobreposição. Uma só base por sobreposição
+/// (índice parcial `sobreposicao_camada_uma_base`, fora do schema.prisma). Cor e opacidade são dado do usuário.
+model SobreposicaoCamada {
+  id             String                    @id @default(cuid())
+  sobreposicaoId String
+  sobreposicao   SobreposicaoPlanta        @relation(fields: [sobreposicaoId], references: [id], onDelete: Cascade)
+  documentoId    String
+  documento      DocumentoDisciplina       @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  /// "pdf" | "dwg"
+  formato        String
+  base           Boolean                   @default(false)
+  cor            String
+  /// 0–100
+  opacidade      Int                       @default(80)
+  visivel        Boolean                   @default(true)
+  ordem          Int                       @default(0)
+  pagina         Int                       @default(1)
+  alinhamentos   SobreposicaoAlinhamento[]
+
+  @@unique([sobreposicaoId, documentoId])
+  @@index([documentoId])
+  @@map("sobreposicao_camada")
+}
+
+/// Alinhamento = similaridade camada→mundo (translação, giro, escala), um por camada+formato.
+/// `uploadConferidoId` = o arquivo em uso quando o alinhamento foi salvo/confirmado (se o arquivo vigente
+/// mudar, a camada pede conferência). `versao` = trava otimista do salvamento.
+model SobreposicaoAlinhamento {
+  id                String             @id @default(cuid())
+  camadaId          String
+  camada            SobreposicaoCamada @relation(fields: [camadaId], references: [id], onDelete: Cascade)
+  formato           String
+  tx                Float
+  ty                Float
+  giro              Float
+  escala            Float
+  uploadConferidoId String?
+  uploadConferido   Upload?            @relation(fields: [uploadConferidoId], references: [id], onDelete: SetNull)
+  versao            Int                @default(1)
+  salvoPorId        String
+  salvoEm           DateTime           @default(now())
+
+  @@unique([camadaId, formato])
+  @@index([uploadConferidoId])
+  @@map("sobreposicao_alinhamento")
 }
 
 /// Visualizador DWG: estado da conversão DWG → DXF (via ODA File Converter,
