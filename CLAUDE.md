@@ -78,6 +78,7 @@ npm run smoke:horas-disciplina     # rateio R5: orçado (linha de base) × plane
 npm run smoke:folha-financeiro     # folha R4: 7 contas no fechamento, guias no dia 20, mesma conta ao fechar de novo, parte que sai é cancelada, reabrir com motivo e versão assinada
 npm run smoke:ifc-federado         # IFC federado: child de verdade, modelo fora da compatibilização (série), R00/R01/R02 nunca repetida, trava de geração viva, arquivo sumido, unidade recusada, geração travada liberada, regra de leitura
 npm run verify:ifc-federado -- <projetoId>   # junta os IFCs vigentes de um projeto real (sem gravar) e confere IfcProduct do federado = soma dos modelos
+npm run smoke:sobreposicao          # sobreposição 2D: base nasce com alinhamento identidade, recusas sem gravar, trava do alinhamento, revisão nova pede conferência, lixeira, DWG sem conversão, uma base só, excluir deixa as pendências
 ```
 
 - **Dev helper (Windows):** `dev.bat` (raiz) → *Central do Desenvolvedor* (`dev/gerenciar-dev.bat` + `.ps1`),
