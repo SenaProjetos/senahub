@@ -162,15 +162,15 @@ export async function atualizarCamadaNoBanco(
     formato?: Formato;
     pagina?: number;
   },
-  userId?: string,
 ): Promise<void> {
   const camada = await db.sobreposicaoCamada.findUnique({
     where: { id: input.camadaId },
-    select: { documentoId: true, formato: true, base: true, alinhamentos: { select: { formato: true } } },
+    select: { documentoId: true, formato: true },
   });
   if (!camada) throw new ActionError(MOTIVO_CAMADA_SUMIU);
   const trocaFormato = input.formato !== undefined && input.formato !== camada.formato;
-  const vigenteNovo = trocaFormato ? await exigirVigente(db, camada.documentoId, input.formato!) : null;
+  // Formato novo sem alinhamento fica "sem_alinhamento" (R5): quem alinha é a pessoa, nunca o sistema.
+  if (trocaFormato) await exigirVigente(db, camada.documentoId, input.formato!);
 
   const data: Prisma.SobreposicaoCamadaUpdateManyMutationInput = {};
   if (input.cor !== undefined) data.cor = input.cor;
@@ -181,17 +181,8 @@ export async function atualizarCamadaNoBanco(
   if (trocaFormato) data.formato = input.formato;
   if (Object.keys(data).length === 0) return;
 
-  await emTransacao(db, async (tx) => {
-    const r = await tx.sobreposicaoCamada.updateMany({ where: { id: input.camadaId }, data });
-    if (r.count !== 1) throw new ActionError(MOTIVO_CAMADA_SUMIU);
-    // A base sempre tem alinhamento no formato em uso (mesma regra de definirBase).
-    if (trocaFormato && camada.base && !camada.alinhamentos.some((a) => a.formato === input.formato)) {
-      await tx.sobreposicaoAlinhamento.createMany({
-        data: [{ camadaId: input.camadaId, formato: input.formato!, ...IDENTIDADE, uploadConferidoId: vigenteNovo, versao: 1, salvoPorId: userId ?? "sistema" }],
-        skipDuplicates: true,
-      });
-    }
-  });
+  const r = await db.sobreposicaoCamada.updateMany({ where: { id: input.camadaId }, data });
+  if (r.count !== 1) throw new ActionError(MOTIVO_CAMADA_SUMIU);
 }
 
 export async function removerCamadaNoBanco(db: Db, input: { camadaId: string }): Promise<void> {
@@ -208,25 +199,19 @@ export async function removerCamadaNoBanco(db: Db, input: { camadaId: string }):
 
 /**
  * Troca a base numa transação (desmarca a atual, marca esta). Não mexe em alinhamento nem em cor (R2): o mundo
- * não muda. Se a nova base não tem alinhamento no formato em uso, ganha a identidade conferida no arquivo vigente.
+ * não muda. Só a PRIMEIRA camada ganha alinhamento automático (R5); a nova base sem alinhamento fica
+ * "sem_alinhamento" até alguém alinhá-la sobre o mundo.
  */
-export async function definirBaseNoBanco(db: Db, input: { camadaId: string }, userId?: string): Promise<void> {
+export async function definirBaseNoBanco(db: Db, input: { camadaId: string }): Promise<void> {
   await emTransacao(db, async (tx) => {
     const camada = await tx.sobreposicaoCamada.findUnique({
       where: { id: input.camadaId },
-      select: { base: true, sobreposicaoId: true, documentoId: true, formato: true, alinhamentos: { select: { formato: true } } },
+      select: { base: true, sobreposicaoId: true },
     });
     if (!camada) throw new ActionError(MOTIVO_CAMADA_SUMIU);
     if (camada.base) return;
     await tx.sobreposicaoCamada.updateMany({ where: { sobreposicaoId: camada.sobreposicaoId, base: true }, data: { base: false } });
     await tx.sobreposicaoCamada.update({ where: { id: input.camadaId }, data: { base: true } });
-    if (!camada.alinhamentos.some((a) => a.formato === camada.formato)) {
-      const vigenteId = await vigenteDoDocumento(tx, camada.documentoId, camada.formato as Formato);
-      await tx.sobreposicaoAlinhamento.createMany({
-        data: [{ camadaId: input.camadaId, formato: camada.formato, ...IDENTIDADE, uploadConferidoId: vigenteId, versao: 1, salvoPorId: userId ?? "sistema" }],
-        skipDuplicates: true,
-      });
-    }
   });
 }
 

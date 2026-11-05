@@ -116,7 +116,7 @@ export const atualizarCamada = defineAction(
   async (input, { user }) => {
     const projetoId = await projetoDaCamada(prisma, input.camadaId);
     await exigirProjeto(user, projetoId);
-    await atualizarCamadaNoBanco(prisma, input, user.id);
+    await atualizarCamadaNoBanco(prisma, input);
     revalidar(projetoId);
   },
 );
@@ -150,7 +150,7 @@ export const definirBase = defineAction(
   async (input, { user }) => {
     const projetoId = await projetoDaCamada(prisma, input.camadaId);
     await exigirProjeto(user, projetoId);
-    await definirBaseNoBanco(prisma, input, user.id);
+    await definirBaseNoBanco(prisma, input);
     revalidar(projetoId);
   },
 );

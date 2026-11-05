@@ -21,7 +21,7 @@ import {
   salvarAlinhamentoNoBanco,
 } from "../src/modules/coordenacao/sobreposicao/service";
 import { cenaDaSobreposicao, documentosParaCamada, sobreposicoesDoProjeto } from "../src/modules/coordenacao/sobreposicao/queries";
-import { COR_BASE, PALETA_CAMADAS } from "../src/modules/coordenacao/sobreposicao/regras";
+import { COR_BASE, PALETA_CAMADAS, estadoDoAlinhamento } from "../src/modules/coordenacao/sobreposicao/regras";
 
 function garantirAmbienteDev() {
   let nome = "";
@@ -200,9 +200,23 @@ async function main() {
     const al9 = await prisma.sobreposicaoAlinhamento.findUnique({ where: { camadaId_formato: { camadaId: camadaEst, formato: "dwg" } } });
     const alArq9 = await prisma.sobreposicaoAlinhamento.findUniqueOrThrow({ where: { camadaId_formato: { camadaId: camadaArq, formato: "pdf" } } });
     check(
-      "9. remover a base é recusado; definirBase troca sem recolorir e o índice parcial barra duas bases",
-      r9 === "Defina outra camada como base antes de remover esta." && bases.length === 1 && bases[0].id === camadaEst && bases[0].cor === PALETA_CAMADAS[0] && duas !== null && al9?.escala === 1 && al9.uploadConferidoId === est.uploads.dwg && alArq9.versao === 2,
+      "9. remover a base é recusado; definirBase troca sem recolorir nem inventar alinhamento (R5) e o índice parcial barra duas bases",
+      r9 === "Defina outra camada como base antes de remover esta." && bases.length === 1 && bases[0].id === camadaEst && bases[0].cor === PALETA_CAMADAS[0] && duas !== null && al9 === null && alArq9.versao === 2,
       { r9, bases, duas, al9 },
+    );
+    // A base troca de formato para um sem alinhamento: continua sem alinhamento (R5) — nada de identidade inventada.
+    await atualizarCamadaNoBanco(prisma, { camadaId: camadaEst, formato: "pdf" });
+    await atualizarCamadaNoBanco(prisma, { camadaId: camadaEst, formato: "dwg" });
+    cena = await cenaDaSobreposicao(sobreposicaoId, viewer);
+    const base9 = cena?.camadas.find((c) => c.id === camadaEst);
+    // Na cena "sem_alinhamento" é a chave ausente do formato (o tipo é Partial); é o que a tela lê.
+    const doFormato = base9 ? base9.alinhamentos[base9.formato] : undefined;
+    const estadoBase9 = estadoDoAlinhamento(doFormato ? { uploadConferidoId: null } : null, base9?.dwg?.uploadId ?? null);
+    const linhasDwg = await prisma.sobreposicaoAlinhamento.count({ where: { camadaId: camadaEst, formato: "dwg" } });
+    check(
+      "   base que troca para formato sem alinhamento fica sem_alinhamento na cena",
+      base9?.base === true && base9.formato === "dwg" && base9.alinhamentos.dwg === undefined && base9.alinhamentos.pdf?.versao === 2 && estadoBase9 === "sem_alinhamento" && linhasDwg === 0,
+      { alinhamentos: base9?.alinhamentos, linhasDwg },
     );
     await removerCamadaNoBanco(prisma, { camadaId: camadaArq });
     check("   a ex-base agora sai", (await prisma.sobreposicaoCamada.count({ where: { sobreposicaoId } })) === 2);
