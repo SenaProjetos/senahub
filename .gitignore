@@ -105,3 +105,5 @@ merge-documentos-*.json
 /prints-auditoria/
 # planilha modelo de importação de lançamentos (arquivo local do financeiro, não versionar)
 /docs/modelo-de-importacao-lancamentos-excel-1-.xls
+# kit de contexto para o Projeto do claude.ai (gerado por npm run kit:claude, regerável)
+/kit-claude-saida/
