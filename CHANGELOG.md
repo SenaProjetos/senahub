@@ -2,6 +2,19 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.32.0](https://github.com/SenaProjetos/senahub/compare/v1.31.0...v1.32.0) (2026-11-06)
+
+
+### ✨ Funcionalidades
+
+* **projetos:** diário da coordenação na aba Diário ([4b19573](https://github.com/SenaProjetos/senahub/commit/4b195731521edcfbcac804d405faee5ff846928f))
+
+
+### 🐛 Correções
+
+* **arquivos:** revisão em análise sem arquivo não trava mais o reenvio ([7c7df17](https://github.com/SenaProjetos/senahub/commit/7c7df1718561a4cea9a0ecd71f15349a83f597cf))
+* **projetos:** projeto novo nasce no padrão de nomenclatura mais atual ([d2abb5d](https://github.com/SenaProjetos/senahub/commit/d2abb5d5468dc19255e2dbd48641ba30e44174de))
+
 ## [1.31.0](https://github.com/SenaProjetos/senahub/compare/v1.30.0...v1.31.0) (2026-11-03)
 
 
