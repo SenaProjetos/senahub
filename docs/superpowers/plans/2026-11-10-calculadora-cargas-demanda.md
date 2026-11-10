@@ -78,9 +78,14 @@ Próximos passos, um por sessão curta (modelo sugerido entre colchetes):
 
 ## Perguntas para o dono (juntar no relatório da Fase 1)
 
+Documento para o engenheiro, com contexto, opções e sugestão de cada uma (mesma numeração):
+https://claude.ai/artifact/RHK1rZpXdjgCMHypbdZ4FP (privado; compartilhar pelo menu Share).
+
 1. Caso 13 (Cemig): a planilha dá D1 = 33,21 (= 1,4 × 17,44 × 1,36) com o fator digitado 1,00 e o aviso "mantido
    como digitado". O D1 da tela usa o fator digitado (23,72) ou o da norma? Implementar os dois (critério e adotado).
 2. Cemig ND-5.2 Tabela 12 imprime "228" na linha que seria 217 (81,69); a ND-5.5 imprime 217. Usar o 217 da ND-5.5?
+   (Hoje: a linha com o rótulo errado fica fora — 228 lê 82,17 e 217 sai sem sugestão; antes a busca pegava a
+   linha errada para 228, corrigido em b8b53888.)
 3. Faixas de área com inteiros ("41 a 45"): área fracionária cai na faixa seguinte e o limite compartilhado
    ("241–260"/"260–280", Energisa T7; "56 a 65"/"65 a 75", Equatorial T6) fica na primeira. Confirmar.
 4. Tabelas que acabam em 300 apartamentos (Celesc, Equatorial, Energisa, Cemig): acima disso, sem sugestão + aviso?
