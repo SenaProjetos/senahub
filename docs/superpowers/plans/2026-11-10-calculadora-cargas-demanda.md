@@ -53,6 +53,26 @@ Feito:
   Neoenergia Tabela 7 (`fdAquecimento`), Copel condomínio 3.2 (iluminação, tomadas, Tabela 3 com reservas fora) e
   Tabela 04 (`fdArCondicionado`). `casos-planilha-metodos.test.ts`: casos 1, 2, 3–7, 13, 14, 15, 21, 26, 27, 28
   passando, nenhum esperado ajustado. Enel não implementada (pergunta 23). vitest 89/89, tsc sem erro, eslint limpo.
+- 2026-11-10 (passo 5): `composicao.ts` (`demandaDoNivel`: apartamentos do nível pelo método da concessionária com a
+  quantidade do nível + cálculos de carga instalada por papel — condomínio, incêndio, especial, comercial, recarga,
+  duplex, apartamentos —, fórmula de cada norma conferida contra o trecho ao carregar; Energisa 1,3/1,52/1,1 em kW,
+  Equatorial 1,2/1,4 e misto, Celesc k·(D1+D2)+De+Ds, Copel (D1+D2)×fator + especiais fora, Cemig D1+D2, Neoenergia
+  Ded = Drf+Ds+Dc+Dve; apart-hotel na Equatorial pela carga instalada; critério × adotado), `niveis.ts`
+  (`demandaDoPredio`: CMD com a quantidade do CMD, CPG com o total do prédio e os cálculos de todos os CMDs +
+  `calculosSoNoCpg`; ajustes por nível; avisos de CMD sem medidores, acima da capacidade, apartamentos sem CMD ou a mais
+  tipo a tipo, cálculo em mais de um CMD), `atendimento.ts` (`avisosDeAtendimento`: Neoenergia, Equatorial, Celesc,
+  Copel e Energisa 276–2.500 kW, limites lidos dos trechos). `fatorDoConjunto(ajustes)` exportado em
+  `concessionarias/{celesc,copel,energisa}.ts` (CMD só de condomínio ainda leva o fator). Novo
+  `biblioteca/celesc-n3210003-trechos.ts` (gerado por `cfg-celesc-n3210003-trechos.cjs`). `casos-planilha-niveis.test.ts`:
+  casos 8 (Equatorial e Neoenergia; Enel `todo`), 29 (29,21 / 23,82 / 23,82 / 55,16, esperados do §5), 30, 31, e o total
+  dos casos 1 e 2 pela composição — todos passando, nenhum esperado ajustado. vitest 106 + 1 todo, tsc sem erro, eslint limpo.
+- 2026-11-10 (passo 4b): FD sugerido por tabela, no padrão de `fdAquecimento`/`fdArCondicionado` (`{ fd, referencia }`;
+  em degraus de kW/kVA `{ degraus, literal, referencia }`; maior e demais `{ primeiros, fdPrimeiros, fdDemais, referencia }`;
+  motores `kW/kVA`), tudo lido da biblioteca, nada digitado; peças comuns em `concessionarias/fd-sugerido.ts`.
+  Neoenergia T6, 8–13, 14, 15, 16, 22 (+ potência T11, T18, T19); Equatorial T4, T5 (prédios), T6–T10, T13; Cemig ND-5.1
+  T11–T15; Celesc 5.6.2 (condomínio), T04–T07; Copel NTC 841001 T05–T12. Leitor novo não ligado ainda à tela nem à
+  composição (a carga instalada por linha continua recebendo o FD pronto). `fd-sugerido-tipos.test.ts` (44 testes): uma
+  célula por tabela conferida no JSON, mais varredura de cobertura das faixas. vitest 150 + 1 todo, tsc sem erro, eslint limpo.
 
 Extração: todos os JSON prontos (inclusive `copel-ntc841001.json` e `copel-outras.json`, 2026-11-10). Página de PDF em
 imagem: `_extracao/gen/render-pdf.mjs <pdf> <pág> <saída.png> [escala]` (pdfjs-dist + @napi-rs/canvas do repositório,
@@ -66,13 +86,10 @@ Próximos passos, um por sessão curta (modelo sugerido entre colchetes):
 3. ~~[Opus] `entrada.ts`~~ — feito 2026-11-10 (casos 9, 10, 18).
 4. ~~[Opus] Métodos de área útil e carga instalada por linha~~ — feito 2026-11-10 (casos 1, 2, 3–7, 13, 14, 15, 21,
    26, 27, 28).
-4b. [Sonnet] FD sugerido para os demais tipos de carga, lendo as tabelas já na biblioteca, no padrão de
-   `fdAquecimento`/`fdArCondicionado` (um por tabela, `{ fd, referencia }`, contagem do escopo): Neoenergia
-   Tabelas 6, 8–16, 18, 19, 22; Equatorial T4–T10, T13; Cemig ND-5.1 T10–T15; Celesc T04–T07 e `CELESC_562`;
-   Copel NTC 841001 T05–T12. Sem caso na planilha: teste só de leitura (uma célula por tabela, conferida no JSON).
-5. [Opus] Níveis CMD e CPG (CPG ≠ soma dos CMDs), composição por concessionária (apartamentos + condomínio ×
+4b. ~~[Sonnet] FD sugerido para os demais tipos de carga~~ — feito 2026-11-10 (ver "Feito", passo 4b).
+5. ~~[Opus] Níveis CMD e CPG (CPG ≠ soma dos CMDs), composição por concessionária (apartamentos + condomínio ×
    `fatorDoConjunto` + especiais/comercial fora dele; Energisa duplex 1,52 e lojas 1,1; Equatorial duplex e misto),
-   avisos de atendimento, apart-hotel; casos 8, 29, 30, 31.
+   avisos de atendimento, apart-hotel; casos 8, 29, 30, 31.~~ — feito 2026-11-10 (Enel do caso 8 pendente, pergunta 23).
 6. [Sonnet] Esquema do conteúdo do estudo (`modules/estudos/cargas-demanda/conteudo.ts`) e vínculos com o
    levantamento (trazer, "diferente do levantamento", "levantamento alterado"); caso 20.
 
@@ -122,6 +139,45 @@ Novas (passos 3 e 4, 2026-11-10) — o código segue a leitura indicada até a r
     concessionária.". A spec §4.2 fala em avisar "consultar a concessionária", sem texto na §6. Manter?
 23. Enel: a norma não traz método; a spec §3.4 lista os campos (cômodos com módulo, divisor, fator de localização;
     medição agrupada com demanda por unidade, serviço e fator do ramal), mas não a conta. Qual é a fórmula da tela?
+
+Novas (passo 5, 2026-11-10) — o código segue a leitura indicada até a resposta:
+24. Copel: a 4.2 aplica o fator multiplicador à "demanda total calculada"; o 5.4 soma só apartamentos + condomínio.
+    Adotado: fator sobre apartamentos e condomínio (incêndio junto); especiais, comercial e recarga fora dele. Confirmar.
+25. Incêndio: tratado como motor do condomínio (dentro do k da Celesc, do fator da Copel, do D2 da Equatorial), exceto
+    na Energisa, onde motor é dce (Tabelas 15 a 17), fora do 1,3/1,52. Confirmar.
+26. Energisa: a recarga entra como dce (kVA, fora do 1,3); as lojas usam a demanda em kW do cálculo comercial já com
+    × nL (D2 = demanda do escopo × 1,1). Confirmar.
+27. Duplex com lojas no mesmo prédio: nenhuma norma traz a fórmula junta. Adotado: somar (Equatorial D1×1,2 + D3×1,4 + D2
+    + lojas + D4; Energisa (d1+d2+d3)×1,52 + nL×d3×1,1 + dce). Duplex nas demais concessionárias = tipo comum.
+28. Equatorial, baixa tensão depende da carga instalada (≤ 75 kW). Sem a carga instalada do nível, o aviso só sai quando a
+    demanda passa de 75 (então a carga também passa): "média tensão" já a partir de 75 kVA, sem considerar o condomínio
+    Grupo B até 300 kVA do anexo B. Ou o nível pede a carga instalada?
+29. Celesc e Copel acima de 2.500 kW continuam "média tensão" (as normas não citam alta tensão). Energisa acima de 2.500 kW
+    ("projeto especial", 6.7.5) não cabe no texto da §6 — sem aviso. Cemig sem aviso até a pergunta 6.
+30. Seletividade da entrada (Copel, §6): o trecho da NTC 901100 5.5.2 na biblioteca não traz o "26 kVA"; aviso não
+    implementado. De onde vem?
+31. CPG usa a quantidade de apartamentos do cálculo (o prédio), não a soma dos CMDs — se houver apartamento sem CMD, o
+    CPG conta com ele e o aviso "sem CMD" aparece. Confirmar.
+
+Novas (passo 4b, 2026-11-10) — o código segue a leitura indicada até a resposta:
+32. Cemig ND-5.1 T10 e Equatorial T5 (linha "Unidades Consumidoras Residenciais"): FD por faixa da carga instalada, mas a norma
+    não diz se vale para a carga inteira ou por degrau (a Neoenergia T6 diz "faixa inteira", anexo A). NÃO carregadas até a resposta.
+33. Equatorial: o texto da NT.00004 6.11.4.1 manda a Tabela 7 para os grupos b1–b5 e o anexo B da spec manda a Tabela 6.
+    As duas estão carregadas (`fdEquipamentoEspecifico` e `fdAquecimentoEletrodomesticos`); qual a tela usa?
+34. Equatorial T6 (56 a 65 × 65 a 75 aparelhos) e T7 ("Acima de 61" depois de "51 a 60"): 65 aparelhos (só a coluna torneira,
+    0,33 × 0,32) e 61 aparelhos ficam SEM sugestão. Confirmar ou indicar a linha.
+35. Celesc Tabela 04 (motores, kVA por quantidade 1 a 10): 5 células que o gerador marcou como destoantes ficam sem sugestão
+    (trifásico 15 cv × 4, 25 cv × 10, 10 cv × 7; monofásico ¾ cv × 3 e × 4); mais de 10 motores também sem sugestão.
+36. Neoenergia T22 "Administração de edifícios de uso coletivo": regra em texto (1,00 da iluminação mais 0,50 das tomadas),
+    sem degraus de kW — `degraus` nulo, FD só pelo `literal`. Como a tela separa iluminação e tomadas dessa linha?
+37. Copel T10 (elevadores): "até dois = 1,00; restantes = 0,60" lido como os 2 primeiros com 1,00. Confirmar (as notas 1 e 2
+    das T08–T11 — equipamentos iguais contam um como o maior; partida simultânea soma como um — são da tela, não do FD).
+38. Cemig T14/T15: kVA INDIVIDUAL por motor pelo nº TOTAL de motores do consumidor (nota 3: monofásicos e trifásicos juntos);
+    o motor soma `quantidade × kVA da coluna`, como o exemplo da nota 2. Confirmar.
+39. Neoenergia T11/T18/T19 e Copel T06/T07: só a potência (kW, kVA) é lida; as correntes ficam fora (pergunta 12 da Copel).
+    A Neoenergia 6.27.7 manda a "conversão para kW ou kVA, conforme Tabela 18" (só monofásicos) — usamos a 19 para trifásicos.
+40. Celesc 5.6.2 (condomínio) e T06 nota 3 (hotel: o projetista define, "próximo a 100%"): `fdCondominio()` e `fdAquecimento()` só
+    expõem a norma; hotel/motel/apart-hotel segue sem sugestão.
 
 Diferenças de redação da planilha (sem ajuste de esperado): caso 2 chama de "Dr" a demanda já com o Fc (a Dtr do
 Anexo I); casos 13 e 18 citam a norma no texto da mensagem (vale a spec §6).

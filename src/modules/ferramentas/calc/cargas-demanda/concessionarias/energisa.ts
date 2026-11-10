@@ -4,7 +4,7 @@
  *                     de mesma área, cada um com o seu f)
  *   D  = (d1 + d2) × 1,3 + dce   (kVA; o 1,3 é lido da equação do 9.4.1; vale para apartamentos E condomínio)
  * Aqui sai a parcela dos apartamentos, d1 × 1,3, e o 1,3 volta em `fatorDoConjunto` para a composição aplicá-lo ao d2.
- * Duplex (1,52) e lojas (1,1) ficam para a composição do nível (passo 5 do plano).
+ * Duplex (1,52) e lojas (1,1): composição do nível (`../composicao.ts`).
  */
 
 import { NDU003_TABELA_6, NDU003_TABELA_7 } from "../biblioteca/energisa";
@@ -12,7 +12,7 @@ import { ENERGISA_NDU003_TRECHOS } from "../biblioteca/energisa-ndu003-trechos";
 import { referenciaDe } from "../biblioteca/tipos";
 import { avisosDeFaltantes, fatoresPorTipo, valorDaArea } from "./area";
 import { lerDoTrecho } from "./texto";
-import { avisosAbaixoDaNorma, fator, produto, type Ajustes, type ResultadoAreaUtil, type TipoApartamento } from "./tipos";
+import { avisosAbaixoDaNorma, fator, produto, type Ajustes, type FatorDoMetodo, type ResultadoAreaUtil, type TipoApartamento } from "./tipos";
 
 export const NOME = "Energisa";
 
@@ -27,6 +27,11 @@ export function fSugerido(unidades: number): number | null {
   return NDU003_TABELA_6.linhas.find(([n]) => n === unidades)?.[1] ?? null;
 }
 
+/** 1,3 do 9.4.1, aplicado a d1 e d2 (apartamentos e condomínio). */
+export function fatorDoConjunto(ajustes?: Ajustes): FatorDoMetodo {
+  return fator("multiplicador", "Fator multiplicativo", MULTIPLICADOR.valores[0], MULTIPLICADOR.referencia, ajustes);
+}
+
 export function demandaAreaUtil(tipos: readonly TipoApartamento[], ajustes?: Ajustes): ResultadoAreaUtil {
   const refA = referenciaDe(NDU003_TABELA_7);
   const refF = referenciaDe(NDU003_TABELA_6);
@@ -37,7 +42,7 @@ export function demandaAreaUtil(tipos: readonly TipoApartamento[], ajustes?: Aju
   const fs = fatoresPorTipo(tipos, "f", (t) => `Fator de multiplicação (${t.nome})`, (t) => ({ valor: fSugerido(t.quantidade), referencia: refF }), ajustes, {
     simbolo: "f",
   });
-  const m = fator("multiplicador", "Fator multiplicativo", MULTIPLICADOR.valores[0], MULTIPLICADOR.referencia, ajustes);
+  const m = fatorDoConjunto(ajustes);
   const soma = (usar: "adotado" | "sugerido") => {
     const partes = as.map((a, i) => produto([fs[i][usar], a[usar]]));
     return partes.some((p) => p == null) ? null : partes.reduce<number>((s, p) => s + (p as number), 0);
