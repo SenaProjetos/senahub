@@ -65,6 +65,7 @@ npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs n
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
 npm run smoke:retencoes             # retenções na nota (C4): pagar líquido + contas dos impostos, parcial/desconto recusados, estorno, conciliação, cobrança, contabilidade
+npm run smoke:importacao-extrato    # importação de extrato categorizado: projeto/sócio/nº doc, modo estrito sem cadastro novo, reimportar sem duplicar (chave nova e antiga), saldo inicial com data
 npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do projeto, projetista pago no Financeiro, recebido pelo pago) e N1 (estorno, reabrir, caminhos impossíveis, desfazer importação)
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:contabil              # integração contábil (M5): plano do contador, partidas (reconhecimento+baixa, parcial, cartão, transferência, folha fora), invariante do extrato, exportação só de mês fechado

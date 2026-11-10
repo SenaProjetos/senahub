@@ -6,6 +6,7 @@
  */
 import { createHash } from "node:crypto";
 import type { CampoSenaHub } from "@/lib/import/mapeamento";
+import type { ResolucaoLinha } from "@/modules/financeiro/importacao/cadastros";
 import {
   parseValorBr,
   parseDataBr,
@@ -357,8 +358,17 @@ export function chaveCatFilha(tipo: string, paiNome: string, nome: string): stri
 /**
  * Conta o que seria criado, simulando a resolução com Sets clonados (dedup dentro do lote).
  * Não escreve nada.
+ *
+ * `opts.resolucoes` (paralelo a `res.linhas`, de `resolverLinhas`) soma os erros do cadastro às linhas e
+ * diz o que a linha já achou (categoria por código, contato a criar). Com `criarCadastros: false` nada de
+ * categoria, conta, forma ou centro é criado — o que faltaria já é erro na linha.
  */
-export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: Contagens; erros: ErroLinha[] } {
+export function contarDryRun(
+  res: ResultadoNorm,
+  ex: Existentes,
+  opts: { resolucoes?: ResolucaoLinha[]; criarCadastros?: boolean } = {},
+): { contagens: Contagens; erros: ErroLinha[] } {
+  const criar = opts.criarCadastros !== false;
   const cat = new Set(ex.categorias);
   const contas = new Set(ex.contas);
   const formas = new Set(ex.formas);
@@ -383,7 +393,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
   const erros: ErroLinha[] = [];
 
   // saldos iniciais podem criar contas
-  for (const s of res.saldosIniciais) {
+  for (const s of criar ? res.saldosIniciais : []) {
     const k = chaveMatch(s.contaNome);
     if (k && !contas.has(k)) {
       contas.add(k);
@@ -391,20 +401,23 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
     }
   }
 
-  for (const l of res.linhas) {
-    if (l.erros.length > 0) {
+  res.linhas.forEach((l, i) => {
+    const r = opts.resolucoes?.[i];
+    const errosDaLinha = r ? [...l.erros, ...r.erros] : l.erros;
+    if (errosDaLinha.length > 0) {
       c.linhasComErro++;
-      erros.push({ idx: l.idx, erros: l.erros });
-      continue;
+      erros.push({ idx: l.idx, erros: errosDaLinha });
+      return;
     }
     if (ex.hashes.has(l.hash) || (l.hashLegado != null && ex.hashes.has(l.hashLegado))) {
       c.duplicados++;
-      continue;
+      return;
     }
     c.novosLancamentos++;
 
-    // categoria (pai sempre; filha quando há subcategoria)
-    if (l.categoriaNome) {
+    // categoria (pai sempre; filha quando há subcategoria) — só a que a resolução não achou
+    const categoriaAchada = r?.categoriaId != null || (!criar && l.categoriaNome === CATEGORIA_TRANSFERENCIA);
+    if (criar && l.categoriaNome && !categoriaAchada) {
       const kPai = chaveCatPai(l.tipo, l.categoriaNome);
       if (!cat.has(kPai)) {
         cat.add(kPai);
@@ -418,8 +431,8 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
         }
       }
     }
-    // conta
-    if (l.contaNome) {
+    // conta, forma e centro só se criam com `criarCadastros` (no estrito o desconhecido já é erro)
+    if (criar && l.contaNome) {
       const k = chaveMatch(l.contaNome);
       if (!contas.has(k)) {
         contas.add(k);
@@ -427,7 +440,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
       }
     }
     // forma
-    if (l.formaNome) {
+    if (criar && l.formaNome) {
       const k = chaveMatch(l.formaNome);
       if (!formas.has(k)) {
         formas.add(k);
@@ -435,7 +448,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
       }
     }
     // centro
-    if (l.centroNome) {
+    if (criar && l.centroNome) {
       const k = chaveMatch(l.centroNome);
       if (!centros.has(k)) {
         centros.add(k);
@@ -443,7 +456,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
       }
     }
     // contato (despesa→fornecedor, receita→cliente)
-    if (l.contatoNome || l.contatoDoc) {
+    if ((l.contatoNome || l.contatoDoc) && (r == null || r.criaContato)) {
       const isForn = l.tipo === "despesa";
       const setDoc = isForn ? fornDoc : cliDoc;
       const setNome = isForn ? fornNome : cliNome;
@@ -457,7 +470,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
         else c.clientesACriar++;
       }
     }
-  }
+  });
 
   return { contagens: c, erros };
 }

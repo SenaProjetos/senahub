@@ -12,7 +12,12 @@
  */
 import { validarCpfCnpj, soDigitos } from "@/lib/documento";
 import { chaveMatch } from "@/lib/import/valores";
-import { CATEGORIA_TRANSFERENCIA, type LinhaNorm, type SaldoInicial } from "@/modules/financeiro/importacao/processar";
+import {
+  CATEGORIA_TRANSFERENCIA,
+  transferenciaIdDoHash,
+  type LinhaNorm,
+  type SaldoInicial,
+} from "@/modules/financeiro/importacao/processar";
 
 type TipoCat = "receita" | "despesa";
 
@@ -145,6 +150,91 @@ export function resolverLinha(l: LinhaNorm, idx: IndiceCadastros, o: OpcoesCadas
   }
 
   return { erros, categoriaId, projetoId, socioId, criaContato };
+}
+
+export const MOTIVO_OUTRA_PERNA = "A outra perna desta transferência tem erro.";
+
+/**
+ * `resolverLinha` em todas as linhas, com uma regra a mais: as duas pernas de uma transferência entram
+ * juntas ou não entram. Uma perna recusada (erro da planilha ou do cadastro) recusa a outra — sozinha,
+ * ela moveria o saldo de uma conta só. `erros` traz só os do cadastro; quem chama soma com `l.erros`.
+ */
+export function resolverLinhas(linhas: LinhaNorm[], idx: IndiceCadastros, o: OpcoesCadastro): ResolucaoLinha[] {
+  const resolucoes = linhas.map((l) => resolverLinha(l, idx, o));
+  const pernasComErro = new Set<string>();
+  linhas.forEach((l, i) => {
+    const par = transferenciaIdDoHash(l.hash);
+    if (par && (l.erros.length > 0 || resolucoes[i].erros.length > 0)) pernasComErro.add(par);
+  });
+  linhas.forEach((l, i) => {
+    const par = transferenciaIdDoHash(l.hash);
+    if (par && pernasComErro.has(par) && l.erros.length === 0 && resolucoes[i].erros.length === 0) {
+      resolucoes[i].erros.push(MOTIVO_OUTRA_PERNA);
+    }
+  });
+  return resolucoes;
+}
+
+/** Uma linha da prévia da importação: TODAS as linhas vão para a tela, com a situação de cada uma. */
+export type LinhaPrevia = {
+  idx: number;
+  tipo: "receita" | "despesa";
+  descricao: string;
+  valor: number;
+  /** YYYY-MM-DD */
+  data: string | null;
+  status: string;
+  categoria: string;
+  conta: string;
+  contato: string;
+  projeto: string;
+  socio: string;
+  erros: string[];
+  duplicada: boolean;
+  criaCadastro: boolean;
+};
+
+/**
+ * A prévia linha a linha, pela mesma regra do commit (`resolverLinhas` + chaves já importadas). Uma linha
+ * com erro não entra; uma duplicada também não; `criaCadastro` = entraria criando categoria, conta, forma,
+ * centro ou contato novo.
+ */
+export function linhasDaPrevia(
+  linhas: LinhaNorm[],
+  idx: IndiceCadastros,
+  existentes: Set<string>,
+  o: OpcoesCadastro,
+): LinhaPrevia[] {
+  const resolucoes = resolverLinhas(linhas, idx, o);
+  return linhas.map((l, i) => {
+    const r = resolucoes[i];
+    const erros = [...l.erros, ...r.erros];
+    const duplicada = existentes.has(l.hash) || (l.hashLegado != null && existentes.has(l.hashLegado));
+    const transferencia = l.categoriaNome === CATEGORIA_TRANSFERENCIA;
+    const novoPorNome = (nome: string, mapa: Map<string, string>) => nome !== "" && !mapa.has(chaveMatch(nome));
+    const criaPorCriar =
+      o.criarCadastros &&
+      ((r.categoriaId == null && !transferencia && l.categoriaNome !== "") ||
+        novoPorNome(l.contaNome, idx.contas) ||
+        novoPorNome(l.formaNome, idx.formas) ||
+        novoPorNome(l.centroNome, idx.centros));
+    return {
+      idx: l.idx,
+      tipo: l.tipo,
+      descricao: l.descricao,
+      valor: l.valor,
+      data: l.data ? l.data.toISOString().slice(0, 10) : null,
+      status: l.status,
+      categoria: l.subcategoriaNome ? `${l.categoriaNome} › ${l.subcategoriaNome}` : l.categoriaNome,
+      conta: l.contaNome,
+      contato: l.contatoNome,
+      projeto: l.projetoCodigo,
+      socio: l.socioRef,
+      erros,
+      duplicada: erros.length === 0 && duplicada,
+      criaCadastro: erros.length === 0 && !duplicada && (r.criaContato || criaPorCriar),
+    };
+  });
 }
 
 export function errosDoSaldoInicial(s: SaldoInicial, idx: IndiceCadastros, o: OpcoesCadastro): string[] {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { errosDoSaldoInicial, resolverLinha, type IndiceCadastros } from "@/modules/financeiro/importacao/cadastros";
+import { errosDoSaldoInicial, resolverLinha, resolverLinhas, linhasDaPrevia, type IndiceCadastros } from "@/modules/financeiro/importacao/cadastros";
 import { CATEGORIA_TRANSFERENCIA, type LinhaNorm } from "@/modules/financeiro/importacao/processar";
 
 const CNPJ_VALIDO = "11222333000181";
@@ -204,5 +204,55 @@ describe("errosDoSaldoInicial", () => {
     expect(errosDoSaldoInicial(s, indice(), ESTRITO)).toEqual(["Conta «Conta X» não existe."]);
     expect(errosDoSaldoInicial(s, indice(), CRIAR)).toEqual([]);
     expect(errosDoSaldoInicial({ ...s, contaNome: "Santander" }, indice(), ESTRITO)).toEqual([]);
+  });
+});
+
+describe("resolverLinhas — transferência anda inteira", () => {
+  it("perna com erro derruba a outra perna da mesma transferência", () => {
+    const base = { categoriaNome: CATEGORIA_TRANSFERENCIA, hashLegado: null };
+    const linhas = [
+      linha({ ...base, tipo: "despesa", contaNome: "Santander", hash: "x:abc:out" }),
+      linha({ ...base, tipo: "receita", contaNome: "Conta inexistente", hash: "x:abc:in" }),
+      linha({ categoriaNome: "2.08", contaNome: "Santander", hash: "x:outra" }),
+    ];
+    const r = resolverLinhas(linhas, indice(), ESTRITO);
+    expect(r[1].erros).toEqual(["Conta «Conta inexistente» não existe."]);
+    expect(r[0].erros).toEqual(["A outra perna desta transferência tem erro."]);
+    expect(r[2].erros).toEqual([]);
+  });
+
+  it("erro da própria planilha (data ruim) também derruba a outra perna", () => {
+    const base = { categoriaNome: CATEGORIA_TRANSFERENCIA, hashLegado: null, contaNome: "Santander" };
+    const linhas = [
+      linha({ ...base, tipo: "despesa", hash: "x:d:out", erros: ["Data inválida ou ausente."] }),
+      linha({ ...base, tipo: "receita", hash: "x:d:in" }),
+    ];
+    const r = resolverLinhas(linhas, indice(), ESTRITO);
+    expect(r[1].erros).toEqual(["A outra perna desta transferência tem erro."]);
+  });
+});
+
+describe("linhasDaPrevia", () => {
+  it("todas as linhas, com erros somados, duplicada e cria cadastro", () => {
+    const linhas = [
+      linha({ idx: 1, categoriaNome: "2.08", contaNome: "Santander", hash: "x:1", projetoCodigo: "260031" }),
+      linha({ idx: 2, categoriaNome: "Software", hash: "x:2" }),
+      linha({ idx: 3, categoriaNome: "2.08", hash: "x:3", hashLegado: "h:3" }),
+      linha({ idx: 4, categoriaNome: "2.08", hash: "x:4", contatoNome: "Novo", contatoDoc: "33445566000186" }),
+      linha({ idx: 5, categoriaNome: "", hash: "x:5", erros: ["Sem categoria."] }),
+    ];
+    const p = linhasDaPrevia(linhas, indice(), new Set(["h:3"]), ESTRITO);
+    expect(p).toHaveLength(5);
+    expect(p[0]).toMatchObject({ idx: 1, categoria: "2.08", conta: "Santander", projeto: "260031", erros: [], duplicada: false, criaCadastro: false });
+    expect(p[1].erros).toEqual(["Categoria «Software» não existe no plano de contas."]);
+    expect(p[2].duplicada).toBe(true);
+    expect(p[3]).toMatchObject({ erros: [], criaCadastro: true });
+    expect(p[4].erros).toEqual(["Sem categoria."]);
+    expect(p[0].data).toBe("2026-01-05");
+  });
+
+  it("criando cadastros: categoria e conta novas marcam a linha", () => {
+    const p = linhasDaPrevia([linha({ categoriaNome: "Software", contaNome: "Itaú" })], indice(), new Set(), CRIAR);
+    expect(p[0]).toMatchObject({ erros: [], criaCadastro: true });
   });
 });

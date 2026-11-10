@@ -260,3 +260,35 @@ describe("extrato do banco: colunas novas e chave anti-duplicata", () => {
     expect(contagens.novosLancamentos).toBe(0);
   });
 });
+
+describe("contarDryRun com a resolução dos cadastros", () => {
+  const MAP_EXTRATO: Mapeamento = { data: 0, descricao: 1, valor: 2, categoria: 3, conta: 4, contato: 5, documento: 6 };
+
+  it("modo estrito não conta categoria, conta, forma e centro a criar; soma os erros do cadastro", () => {
+    const res = normalizarLinhas(
+      [
+        row("05/01/2026", "Tarifa", "-9,90", "2.08", "Santander", "", ""),
+        row("05/01/2026", "Software", "-50", "Software", "Santander", "", ""),
+      ],
+      MAP_EXTRATO,
+    );
+    const resolucoes = [
+      { erros: [], categoriaId: "cat-1", projetoId: null, socioId: null, criaContato: false },
+      { erros: ["Categoria «Software» não existe no plano de contas."], categoriaId: null, projetoId: null, socioId: null, criaContato: false },
+    ];
+    const { contagens, erros } = contarDryRun(res, exVazio(), { resolucoes, criarCadastros: false });
+    expect(contagens.novosLancamentos).toBe(1);
+    expect(contagens.linhasComErro).toBe(1);
+    expect(contagens.categoriasACriar).toBe(0);
+    expect(contagens.contasACriar).toBe(0);
+    expect(erros).toEqual([{ idx: 2, erros: ["Categoria «Software» não existe no plano de contas."] }]);
+  });
+
+  it("contato a criar segue a resolução (com documento válido)", () => {
+    const res = normalizarLinhas([row("05/01/2026", "Compra", "-9,90", "2.08", "Santander", "Fornecedor novo", "33445566000186")], MAP_EXTRATO);
+    const resolucoes = [{ erros: [], categoriaId: "cat-1", projetoId: null, socioId: null, criaContato: true }];
+    const { contagens } = contarDryRun(res, exVazio(), { resolucoes, criarCadastros: false });
+    expect(contagens.fornecedoresACriar).toBe(1);
+    expect(contagens.categoriasACriar).toBe(0);
+  });
+});
