@@ -187,7 +187,8 @@ async function main() {
     check("modo estrito: contato novo sem documento recusa a linha", estrito?.includes("Nada a importar") === true && (await prisma.fornecedor.count({ where: { nome: `${TAG} Outro sem doc` } })) === 0, estrito);
   } finally {
     await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: TAG } } });
-    for (const id of lotes) await prisma.importacaoFinanceira.deleteMany({ where: { id } });
+    // Pelo nome do arquivo também: um commit que deveria ter sido recusado e passou deixaria o lote fora de `lotes`.
+    await prisma.importacaoFinanceira.deleteMany({ where: { OR: [{ id: { in: lotes } }, { nomeArquivo: { startsWith: TAG } }] } });
     await prisma.fornecedor.deleteMany({ where: { nome: { startsWith: TAG } } });
     await prisma.socio.delete({ where: { id: socio.id } });
     await prisma.user.delete({ where: { id: userSocio.id } });
