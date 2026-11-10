@@ -42,10 +42,23 @@ export type TabelaNorma<L> = {
   pagina: number | null;
   linhas: readonly L[];
   notas?: readonly string[];
+  /** Condições de referência impressas no cabeçalho da tabela (isolação, temperaturas), literais do PDF. */
+  condicoesDeReferencia?: Readonly<Record<string, string | number>>;
   /** Células que destoam das demais normas ou da sequência, mantidas literais (spec §11). */
   destoantes?: readonly string[];
   /** Situação do conteúdo: sempre "a conferir" até a validação (spec §2). */
   conferencia: "a_conferir";
+};
+
+/** Trecho literal de uma norma (regra em texto, limite de atendimento, vigência), para aviso e relatório. */
+export type TrechoNorma = {
+  fonte: FonteNorma;
+  item: string;
+  /** Página física do PDF (1-based); `null` em fonte sem paginação. */
+  pagina: number | null;
+  texto: string;
+  /** Observação da extração (ex.: trecho tachado na imagem). */
+  observacao?: string;
 };
 
 /** Referência curta para o relatório: "DIS-NOR-053 Rev. 06, Quadro 35". */
