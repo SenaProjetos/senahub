@@ -107,3 +107,6 @@ merge-documentos-*.json
 /docs/modelo-de-importacao-lancamentos-excel-1-.xls
 # kit de contexto para o Projeto do claude.ai (gerado por npm run kit:claude, regerável)
 /kit-claude-saida/
+
+# Calculadora de cargas e demanda: PDFs de normas (licença ABNT "uso exclusivo") e catálogos ficam fora do git
+docs/calculadora-eletrica/normas-e-catalogos/
