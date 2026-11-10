@@ -12,7 +12,7 @@ Branch `feat/calculadora-cargas-demanda` (a partir de `dev-vscode`). Spec: `docs
 - Não alterar `calc/electrical-demand.ts` nem a "Corrente e Demanda".
 - Parar para revisão humana ao fim de cada fase.
 
-## Fase 1 — biblioteca e motor (em andamento)
+## Fase 1 — biblioteca e motor (concluída em 2026-11-10; aguarda a revisão humana)
 
 Pasta: `src/modules/ferramentas/calc/cargas-demanda/` (puro, roda no navegador).
 
@@ -73,6 +73,22 @@ Feito:
   T11–T15; Celesc 5.6.2 (condomínio), T04–T07; Copel NTC 841001 T05–T12. Leitor novo não ligado ainda à tela nem à
   composição (a carga instalada por linha continua recebendo o FD pronto). `fd-sugerido-tipos.test.ts` (44 testes): uma
   célula por tabela conferida no JSON, mais varredura de cobertura das faixas. vitest 150 + 1 todo, tsc sem erro, eslint limpo.
+- 2026-11-10 (passo 6): `modules/estudos/cargas-demanda/` (puro, sem I/O, sem migração, sem telas). `conteudo.ts` = esquema Zod do
+  documento de `EstudoProjeto.tipo = "cargas_demanda"` (`TIPO_ESTUDO_CARGAS_DEMANDA`, `versaoEsquema` 1): estudo (concessionária
+  — as 7, com Enel —, tipo de empreendimento, tensão, ligação, critério de iluminação, pé-direito único) → levantamentos →
+  pavimentos → ambientes (habitação: tipo, VA adotado, FP; lux: atividade, Em, Fu, Fm, luminária, quantidade; pontos TUG/TUE/outro
+  com quantidade, VA por ponto e FP) → cálculos (método, papel, escopo = levantamentos + × N, linhas com tipo de carga,
+  quantidade, potência por aparelho, FP, FD e `vinculo`, tipos de apartamento, ajustes por nível) → centros (CMDs com
+  capacidade e medidores, `calculosSoNoCpg`, ajustes do CPG, opções, uso) → entradas (cabo e proteção por flat, CMD ou CPG) →
+  responsável técnico. Só entradas (nenhum resultado gravado); nada vem preenchido por padrão (`null`); campo novo entra com
+  `.default` (documento antigo abre); faixas com o texto da §6; ids únicos e referências conferidas. Os tipos encaixam nos do
+  motor (`Ajustes`, `AjustesDoNivel`, `OpcoesDoNivel`, `PapelCalculo`, `LinhaCarga`…) — conferido pelo `tsc` em `conteudo.test.ts`.
+  `levantamento.ts` = passo 11 (`totaisDoEscopo`: iluminação, TUG, cada TUE/outro por descrição normalizada, soma dos
+  levantamentos do escopo, sem o × N; total `null` enquanto faltar dado) e passo 12 (`trazerLinha(s)`, `valoresVivos`,
+  `estadoDoVinculo` → "do levantamento" / "diferente do levantamento" + avisos da §6, `atualizarDoLevantamento`, `avisosDoEscopo`).
+  `vinculo = { origem, trazido }`: "diferente" = linha ≠ `trazido`; "levantamento alterado" = total de agora ≠ `trazido`.
+  Nada grava sozinho. Caso 20 passando (iluminação 380 W; TUG 800 W; texto do alerta). vitest 267 + 1 todo (estudos +
+  cargas-demanda), tsc sem erro, eslint limpo.
 
 Extração: todos os JSON prontos (inclusive `copel-ntc841001.json` e `copel-outras.json`, 2026-11-10). Página de PDF em
 imagem: `_extracao/gen/render-pdf.mjs <pdf> <pág> <saída.png> [escala]` (pdfjs-dist + @napi-rs/canvas do repositório,
@@ -90,8 +106,10 @@ Próximos passos, um por sessão curta (modelo sugerido entre colchetes):
 5. ~~[Opus] Níveis CMD e CPG (CPG ≠ soma dos CMDs), composição por concessionária (apartamentos + condomínio ×
    `fatorDoConjunto` + especiais/comercial fora dele; Energisa duplex 1,52 e lojas 1,1; Equatorial duplex e misto),
    avisos de atendimento, apart-hotel; casos 8, 29, 30, 31.~~ — feito 2026-11-10 (Enel do caso 8 pendente, pergunta 23).
-6. [Sonnet] Esquema do conteúdo do estudo (`modules/estudos/cargas-demanda/conteudo.ts`) e vínculos com o
-   levantamento (trazer, "diferente do levantamento", "levantamento alterado"); caso 20.
+6. ~~[Sonnet] Esquema do conteúdo do estudo (`modules/estudos/cargas-demanda/conteudo.ts`) e vínculos com o
+   levantamento (trazer, "diferente do levantamento", "levantamento alterado"); caso 20.~~ — feito 2026-11-10 (ver "Feito",
+   passo 6). Fase 1 concluída: falta só o relatório de revisão humana (perguntas abaixo) antes da Fase 2 (telas; despachar o
+   módulo Estudos por tipo e o gate por tipo entram lá).
 
 ## Perguntas para o dono (juntar no relatório da Fase 1)
 
@@ -178,6 +196,27 @@ Novas (passo 4b, 2026-11-10) — o código segue a leitura indicada até a respo
     A Neoenergia 6.27.7 manda a "conversão para kW ou kVA, conforme Tabela 18" (só monofásicos) — usamos a 19 para trifásicos.
 40. Celesc 5.6.2 (condomínio) e T06 nota 3 (hotel: o projetista define, "próximo a 100%"): `fdCondominio()` e `fdAquecimento()` só
     expõem a norma; hotel/motel/apart-hotel segue sem sugestão.
+
+Novas (passo 6, 2026-11-10) — o código segue a leitura indicada até a resposta:
+41. Escopo = lista de levantamentos com UM × N para o cálculo todo (como `cargaInstalada(linhas, escopoN)`). A spec §3.1 diz "de
+    quais levantamentos vêm as cargas e a quantidade (× N)" sem dizer se o N é por levantamento. Confirmar (o contrário muda o motor).
+42. Levantamento → pavimentos → ambientes (a §3.1 diz "cada um tem pavimentos e ambientes"; a §3.3 trata "pavimentos" como texto).
+    Adotado: pavimento é um grupo com nome que contém os ambientes (a ordem da tela é a do relatório).
+43. "Potência trazida" (caso 20) = total da linha em W: a linha guarda quantidade e potência POR aparelho (como `LinhaCarga`):
+    iluminação = quantidade 1 × total; TUG/TUE = Σ quantidade e (ΣW ÷ Σ quantidade) por aparelho; FP do conjunto = ΣW ÷ ΣVA.
+    Confirmar (principalmente a iluminação como "1 aparelho").
+44. Ponto "outro" (§3.3: "TUG, TUE ou outro"): a §5 passo 11 só fala em iluminação, TUG e "cada TUE". Adotado: "outro" agrupa por
+    descrição como a TUE, em linha própria (tipo de carga "outro").
+45. Atualizar uma linha EDITADA: a §3.1 regra 3 oferece "atualizar" e o §8 diz que o valor trazido "nunca sobrescreve edição
+    manual". Adotado: "Atualizar" não toca linha editada; para refazer, o projetista descarta a edição de propósito
+    (`descartarEdicao`). Confirmar o texto/fluxo da tela.
+46. "Cálculo sem escopo" (§6): sai quando não há levantamento no escopo E nenhuma linha (a mensagem fala em "escolha o levantamento ou
+    digite as cargas"); com linhas digitadas sem escopo, nenhum aviso. Total incompleto que impede trazer usa o informativo do FP
+    em branco, mesmo quando a falta é de quantidade ou VA (a §6 não tem texto para isso).
+47. Estudo com Enel é aceito no esquema (a spec §3.3 lista a Enel), mas o motor não a calcula (pergunta 23). Os tipos de
+    carga da linha (iluminação, TUG, TUE, aquecimento, motores, ar-condicionado, recarga, outro) saíram dos nomes da spec §3.1/§3.3 —
+    a spec não traz uma lista fechada. Campos próprios de motor/ar-condicionado/recarga (cv, reservas, BTU/h, gerenciamento) ainda
+    não existem no esquema: entram como campo opcional na Fase 2, sem migração.
 
 Diferenças de redação da planilha (sem ajuste de esperado): caso 2 chama de "Dr" a demanda já com o Fc (a Dtr do
 Anexo I); casos 13 e 18 citam a norma no texto da mensagem (vale a spec §6).
