@@ -3,7 +3,7 @@
  * valores (spec §2); o conjunto de informações é o mesmo (spec §3.1), os campos do método mudam (spec §3.4).
  */
 
-import type { Mensagem } from "../mensagens";
+import { MSG, type Mensagem } from "../mensagens";
 
 /** Um tipo de apartamento do nível (CMD ou CPG): quantidade NESSE nível. */
 export type TipoApartamento = { nome: string; quantidade: number; areaUtilM2: number };
@@ -38,8 +38,18 @@ export type PassoDoMetodo = {
 export type ResultadoAreaUtil = {
   fatores: FatorDoMetodo[];
   passos: PassoDoMetodo[];
-  /** Demanda dos apartamentos no nível, em kVA, já com os fatores que a norma aplica só a eles. `null` = falta valor. */
+  /**
+   * Demanda dos apartamentos no nível, em kVA, com os fatores ADOTADOS (digitados ou sugeridos) que a norma aplica a
+   * eles — inclusive o fator do conjunto, quando há. `null` = falta valor.
+   */
   demandaKVA: number | null;
+  /** A mesma conta só com os valores SUGERIDOS pela norma (o "critério"; pergunta 1 do plano). `null` = falta valor. */
+  demandaCriterioKVA: number | null;
+  /**
+   * Fator que a norma aplica aos apartamentos E ao condomínio juntos (Celesc k, Energisa 1,3, Copel fator multiplicador).
+   * Já está em `demandaKVA`; a composição do nível (passo 5) o aplica também ao condomínio. Ausente = não há.
+   */
+  fatorDoConjunto?: FatorDoMetodo;
   avisos: Mensagem[];
 };
 
@@ -76,4 +86,16 @@ export function areaMediaPonderada(tipos: readonly TipoApartamento[]): number {
 
 export function totalDeApartamentos(tipos: readonly TipoApartamento[]): number {
   return tipos.reduce((s, t) => s + t.quantidade, 0);
+}
+
+/** Spec §6 "valor digitado abaixo do valor da norma": um alerta por fator digitado menor que o sugerido. */
+export function avisosAbaixoDaNorma(fatores: readonly FatorDoMetodo[], concessionaria: string): Mensagem[] {
+  return fatores
+    .filter((f) => f.digitado && f.sugerido != null && f.adotado != null && f.adotado < f.sugerido - 1e-9)
+    .map((f) => MSG.valorAbaixoNorma(f.adotado!, concessionaria, f.sugerido!, f.referencia));
+}
+
+/** Produto dos valores (adotados ou sugeridos); `null` se algum faltar. */
+export function produto(valores: readonly (number | null)[]): number | null {
+  return valores.some((v) => v == null) ? null : valores.reduce<number>((a, v) => a * (v as number), 1);
 }

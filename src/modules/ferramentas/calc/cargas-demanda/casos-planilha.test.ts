@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { calcularLux } from "./lux";
 import { correnteCorrigida, correnteDoCircuito, disjuntorSugerido } from "./corrente";
+import { fatorDeAgrupamento, fatorDeTemperatura, secaoPelaCapacidade } from "./entrada";
 import { avaliarComodo, iluminacaoSugeridaVA, potenciaTomadasMinimaVA, tomadasMinimas } from "./habitacao";
 import { validarApartamentos, validarArea, validarFp } from "./validacao";
 
@@ -29,13 +30,36 @@ const consultorio = {
 };
 
 describe("caso 9 — FCT × FCA abaixo de 0,5 (chuveiro 5.500 W, 220 V, PVC 60 °C, 20 circuitos)", () => {
-  it("Ib = 25 A; Ib′ = 131,58 A com FCT 0,50 e FCA 0,38; alerta", () => {
+  const fct = fatorDeTemperatura({ isolacao: "PVC", meio: "ambiente", temperaturaC: 60 }).fator.adotado!;
+  const fca = fatorDeAgrupamento({ forma: { tabela: "42", ref: 1 }, circuitos: 20 }).adotado!;
+  it("FCT = 0,50 (Tabela 40, PVC, 60 °C)", () => perto(fct, 0.5));
+  it("FCA = 0,38 (Tabela 42, linha 1, 20 ou mais)", () => perto(fca, 0.38));
+  it("Ib = 25 A; Ib′ = 131,58 A; alerta", () => {
     const ib = correnteDoCircuito(5500, 220, 1, 1);
     perto(ib, 25);
-    const r = correnteCorrigida(ib, 0.5, 0.38);
+    const r = correnteCorrigida(ib, fct, fca);
     perto(r.ibCorrigida, 131.58);
     expect(r.avisos.map((a) => a.texto)).toContain("Fator de correção combinado abaixo de 0,5. Verifique as condições de instalação.");
   });
+});
+
+describe("caso 10 — seção sugerida (chuveiro 5.500 W, 220 V, PVC 40 °C, 3 circuitos, B1, 2 carregados, cobre)", () => {
+  const fct = fatorDeTemperatura({ isolacao: "PVC", meio: "ambiente", temperaturaC: 40 }).fator.adotado!;
+  const fca = fatorDeAgrupamento({ forma: { tabela: "42", ref: 1 }, circuitos: 3 }).adotado!;
+  const ibc = correnteCorrigida(correnteDoCircuito(5500, 220, 1, 1), fct, fca).ibCorrigida;
+  it("FCT = 0,87", () => perto(fct, 0.87));
+  it("FCA = 0,70", () => perto(fca, 0.7));
+  it("Ib′ = 41,05 A", () => perto(ibc, 41.05));
+  it("seção sugerida = 10 mm² (Tabela 36, B1, 2 condutores)", () =>
+    expect(secaoPelaCapacidade({ metodo: "B1", isolacao: "PVC", material: "cobre", carregados: 2, ibCorrigidaA: ibc }).secaoMm2).toBe(10));
+});
+
+// A planilha escreve "Temperatura fora da Tabela 40 …"; vale o texto da spec §6, sem norma na tela (decisão do dono).
+describe("caso 18 — 65 °C com PVC (célula sem valor na Tabela 40)", () => {
+  it("recusa", () =>
+    expect(fatorDeTemperatura({ isolacao: "PVC", meio: "ambiente", temperaturaC: 65 }).recusa?.texto).toBe(
+      "Temperatura fora da tabela para esta isolação. Informe um FCT manualmente ou escolha outra isolação.",
+    ));
 });
 
 describe("caso 11 — consultório por lux", () => {
