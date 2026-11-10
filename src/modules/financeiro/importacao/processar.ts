@@ -40,11 +40,22 @@ export type LinhaNorm = {
   contatoDoc: string;
   observacao: string;
   tags: string[];
+  /** Código do projeto (`Projeto.codigo`) digitado na planilha; vazio = deixar as regras preencherem. */
+  projetoCodigo: string;
+  /** Nome do sócio ou e-mail do usuário dele; vazio = sem sócio. */
+  socioRef: string;
+  numeroDocumento: string;
+  /**
+   * Chave anti-duplicata: `md:<ID único>` ou `x:<sha256(tipo|conta|data|centavos|descrição|n)>` — sem a
+   * categoria, e com `n` = ordem da linha entre as idênticas do mesmo arquivo.
+   */
   hash: string;
+  /** A chave no formato antigo (`h:` + tipo|data|valor|descrição|categoria), só para reconhecer lotes já gravados. */
+  hashLegado: string | null;
   erros: string[];
 };
 
-export type SaldoInicial = { contaNome: string; valor: number };
+export type SaldoInicial = { contaNome: string; valor: number; data: Date | null };
 
 export type ResultadoNorm = {
   linhas: LinhaNorm[];
@@ -82,9 +93,31 @@ function soDigitos(s: string): string {
   return s.replace(/\D/g, "");
 }
 
-function hashLinha(idUnico: string, partes: (string | number)[]): string {
+function sha(partes: (string | number)[]): string {
+  return createHash("sha256").update(partes.join("|")).digest("hex").slice(0, 32);
+}
+
+/** Fórmula antiga da chave (até 2026-11): depende da categoria e não separa linhas idênticas. */
+function hashLegadoLinha(idUnico: string, partes: (string | number)[]): string | null {
+  if (idUnico) return null;
+  return "h:" + sha(partes);
+}
+
+/**
+ * Chave nova. `ocorrencias` conta, por arquivo, quantas linhas com a mesma base já apareceram — duas
+ * linhas idênticas (mesma conta, dia, valor e descrição) viram `…|0` e `…|1`, e o mesmo arquivo
+ * reimportado gera as mesmas chaves.
+ */
+function hashNovo(idUnico: string, base: (string | number)[], ocorrencias: Map<string, number>): string {
   if (idUnico) return `md:${idUnico}`;
-  return "h:" + createHash("sha256").update(partes.join("|")).digest("hex").slice(0, 32);
+  const k = base.join("|");
+  const n = ocorrencias.get(k) ?? 0;
+  ocorrencias.set(k, n + 1);
+  return "x:" + sha([...base, n]);
+}
+
+function centavos(v: number): number {
+  return isFinite(v) ? Math.round(v * 100) : NaN;
 }
 
 /** Constrói uma linha normalizada de lançamento (perna única ou de transferência). */
@@ -107,7 +140,11 @@ function montarLinha(opts: {
   contatoDoc: string;
   observacao: string;
   tags: string[];
+  projetoCodigo: string;
+  socioRef: string;
+  numeroDocumento: string;
   hash: string;
+  hashLegado: string | null;
 }): LinhaNorm {
   const erros: string[] = [];
   if (!opts.data) erros.push("Data inválida ou ausente.");
@@ -132,7 +169,11 @@ function montarLinha(opts: {
     contatoDoc: opts.contatoDoc,
     observacao: opts.observacao,
     tags: opts.tags,
+    projetoCodigo: opts.projetoCodigo,
+    socioRef: opts.socioRef,
+    numeroDocumento: opts.numeroDocumento,
     hash: opts.hash,
+    hashLegado: opts.hashLegado,
     erros,
   };
 }
@@ -144,6 +185,7 @@ function montarLinha(opts: {
 export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm {
   const linhas: LinhaNorm[] = [];
   const saldosIniciais: SaldoInicial[] = [];
+  const ocorrencias = new Map<string, number>();
 
   rows.forEach((row, i) => {
     const idx = i + 1;
@@ -174,6 +216,9 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
     const centroNome = valorOuVazio(celula(row, m, "centro"));
     const contatoNome = valorOuVazio(celula(row, m, "contato"));
     const contatoDoc = soDigitos(celula(row, m, "documento"));
+    const projetoCodigo = valorOuVazio(celula(row, m, "projeto"));
+    const socioRef = valorOuVazio(celula(row, m, "socio"));
+    const numeroDocumento = valorOuVazio(celula(row, m, "numeroDocumento"));
 
     // Categoria + subcategoria (hierarquia em 2 colunas).
     const categoriaNome = valorOuVazio(celula(row, m, "categoria"));
@@ -181,7 +226,7 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
 
     if (classe === "saldo_inicial") {
       if (contaNome && valorNum != null) {
-        saldosIniciais.push({ contaNome, valor: valorNum });
+        saldosIniciais.push({ contaNome, valor: valorNum, data });
       }
       return;
     }
@@ -191,7 +236,13 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
       // Sinal define a origem: negativo sai de `conta`; positivo entra em `conta`.
       const saiDe = (valorNum ?? 0) < 0 ? contaNome : contaDestino;
       const entraEm = (valorNum ?? 0) < 0 ? contaDestino : contaNome;
-      const baseHash = hashLinha(idUnico, ["transf", data?.toISOString() ?? "", valorAbs, descricao]);
+      const dataIso = data?.toISOString() ?? "";
+      const baseHash = hashNovo(
+        idUnico,
+        ["transf", chaveMatch(contaNome), dataIso, centavos(valorAbs), chaveMatch(descricao)],
+        ocorrencias,
+      );
+      const baseLegado = hashLegadoLinha(idUnico, ["transf", dataIso, valorAbs, descricao]);
       const comum = {
         idx,
         descricao,
@@ -209,12 +260,15 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
         contatoDoc: "",
         observacao,
         tags,
+        projetoCodigo,
+        socioRef,
+        numeroDocumento,
       };
       // Saída (despesa) na conta de origem.
-      linhas.push(montarLinha({ ...comum, tipo: "despesa", contaNome: saiDe, hash: baseHash + ":out" }));
+      linhas.push(montarLinha({ ...comum, tipo: "despesa", contaNome: saiDe, hash: baseHash + ":out", hashLegado: baseLegado && baseLegado + ":out" }));
       // Entrada (receita) na conta de destino (só se houver destino).
       if (entraEm) {
-        linhas.push(montarLinha({ ...comum, tipo: "receita", contaNome: entraEm, hash: baseHash + ":in" }));
+        linhas.push(montarLinha({ ...comum, tipo: "receita", contaNome: entraEm, hash: baseHash + ":in", hashLegado: baseLegado && baseLegado + ":in" }));
       }
       return;
     }
@@ -222,7 +276,13 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
     // Lançamento comum.
     const tipo = inferirTipo({ tipoTexto, valor: valorNum ?? 0 });
     const valorAbs = Math.abs(valorNum ?? NaN);
-    const hash = hashLinha(idUnico, [tipo, data?.toISOString() ?? "", valorAbs, chaveMatch(descricao), chaveMatch(categoriaNome)]);
+    const dataIso = data?.toISOString() ?? "";
+    const hash = hashNovo(
+      idUnico,
+      [tipo, chaveMatch(contaNome), dataIso, centavos(valorAbs), chaveMatch(descricao)],
+      ocorrencias,
+    );
+    const hashLegado = hashLegadoLinha(idUnico, [tipo, dataIso, valorAbs, chaveMatch(descricao), chaveMatch(categoriaNome)]);
     linhas.push(
       montarLinha({
         idx,
@@ -243,7 +303,11 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
         contatoDoc,
         observacao,
         tags,
+        projetoCodigo,
+        socioRef,
+        numeroDocumento,
         hash,
+        hashLegado,
       }),
     );
   });
@@ -333,7 +397,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
       erros.push({ idx: l.idx, erros: l.erros });
       continue;
     }
-    if (ex.hashes.has(l.hash)) {
+    if (ex.hashes.has(l.hash) || (l.hashLegado != null && ex.hashes.has(l.hashLegado))) {
       c.duplicados++;
       continue;
     }

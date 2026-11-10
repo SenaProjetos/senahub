@@ -45,3 +45,14 @@ describe("autoMapear (export Meu Dinheiro)", () => {
     expect(m2.data).toBeUndefined();
   });
 });
+
+describe("autoMapear (extrato do banco com colunas do SenaHub)", () => {
+  it("nº do documento, projeto e sócio não roubam o CPF/CNPJ", () => {
+    const h = ["Data", "Histórico", "Nº Documento", "Valor", "Projeto", "Sócio", "CPF/CNPJ"];
+    const m = autoMapear(h);
+    expect(m.numeroDocumento).toBe(2);
+    expect(m.projeto).toBe(4);
+    expect(m.socio).toBe(5);
+    expect(m.documento).toBe(6);
+  });
+});
