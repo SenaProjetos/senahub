@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 
 import { FCT_TABELA, fatorAgrupamento } from "../electrical-demand";
+import { CEMIG_ND52_TABELA_12 } from "./biblioteca/cemig";
+import { fSugerido as fCemig } from "./concessionarias/cemig";
 import { NBR5410_TABELA_40, NBR5410_TABELA_41 } from "./biblioteca/nbr5410";
 import {
   chaveContem,
@@ -81,5 +83,15 @@ describe("leitura da biblioteca", () => {
   it("linha enterrada avisa a coluna do solo", () => {
     const r = fatorDeTemperatura({ isolacao: "PVC", meio: "solo", temperaturaC: 25 });
     expect(r.avisos.map((a) => a.id)).toContain("linha_enterrada");
+  });
+});
+
+// Pergunta 2 do plano: a linha impressa "228" na posição do 217 não pode responder pelo 228 de verdade.
+describe("Cemig, Tabela 12 com rótulo repetido", () => {
+  it("228 lê a linha sem observação; 217 fica sem sugestão", () => {
+    const linhas228 = CEMIG_ND52_TABELA_12.linhas.filter((l) => l.n_aptos === 228);
+    expect(linhas228.length).toBe(2);
+    expect(fCemig(228)).toBe(linhas228.find((l) => !l.obs)!.fator_mult);
+    expect(fCemig(217)).toBeNull();
   });
 });

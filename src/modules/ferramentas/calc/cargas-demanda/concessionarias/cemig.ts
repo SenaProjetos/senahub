@@ -34,9 +34,16 @@ export function aSugerido(areaM2: number): number | null {
   return valorDaArea(FAIXAS_A, areaM2);
 }
 
+/**
+ * Linhas da Tabela 12 sem a do rótulo impresso errado: a ND-5.2 imprime "228" na posição do 217 (fator 81,69; a
+ * ND-5.5 imprime 217). Essa linha tem `obs` e fica fora até o engenheiro decidir (pergunta 2): 228 lê o 228 de
+ * verdade (82,17) e 217 sai sem sugestão.
+ */
+const LINHAS_T12 = CEMIG_ND52_TABELA_12.linhas.filter((l) => !l.obs);
+
 /** f da Tabela 12 (`null` até 3 apartamentos: "válido somente para quantidade superior a 3"). */
 export function fSugerido(apartamentos: number): number | null {
-  return CEMIG_ND52_TABELA_12.linhas.find((l) => l.n_aptos === apartamentos)?.fator_mult ?? null;
+  return LINHAS_T12.find((l) => l.n_aptos === apartamentos)?.fator_mult ?? null;
 }
 
 export type FormaCemig = "conjunto" | "media";
