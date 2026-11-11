@@ -67,6 +67,8 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
   // Modo estrito por padrão: extrato do banco nunca cria cadastro a partir de um nome truncado.
   const [criarCadastros, setCriarCadastros] = useState(false);
   const [resultado, setResultado] = useState<{ loteId: string; texto: string } | null>(null);
+  // Erro da última conferência, mostrado no passo do mapeamento (o toast some; quem usa teclado perde o aviso).
+  const [erroPrevia, setErroPrevia] = useState<string | null>(null);
 
   async function enviarArquivo(file: File | null) {
     if (!file) return;
@@ -103,9 +105,16 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
         criarCadastros: criar,
       });
       if (r.ok) {
+        setErroPrevia(null);
         setDry(r.data as DryRun);
         setStep(3);
-      } else toast.error(r.error);
+      } else {
+        // A prévia que estava na tela era de outra opção ou de outro mapeamento: não pode valer para gravar.
+        setDry(null);
+        setStep(2);
+        setErroPrevia(r.error);
+        toast.error(r.error);
+      }
     });
   }
 
@@ -134,7 +143,7 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
     if (
       !(await confirm({
         title: "Desfazer importação?",
-        description: "Os lançamentos do lote serão removidos (cadastros criados permanecem).",
+        description: "Os lançamentos do lote serão removidos. Os cadastros criados e os saldos iniciais gravados por ele permanecem.",
         variant: "destructive",
         confirmLabel: "Desfazer",
       }))
@@ -155,6 +164,7 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
     setMapa({});
     setDry(null);
     setResultado(null);
+    setErroPrevia(null);
     setCriarCadastros(false);
   }
 
@@ -250,6 +260,12 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
             <PreviaTabela headers={preview.headers} rows={preview.sample.slice(0, 6)} />
 
             <OpcaoCriarCadastros valor={criarCadastros} onChange={trocarCriarCadastros} disabled={pending} />
+
+            {erroPrevia && (
+              <p role="alert" className="text-sm text-destructive">
+                A conferência não pôde ser feita: {erroPrevia}
+              </p>
+            )}
 
             <div className="flex flex-wrap items-center justify-between gap-2">
               <Button variant="ghost" onClick={recomecar}>

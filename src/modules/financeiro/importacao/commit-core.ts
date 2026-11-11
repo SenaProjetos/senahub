@@ -5,6 +5,7 @@
  */
 import { Prisma, type PrismaClient } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { validarCpfCnpj } from "@/lib/documento";
 import { chaveDocumento, documentoParaGravar } from "@/modules/financeiro/importacao/documento";
 import { chaveMatch } from "@/lib/import/valores";
@@ -28,6 +29,7 @@ import {
   errosDoSaldoInicial,
   resolverLinhas,
   type IndiceCadastros,
+  type OpcoesCadastro,
   type ResolucaoLinha,
 } from "@/modules/financeiro/importacao/cadastros";
 
@@ -80,12 +82,22 @@ export function jaImportada(l: LinhaNorm, existentes: Set<string>): boolean {
  * Sócio pelo nome e e-mail do usuário, ativo ou inativo.
  */
 export async function carregarIndice(db: Db): Promise<IndiceCadastros> {
-  const categorias = await db.categoriaFinanceira.findMany({ select: { id: true, nome: true, tipo: true, paiId: true, codigo: true } });
+  const categorias = await db.categoriaFinanceira.findMany({ select: { id: true, nome: true, tipo: true, paiId: true, codigo: true, ativo: true } });
   const nomePorId = new Map(categorias.map((c) => [c.id, c.nome]));
-  const porNome = (lista: { id: string; nome: string }[]) => new Map(lista.map((x) => [chaveMatch(x.nome), x.id]));
-  const contas = porNome(await db.contaBancaria.findMany({ select: { id: true, nome: true } }));
-  const formas = porNome(await db.formaPagamento.findMany({ select: { id: true, nome: true } }));
-  const centros = porNome(await db.centroCusto.findMany({ select: { id: true, nome: true } }));
+  type ComAtivo = { id: string; nome: string; ativo: boolean };
+  const porNome = (lista: ComAtivo[]) => new Map(lista.map((x) => [chaveMatch(x.nome), x.id]));
+  // Inativo = nenhum cadastro ATIVO com esse nome (conta não tem nome único: uma ativa e uma inativa homônimas
+  // não podem recusar a linha da ativa).
+  const inativosDe = (lista: ComAtivo[]) => {
+    const ativos = new Set(lista.filter((x) => x.ativo).map((x) => chaveMatch(x.nome)));
+    return new Set(lista.filter((x) => !x.ativo).map((x) => chaveMatch(x.nome)).filter((k) => !ativos.has(k)));
+  };
+  const listaContas = await db.contaBancaria.findMany({ select: { id: true, nome: true, ativo: true } });
+  const listaFormas = await db.formaPagamento.findMany({ select: { id: true, nome: true, ativo: true } });
+  const listaCentros = await db.centroCusto.findMany({ select: { id: true, nome: true, ativo: true } });
+  const contas = porNome(listaContas);
+  const formas = porNome(listaFormas);
+  const centros = porNome(listaCentros);
   const projetos = new Map(
     (await db.projeto.findMany({ select: { id: true, codigo: true } })).map((p) => [chaveProjeto(p.codigo), p.id]),
   );
@@ -123,6 +135,12 @@ export async function carregarIndice(db: Db): Promise<IndiceCadastros> {
     socios,
     fornecedores,
     clientes,
+    inativos: {
+      categorias: new Set(categorias.filter((c) => !c.ativo).map((c) => c.id)),
+      contas: inativosDe(listaContas),
+      formas: inativosDe(listaFormas),
+      centros: inativosDe(listaCentros),
+    },
   };
 }
 
@@ -131,9 +149,9 @@ function linhasAImportar(
   linhas: LinhaNorm[],
   idx: IndiceCadastros,
   existentes: Set<string>,
-  criarCadastros: boolean,
+  opcoes: OpcoesCadastro,
 ): { linha: LinhaNorm; resolucao: ResolucaoLinha }[] {
-  const resolucoes = resolverLinhas(linhas, idx, { criarCadastros });
+  const resolucoes = resolverLinhas(linhas, idx, opcoes);
   const out: { linha: LinhaNorm; resolucao: ResolucaoLinha }[] = [];
   linhas.forEach((linha, i) => {
     const resolucao = resolucoes[i];
@@ -307,6 +325,8 @@ async function construirResolver(tx: Tx) {
   return { cont, resolverCategoria, resolverConta, resolverForma, resolverCentro, resolverContato };
 }
 
+/** Nome da trava (advisory lock de transação) que põe as importações em fila. */
+export const TRAVA_IMPORTACAO = "financeiro:importacao";
 const NADA_A_IMPORTAR = "Nada a importar (linhas com erro ou já importadas).";
 
 /**
@@ -336,15 +356,25 @@ async function saldosQueMudam(db: Db, saldos: SaldoInicial[], idx: IndiceCadastr
  */
 export async function executarCommit(
   db: PrismaClient,
-  args: { nomeArquivo: string; mapeamento: unknown; res: ResultadoNorm; autorId: string; criarCadastros: boolean },
+  args: {
+    nomeArquivo: string;
+    mapeamento: unknown;
+    res: ResultadoNorm;
+    autorId: string;
+    criarCadastros: boolean;
+    /** Dia de hoje (YYYY-MM-DD). Só os smokes passam, para importar em anos de teste; o padrão é o dia de São Paulo. */
+    hoje?: string;
+  },
 ): Promise<{ loteId: string; contagens: ContagensCommit; saldosIniciais: number }> {
   const { criarCadastros } = args;
+  // Mesmas opções da prévia (`validarImportacao`): o dia de São Paulo barra linha paga com data futura.
+  const opcoes: OpcoesCadastro = { criarCadastros, hoje: args.hoje ?? diaDeSaoPaulo() };
   const idxPrevio = await carregarIndice(db);
   const previa = linhasAImportar(
     args.res.linhas,
     idxPrevio,
     await hashesExistentes(db, chavesDasLinhas(args.res.linhas)),
-    criarCadastros,
+    opcoes,
   );
   // Um arquivo só com "Saldo inicial" (preparação do retroativo) também é importação.
   if (previa.length === 0 && (await saldosQueMudam(db, args.res.saldosIniciais, idxPrevio, criarCadastros)).length === 0) {
@@ -355,6 +385,9 @@ export async function executarCommit(
 
   return db.$transaction(
     async (tx) => {
+      // Uma importação por vez: sem índice único no `importHash`, duas transações simultâneas do mesmo
+      // arquivo leriam "nada importado" e gravariam as duas. A segunda espera aqui e relê as chaves.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${TRAVA_IMPORTACAO}))`;
       const lote = await tx.importacaoFinanceira.create({
         data: {
           nomeArquivo: args.nomeArquivo,
@@ -371,7 +404,7 @@ export async function executarCommit(
         args.res.linhas,
         idx,
         await hashesExistentes(tx, chavesDasLinhas(args.res.linhas)),
-        criarCadastros,
+        opcoes,
       );
       const saldos = await saldosQueMudam(tx, args.res.saldosIniciais, idx, criarCadastros);
       if (aImportar.length === 0 && saldos.length === 0) throw new ActionError(NADA_A_IMPORTAR);

@@ -47,8 +47,9 @@ export type LinhaNorm = {
   socioRef: string;
   numeroDocumento: string;
   /**
-   * Chave anti-duplicata: `md:<ID único>` ou `x:<sha256(tipo|conta|data|centavos|descrição|n)>` — sem a
-   * categoria, e com `n` = ordem da linha entre as idênticas do mesmo arquivo.
+   * Chave anti-duplicata: `md:<ID único>` ou `x:<sha256(tipo|conta|data|centavos|descrição|nº do documento|n)>`
+   * — sem a categoria, e com `n` = ordem da linha entre as idênticas do mesmo arquivo. Mudar qualquer parte
+   * (a descrição, por exemplo) muda a chave: linha já importada se corrige na tela, nunca no arquivo.
    */
   hash: string;
   /** A chave no formato antigo (`h:` + tipo|data|valor|descrição|categoria), só para reconhecer lotes já gravados. */
@@ -106,7 +107,7 @@ function hashLegadoLinha(idUnico: string, partes: (string | number)[]): string |
 
 /**
  * Chave nova. `ocorrencias` conta, por arquivo, quantas linhas com a mesma base já apareceram — duas
- * linhas idênticas (mesma conta, dia, valor e descrição) viram `…|0` e `…|1`, e o mesmo arquivo
+ * linhas idênticas (mesma conta, dia, valor, descrição e nº do documento) viram `…|0` e `…|1`, e o mesmo arquivo
  * reimportado gera as mesmas chaves.
  */
 function hashNovo(idUnico: string, base: (string | number)[], ocorrencias: Map<string, number>): string {
@@ -240,7 +241,7 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
       const dataIso = data?.toISOString() ?? "";
       const baseHash = hashNovo(
         idUnico,
-        ["transf", chaveMatch(contaNome), dataIso, centavos(valorAbs), chaveMatch(descricao)],
+        ["transf", chaveMatch(contaNome), dataIso, centavos(valorAbs), chaveMatch(descricao), chaveMatch(numeroDocumento)],
         ocorrencias,
       );
       const baseLegado = hashLegadoLinha(idUnico, ["transf", dataIso, valorAbs, descricao]);
@@ -280,7 +281,7 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
     const dataIso = data?.toISOString() ?? "";
     const hash = hashNovo(
       idUnico,
-      [tipo, chaveMatch(contaNome), dataIso, centavos(valorAbs), chaveMatch(descricao)],
+      [tipo, chaveMatch(contaNome), dataIso, centavos(valorAbs), chaveMatch(descricao), chaveMatch(numeroDocumento)],
       ocorrencias,
     );
     const hashLegado = hashLegadoLinha(idUnico, [tipo, dataIso, valorAbs, chaveMatch(descricao), chaveMatch(categoriaNome)]);

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { lerPlanilha } from "@/lib/import/planilha";
 import {
   validarImportSchema,
@@ -46,13 +47,13 @@ export const validarImportacao = defineAction(
   { ...base, acao: "validar-importacao", entidade: "ImportacaoFinanceira", schema: validarImportSchema, audit: false },
   async (i) => {
     const res = await lerENormalizar(i.caminho, i.nomeArquivo, i.mapeamento as Mapeamento);
-    const opcoes = { criarCadastros: i.criarCadastros };
+    const opcoes = { criarCadastros: i.criarCadastros, hoje: diaDeSaoPaulo() };
     // Mesma regra do commit: `resolverLinhas` sobre o índice dos cadastros + as duas chaves de cada linha.
     const idx = await carregarIndice();
     const existentes = await hashesExistentes(chavesDasLinhas(res.linhas));
     const ex = await carregarExistentes();
     ex.hashes = existentes;
-    const { contagens, erros } = contarDryRun(res, ex, { resolucoes: resolverLinhas(res.linhas, idx, opcoes), ...opcoes });
+    const { contagens, erros } = contarDryRun(res, ex, { resolucoes: resolverLinhas(res.linhas, idx, opcoes), criarCadastros: i.criarCadastros });
 
     const saldosIniciais = res.saldosIniciais.map((s) => ({
       conta: s.contaNome,

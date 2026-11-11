@@ -11,13 +11,17 @@
  *   5. Linha "Saldo inicial" com data → ContaBancaria.saldoInicialEm = 2041-01-01; conta inexistente
  *      no modo estrito não é criada.
  *   6. criarCadastros: true com fornecedor sem documento → fornecedor criado (comportamento antigo).
+ *   7–9. Modo estrito recusa: transferência sem destino, paga com data futura, paga sem conta, categoria inativa.
+ *   10. Duas importações simultâneas do mesmo arquivo → uma grava, a outra «Nada a importar».
+ *   11. Linha excluída à mão não volta; lote desfeito volta.
+ *   12. Arquivo regerado com uma linha idêntica a mais → só ela entra.
  *
  * Dados próprios com prefixo SMOKE-EXTRATO, ano 2041, limpeza no fim. Uso: npm run smoke:importacao-extrato
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { ActionError } from "../src/lib/action-error";
-import { executarCommit } from "../src/modules/financeiro/importacao/commit-core";
+import { executarCommit, executarDesfazer, TRAVA_IMPORTACAO } from "../src/modules/financeiro/importacao/commit-core";
 import { normalizarLinhas, type Mapeamento } from "../src/modules/financeiro/importacao/processar";
 import { categoriaDeTransferencia } from "../src/modules/financeiro/transferencias/service";
 
@@ -51,6 +55,8 @@ async function erroDe(p: Promise<unknown>): Promise<string | null> {
 
 const TAG = `SMOKE-EXTRATO ${Date.now()}`;
 const SUF = `${Date.now()}`.slice(-6);
+// O smoke importa em 2041: sem isto o modo estrito recusaria tudo como "paga com data futura".
+const HOJE = "2041-12-31";
 
 // Data, Descrição, Valor, Tipo, Status, Data efetiva, Categoria, Subcategoria, Conta, Conta destino,
 // Contato, CPF/CNPJ, Projeto, Sócio, Nº documento
@@ -125,7 +131,7 @@ async function main() {
       linha({ descricao: "categoria inexistente", valor: "-77", categoria: `${TAG} Software`, conta: banco.nome }),
     ];
     const res = normalizarLinhas(arquivo, MAPA);
-    const out = await executarCommit(prisma, { nomeArquivo: `${TAG}.csv`, mapeamento: MAPA, res, autorId, criarCadastros: false });
+    const out = await executarCommit(prisma, { nomeArquivo: `${TAG}.csv`, mapeamento: MAPA, res, autorId, criarCadastros: false, hoje: HOJE });
     lotes.push(out.loteId);
     const lancs = await prisma.lancamento.findMany({
       where: { importLoteId: out.loteId },
@@ -154,12 +160,12 @@ async function main() {
     check("nenhuma conta nova (saldo de conta inexistente recusado)", (await prisma.contaBancaria.count()) === contasAntes);
 
     console.log("\n# 3 — reimportar o mesmo arquivo");
-    const re = await erroDe(executarCommit(prisma, { nomeArquivo: `${TAG}-de-novo.csv`, mapeamento: MAPA, res: normalizarLinhas(arquivo, MAPA), autorId, criarCadastros: false }));
+    const re = await erroDe(executarCommit(prisma, { nomeArquivo: `${TAG}-de-novo.csv`, mapeamento: MAPA, res: normalizarLinhas(arquivo, MAPA), autorId, criarCadastros: false, hoje: HOJE }));
     check("reimportar não cria nada", re?.includes("Nada a importar") === true, re);
     check(
       "«Nada a importar» é ActionError (a action não embrulha erro técnico)",
       await erroDeNegocio(
-        executarCommit(prisma, { nomeArquivo: `${TAG}-de-novo-2.csv`, mapeamento: MAPA, res: normalizarLinhas(arquivo, MAPA), autorId, criarCadastros: false }),
+        executarCommit(prisma, { nomeArquivo: `${TAG}-de-novo-2.csv`, mapeamento: MAPA, res: normalizarLinhas(arquivo, MAPA), autorId, criarCadastros: false, hoje: HOJE }),
       ),
     );
     check("continua com 7 lançamentos do arquivo", (await prisma.lancamento.count({ where: { descricao: { startsWith: TAG }, importLoteId: { not: null } } })) === 7);
@@ -175,7 +181,7 @@ async function main() {
         importLoteId: loteAntigo.id, importHash: antiga.linhas[0].hashLegado, autorId,
       },
     });
-    const reAntigo = await erroDe(executarCommit(prisma, { nomeArquivo: `${TAG}-antigo-de-novo.csv`, mapeamento: MAPA, res: antiga, autorId, criarCadastros: false }));
+    const reAntigo = await erroDe(executarCommit(prisma, { nomeArquivo: `${TAG}-antigo-de-novo.csv`, mapeamento: MAPA, res: antiga, autorId, criarCadastros: false, hoje: HOJE }));
     check("linha já gravada com hash antigo não entra de novo", reAntigo?.includes("Nada a importar") === true, reAntigo);
 
     console.log("\n# 5 — saldo inicial com data");
@@ -190,6 +196,7 @@ async function main() {
       res: normalizarLinhas([linha({ data: "01/02/2041", descricao: "saldo fev", valor: "2000", tipo: "Saldo inicial", conta: banco.nome })], MAPA),
       autorId,
       criarCadastros: false,
+      hoje: HOJE,
     }).catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
     if (typeof soSaldo !== "string") lotes.push(soSaldo.loteId);
     const contaSaldo = await prisma.contaBancaria.findUniqueOrThrow({ where: { id: banco.id }, select: { saldoInicial: true, saldoInicialEm: true } });
@@ -219,10 +226,134 @@ async function main() {
       res: normalizarLinhas([linha({ descricao: "compra 2", valor: "-31", categoria: catDesp.nome, conta: banco.nome, contato: `${TAG} Outro sem doc` })], MAPA),
       autorId,
       criarCadastros: false,
+      hoje: HOJE,
     }));
     check("modo estrito: contato novo sem documento recusa a linha", estrito?.includes("Nada a importar") === true && (await prisma.fornecedor.count({ where: { nome: `${TAG} Outro sem doc` } })) === 0, estrito);
+    console.log("\n# 7 — transferência sem conta de destino (modo estrito)");
+    const semDestino = await erroDe(executarCommit(prisma, {
+      nomeArquivo: `${TAG}-sem-destino.csv`,
+      mapeamento: MAPA,
+      res: normalizarLinhas([linha({ descricao: "transf sem destino", valor: "-70", tipo: "Transferência", conta: banco.nome })], MAPA),
+      autorId,
+      criarCadastros: false,
+      hoje: HOJE,
+    }));
+    check(
+      "transferência sem destino não grava perna solta",
+      semDestino?.includes("Nada a importar") === true && (await prisma.lancamento.count({ where: { descricao: `${TAG} transf sem destino` } })) === 0,
+      semDestino,
+    );
+
+    console.log("\n# 8 — linha paga com data futura e linha paga sem conta (modo estrito)");
+    const futura = await erroDe(executarCommit(prisma, {
+      nomeArquivo: `${TAG}-futura.csv`,
+      mapeamento: MAPA,
+      res: normalizarLinhas([linha({ descricao: "ano errado", valor: "-12", categoria: catDesp.codigo, conta: banco.nome })], MAPA),
+      autorId,
+      criarCadastros: false,
+      hoje: "2040-12-31",
+    }));
+    check("linha paga depois de hoje é recusada", futura?.includes("Nada a importar") === true, futura);
+    const semConta = await erroDe(executarCommit(prisma, {
+      nomeArquivo: `${TAG}-sem-conta.csv`,
+      mapeamento: MAPA,
+      res: normalizarLinhas([linha({ descricao: "paga sem conta", valor: "-13", categoria: catDesp.codigo })], MAPA),
+      autorId,
+      criarCadastros: false,
+      hoje: HOJE,
+    }));
+    check("linha paga sem conta é recusada", semConta?.includes("Nada a importar") === true, semConta);
+
+    console.log("\n# 9 — cadastro inativo (modo estrito)");
+    await prisma.categoriaFinanceira.update({ where: { id: catRec.id }, data: { ativo: false } });
+    const inativa = await erroDe(executarCommit(prisma, {
+      nomeArquivo: `${TAG}-inativa.csv`,
+      mapeamento: MAPA,
+      res: normalizarLinhas([linha({ descricao: "categoria inativa", valor: "40", categoria: catRec.codigo, conta: banco.nome })], MAPA),
+      autorId,
+      criarCadastros: false,
+      hoje: HOJE,
+    }));
+    await prisma.categoriaFinanceira.update({ where: { id: catRec.id }, data: { ativo: true } });
+    check("categoria inativa é recusada", inativa?.includes("Nada a importar") === true, inativa);
+
+    console.log("\n# 10 — duas importações do mesmo arquivo ao mesmo tempo");
+    const arquivoCorrida = [
+      linha({ descricao: "corrida a", valor: "-21", categoria: catDesp.codigo, conta: banco.nome, numDoc: "9001" }),
+      linha({ descricao: "corrida b", valor: "-22", categoria: catDesp.codigo, conta: banco.nome, numDoc: "9002" }),
+    ];
+    const corrida = await Promise.allSettled(
+      [1, 2].map((n) =>
+        executarCommit(prisma, { nomeArquivo: `${TAG}-corrida-${n}.csv`, mapeamento: MAPA, res: normalizarLinhas(arquivoCorrida, MAPA), autorId, criarCadastros: false, hoje: HOJE }),
+      ),
+    );
+    for (const c of corrida) if (c.status === "fulfilled") lotes.push(c.value.loteId);
+    const recusada = corrida.find((c) => c.status === "rejected");
+    check(
+      "uma grava, a outra recebe «Nada a importar»",
+      corrida.filter((c) => c.status === "fulfilled").length === 1 &&
+        recusada?.status === "rejected" && String((recusada.reason as Error)?.message).includes("Nada a importar"),
+      corrida.map((c) => (c.status === "fulfilled" ? c.value.contagens.lancamentosCriados : String(c.reason))),
+    );
+    check("o arquivo entrou uma vez só (2 lançamentos)", (await prisma.lancamento.count({ where: { descricao: { startsWith: `${TAG} corrida` } } })) === 2);
+
+    // Determinístico: com a trava presa por outra transação, a importação espera; solta a trava, ela termina.
+    let terminou = false;
+    let soltar!: () => void;
+    const presa = new Promise<void>((r) => (soltar = r));
+    const dona = prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${TRAVA_IMPORTACAO}))`;
+        await presa;
+      },
+      { timeout: 30000 },
+    );
+    await new Promise((r) => setTimeout(r, 300));
+    const esperando = executarCommit(prisma, {
+      nomeArquivo: `${TAG}-fila.csv`,
+      mapeamento: MAPA,
+      res: normalizarLinhas([linha({ descricao: "fila", valor: "-23", categoria: catDesp.codigo, conta: banco.nome })], MAPA),
+      autorId,
+      criarCadastros: false,
+      hoje: HOJE,
+    }).then((o) => {
+      terminou = true;
+      return o;
+    });
+    await new Promise((r) => setTimeout(r, 1500));
+    check("com a trava presa, a importação espera", terminou === false);
+    soltar();
+    await dona;
+    lotes.push((await esperando).loteId);
+    check("solta a trava, a importação grava", (await prisma.lancamento.count({ where: { descricao: `${TAG} fila` } })) === 1);
+
+    console.log("\n# 11 — excluído à mão não volta; lote desfeito volta");
+    const arquivoVolta = [
+      linha({ descricao: "volta a", valor: "-31", categoria: catDesp.codigo, conta: banco.nome, numDoc: "9101" }),
+      linha({ descricao: "volta b", valor: "-32", categoria: catDesp.codigo, conta: banco.nome, numDoc: "9102" }),
+    ];
+    const reimportar = (nome: string) =>
+      executarCommit(prisma, { nomeArquivo: `${TAG}-${nome}.csv`, mapeamento: MAPA, res: normalizarLinhas(arquivoVolta, MAPA), autorId, criarCadastros: false, hoje: HOJE });
+    const volta1 = await reimportar("volta-1");
+    lotes.push(volta1.loteId);
+    const voltaA = await prisma.lancamento.findFirstOrThrow({ where: { importLoteId: volta1.loteId, descricao: `${TAG} volta a` }, select: { id: true } });
+    await prisma.lancamento.update({ where: { id: voltaA.id }, data: { excluidoEm: new Date() } });
+    const aposExcluir = await erroDe(reimportar("volta-2"));
+    check("linha excluída à mão não é importada de novo", aposExcluir?.includes("Nada a importar") === true, aposExcluir);
+    await executarDesfazer(prisma, volta1.loteId);
+    const volta3 = await reimportar("volta-3");
+    lotes.push(volta3.loteId);
+    check("lote desfeito: reimportar recria as duas linhas", volta3.contagens.lancamentosCriados === 2, volta3.contagens);
+
+    console.log("\n# 12 — arquivo regerado com uma linha idêntica a mais");
+    const tarifa = () => linha({ descricao: "tarifa regerada", valor: "-4,50", categoria: catDesp.codigo, conta: banco.nome });
+    const reg1 = await executarCommit(prisma, { nomeArquivo: `${TAG}-reg-1.csv`, mapeamento: MAPA, res: normalizarLinhas([tarifa()], MAPA), autorId, criarCadastros: false, hoje: HOJE });
+    lotes.push(reg1.loteId);
+    const reg2 = await executarCommit(prisma, { nomeArquivo: `${TAG}-reg-2.csv`, mapeamento: MAPA, res: normalizarLinhas([tarifa(), tarifa()], MAPA), autorId, criarCadastros: false, hoje: HOJE });
+    lotes.push(reg2.loteId);
+    check("só a linha a mais entra", reg2.contagens.lancamentosCriados === 1 && (await prisma.lancamento.count({ where: { descricao: `${TAG} tarifa regerada` } })) === 2, reg2.contagens);
   } finally {
-    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: TAG } } });
+    await prisma.lancamento.deleteMany({ where: { descricao: { startsWith: TAG }, excluidoEm: { not: undefined } } });
     // Pelo nome do arquivo também: um commit que deveria ter sido recusado e passou deixaria o lote fora de `lotes`.
     await prisma.importacaoFinanceira.deleteMany({ where: { OR: [{ id: { in: lotes } }, { nomeArquivo: { startsWith: TAG } }] } });
     await prisma.fornecedor.deleteMany({ where: { nome: { startsWith: TAG } } });

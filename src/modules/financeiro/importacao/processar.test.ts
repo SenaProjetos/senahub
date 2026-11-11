@@ -239,6 +239,30 @@ describe("extrato do banco: colunas novas e chave anti-duplicata", () => {
     expect(linhas[0].hash).not.toBe(linhas[1].hash);
   });
 
+  it("nº do documento entra na chave: linhas iguais com documentos diferentes não dependem da ordem", () => {
+    const a = row("05/01/2026", "PIX ENVIADO JOAO", "-100", "2.01", "Santander", "260031", "", "111", "", "");
+    const b = row("05/01/2026", "PIX ENVIADO JOAO", "-100", "2.01", "Santander", "260032", "", "222", "", "");
+    const ab = normalizarLinhas([a, b], MAP_EXTRATO).linhas;
+    const ba = normalizarLinhas([b, a], MAP_EXTRATO).linhas;
+    expect(ab[0].hash).not.toBe(ab[1].hash);
+    expect(ba[1].hash).toBe(ab[0].hash);
+    expect(ba[0].hash).toBe(ab[1].hash);
+  });
+
+  it("contrato da chave: mudar a descrição muda a chave (linha importada se corrige na tela, não no arquivo)", () => {
+    const um = (d: string) => normalizarLinhas([row("05/01/2026", d, "-100", "2.01", "Santander", "", "", "", "", "")], MAP_EXTRATO).linhas[0];
+    const a = um("PIX ENVIADO GUSTAVO");
+    expect(um("PIX ENVIADO GUSTAVO - projetista").hash).not.toBe(a.hash);
+    // Caixa e espaço não mudam a chave.
+    expect(um("  pix enviado  gustavo ").hash).toBe(a.hash);
+  });
+
+  it("nº do documento entra também na chave da transferência", () => {
+    const t = (doc: string) =>
+      normalizarLinhas([row("05/01/2026", "TED", "-100", "", "Santander", "", "", doc, "Transferência", "Caixa")], MAP_EXTRATO).linhas[0];
+    expect(t("111").hash).not.toBe(t("222").hash);
+  });
+
   it("saldo inicial guarda a data", () => {
     const { saldosIniciais } = normalizarLinhas(
       [row("01/01/2026", "Saldo", "1000", "", "Santander", "", "", "", "Saldo inicial", "")],

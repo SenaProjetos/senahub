@@ -43,6 +43,8 @@ export type IndiceCadastros = {
   /** porDoc: só dígitos → id; porNome: chaveMatch(nome) → id */
   fornecedores: { porDoc: Map<string, string>; porNome: Map<string, string> };
   clientes: { porDoc: Map<string, string>; porNome: Map<string, string> };
+  /** Cadastros inativos: categorias pelo id; contas, formas e centros pela chaveMatch(nome). Recusados no modo estrito. */
+  inativos: { categorias: Set<string>; contas: Set<string>; formas: Set<string>; centros: Set<string> };
 };
 
 export type ResolucaoLinha = {
@@ -54,7 +56,13 @@ export type ResolucaoLinha = {
   criaContato: boolean;
 };
 
-export type OpcoesCadastro = { criarCadastros: boolean };
+/** `hoje` (YYYY-MM-DD, dia de São Paulo): com ele, o modo estrito recusa linha paga com data futura. */
+export type OpcoesCadastro = { criarCadastros: boolean; hoje?: string };
+
+export const MOTIVO_PAGA_SEM_CONTA = "Linha paga sem conta: preencha a coluna Conta.";
+export const MOTIVO_TRANSFERENCIA_SEM_CONTA =
+  "Transferência sem conta de origem ou de destino: preencha Conta e Conta destino.";
+export const MOTIVO_TRANSFERENCIA_MESMA_CONTA = "Transferência com a mesma conta na origem e no destino.";
 
 const NOME_TIPO: Record<TipoCat, string> = { receita: "receita", despesa: "despesa" };
 
@@ -107,8 +115,11 @@ function resolverSocio(ref: string, idx: IndiceCadastros): { socioId: string | n
   const k = chaveMatch(ref);
   const exatos = idx.socios.filter((s) => s.nomeChave === k || s.emailChave === k);
   if (exatos.length === 1) return { socioId: exatos[0].id, erro: null };
-  // O banco trunca o nome do favorecido ("LUCIO HENRIQUE SENA DA SI"): aceita o começo do nome.
-  const candidatos = exatos.length > 1 ? exatos : idx.socios.filter((s) => s.nomeChave.startsWith(k));
+  // O banco trunca o nome do favorecido ("LUCIO HENRIQUE SENA DA SI"): aceita o começo do nome — com duas
+  // palavras ou mais, ou parando no fim de uma palavra ("Lucio"). "Ana" não é "Anabela".
+  const comeca = (nome: string) =>
+    nome.startsWith(k) && (k.includes(" ") || nome.length === k.length || nome[k.length] === " ");
+  const candidatos = exatos.length > 1 ? exatos : idx.socios.filter((s) => comeca(s.nomeChave));
   if (candidatos.length === 0) return { socioId: null, erro: `Sócio «${ref}» não encontrado.` };
   if (candidatos.length > 1) return { socioId: null, erro: `Sócio «${ref}» é ambíguo.` };
   return { socioId: candidatos[0].id, erro: null };
@@ -126,9 +137,25 @@ export function resolverLinha(l: LinhaNorm, idx: IndiceCadastros, o: OpcoesCadas
   }
 
   if (!o.criarCadastros) {
-    if (l.contaNome && !idx.contas.has(chaveMatch(l.contaNome))) erros.push(`Conta «${l.contaNome}» não existe.`);
-    if (l.formaNome && !idx.formas.has(chaveMatch(l.formaNome))) erros.push(`Forma de pagamento «${l.formaNome}» não existe.`);
-    if (l.centroNome && !idx.centros.has(chaveMatch(l.centroNome))) erros.push(`Centro de custo «${l.centroNome}» não existe.`);
+    const ehTransferencia = l.categoriaNome === CATEGORIA_TRANSFERENCIA;
+    if (categoriaId && idx.inativos.categorias.has(categoriaId)) erros.push(`Categoria «${l.categoriaNome.trim()}» está inativa.`);
+    const kConta = chaveMatch(l.contaNome);
+    if (l.contaNome && !idx.contas.has(kConta)) erros.push(`Conta «${l.contaNome}» não existe.`);
+    else if (l.contaNome && idx.inativos.contas.has(kConta)) erros.push(`Conta «${l.contaNome}» está inativa.`);
+    // Pago sem conta entra no caixa "sem conta" e fica fora do extrato de qualquer conta. (A perna de
+    // transferência sem conta tem a mensagem própria, em `resolverLinhas`.)
+    else if (!l.contaNome && l.status === "confirmado" && !ehTransferencia) erros.push(MOTIVO_PAGA_SEM_CONTA);
+    const kForma = chaveMatch(l.formaNome);
+    if (l.formaNome && !idx.formas.has(kForma)) erros.push(`Forma de pagamento «${l.formaNome}» não existe.`);
+    else if (l.formaNome && idx.inativos.formas.has(kForma)) erros.push(`Forma de pagamento «${l.formaNome}» está inativa.`);
+    const kCentro = chaveMatch(l.centroNome);
+    if (l.centroNome && !idx.centros.has(kCentro)) erros.push(`Centro de custo «${l.centroNome}» não existe.`);
+    else if (l.centroNome && idx.inativos.centros.has(kCentro)) erros.push(`Centro de custo «${l.centroNome}» está inativo.`);
+    // Dinheiro que ainda não saiu nem entrou não é realizado: quase sempre é o ano digitado errado.
+    const pagoEm = l.dataConfirmacao?.toISOString().slice(0, 10);
+    if (o.hoje && l.status === "confirmado" && pagoEm && pagoEm > o.hoje) {
+      erros.push(`Linha paga com data futura (${pagoEm.split("-").reverse().join("/")}).`);
+    }
   }
 
   let projetoId: string | null = null;
@@ -172,6 +199,26 @@ export const MOTIVO_OUTRA_PERNA = "A outra perna desta transferência tem erro."
  */
 export function resolverLinhas(linhas: LinhaNorm[], idx: IndiceCadastros, o: OpcoesCadastro): ResolucaoLinha[] {
   const resolucoes = linhas.map((l) => resolverLinha(l, idx, o));
+  // Modo estrito: a transferência precisa das duas pernas, cada uma numa conta, e contas diferentes. Uma
+  // perna só (ou sem conta) moveria um saldo sem o outro e sumiria da DRE e do DFC. Com `criarCadastros`
+  // fica como sempre foi na migração do Meu Dinheiro.
+  if (!o.criarCadastros) {
+    const pernas = new Map<string, number[]>();
+    linhas.forEach((l, i) => {
+      const par = transferenciaIdDoHash(l.hash);
+      if (par && l.categoriaNome === CATEGORIA_TRANSFERENCIA) pernas.set(par, [...(pernas.get(par) ?? []), i]);
+    });
+    for (const indices of pernas.values()) {
+      const contas = indices.map((i) => chaveMatch(linhas[i].contaNome));
+      const motivo =
+        indices.length !== 2 || contas.some((c) => c === "")
+          ? MOTIVO_TRANSFERENCIA_SEM_CONTA
+          : contas[0] === contas[1]
+            ? MOTIVO_TRANSFERENCIA_MESMA_CONTA
+            : null;
+      if (motivo) for (const i of indices) resolucoes[i].erros.push(motivo);
+    }
+  }
   const pernasComErro = new Set<string>();
   linhas.forEach((l, i) => {
     const par = transferenciaIdDoHash(l.hash);
@@ -251,6 +298,7 @@ export function linhasDaPrevia(
 export function errosDoSaldoInicial(s: SaldoInicial, idx: IndiceCadastros, o: OpcoesCadastro): string[] {
   if (o.criarCadastros) return [];
   if (!idx.contas.has(chaveMatch(s.contaNome))) return [`Conta «${s.contaNome}» não existe.`];
+  if (idx.inativos.contas.has(chaveMatch(s.contaNome))) return [`Conta «${s.contaNome}» está inativa.`];
   // Sem a data, o valor novo ficaria com o `saldoInicialEm` antigo e mudaria o que entra no saldo da conta (M8).
   return s.data ? [] : [`Saldo inicial de «${s.contaNome}» sem data.`];
 }
