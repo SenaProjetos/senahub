@@ -86,7 +86,10 @@ export function FolhaDetalheView({
   reaberturas,
   totais,
   podeAbrirLancamento,
+  motivoNaoFechar,
 }: {
+  /** Por que "Fechar folha" está desabilitado (mesma frase do servidor); `null` = pode fechar. */
+  motivoNaoFechar: string | null;
   /** Quem tem o Financeiro abre a conta lançada; os demais veem só o nome. */
   podeAbrirLancamento: boolean;
   custo: CustoDaFolha | null;
@@ -194,7 +197,11 @@ export function FolhaDetalheView({
                   <Wand2 className="size-4" /> Gerar automático
                 </Button>
               )}
-              <Button onClick={() => setPreview(true)} disabled={pending || folha.holerites.length === 0}>
+              <Button
+                onClick={() => setPreview(true)}
+                disabled={pending || folha.holerites.length === 0 || motivoNaoFechar != null}
+                title={motivoNaoFechar ?? undefined}
+              >
                 <Lock className="size-4" /> Fechar folha
               </Button>
             </>
@@ -210,6 +217,10 @@ export function FolhaDetalheView({
           )}
         </div>
       </div>
+
+      {aberta && motivoNaoFechar && (
+        <p className="rounded-sm border border-dashed p-3 text-sm text-muted-foreground">{motivoNaoFechar}</p>
+      )}
 
       {aberta && semHolerite.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-sm border border-dashed p-3">

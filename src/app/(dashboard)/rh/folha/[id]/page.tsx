@@ -4,7 +4,7 @@ import { requireGestorRh } from "@/lib/session";
 import { can } from "@/lib/permissions";
 
 import { obterFolha } from "@/modules/rh/folha/queries";
-import { contasDaFolha, custoDaFolha, historicoDaFolha } from "@/modules/rh/folha/detalhe-queries";
+import { contasDaFolha, custoDaFolha, historicoDaFolha, motivoNaoFecharFolha } from "@/modules/rh/folha/detalhe-queries";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { faixasPorTipo, deducaoDependente } from "@/modules/rh/encargos/queries";
 import { dependentesPorUsuario } from "@/modules/rh/funcionarios/queries";
@@ -30,7 +30,12 @@ export default async function FolhaDetalhePage({
   const { folha, rubricas, elegiveis } = dados;
   const userIds = [...folha.holerites.map((h) => h.user.id), ...elegiveis.map((e) => e.id)];
   const nDeps = await dependentesPorUsuario(userIds);
-  const [custo, contas, historico] = await Promise.all([custoDaFolha(folha), contasDaFolha(folha.id), historicoDaFolha(folha.id)]);
+  const [custo, contas, historico, motivoNaoFechar] = await Promise.all([
+    custoDaFolha(folha),
+    contasDaFolha(folha.id),
+    historicoDaFolha(folha.id),
+    motivoNaoFecharFolha(folha),
+  ]);
   return (
     <FolhaDetalheView
       modelosDoc={modelosDoc}
@@ -40,6 +45,7 @@ export default async function FolhaDetalhePage({
       dependentesPorUser={nDeps}
       custo={custo}
       podeAbrirLancamento={await can(user, "financeiro", "ver")}
+      motivoNaoFechar={motivoNaoFechar}
       contas={contas}
       reaberturas={historico.reaberturas}
       totais={{

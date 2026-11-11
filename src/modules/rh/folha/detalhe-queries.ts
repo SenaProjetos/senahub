@@ -4,6 +4,16 @@ import { prisma } from "@/lib/prisma";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { custosDoMes } from "@/modules/rh/rateio/custo-hora/dados";
 import { ehItemDeBeneficio } from "@/modules/rh/folha/lancamentos-da-folha";
+import { motivoCorteDaFolha } from "@/modules/rh/folha/fechamento-service";
+
+/**
+ * Por que a folha não pode ser fechada, para o botão desabilitado mostrar a MESMA frase que o servidor
+ * devolveria (ADR-0002). Hoje só o corte do retroativo; `null` = pode fechar.
+ */
+export async function motivoNaoFecharFolha(folha: { ano: number; mes: number; status: string }): Promise<string | null> {
+  if (folha.status !== "aberta") return null;
+  return motivoCorteDaFolha(folha);
+}
 
 /** Custo total da folha por pessoa (R4.3): salário + encargos + benefícios, do mesmo cálculo do rateio. */
 export type CustoDaFolha = {
