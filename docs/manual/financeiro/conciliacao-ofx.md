@@ -91,7 +91,11 @@ extrato de novo não a traz de volta.
 - **Sócio** recebe o nome do sócio (o começo do nome basta, como o banco trunca) ou o e-mail dele.
 - **Nº documento** vai para o número do documento do lançamento.
 - Linha de tipo **Saldo inicial** com data grava o saldo da conta e a data em que ele vale (o
-  saldo do início daquele dia).
+  saldo do início daquele dia). Com a opção desmarcada, a data é obrigatória. Um arquivo só com
+  saldos iniciais também pode ser importado (o botão vira «Gravar saldos iniciais»).
+- Contato novo precisa de nome: uma linha só com CPF/CNPJ de alguém que ainda não está cadastrado
+  é recusada.
+- Subcategoria pelo nome, quando dois pais têm o mesmo nome, é recusada como ambígua: use o código.
 - Transferência entre contas entra com as duas pernas ou nenhuma: se uma perna tem erro, a outra
   também fica de fora.
 

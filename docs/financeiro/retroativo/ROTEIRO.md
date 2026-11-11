@@ -45,7 +45,9 @@ Este roteiro é o que vale para você.
 
 1. **Saldo inicial em 01/01/2026.** Conta do banco: o saldo do extrato no fim de 31/12/2025, numa linha
    `Saldo inicial` com Data `01/01/2026` (o importador grava o saldo e a data de início). Outras contas: o saldo do Meu
-   Dinheiro na mesma data. Entregue isso em `saidas/2026-01/2026-01-saldos-iniciais.csv`.
+   Dinheiro na mesma data. Entregue isso em `saidas/2026-01/2026-01-saldos-iniciais.csv` (o importador aceita um
+   arquivo só com saldos: o botão vira «Gravar N saldo(s) inicial(is)»). A **Data é obrigatória** na linha de saldo
+   inicial: sem ela o importador recusa a linha.
 2. **Compromissos recorrentes.** Liste os ativos com vigência em 2026 e os lançamentos `previsto` que já geraram:
    ```sql
    SELECT c.id, c.descricao, c.valor, c."competenciaInicio", c."competenciaFim"
@@ -60,6 +62,9 @@ Este roteiro é o que vale para você.
    fechamento da folha: o pagamento do salário de outubro (início de novembro) e as guias de outubro (dia 20/11) **não**
    entram na planilha — vão para a lista de revisão como "pagamento da folha de 10/2026: dar baixa na conta gerada pelo
    fechamento". Salário pago nos primeiros dias úteis do mês M é da competência M−1.
+   O corte foi gravado pela migração do deploy em `config_sistema` e não tem tela. Se o dono decidir outro mês, é um
+   `UPDATE config_sistema SET valor = '"AAAA-MM"' WHERE chave = 'rh.folha.fechaNoFinanceiroDesde'` feito por ele (ou
+   `DELETE` para tirar a trava) — nunca por você.
 4. **Cadastros de referência** (releia a cada mês, podem ter mudado):
    ```sql
    SELECT codigo, nome, tipo, natureza FROM categoria_financeira WHERE ativo ORDER BY codigo;
@@ -157,3 +162,11 @@ Este roteiro é o que vale para você.
 - Pôr numa planilha uma linha que já existe no SenaHub ou que está nas duas fontes (caixa em dobro).
 - Inventar categoria, conta ou centro (o importador recusa no modo estrito — e a linha some da importação).
 - Seguir para o mês seguinte com saldo que não bate.
+- Entregar um arquivo **só com as linhas corrigidas**. A chave anti-duplicata conta a ordem entre linhas idênticas do
+  mesmo arquivo: uma linha corrigida sozinha pode ser tomada pela irmã já importada e sumir como "Duplicada". Correção
+  = regerar e reimportar o arquivo **inteiro** do mês (o que já entrou aparece como duplicado e não entra de novo).
+- Orientar o dono a **excluir** um lançamento importado para importá-lo de novo: o excluído à mão continua contando
+  como importado e não volta. Categoria errada se corrige **editando** o lançamento, ou desfazendo o lote inteiro e
+  importando de novo.
+- Linha que só tem CPF/CNPJ, sem nome no Contato, para um contato que ainda não existe: o importador recusa (criaria
+  um cadastro sem nome). Preencha o nome ou deixe os dois vazios.
