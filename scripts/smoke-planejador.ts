@@ -217,7 +217,7 @@ async function main() {
   );
   let loteId: string | null = null;
   try {
-    const out = await executarCommit(prisma, { nomeArquivo: `${tag}.csv`, mapeamento: {}, res, autorId: admin.id });
+    const out = await executarCommit(prisma, { nomeArquivo: `${tag}.csv`, mapeamento: {}, res, autorId: admin.id, criarCadastros: true });
     loteId = out.loteId;
     const pernas = await prisma.lancamento.findMany({
       where: { importLoteId: loteId },

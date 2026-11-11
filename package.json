@@ -85,6 +85,7 @@
     "smoke:trava-plano": "tsx --tsconfig tsconfig.server.json scripts/smoke-trava-plano.ts",
     "smoke:planejador": "tsx --tsconfig tsconfig.server.json scripts/smoke-planejador.ts",
     "smoke:financeiro-core": "tsx --tsconfig tsconfig.server.json scripts/smoke-financeiro-core.ts",
+    "smoke:importacao-extrato": "tsx --tsconfig tsconfig.server.json scripts/smoke-importacao-extrato.ts",
     "smoke:contabil": "tsx --tsconfig tsconfig.server.json scripts/smoke-contabil.ts",
     "smoke:retencoes": "tsx --tsconfig tsconfig.server.json scripts/smoke-retencoes.ts",
     "kit:claude": "tsx --tsconfig tsconfig.server.json scripts/gerar-kit-claude.ts",

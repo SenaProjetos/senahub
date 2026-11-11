@@ -1,13 +1,15 @@
 "use client";
 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Upload, ArrowRight, ArrowLeft, Check, Undo2, FileSpreadsheet } from "lucide-react";
 import { CAMPOS, CAMPOS_OBRIGATORIOS, type CampoSenaHub } from "@/lib/import/mapeamento";
 import { validarImportacao, commitImportacao, desfazerImportacao } from "@/modules/financeiro/importacao/actions";
 import type { ImportacaoItem } from "@/modules/financeiro/importacao/queries";
+import type { LinhaPrevia } from "@/modules/financeiro/importacao/cadastros";
+import { Checkbox } from "@/components/ui/checkbox";
 import { brl } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -45,18 +47,8 @@ type DryRun = {
     clientesACriar: number;
   };
   erros: { idx: number; erros: string[] }[];
-  amostra: {
-    idx: number;
-    tipo: string;
-    descricao: string;
-    valor: number;
-    data: string | null;
-    status: string;
-    categoria: string;
-    conta: string;
-    contato: string;
-    erros: string[];
-  }[];
+  linhas: LinhaPrevia[];
+  saldosIniciais: { conta: string; valor: number; data: string | null; erros: string[] }[];
 };
 
 const SEM_COLUNA = "__nenhuma__";
@@ -72,7 +64,11 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
   const [preview, setPreview] = useState<Preview | null>(null);
   const [mapa, setMapa] = useState<Record<string, number>>({});
   const [dry, setDry] = useState<DryRun | null>(null);
+  // Modo estrito por padrão: extrato do banco nunca cria cadastro a partir de um nome truncado.
+  const [criarCadastros, setCriarCadastros] = useState(false);
   const [resultado, setResultado] = useState<{ loteId: string; texto: string } | null>(null);
+  // Erro da última conferência, mostrado no passo do mapeamento (o toast some; quem usa teclado perde o aviso).
+  const [erroPrevia, setErroPrevia] = useState<string | null>(null);
 
   async function enviarArquivo(file: File | null) {
     if (!file) return;
@@ -97,19 +93,28 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
   }
 
   const faltamObrigatorios = CAMPOS_OBRIGATORIOS.filter((c) => mapa[c] == null);
+  const saldosValidos = dry ? dry.saldosIniciais.filter((s) => s.erros.length === 0).length : 0;
 
-  function rodarDryRun() {
+  function rodarDryRun(criar = criarCadastros) {
     if (!preview) return;
     start(async () => {
       const r = await validarImportacao({
         caminho: preview.caminho,
         nomeArquivo: preview.nomeArquivo,
         mapeamento: mapa,
+        criarCadastros: criar,
       });
       if (r.ok) {
+        setErroPrevia(null);
         setDry(r.data as DryRun);
         setStep(3);
-      } else toast.error(r.error);
+      } else {
+        // A prévia que estava na tela era de outra opção ou de outro mapeamento: não pode valer para gravar.
+        setDry(null);
+        setStep(2);
+        setErroPrevia(r.error);
+        toast.error(r.error);
+      }
     });
   }
 
@@ -120,12 +125,13 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
         caminho: preview.caminho,
         nomeArquivo: preview.nomeArquivo,
         mapeamento: mapa,
+        criarCadastros,
       });
       if (r.ok) {
         const c = r.data.contagens;
         setResultado({
           loteId: r.data.loteId,
-          texto: `${c.lancamentosCriados} lançamentos, ${c.categoriasCriadas} categorias, ${c.contasCriadas} contas, ${c.fornecedoresCriados} fornecedores, ${c.clientesCriados} clientes.`,
+          texto: `${c.lancamentosCriados} lançamentos, ${r.data.saldosIniciais} saldo(s) inicial(is), ${c.categoriasCriadas} categorias, ${c.contasCriadas} contas, ${c.fornecedoresCriados} fornecedores, ${c.clientesCriados} clientes.`,
         });
         setStep(4);
         router.refresh();
@@ -137,7 +143,7 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
     if (
       !(await confirm({
         title: "Desfazer importação?",
-        description: "Os lançamentos do lote serão removidos (cadastros criados permanecem).",
+        description: "Os lançamentos do lote serão removidos. Os cadastros criados e os saldos iniciais gravados por ele permanecem.",
         variant: "destructive",
         confirmLabel: "Desfazer",
       }))
@@ -158,11 +164,19 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
     setMapa({});
     setDry(null);
     setResultado(null);
+    setErroPrevia(null);
+    setCriarCadastros(false);
+  }
+
+  /** Trocar a opção muda o que entra: a prévia já feita deixa de valer e é refeita. */
+  function trocarCriarCadastros(v: boolean) {
+    setCriarCadastros(v);
+    if (step === 3) rodarDryRun(v);
   }
 
   return (
     <div className="space-y-5">
-      <CabecalhoPagina titulo="Importar planilha" descricao="Migre uma planilha do Meu Dinheiro (ou outro ERP). Os cadastros referenciados são criados automaticamente." />
+      <CabecalhoPagina titulo="Importar planilha" descricao="Extrato do banco já categorizado ou planilha do Meu Dinheiro: confira cada linha antes de gravar." />
       {subnav}
 
       <Passos step={step} />
@@ -245,11 +259,19 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
 
             <PreviaTabela headers={preview.headers} rows={preview.sample.slice(0, 6)} />
 
-            <div className="flex items-center justify-between">
+            <OpcaoCriarCadastros valor={criarCadastros} onChange={trocarCriarCadastros} disabled={pending} />
+
+            {erroPrevia && (
+              <p role="alert" className="text-sm text-destructive">
+                A conferência não pôde ser feita: {erroPrevia}
+              </p>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Button variant="ghost" onClick={recomecar}>
                 <ArrowLeft className="size-4" /> Trocar arquivo
               </Button>
-              <Button onClick={rodarDryRun} disabled={pending || faltamObrigatorios.length > 0}>
+              <Button onClick={() => rodarDryRun()} disabled={pending || faltamObrigatorios.length > 0}>
                 {faltamObrigatorios.length > 0
                   ? `Falta mapear: ${faltamObrigatorios.join(", ")}`
                   : pending
@@ -282,30 +304,42 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
               <Contador rotulo="Clientes a criar" valor={dry.contagens.clientesACriar} />
             </div>
 
-            {dry.erros.length > 0 && (
-              <div className="rounded-sm border border-destructive/30 p-3">
-                <p className="mb-1 text-sm font-medium text-destructive">
-                  {dry.contagens.linhasComErro} linha(s) com erro serão ignoradas:
-                </p>
-                <ul className="max-h-32 space-y-0.5 overflow-y-auto text-xs text-muted-foreground">
-                  {dry.erros.slice(0, 50).map((e) => (
-                    <li key={e.idx}>
-                      Linha {e.idx}: {e.erros.join(" ")}
+            <OpcaoCriarCadastros valor={criarCadastros} onChange={trocarCriarCadastros} disabled={pending} />
+
+            {dry.contagens.linhasComErro > 0 && (
+              <p className="text-sm text-destructive">
+                {dry.contagens.linhasComErro} linha(s) com erro não serão importadas. Use o filtro «Só com erro» para ver o motivo de cada uma.
+              </p>
+            )}
+
+            {dry.saldosIniciais.length > 0 && (
+              <div className="rounded-sm border p-3 text-xs">
+                <p className="mb-1 text-sm font-medium">Saldos iniciais</p>
+                <ul className="space-y-0.5">
+                  {dry.saldosIniciais.map((s, i) => (
+                    <li key={i} className={s.erros.length > 0 ? "text-destructive" : "text-muted-foreground"}>
+                      {s.conta}: {brl(s.valor)}
+                      {s.data ? ` no início de ${s.data.split("-").reverse().join("/")}` : ""} —{" "}
+                      {s.erros.length > 0 ? `não será gravado. ${s.erros.join(" ")}` : "será gravado na conta."}
                     </li>
                   ))}
                 </ul>
               </div>
             )}
 
-            <AmostraTabela amostra={dry.amostra} />
+            <TabelaPrevia key={`${criarCadastros}-${dry.linhas.length}`} linhas={dry.linhas} />
 
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Button variant="ghost" onClick={() => setStep(2)}>
                 <ArrowLeft className="size-4" /> Ajustar mapeamento
               </Button>
-              <Button onClick={confirmar} disabled={pending || dry.contagens.novosLancamentos === 0}>
+              <Button onClick={confirmar} disabled={pending || (dry.contagens.novosLancamentos === 0 && saldosValidos === 0)}>
                 <Check className="size-4" />
-                {pending ? "Importando…" : `Importar ${dry.contagens.novosLancamentos} lançamentos`}
+                {pending
+                  ? "Importando…"
+                  : dry.contagens.novosLancamentos === 0
+                    ? `Gravar ${saldosValidos} saldo(s) inicial(is)`
+                    : `Importar ${dry.contagens.novosLancamentos} lançamentos`}
               </Button>
             </div>
           </CardContent>
@@ -449,36 +483,167 @@ function PreviaTabela({ headers, rows }: { headers: string[]; rows: string[][] }
   );
 }
 
-function AmostraTabela({ amostra }: { amostra: DryRun["amostra"] }) {
-  if (amostra.length === 0) return null;
+function OpcaoCriarCadastros({
+  valor,
+  onChange,
+  disabled,
+}: {
+  valor: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
-    <div className="overflow-x-auto rounded-sm border">
-      <table className="w-full text-xs">
-        <thead className="bg-muted/50">
-          <tr>
-            {["#", "Tipo", "Data", "Descrição", "Categoria", "Conta", "Contato", "Valor", "Status"].map((h) => (
-              <th key={h} className="whitespace-nowrap px-2 py-1 text-left font-medium">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {amostra.map((l) => (
-            <tr key={l.idx} className={`border-t ${l.erros.length > 0 ? "bg-destructive/5" : ""}`}>
-              <td className="px-2 py-1 text-muted-foreground">{l.idx}</td>
-              <td className="px-2 py-1">{l.tipo}</td>
-              <td className="whitespace-nowrap px-2 py-1">{l.data ?? "—"}</td>
-              <td className="max-w-40 truncate px-2 py-1">{l.descricao}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-muted-foreground">{l.categoria}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-muted-foreground">{l.conta}</td>
-              <td className="max-w-32 truncate px-2 py-1 text-muted-foreground">{l.contato}</td>
-              <td className="whitespace-nowrap px-2 py-1 text-right font-mono">{brl(l.valor)}</td>
-              <td className="px-2 py-1">{l.status}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <label className="flex items-start gap-2 rounded-sm border p-3 text-sm">
+      <Checkbox checked={valor} onCheckedChange={(v) => onChange(v === true)} disabled={disabled} className="mt-0.5" />
+      <span>
+        <span className="font-medium">Criar cadastros que não existirem</span>
+        <span className="block text-xs text-muted-foreground">
+          Deixe desmarcado para extrato do banco. Marque só para migrar do Meu Dinheiro.
+        </span>
+      </span>
+    </label>
+  );
+}
+
+type FiltroPrevia = "todas" | "erro" | "cria" | "duplicada";
+
+const FILTROS: { id: FiltroPrevia; rotulo: string }[] = [
+  { id: "todas", rotulo: "Todas" },
+  { id: "erro", rotulo: "Só com erro" },
+  { id: "cria", rotulo: "Só cadastros a criar" },
+  { id: "duplicada", rotulo: "Só duplicadas" },
+];
+
+const POR_PAGINA = 50;
+
+function situacao(l: LinhaPrevia): { texto: string; tom: "erro" | "aviso" | "neutro" | "ok" } {
+  if (l.erros.length > 0) return { texto: l.erros.join(" "), tom: "erro" };
+  if (l.duplicada) return { texto: "Duplicada", tom: "neutro" };
+  if (l.criaCadastro) return { texto: "Cria cadastro", tom: "aviso" };
+  return { texto: "Entra", tom: "ok" };
+}
+
+/** Prévia de TODAS as linhas, paginada no cliente, com os filtros da situação. */
+function TabelaPrevia({ linhas }: { linhas: LinhaPrevia[] }) {
+  const [filtro, setFiltro] = useState<FiltroPrevia>("todas");
+  const [pagina, setPagina] = useState(0);
+
+  const filtradas = useMemo(() => {
+    switch (filtro) {
+      case "erro":
+        return linhas.filter((l) => l.erros.length > 0);
+      case "cria":
+        return linhas.filter((l) => l.criaCadastro);
+      case "duplicada":
+        return linhas.filter((l) => l.duplicada);
+      default:
+        return linhas;
+    }
+  }, [linhas, filtro]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
+  const atual = Math.min(pagina, totalPaginas - 1);
+  const visiveis = filtradas.slice(atual * POR_PAGINA, (atual + 1) * POR_PAGINA);
+
+  const contagem: Record<FiltroPrevia, number> = {
+    todas: linhas.length,
+    erro: linhas.filter((l) => l.erros.length > 0).length,
+    cria: linhas.filter((l) => l.criaCadastro).length,
+    duplicada: linhas.filter((l) => l.duplicada).length,
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar linhas da prévia">
+        {FILTROS.map((f) => (
+          <Button
+            key={f.id}
+            size="sm"
+            variant={filtro === f.id ? "default" : "outline"}
+            aria-pressed={filtro === f.id}
+            onClick={() => {
+              setFiltro(f.id);
+              setPagina(0);
+            }}
+          >
+            {f.rotulo} ({contagem[f.id]})
+          </Button>
+        ))}
+      </div>
+
+      {filtradas.length === 0 ? (
+        <p className="rounded-sm border p-4 text-center text-sm text-muted-foreground">Nenhuma linha neste filtro.</p>
+      ) : (
+        <div className="grid grid-cols-[minmax(0,1fr)]">
+          <div className="max-h-[60vh] overflow-auto rounded-sm border">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-muted">
+                <tr>
+                  {["Linha", "Data", "Descrição", "Valor", "Categoria", "Projeto", "Sócio", "Situação"].map((h) => (
+                    <th key={h} className="whitespace-nowrap px-2 py-1 text-left font-medium">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {visiveis.map((l, i) => {
+                  const st = situacao(l);
+                  return (
+                    <tr key={`${l.idx}-${l.tipo}-${i}`} className={`border-t ${st.tom === "erro" ? "bg-destructive/5" : ""}`}>
+                      <td className="px-2 py-1 text-muted-foreground">{l.idx}</td>
+                      <td className="whitespace-nowrap px-2 py-1">{l.data ? l.data.split("-").reverse().join("/") : "—"}</td>
+                      <td className="max-w-56 truncate px-2 py-1" title={l.descricao}>
+                        {l.descricao}
+                      </td>
+                      <td
+                        className={`whitespace-nowrap px-2 py-1 text-right font-mono ${l.tipo === "despesa" ? "text-destructive" : "text-success"}`}
+                      >
+                        {l.tipo === "despesa" ? "−" : ""}
+                        {brl(l.valor)}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1 text-muted-foreground">{l.categoria || "—"}</td>
+                      <td className="whitespace-nowrap px-2 py-1 text-muted-foreground">{l.projeto || "—"}</td>
+                      <td className="max-w-32 truncate px-2 py-1 text-muted-foreground">{l.socio || "—"}</td>
+                      <td
+                        className={`min-w-48 px-2 py-1 ${
+                          st.tom === "erro"
+                            ? "text-destructive"
+                            : st.tom === "aviso"
+                              ? "font-medium text-warning-text"
+                              : "text-muted-foreground"
+                        }`}
+                      >
+                        {st.texto}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {totalPaginas > 1 && (
+        <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
+          <span>
+            Página {atual + 1} de {totalPaginas} · {filtradas.length} linha(s)
+          </span>
+          <Button size="sm" variant="outline" disabled={atual === 0} onClick={() => setPagina(atual - 1)} aria-label="Página anterior">
+            <ArrowLeft className="size-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={atual >= totalPaginas - 1}
+            onClick={() => setPagina(atual + 1)}
+            aria-label="Próxima página"
+          >
+            <ArrowRight className="size-3.5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

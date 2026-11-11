@@ -25,6 +25,9 @@ export type CampoSenaHub =
   | "centro"
   | "observacao"
   | "tags"
+  | "projeto"
+  | "socio"
+  | "numeroDocumento"
   | "idUnico";
 
 export type CampoDef = {
@@ -145,6 +148,25 @@ export const CAMPOS: CampoDef[] = [
     label: "Tags / Etiquetas",
     obrigatorio: false,
     sinonimos: ["tags", "etiquetas", "marcadores", "rotulos"],
+  },
+  {
+    campo: "projeto",
+    label: "Projeto (código)",
+    obrigatorio: false,
+    sinonimos: ["projeto", "codigo projeto", "obra"],
+  },
+  {
+    campo: "socio",
+    label: "Sócio",
+    obrigatorio: false,
+    sinonimos: ["socio", "sócio"],
+  },
+  {
+    // "documento" sozinho continua sendo o CPF/CNPJ do contato (campo `documento`).
+    campo: "numeroDocumento",
+    label: "Nº do documento",
+    obrigatorio: false,
+    sinonimos: ["numero documento", "nº documento", "n documento", "n. documento", "documento bancario", "num doc"],
   },
   {
     campo: "idUnico",

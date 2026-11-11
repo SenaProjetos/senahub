@@ -65,6 +65,7 @@ npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs n
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
 npm run smoke:retencoes             # retenções na nota (C4): pagar líquido + contas dos impostos, parcial/desconto recusados, estorno, conciliação, cobrança, contabilidade
+npm run smoke:importacao-extrato    # importação de extrato categorizado: projeto/sócio/nº doc, modo estrito sem cadastro novo, reimportar sem duplicar (chave nova e antiga), saldo inicial com data
 npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do projeto, projetista pago no Financeiro, recebido pelo pago) e N1 (estorno, reabrir, caminhos impossíveis, desfazer importação)
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:contabil              # integração contábil (M5): plano do contador, partidas (reconhecimento+baixa, parcial, cartão, transferência, folha fora), invariante do extrato, exportação só de mês fechado
@@ -752,6 +753,25 @@ forma). Condição de seção por disciplina = `SecaoBriefing.disciplinas` (term
 trava otimista por `versao`. Um modelo arquiva (não exclui) e há um só padrão (índice parcial `modelo_briefing_um_padrao`, fora do
 schema.prisma). Trocar o modelo do projeto zera `secoesOcultas/camposOcultos` e recalcula o status; as respostas ficam. As perguntas
 extras por disciplina (`InputTemplate`/`InputProjeto`) são outra coisa e não mudaram. Verificação: `npm run smoke:modelos-briefing`.
+
+**Financial import: strict mode and the retroactive cut** (spec `docs/superpowers/specs/2026-11-10-lancamento-retroativo-extrato-design.md`):
+`importacao/cadastros.ts` (pure) is the ONE rule of what the preview shows and what the commit writes — `resolverLinhas` over
+`carregarIndice` (`commit-core.ts`), re-run by `executarCommit` inside the transaction. `criarCadastros: false` (strict, the
+screen default) never creates categoria/conta/forma/centro (unknown = line error) and a new contato only with a valid CPF/CNPJ;
+`true` is the old Meu Dinheiro behaviour. Both modes: wrong-tipo categoria, unknown projeto (`Projeto.codigo`) and sócio are
+errors; categoria accepts the plan `codigo` first; a transfer enters with both legs or none. Strict only: an inactive
+categoria/conta/forma/centro, a paid row without conta, a paid row dated after today (`OpcoesCadastro.hoje`, São Paulo day)
+and a transfer without two legs in two different contas are line errors. The dedup key is `x:` + sha256 of
+`tipo|conta|data|centavos|descrição|nº documento|n` (`n` = order among identical rows of the file), no categoria — changing
+any part makes a new row, so an imported row is fixed on screen, never in the file; `hashLegado` (old `h:` formula, no conta)
+is checked too, so old lots never come back — any new "already imported" check must use `chavesDasLinhas`/`jaImportada`.
+There is no unique index on `importHash`: `executarCommit` takes `pg_advisory_xact_lock(TRAVA_IMPORTACAO)` first, so imports
+queue and the second one re-reads the keys. A "Saldo inicial" row with a date also writes `saldoInicialEm` (undoing the lot
+does not revert it). Folha: `rh/folha/corte.ts` + `ConfigSistema`
+`rh.folha.fechaNoFinanceiroDesde` (`"2026-10"`, migration) — `fecharFolhaNoBanco` refuses an earlier competência (it went in
+through the bank statement), `reabrirFolhaNoBanco` refuses to reopen one (it could never close again), and the screen
+disables each button with the same sentence. The Claude-side runbook and the
+read-only Postgres role live in `docs/financeiro/retroativo/`.
 
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em
 `docs/superpowers/specs/2026-09-19-proposta-composta.md`) — a proposta montada NO sistema: modelo +
