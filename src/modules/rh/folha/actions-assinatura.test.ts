@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   holeriteVersaoCreate: vi.fn(),
   folhaReaberturaCreate: vi.fn(),
   folhaUpdateMany: vi.fn(),
+  configFindUnique: vi.fn(),
 }));
 
 const tx = {
@@ -33,6 +34,8 @@ const tx = {
   holerite: { updateMany: mocks.holeriteUpdateMany, findMany: mocks.holeriteFindMany, update: mocks.holeriteUpdate },
   holeriteVersao: { create: mocks.holeriteVersaoCreate },
   folhaReabertura: { create: mocks.folhaReaberturaCreate },
+  // Corte do retroativo (`rh.folha.fechaNoFinanceiroDesde`), lido dentro da transação.
+  configSistema: { findUnique: mocks.configFindUnique },
 };
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -145,6 +148,25 @@ describe("reabrirFolha — limpa assinatura", () => {
     mocks.getSession.mockResolvedValue({ user: { id: "rh1", role: "admin", name: "RH", ativo: true, gereRh: true } });
     mocks.holeriteFindMany.mockResolvedValue([]);
     mocks.folhaUpdateMany.mockResolvedValue({ count: 1 });
+    mocks.configFindUnique.mockResolvedValue(null);
+  });
+
+  it("folha anterior ao corte do Financeiro: reabrir é recusado sem destravar a folha", async () => {
+    mocks.configFindUnique.mockResolvedValue({ valor: "2026-10" });
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", ano: 2026, mes: 7, status: "fechada", lancamentoId: null, partes: [] });
+    const r = await reabrirFolha({ id: "f1", motivo: MOTIVO });
+    expect(!r.ok && r.error).toBe(
+      "A folha de 07/2026 é anterior ao corte do Financeiro (lançada pelo extrato). Reaberta, ela não fecharia de novo.",
+    );
+    expect(mocks.folhaUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.folhaReaberturaCreate).not.toHaveBeenCalled();
+  });
+
+  it("folha do corte em diante reabre", async () => {
+    mocks.configFindUnique.mockResolvedValue({ valor: "2026-10" });
+    mocks.folhaFindUnique.mockResolvedValue({ id: "f1", ano: 2026, mes: 10, status: "fechada", lancamentoId: null, partes: [] });
+    mocks.holeriteUpdateMany.mockResolvedValue({ count: 0 });
+    expect((await reabrirFolha({ id: "f1", motivo: MOTIVO })).ok).toBe(true);
   });
 
   it("folha que outra pessoa já reabriu: recusa sem gravar reabertura", async () => {

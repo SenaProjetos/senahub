@@ -20,3 +20,13 @@ export function motivoCorteFolha(competencia: string, corte: string | null): str
   const [ano, mes] = competencia.split("-");
   return `A folha de ${mes}/${ano} foi lançada no Financeiro pelo extrato. Fechar criaria as contas em dobro.`;
 }
+
+/**
+ * Motivo para NÃO reabrir uma folha fechada da `competencia`, ou `null`. Uma folha anterior ao corte que
+ * fosse reaberta ficaria presa: `motivoCorteFolha` não a deixa fechar de novo.
+ */
+export function motivoCorteReabrir(competencia: string, corte: string | null): string | null {
+  if (!corte || competencia >= corte) return null;
+  const [ano, mes] = competencia.split("-");
+  return `A folha de ${mes}/${ano} é anterior ao corte do Financeiro (lançada pelo extrato). Reaberta, ela não fecharia de novo.`;
+}

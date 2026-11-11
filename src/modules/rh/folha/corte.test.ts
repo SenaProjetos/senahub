@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CHAVE_CORTE_FOLHA, corteValido, motivoCorteFolha } from "@/modules/rh/folha/corte";
+import { CHAVE_CORTE_FOLHA, corteValido, motivoCorteFolha, motivoCorteReabrir } from "@/modules/rh/folha/corte";
 
 describe("motivoCorteFolha", () => {
   it("competência anterior ao corte não fecha", () => {
@@ -22,6 +22,20 @@ describe("motivoCorteFolha", () => {
     expect(motivoCorteFolha("2025-12", "2026-01")).toBe(
       "A folha de 12/2025 foi lançada no Financeiro pelo extrato. Fechar criaria as contas em dobro.",
     );
+  });
+});
+
+describe("motivoCorteReabrir", () => {
+  it("folha anterior ao corte não reabre: ela não fecharia de novo", () => {
+    expect(motivoCorteReabrir("2026-07", "2026-10")).toBe(
+      "A folha de 07/2026 é anterior ao corte do Financeiro (lançada pelo extrato). Reaberta, ela não fecharia de novo.",
+    );
+  });
+
+  it("a competência do corte em diante, ou sem corte, reabre", () => {
+    expect(motivoCorteReabrir("2026-10", "2026-10")).toBeNull();
+    expect(motivoCorteReabrir("2026-12", "2026-10")).toBeNull();
+    expect(motivoCorteReabrir("2026-07", null)).toBeNull();
   });
 });
 

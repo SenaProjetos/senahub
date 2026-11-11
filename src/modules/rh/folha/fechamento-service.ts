@@ -30,7 +30,7 @@ import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { avancarCompetencia, calendarioDeSalario, enesimoDiaUtil, vencimentoDoCompromisso } from "@/modules/financeiro/recorrencia/calculo";
 import { anosDoHorizonte, calendarioFinanceiro } from "@/modules/financeiro/recorrencia/queries";
 import { rotuloFolha } from "@/modules/rh/folha/tipo-folha";
-import { CHAVE_CORTE_FOLHA, corteValido, motivoCorteFolha } from "@/modules/rh/folha/corte";
+import { CHAVE_CORTE_FOLHA, corteValido, motivoCorteFolha, motivoCorteReabrir } from "@/modules/rh/folha/corte";
 import { ehItemDaTaxaDoAgente, ehItemDeBeneficio, planoDaFolha, type LancamentoPlanejado } from "@/modules/rh/folha/lancamentos-da-folha";
 import { custosDoMes } from "@/modules/rh/rateio/custo-hora/dados";
 import {
@@ -229,6 +229,11 @@ export async function lerCorteFolha(db: Pick<Prisma.TransactionClient, "configSi
 /** Motivo para a folha não fechar por causa do corte (mesma frase da tela e do servidor), ou `null`. */
 export async function motivoCorteDaFolha(folha: { ano: number; mes: number }): Promise<string | null> {
   return motivoCorteFolha(competenciaDaFolha(folha), await lerCorteFolha());
+}
+
+/** Motivo para a folha fechada não reabrir por causa do corte (mesma frase da tela e do servidor), ou `null`. */
+export async function motivoCorteDeReabrir(folha: { ano: number; mes: number }): Promise<string | null> {
+  return motivoCorteReabrir(competenciaDaFolha(folha), await lerCorteFolha());
 }
 
 export async function fecharFolhaNoBanco(folhaId: string, autorId: string): Promise<ResultadoFechamento> {
@@ -500,6 +505,10 @@ export async function reabrirFolhaNoBanco(folhaId: string, motivo: string, autor
     // conferência de pagamento já dentro da transação.
     const folha = await tx.folhaPagamento.findUnique({ where: { id: folhaId }, include: { partes: { select: { lancamentoId: true } } } });
     if (!folha) throw new ActionError("Folha não encontrada.");
+    // Corte do retroativo: reaberta, a folha anterior ao corte não fecharia de novo.
+    // (Só para a folha fechada: a aberta cai em "Folha não está fechada." logo abaixo.)
+    const motivoCorte = folha.status === "fechada" ? motivoCorteReabrir(competenciaDaFolha(folha), await lerCorteFolha(tx)) : null;
+    if (motivoCorte) throw new ActionError(motivoCorte);
     const trava = await tx.folhaPagamento.updateMany({
       where: { id: folhaId, status: "fechada" },
       // `lancamentoId` FICA: o próximo fechamento atualiza essa mesma conta (ou a cancela, se a folha
