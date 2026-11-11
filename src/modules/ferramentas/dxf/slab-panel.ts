@@ -20,7 +20,7 @@ const ENGASTES: Record<CasoLaje, ("T" | "B" | "L" | "R")[]> = {
   "4A": ["T", "B"],
   "4B": ["L", "R"],
   "5A": ["T", "B", "R"],
-  "5B": ["T", "B", "L"],
+  "5B": ["B", "L", "R"], // apoiada o topo (borda menor), Tabela 2.3c da fonte; antes saía T, B, L
   "6": ["T", "B", "L", "R"],
 };
 

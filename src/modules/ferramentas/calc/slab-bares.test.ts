@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcular } from "./slab-bares";
+import { calcular, CASOS } from "./slab-bares";
 
 /**
  * Vetores conferidos contra os 3 exemplos resolvidos do material fornecido
@@ -13,6 +13,19 @@ function momento(r: ReturnType<typeof calcular>, simbolo: string): number {
 }
 
 describe("E05 — Laje maciça (tabelas de Bares)", () => {
+  it("rótulos dos casos batem com as figuras da Tabela 2.3 (Libanio, 2026-11-10): borda maior = comprimento ly, menor = lx", () => {
+    // o coeficiente diz qual borda: μx = 12,50 em λ > 2 só aparece com o vão x apoiado nos dois lados, então a borda engastada é a de comprimento lx
+    expect(CASOS["2A"]).toMatch(/\(menor\)/);
+    expect(CASOS["2B"]).toMatch(/\(maior\)/);
+    expect(CASOS["4A"]).toMatch(/menores/);
+    expect(CASOS["4B"]).toMatch(/maiores/);
+    expect(CASOS["5A"]).toMatch(/apoiada \(borda maior\)/);
+    expect(CASOS["5B"]).toMatch(/apoiada \(borda menor\)/);
+    // 5A: x tem um engaste e um apoio (μx = 7,03 em λ > 2); 5B: x biengastado (μx = 4,17)
+    expect(momento(calcular({ ...base, ly: 900, caso: "5A" }), "Mx")).toBeCloseTo((7.03 * 6.5 * 9) / 100, 2);
+    expect(momento(calcular({ ...base, ly: 900, caso: "5B" }), "Mx")).toBeCloseTo((4.17 * 6.5 * 9) / 100, 2);
+  });
+
   it("Exemplo 1 — Caso 2B, λ=1,5 (μx=5,24; μ'x=11,09; μy=2,12)", () => {
     const r = calcular({ ...base, caso: "2B" });
     expect(r.lambda).toBeCloseTo(1.5, 6);

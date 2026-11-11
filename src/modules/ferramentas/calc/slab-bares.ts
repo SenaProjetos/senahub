@@ -10,8 +10,12 @@
  * Armadura por flexão simples de faixa de 1 m (ELU), com As,mín de laje (0,67·ρmín).
  *
  * Valores transcritos da referência fornecida pelo usuário. Conferência cabe ao engenheiro (ART/RRT).
- * NOTA: caso 5A, μ'x em λ=1,25 (8,81) destoa da monotonicidade da coluna — possível artefato da
- * fonte; conferir contra a tabela impressa antes de usar λ próximo de 1,25 no caso 5A.
+ * Conferido contra a tabela impressa (Libanio, Tabelas de lajes, p. 11-13 e 21; 2026-11-10): todos os coeficientes de momento e
+ * de flecha batem. "Borda maior" é a de comprimento ly, "borda menor" a de comprimento lx (menor vão). Quem engasta o quê, pelas
+ * figuras da fonte: 2A = base (menor); 2B = direita (maior); 3 = base e direita; 4A = topo e base (menores); 4B = esquerda e direita
+ * (maiores); 5A = topo, base e direita (apoiada a esquerda, borda maior); 5B = esquerda, direita e base (apoiada o topo, borda menor).
+ * NOTA: caso 5A, μ'x em λ=1,25 (8,81) destoa da monotonicidade da coluna, mas é assim que a fonte imprime (Tabela 2.3c);
+ * possível erro de impressão da fonte, mantido como está. Antes de 2026-11-10 os rótulos de 2A, 2B, 4A, 4B, 5A e 5B vinham trocados.
  */
 
 import { z } from "zod";
@@ -23,13 +27,13 @@ const ES = 21000; // kN/cm² (210 GPa)
 
 export const CASOS = {
   "1": "Caso 1 — 4 bordas apoiadas",
-  "2A": "Caso 2A — 1 borda engastada (maior)",
-  "2B": "Caso 2B — 1 borda engastada (menor)",
+  "2A": "Caso 2A — 1 borda engastada (menor)",
+  "2B": "Caso 2B — 1 borda engastada (maior)",
   "3": "Caso 3 — 2 bordas adjacentes engastadas",
-  "4A": "Caso 4A — 2 bordas maiores engastadas",
-  "4B": "Caso 4B — 2 bordas menores engastadas",
-  "5A": "Caso 5A — 3 engastadas, 1 apoiada (menor livre)",
-  "5B": "Caso 5B — 3 engastadas, 1 apoiada (maior livre)",
+  "4A": "Caso 4A — 2 bordas menores engastadas",
+  "4B": "Caso 4B — 2 bordas maiores engastadas",
+  "5A": "Caso 5A — 3 engastadas, 1 apoiada (borda maior)",
+  "5B": "Caso 5B — 3 engastadas, 1 apoiada (borda menor)",
   "6": "Caso 6 — 4 bordas engastadas",
 } as const;
 export type CasoLaje = keyof typeof CASOS;
