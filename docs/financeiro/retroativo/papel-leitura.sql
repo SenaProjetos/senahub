@@ -10,8 +10,16 @@
 --
 -- O que o papel enxerga: só as tabelas abaixo e, das que guardam dado pessoal (cliente, fornecedor, conta
 -- bancária, sócio), só as colunas que a categorização usa. Do usuário, só id, nome e e-mail dos SÓCIOS (view
--- leitura_usuario). NÃO enxerga: account (senhas), session, cofre de acessos, RH, folha, holerites, ponto, nem
--- nenhuma outra tabela ou coluna.
+-- leitura_usuario) e só o NOME das pessoas internas (view leitura_pessoa — dono, 2026-11-11: para reconhecer
+-- projetista e colaborador no histórico do banco). NÃO enxerga: account (senhas), session, cofre de acessos, RH,
+-- folha, holerites, ponto, e-mail de quem não é sócio, usuários do portal, nem nenhuma outra tabela ou coluna.
+--
+-- ATENÇÃO — as duas views prendem colunas do app ("user".id/name/email/tipo e socio."userId"): uma migração que
+-- altere ou remova uma delas falha com "other objects depend on it". Rode o bloco "Desfazer" ao terminar o
+-- trabalho e ANTES de qualquer deploy com migração nessas tabelas (depois é só rodar este script de novo).
+-- As tabelas `lancamento` e `projeto` são liberadas inteiras: coluna nova nelas fica visível para o papel.
+-- O papel vale para o servidor todo; nos outros bancos ele só conecta e não lê nada. Para fechar também isso:
+--   REVOKE CONNECT ON DATABASE <outro_banco> FROM PUBLIC;  (e GRANT CONNECT aos papéis que usam aquele banco)
 --
 -- O que impede a escrita é a falta de INSERT/UPDATE/DELETE: o papel não tem nenhum. O
 -- default_transaction_read_only é uma segunda barreira (o próprio papel poderia desligá-lo na sessão, mas
@@ -22,6 +30,7 @@
 --
 -- Desfazer (no fim do trabalho):
 --   DROP VIEW IF EXISTS leitura_usuario;
+--   DROP VIEW IF EXISTS leitura_pessoa;
 --   DROP OWNED BY senahub_leitura;
 --   DROP ROLE senahub_leitura;
 
@@ -41,6 +50,13 @@ CREATE OR REPLACE VIEW leitura_usuario AS
     FROM "user" u
     JOIN socio s ON s."userId" = u.id;
 
+-- Das pessoas internas (equipe), só o nome: o Pix do banco traz o nome do favorecido, e o roteiro precisa saber
+-- que "GUSTAVO LUIZ MAURICIO INA" é da equipe para não virar fornecedor. Sem e-mail, sem usuário do portal.
+CREATE OR REPLACE VIEW leitura_pessoa AS
+  SELECT u.id, u.name
+    FROM "user" u
+   WHERE u.tipo = 'interno';
+
 -- Tabelas inteiras: lançamentos e cadastros sem dado pessoal.
 GRANT SELECT ON
   lancamento,
@@ -49,6 +65,7 @@ GRANT SELECT ON
   centro_custo,
   projeto,
   leitura_usuario,
+  leitura_pessoa,
   regra_categorizacao,
   compromisso_recorrente,
   fechamento_mensal,

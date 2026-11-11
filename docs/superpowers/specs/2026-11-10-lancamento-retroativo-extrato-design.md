@@ -149,7 +149,8 @@ Entregável: uma pasta `docs/financeiro/retroativo/` com:
 
 - `ROTEIRO.md`: o passo a passo que o Claude segue a cada mês (abaixo), escrito para um agente;
 - `papel-leitura.sql`: cria o usuário do Postgres só de leitura;
-- `modelo-saida.xlsx`: o cabeçalho exato que o importador aceita, com as colunas novas.
+- `modelo-saida.csv`: o cabeçalho exato que o importador aceita, com as colunas novas (entregue em CSV; o importador
+  lê CSV e XLSX com o mesmo cabeçalho).
 
 ### 6.1 Acesso ao banco, só de leitura
 
@@ -274,3 +275,29 @@ A string de conexão fica num `.env` da pasta de trabalho do Claude, nunca no `.
   "Reembolso cartão pessoal" na descrição. Não se cadastram cartão nem fatura para o retroativo. O reembolso é uma das
   respostas possíveis da pergunta obrigatória sobre pagamento a sócio; quando o dono responde "reembolso", o Claude
   pergunta também a categoria do gasto.
+
+## 12. Revisão de 2026-11-11 (respostas do dono e correções)
+
+Revisão da branch antes do deploy. O dono respondeu:
+
+- **Pessoas da equipe:** o papel de leitura enxerga o **nome** dos usuários internos (view `leitura_pessoa`, sem e-mail),
+  além dos sócios. Vale no lugar do "só `id`, `name`, `email`" da §6.1.
+- **Competência:** os meses retroativos ficam com DRE por competência igual ao caixa (a Data é a do movimento).
+- **Status vazio** continua virando `previsto` (conta em aberto), também no modo estrito.
+- **Cadastro inativo** (categoria, conta, forma, centro) é recusado no modo estrito.
+- **Nº do documento entra na chave** anti-duplicata: `tipo|conta|data|centavos|descrição|nº do documento|n` (substitui a
+  fórmula da §5.7).
+
+Correções que entraram junto (todas no modo estrito, salvo a trava):
+
+- Transferência precisa das duas pernas, cada uma numa conta, e contas diferentes.
+- Linha paga sem conta e linha paga com data futura são erro.
+- Sócio pelo começo do nome só em fim de palavra ou com duas palavras ou mais ("Ana" não casa com "Anabela").
+- Uma importação por vez (`pg_advisory_xact_lock` no commit): duas ao mesmo tempo não duplicam.
+- Folha anterior ao corte que esteja fechada não reabre (reaberta, não fecharia de novo).
+- Roteiro: a chave não muda depois de importada (correção é na tela), ordem do extrato, previsto de compromisso
+  recorrente casado por compromisso e competência, e a consulta do passo 4 ignora os lotes do próprio trabalho.
+
+Fica como está, por decisão técnica: a chave antiga (`h:`) não tem a conta. Uma linha nova igual a uma linha antiga do
+Meu Dinheiro em outra conta aparece como «Duplicada» na conferência (visível); o roteiro manda avisar o dono. Pôr a
+conta nessa comparação faria uma conta renomeada reimportar o lote antigo inteiro, que é pior.

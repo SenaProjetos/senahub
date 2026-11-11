@@ -19,6 +19,9 @@ Siga `ROTEIRO.md`, um mês por vez, em ordem. Leia o roteiro inteiro antes de co
   cronológica real), pare antes de categorizar e mostre ao dono as linhas que não fecham.
 - **Pare quando o saldo final não bate depois da importação.** Liste as linhas que explicam a diferença antes de ir
   para o mês seguinte.
+- **Linha já importada não muda no arquivo.** Conta, Data, Valor, Descrição e Nº documento são a chave
+  anti-duplicata: mudar um deles e reimportar lança o movimento de novo. Correção de linha já importada é na tela do
+  SenaHub, pelo dono. Ao regerar um mês, mantenha a ordem do extrato e copie essas colunas do arquivo anterior.
 - **Sempre pergunte** pagamento a sócio, linha sem sugestão e sugestão que veio só do seu julgamento.
 - **Nunca crie cadastro.** Categoria sempre pelo código do plano de contas existente. Nunca escreva um fornecedor com o
   nome de uma pessoa da equipe nem com o nome truncado do banco.

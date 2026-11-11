@@ -759,12 +759,18 @@ extras por disciplina (`InputTemplate`/`InputProjeto`) são outra coisa e não m
 `carregarIndice` (`commit-core.ts`), re-run by `executarCommit` inside the transaction. `criarCadastros: false` (strict, the
 screen default) never creates categoria/conta/forma/centro (unknown = line error) and a new contato only with a valid CPF/CNPJ;
 `true` is the old Meu Dinheiro behaviour. Both modes: wrong-tipo categoria, unknown projeto (`Projeto.codigo`) and sócio are
-errors; categoria accepts the plan `codigo` first; a transfer enters with both legs or none. The dedup key is `x:` + sha256 of
-`tipo|conta|data|centavos|descrição|n` (`n` = order among identical rows of the file), no categoria; `hashLegado` (old `h:`
-formula) is checked too, so old lots never come back — any new "already imported" check must use `chavesDasLinhas`/`jaImportada`.
-A "Saldo inicial" row with a date also writes `saldoInicialEm`. Folha: `rh/folha/corte.ts` + `ConfigSistema`
+errors; categoria accepts the plan `codigo` first; a transfer enters with both legs or none. Strict only: an inactive
+categoria/conta/forma/centro, a paid row without conta, a paid row dated after today (`OpcoesCadastro.hoje`, São Paulo day)
+and a transfer without two legs in two different contas are line errors. The dedup key is `x:` + sha256 of
+`tipo|conta|data|centavos|descrição|nº documento|n` (`n` = order among identical rows of the file), no categoria — changing
+any part makes a new row, so an imported row is fixed on screen, never in the file; `hashLegado` (old `h:` formula, no conta)
+is checked too, so old lots never come back — any new "already imported" check must use `chavesDasLinhas`/`jaImportada`.
+There is no unique index on `importHash`: `executarCommit` takes `pg_advisory_xact_lock(TRAVA_IMPORTACAO)` first, so imports
+queue and the second one re-reads the keys. A "Saldo inicial" row with a date also writes `saldoInicialEm` (undoing the lot
+does not revert it). Folha: `rh/folha/corte.ts` + `ConfigSistema`
 `rh.folha.fechaNoFinanceiroDesde` (`"2026-10"`, migration) — `fecharFolhaNoBanco` refuses an earlier competência (it went in
-through the bank statement) and the screen disables the button with the same sentence. The Claude-side runbook and the
+through the bank statement), `reabrirFolhaNoBanco` refuses to reopen one (it could never close again), and the screen
+disables each button with the same sentence. The Claude-side runbook and the
 read-only Postgres role live in `docs/financeiro/retroativo/`.
 
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em

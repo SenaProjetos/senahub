@@ -5,8 +5,8 @@ importa no Financeiro do SenaHub para lançar o fluxo de caixa de **janeiro/2026
 leitura), **categoriza** e **entrega planilhas**. Quem grava é o dono, pela tela **Financeiro → Mais → Importar
 planilha**, com a opção «Criar cadastros que não existirem» **desmarcada**.
 
-Decisão e motivo: `docs/superpowers/specs/2026-11-10-lancamento-retroativo-extrato-design.md` (no repositório do app).
-Este roteiro é o que vale para você.
+Decisão e motivo: `docs/superpowers/specs/2026-11-10-lancamento-retroativo-extrato-design.md` (no repositório do app;
+você não precisa abrir esse arquivo, e não deve abrir a pasta do app). Este roteiro é o que vale para você.
 
 ## Como rodar
 
@@ -17,28 +17,32 @@ Este roteiro é o que vale para você.
   `papel-leitura.sql`). Consultas por `psql "$LEITURA_DATABASE_URL" -c "SELECT ..."`. Só `SELECT`; o usuário já recusa
   qualquer escrita, mas não tente.
 - **Planilhas de saída:** CSV com `;` e cabeçalho igual a `modelo-saida.csv` (o importador mapeia sozinho), ou `.xlsx`
-  gerado por script Node com `exceljs` com o mesmo cabeçalho. Valores com vírgula decimal (`-1.500,00` ou `-1500,00`),
-  datas `DD/MM/AAAA`.
+  gerado por script Node com `exceljs` com o mesmo cabeçalho. Valores **sempre com vírgula e duas casas**
+  (`-1.500,00` ou `-1500,00`; `1.500` sem vírgula é lido como 1,50), datas `DD/MM/AAAA`. No CSV, texto que contém `;`
+  ou aspas vai entre aspas duplas. Arquivo em UTF-8.
+- **Ordem das linhas:** a mesma do extrato do banco, sempre. Regerar o arquivo não muda a ordem.
+- **Ao terminar o trabalho todo** (ou antes de um deploy com migração nas tabelas `user` ou `socio`), o dono roda o
+  bloco «Desfazer» de `papel-leitura.sql`: as views de leitura prendem essas colunas e a senha deixa de existir.
 
 ### Colunas da planilha de saída
 
 | Coluna | O que vai |
 |---|---|
-| Data | dia do movimento no banco |
-| Descrição | o histórico do banco (pode completar com o nome da pessoa ou "Reembolso cartão pessoal") |
-| Valor | com sinal: negativo sai, positivo entra |
+| Data | dia do movimento no banco (não pode ser depois de hoje; a DRE por competência desses meses segue esta data — decisão do dono, 2026-11-11) |
+| Descrição | o histórico do banco como veio. Pode acrescentar no fim o nome da pessoa ou "Reembolso cartão pessoal", **uma vez**: depois que o arquivo foi entregue, a Descrição da linha não muda mais (ao regerar, copie-a do arquivo anterior) |
+| Valor | com sinal: negativo sai, positivo entra. Vírgula e duas casas |
 | Tipo | vazio (o sinal decide), `Transferência` para transferência entre contas próprias, `Saldo inicial` para o saldo de abertura |
-| Status | `Pago` |
+| Status | `Pago`, em toda linha (vazio vira conta em aberto, não paga) |
 | Data efetiva | igual à Data |
 | Categoria | o **código** do plano de contas (ex.: `2.08`). Nunca um nome novo |
 | Subcategoria | vazio (o código já aponta a categoria certa) |
-| Conta | nome exato da conta bancária no SenaHub |
-| Conta destino | só em transferência |
+| Conta | nome exato da conta bancária **ativa** no SenaHub. Obrigatória: linha paga sem conta é recusada |
+| Conta destino | só em transferência, e nela é obrigatória (outra conta ativa do SenaHub) |
 | Contato | fornecedor ou cliente que já existe, ou novo **com** CPF/CNPJ válido. Vazio para pessoa da equipe |
 | CPF/CNPJ | do contato, quando houver |
 | Projeto | código do projeto (`Projeto.codigo`, ex.: `260031`), quando a contraparte ou o histórico indica |
 | Sócio | nome ou e-mail do sócio, em toda retirada ou reembolso de sócio |
-| Nº documento | o nº do documento do extrato |
+| Nº documento | o nº do documento do extrato, igual ao do banco (faz parte da chave anti-duplicata, junto com conta, data, valor e descrição) |
 | Observação | de onde veio a categoria quando não é óbvio (ex.: "Meu Dinheiro", "resposta do dono 2026-02") |
 
 ## Preparação (uma vez, antes de janeiro)
@@ -57,6 +61,10 @@ Este roteiro é o que vale para você.
       AND l."recorrenciaCompetencia" >= '2026-01' ORDER BY l."recorrenciaCompetencia";
    ```
    O pagamento desses previstos **não** entra na planilha: vai para a lista de revisão como baixa à mão (passo 4).
+   O valor pago quase nunca é igual ao previsto (energia, pró-labore líquido): case o previsto com a linha do extrato
+   pelo **compromisso e pela competência** (descrição, contraparte, mês), não pelo valor. Todo previsto de compromisso
+   recorrente do mês termina na lista de revisão, de um destes jeitos: "dar baixa com o valor real de R$ X em DD/MM"
+   (a linha do extrato sai da planilha) ou "cancelar: não achei pagamento no extrato" (para o dono decidir).
 3. **Folha CLT.** O corte é a competência **10/2026** (`rh.folha.fechaNoFinanceiroDesde`). Até 09/2026, salário,
    INSS, IRRF, FGTS, bolsa e taxa do agente entram pelo extrato como despesas pagas comuns. De 10/2026 em diante vêm do
    fechamento da folha: o pagamento do salário de outubro (início de novembro) e as guias de outubro (dia 20/11) **não**
@@ -67,15 +75,18 @@ Este roteiro é o que vale para você.
    `DELETE` para tirar a trava) — nunca por você.
 4. **Cadastros de referência** (releia a cada mês, podem ter mudado):
    ```sql
-   SELECT codigo, nome, tipo, natureza FROM categoria_financeira WHERE ativo ORDER BY codigo;
-   SELECT nome, tipo, "saldoInicial", "saldoInicialEm" FROM conta_bancaria WHERE ativo;
+   SELECT id, codigo, nome, tipo, natureza FROM categoria_financeira WHERE ativo ORDER BY codigo;
+   SELECT id, nome, tipo, "saldoInicial", "saldoInicialEm" FROM conta_bancaria WHERE ativo;
    SELECT codigo, nome FROM projeto ORDER BY codigo;
    SELECT s.id, u.name, u.email, s.ativo FROM socio s JOIN leitura_usuario u ON u.id = s."userId";
+   SELECT name FROM leitura_pessoa ORDER BY name;   -- pessoas da equipe (só o nome)
    SELECT nome, documento FROM fornecedor;   SELECT nome, documento FROM cliente;
    SELECT termo, condicoes, "categoriaId", "projetoId", ordem FROM regra_categorizacao WHERE ativo ORDER BY ordem;
    SELECT ano, mes, status FROM fechamento_mensal WHERE ano = 2026;
    ```
    Se algum mês de 2026 estiver **fechado**, avise o dono antes: o importador recusa lançamento em mês fechado.
+   Categoria, conta, forma ou centro **inativos** também são recusados: use só o que estas consultas devolvem. O
+   documento vem com máscara no fornecedor e só com dígitos no cliente: compare sempre só os dígitos.
 
 ## Entradas de cada mês
 
@@ -101,18 +112,25 @@ Este roteiro é o que vale para você.
     WHERE l."excluidoEm" IS NULL AND l.status IN ('previsto', 'confirmado')
       AND l.valor = <valor sem sinal> AND l.tipo = '<receita|despesa>'
       AND (l."contaId" = '<id da conta>' OR l."contaId" IS NULL)
-      AND COALESCE(l."dataConfirmacao", l.vencimento, l.data) BETWEEN '<dia − 5>' AND '<dia + 5>';
+      AND COALESCE(l."dataConfirmacao", l.vencimento, l.data) BETWEEN '<dia − 5>' AND '<dia + 5>'
+      AND (l."importHash" IS NULL OR l."importHash" NOT LIKE 'x:%');
    ```
+   A última condição tira os lançamentos que **este trabalho** já importou (chave `x:`): ao regerar o arquivo de um
+   mês, eles continuam na planilha, na mesma ordem, e o importador os marca como «Duplicada». Sem ela, a regeração
+   mandaria o mês inteiro para a lista de revisão. Os previstos de compromisso recorrente seguem a regra da
+   preparação (item 2): por compromisso e competência, mesmo com valor diferente.
    Achou um: a linha **sai da planilha** e vai para a lista de revisão como "dar baixa / conciliar à mão" com o link
    `/financeiro/lancamentos?lancamento=<id>`. Achou mais de um: pergunte.
 5. **Transferências entre contas próprias** (ex.: "SENA PROJETOS DE ENGENHAR"): uma linha só na planilha, Tipo
    `Transferência`, com Conta e Conta destino. A perna correspondente nas outras contas do Meu Dinheiro sai da planilha
-   das outras contas (senão entra duas vezes).
+   das outras contas (senão entra duas vezes). As duas contas têm de existir no SenaHub, ativas e diferentes: o
+   importador recusa transferência sem destino. Dinheiro que foi para uma conta que **não** está no SenaHub não é
+   transferência: pergunte ao dono o que é (retirada de sócio, aplicação, pagamento).
 6. **Categorizar o resto**, nesta ordem, parando no primeiro que decide:
    1. respostas anteriores do dono (`respostas.md`);
    2. documento na descrição (CPF/CNPJ) contra cliente ou fornecedor;
-   3. nome da contraparte, aceitando o truncamento do banco, contra sócios (sempre pergunte a categoria), pessoas,
-      fornecedores e clientes;
+   3. nome da contraparte, aceitando o truncamento do banco, contra sócios (sempre pergunte a categoria), pessoas da
+      equipe (`leitura_pessoa`, só o nome), fornecedores e clientes;
    4. regras ativas de categorização do SenaHub;
    5. histórico: o que o Meu Dinheiro e o SenaHub já categorizaram para a mesma contraparte;
    6. seu julgamento, marcado como sugestão.
@@ -165,6 +183,14 @@ Este roteiro é o que vale para você.
 - Entregar um arquivo **só com as linhas corrigidas**. A chave anti-duplicata conta a ordem entre linhas idênticas do
   mesmo arquivo: uma linha corrigida sozinha pode ser tomada pela irmã já importada e sumir como "Duplicada". Correção
   = regerar e reimportar o arquivo **inteiro** do mês (o que já entrou aparece como duplicado e não entra de novo).
+- Mudar, numa linha **que já foi importada**, a Conta, a Data, o Valor, a Descrição ou o Nº documento. Esses cinco
+  campos são a chave: mudou um, o importador vê uma linha nova e ela entra **de novo** (caixa em dobro). Linha já
+  importada se corrige **editando o lançamento na tela**. No arquivo regerado ela fica exatamente como foi entregue.
+  Categoria, projeto, sócio, contato e observação não fazem parte da chave, mas mudá-los no arquivo também não muda o
+  que já entrou.
+- Trocar a ordem das linhas ao regerar. Entre linhas idênticas, é a ordem que diz qual é qual.
+- Ignorar uma «Duplicada» que você não esperava na conferência: pode ser uma linha antiga do Meu Dinheiro com o mesmo
+  dia, valor, descrição e categoria em **outra conta**. Avise o dono; ele lança essa linha à mão.
 - Orientar o dono a **excluir** um lançamento importado para importá-lo de novo: o excluído à mão continua contando
   como importado e não volta. Categoria errada se corrige **editando** o lançamento, ou desfazendo o lote inteiro e
   importando de novo.

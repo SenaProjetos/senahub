@@ -29,9 +29,11 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   do plano de contas.
 - A conferência mostra todas as linhas, paginadas, com filtros (só com erro, só cadastros a criar,
   só duplicadas).
+- Com a opção desmarcada, o importador também recusa: cadastro inativo, linha paga sem conta,
+  linha paga com data futura e transferência sem conta de destino.
 - Folha CLT: as folhas de competência anterior a 10/2026 foram lançadas no Financeiro pelo extrato
   e **não fecham** mais (fechar criaria as contas em dobro). O botão aparece desabilitado com o
-  motivo.
+  motivo. Uma folha dessas que já esteja fechada também não reabre.
 
 ## Projeto novo nasce no padrão de nomenclatura mais atual (novembro/2026)
 

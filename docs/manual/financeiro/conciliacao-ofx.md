@@ -82,14 +82,18 @@ extrato de novo não a traz de volta.
   sempre fez. Trocar a opção refaz a conferência.
 - Nos dois modos: categoria do tipo errado (de despesa numa linha de receita), projeto que não
   existe e sócio não encontrado são erro.
+- Com a opção desmarcada também são erro: categoria, conta, forma ou centro **inativos**; linha
+  **paga sem conta**; linha paga com **data depois de hoje**.
 
 ### Colunas
 - **Categoria** aceita o **código** do plano de contas (ex.: `2.08`) além do nome. O código vale
   primeiro.
 - **Projeto** recebe o código do projeto (ex.: `260031`); vazio deixa as regras de preenchimento
   completarem.
-- **Sócio** recebe o nome do sócio (o começo do nome basta, como o banco trunca) ou o e-mail dele.
-- **Nº documento** vai para o número do documento do lançamento.
+- **Sócio** recebe o nome do sócio (o começo do nome basta, como o banco trunca: o primeiro nome
+  inteiro ou duas palavras ou mais) ou o e-mail dele.
+- **Nº documento** vai para o número do documento do lançamento e ajuda a reconhecer a linha já
+  importada.
 - Linha de tipo **Saldo inicial** com data grava o saldo da conta e a data em que ele vale (o
   saldo do início daquele dia). Com a opção desmarcada, a data é obrigatória. Um arquivo só com
   saldos iniciais também pode ser importado (o botão vira «Gravar saldos iniciais»).
@@ -97,14 +101,20 @@ extrato de novo não a traz de volta.
   é recusada.
 - Subcategoria pelo nome, quando dois pais têm o mesmo nome, é recusada como ambígua: use o código.
 - Transferência entre contas entra com as duas pernas ou nenhuma: se uma perna tem erro, a outra
-  também fica de fora.
+  também fica de fora. Com a opção desmarcada, a linha precisa de **Conta** e **Conta destino**,
+  e as duas têm de ser contas diferentes.
 
 ### Conferir antes de importar
 - A conferência lista **todas** as linhas, 50 por página, com a situação de cada uma: o erro em
   texto, **Duplicada** (já importada antes — não entra de novo), **Cria cadastro** ou **Entra**.
 - Filtros: **Todas**, **Só com erro**, **Só cadastros a criar**, **Só duplicadas**.
-- Duas linhas iguais no mesmo arquivo (mesma conta, dia, valor e descrição) viram dois
-  lançamentos; importar o mesmo arquivo de novo não cria nada.
+- Duas linhas iguais no mesmo arquivo (mesma conta, dia, valor, descrição e nº do documento)
+  viram dois lançamentos; importar o mesmo arquivo de novo não cria nada.
+- O importador reconhece a linha já importada por conta, dia, valor, descrição e nº do documento.
+  Se você mudar um desses no arquivo e importar de novo, a linha entra **outra vez**. Para
+  corrigir um lançamento que já entrou, edite-o em Lançamentos.
+- Desfazer uma importação remove os lançamentos dela. Os cadastros criados e os saldos iniciais
+  gravados por ela ficam.
 
 ### Desfazer uma importação
 - **Desfazer** tira do financeiro todos os lançamentos do lote (ficam guardados como excluídos).
