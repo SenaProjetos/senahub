@@ -91,6 +91,7 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
   }
 
   const faltamObrigatorios = CAMPOS_OBRIGATORIOS.filter((c) => mapa[c] == null);
+  const saldosValidos = dry ? dry.saldosIniciais.filter((s) => s.erros.length === 0).length : 0;
 
   function rodarDryRun(criar = criarCadastros) {
     if (!preview) return;
@@ -121,7 +122,7 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
         const c = r.data.contagens;
         setResultado({
           loteId: r.data.loteId,
-          texto: `${c.lancamentosCriados} lançamentos, ${c.categoriasCriadas} categorias, ${c.contasCriadas} contas, ${c.fornecedoresCriados} fornecedores, ${c.clientesCriados} clientes.`,
+          texto: `${c.lancamentosCriados} lançamentos, ${r.data.saldosIniciais} saldo(s) inicial(is), ${c.categoriasCriadas} categorias, ${c.contasCriadas} contas, ${c.fornecedoresCriados} fornecedores, ${c.clientesCriados} clientes.`,
         });
         setStep(4);
         router.refresh();
@@ -295,17 +296,17 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
               </p>
             )}
 
-            {dry.saldosIniciais.some((s) => s.erros.length > 0) && (
-              <div className="rounded-sm border border-destructive/30 p-3 text-xs">
-                <p className="mb-1 text-sm font-medium text-destructive">Saldos iniciais que não serão gravados:</p>
-                <ul className="space-y-0.5 text-muted-foreground">
-                  {dry.saldosIniciais
-                    .filter((s) => s.erros.length > 0)
-                    .map((s, i) => (
-                      <li key={i}>
-                        {s.conta} ({brl(s.valor)}): {s.erros.join(" ")}
-                      </li>
-                    ))}
+            {dry.saldosIniciais.length > 0 && (
+              <div className="rounded-sm border p-3 text-xs">
+                <p className="mb-1 text-sm font-medium">Saldos iniciais</p>
+                <ul className="space-y-0.5">
+                  {dry.saldosIniciais.map((s, i) => (
+                    <li key={i} className={s.erros.length > 0 ? "text-destructive" : "text-muted-foreground"}>
+                      {s.conta}: {brl(s.valor)}
+                      {s.data ? ` no início de ${s.data.split("-").reverse().join("/")}` : ""} —{" "}
+                      {s.erros.length > 0 ? `não será gravado. ${s.erros.join(" ")}` : "será gravado na conta."}
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}
@@ -316,9 +317,13 @@ export function ImportadorView({ importacoes, subnav }: { importacoes: Importaca
               <Button variant="ghost" onClick={() => setStep(2)}>
                 <ArrowLeft className="size-4" /> Ajustar mapeamento
               </Button>
-              <Button onClick={confirmar} disabled={pending || dry.contagens.novosLancamentos === 0}>
+              <Button onClick={confirmar} disabled={pending || (dry.contagens.novosLancamentos === 0 && saldosValidos === 0)}>
                 <Check className="size-4" />
-                {pending ? "Importando…" : `Importar ${dry.contagens.novosLancamentos} lançamentos`}
+                {pending
+                  ? "Importando…"
+                  : dry.contagens.novosLancamentos === 0
+                    ? `Gravar ${saldosValidos} saldo(s) inicial(is)`
+                    : `Importar ${dry.contagens.novosLancamentos} lançamentos`}
               </Button>
             </div>
           </CardContent>

@@ -21,7 +21,15 @@ import {
 
 type TipoCat = "receita" | "despesa";
 
-export type CategoriaIdx = { id: string; tipo: TipoCat; codigo: string; nomeChave: string; paiNomeChave: string | null };
+export type CategoriaIdx = {
+  id: string;
+  tipo: TipoCat;
+  codigo: string;
+  nomeChave: string;
+  paiNomeChave: string | null;
+  /** O pai pelo id: dois pais podem ter o mesmo nome ("Outros" em duas árvores). */
+  paiId: string | null;
+};
 
 export type IndiceCadastros = {
   categorias: CategoriaIdx[];
@@ -73,9 +81,7 @@ function resolverCategoria(
     if (porCodigo.tipo !== l.tipo) return { categoriaId: null, erro: erroTipo(texto, porCodigo.tipo, l.tipo) };
     if (!sub) return { categoriaId: porCodigo.id, erro: null };
     // Subcategoria sob um código: só a filha que já existe (não se cria filha sob código).
-    const filha = idx.categorias.find(
-      (c) => c.tipo === l.tipo && c.paiNomeChave === porCodigo.nomeChave && c.nomeChave === chaveMatch(sub),
-    );
+    const filha = idx.categorias.find((c) => c.tipo === l.tipo && c.paiId === porCodigo.id && c.nomeChave === chaveMatch(sub));
     return filha
       ? { categoriaId: filha.id, erro: null }
       : { categoriaId: null, erro: `Categoria «${texto} > ${sub}» não existe no plano de contas.` };
@@ -87,8 +93,10 @@ function resolverCategoria(
   const rotulo = sub ? `${texto} > ${sub}` : texto;
   const casa = (c: CategoriaIdx) =>
     sub ? c.paiNomeChave === kNome && c.nomeChave === kSub : c.paiNomeChave === null && c.nomeChave === kNome;
-  const doTipo = idx.categorias.find((c) => c.tipo === l.tipo && casa(c));
-  if (doTipo) return { categoriaId: doTipo.id, erro: null };
+  const doTipo = idx.categorias.filter((c) => c.tipo === l.tipo && casa(c));
+  // Dois pais com o mesmo nome e a mesma filha: pelo nome não dá para saber qual — nunca escolher em silêncio.
+  if (doTipo.length > 1) return { categoriaId: null, erro: `Categoria «${rotulo}» é ambígua: use o código do plano de contas.` };
+  if (doTipo.length === 1) return { categoriaId: doTipo[0].id, erro: null };
   const doOutroTipo = idx.categorias.find((c) => c.tipo !== l.tipo && casa(c));
   if (doOutroTipo) return { categoriaId: null, erro: erroTipo(rotulo, doOutroTipo.tipo, l.tipo) };
   if (o.criarCadastros) return { categoriaId: null, erro: null };
@@ -143,7 +151,10 @@ export function resolverLinha(l: LinhaNorm, idx: IndiceCadastros, o: OpcoesCadas
     const docValido = doc !== "" && validarCpfCnpj(doc);
     const existe =
       (docValido && lista.porDoc.has(doc)) || (l.contatoNome !== "" && lista.porNome.has(chaveMatch(l.contatoNome)));
-    if (!existe) {
+    if (!existe && l.contatoNome === "") {
+      // Só o documento, de ninguém cadastrado: criaria um cliente/fornecedor sem nome.
+      erros.push("Contato novo sem nome: preencha a coluna Contato.");
+    } else if (!existe) {
       if (docValido || o.criarCadastros) criaContato = true;
       else erros.push(`Contato «${l.contatoNome || l.contatoDoc}» não existe e a linha não tem CPF/CNPJ válido.`);
     }
@@ -239,5 +250,7 @@ export function linhasDaPrevia(
 
 export function errosDoSaldoInicial(s: SaldoInicial, idx: IndiceCadastros, o: OpcoesCadastro): string[] {
   if (o.criarCadastros) return [];
-  return idx.contas.has(chaveMatch(s.contaNome)) ? [] : [`Conta «${s.contaNome}» não existe.`];
+  if (!idx.contas.has(chaveMatch(s.contaNome))) return [`Conta «${s.contaNome}» não existe.`];
+  // Sem a data, o valor novo ficaria com o `saldoInicialEm` antigo e mudaria o que entra no saldo da conta (M8).
+  return s.data ? [] : [`Saldo inicial de «${s.contaNome}» sem data.`];
 }

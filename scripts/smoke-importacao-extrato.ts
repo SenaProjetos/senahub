@@ -16,6 +16,7 @@
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
+import { ActionError } from "../src/lib/action-error";
 import { executarCommit } from "../src/modules/financeiro/importacao/commit-core";
 import { normalizarLinhas, type Mapeamento } from "../src/modules/financeiro/importacao/processar";
 import { categoriaDeTransferencia } from "../src/modules/financeiro/transferencias/service";
@@ -26,6 +27,16 @@ function check(nome: string, ok: boolean, detalhe?: unknown) {
   else {
     falhas++;
     console.log(`FALHA  ${nome}${detalhe !== undefined ? ` → ${JSON.stringify(detalhe)}` : ""}`);
+  }
+}
+
+/** O erro é de negócio (ActionError), seguro para a tela — não um erro técnico mascarado. */
+async function erroDeNegocio(p: Promise<unknown>): Promise<boolean> {
+  try {
+    await p;
+    return false;
+  } catch (e) {
+    return e instanceof ActionError;
   }
 }
 
@@ -145,6 +156,12 @@ async function main() {
     console.log("\n# 3 — reimportar o mesmo arquivo");
     const re = await erroDe(executarCommit(prisma, { nomeArquivo: `${TAG}-de-novo.csv`, mapeamento: MAPA, res: normalizarLinhas(arquivo, MAPA), autorId, criarCadastros: false }));
     check("reimportar não cria nada", re?.includes("Nada a importar") === true, re);
+    check(
+      "«Nada a importar» é ActionError (a action não embrulha erro técnico)",
+      await erroDeNegocio(
+        executarCommit(prisma, { nomeArquivo: `${TAG}-de-novo-2.csv`, mapeamento: MAPA, res: normalizarLinhas(arquivo, MAPA), autorId, criarCadastros: false }),
+      ),
+    );
     check("continua com 7 lançamentos do arquivo", (await prisma.lancamento.count({ where: { descricao: { startsWith: TAG }, importLoteId: { not: null } } })) === 7);
 
     console.log("\n# 4 — lote no formato antigo");
@@ -165,6 +182,25 @@ async function main() {
     const contaDepois = await prisma.contaBancaria.findUniqueOrThrow({ where: { id: banco.id }, select: { saldoInicial: true, saldoInicialEm: true } });
     check("saldoInicial gravado", Number(contaDepois.saldoInicial) === 1000, contaDepois);
     check("saldoInicialEm = 2041-01-01", contaDepois.saldoInicialEm?.toISOString().slice(0, 10) === "2041-01-01", contaDepois);
+
+    console.log("\n# 5b — arquivo só com saldo inicial");
+    const soSaldo = await executarCommit(prisma, {
+      nomeArquivo: `${TAG}-saldo.csv`,
+      mapeamento: MAPA,
+      res: normalizarLinhas([linha({ data: "01/02/2041", descricao: "saldo fev", valor: "2000", tipo: "Saldo inicial", conta: banco.nome })], MAPA),
+      autorId,
+      criarCadastros: false,
+    }).catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
+    if (typeof soSaldo !== "string") lotes.push(soSaldo.loteId);
+    const contaSaldo = await prisma.contaBancaria.findUniqueOrThrow({ where: { id: banco.id }, select: { saldoInicial: true, saldoInicialEm: true } });
+    check(
+      "arquivo só com «Saldo inicial» grava o saldo e a data",
+      typeof soSaldo !== "string" &&
+        soSaldo.saldosIniciais === 1 &&
+        Number(contaSaldo.saldoInicial) === 2000 &&
+        contaSaldo.saldoInicialEm?.toISOString().slice(0, 10) === "2041-02-01",
+      { soSaldo, contaSaldo },
+    );
 
     console.log("\n# 6 — criarCadastros: true (migração do Meu Dinheiro)");
     const fornNome = `${TAG} Fornecedor sem doc`;

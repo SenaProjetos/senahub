@@ -16,6 +16,7 @@ import {
   transferenciaIdDoHash,
   type ResultadoNorm,
   type LinhaNorm,
+  type SaldoInicial,
 } from "@/modules/financeiro/importacao/processar";
 import { motivoParaNaoDesfazer } from "@/modules/financeiro/importacao/desfazer";
 import { datasDoLancamento, exigirPeriodoAberto } from "@/modules/financeiro/fechamento/trava-service";
@@ -113,6 +114,7 @@ export async function carregarIndice(db: Db): Promise<IndiceCadastros> {
       codigo: c.codigo,
       nomeChave: chaveMatch(c.nome),
       paiNomeChave: c.paiId ? chaveMatch(nomePorId.get(c.paiId) ?? "") : null,
+      paiId: c.paiId,
     })),
     contas,
     formas,
@@ -308,6 +310,24 @@ async function construirResolver(tx: Tx) {
 const NADA_A_IMPORTAR = "Nada a importar (linhas com erro ou já importadas).";
 
 /**
+ * Saldos iniciais válidos que MUDAM a conta (valor ou data diferentes do que está gravado). Reimportar o
+ * mesmo arquivo não conta como importação nova só por repetir o saldo que a conta já tem.
+ */
+async function saldosQueMudam(db: Db, saldos: SaldoInicial[], idx: IndiceCadastros, criarCadastros: boolean): Promise<SaldoInicial[]> {
+  const validos = saldos.filter((s) => errosDoSaldoInicial(s, idx, { criarCadastros }).length === 0);
+  if (validos.length === 0) return [];
+  const contas = await db.contaBancaria.findMany({ select: { nome: true, saldoInicial: true, saldoInicialEm: true } });
+  const porNome = new Map(contas.map((c) => [chaveMatch(c.nome), c]));
+  return validos.filter((s) => {
+    const c = porNome.get(chaveMatch(s.contaNome));
+    if (!c) return true; // conta nova (só com criarCadastros)
+    const mesmoValor = Math.round(Number(c.saldoInicial) * 100) === Math.round(s.valor * 100);
+    const mesmaData = s.data == null || c.saldoInicialEm?.getTime() === s.data.getTime();
+    return !(mesmoValor && mesmaData);
+  });
+}
+
+/**
  * Executa o commit: cria o lote, resolve cadastros, grava lançamentos e atualiza contadores.
  *
  * `criarCadastros: false` (modo estrito, padrão da tela) nunca cria categoria, conta, forma ou centro, e
@@ -317,16 +337,20 @@ const NADA_A_IMPORTAR = "Nada a importar (linhas com erro ou já importadas).";
 export async function executarCommit(
   db: PrismaClient,
   args: { nomeArquivo: string; mapeamento: unknown; res: ResultadoNorm; autorId: string; criarCadastros: boolean },
-): Promise<{ loteId: string; contagens: ContagensCommit }> {
+): Promise<{ loteId: string; contagens: ContagensCommit; saldosIniciais: number }> {
   const { criarCadastros } = args;
+  const idxPrevio = await carregarIndice(db);
   const previa = linhasAImportar(
     args.res.linhas,
-    await carregarIndice(db),
+    idxPrevio,
     await hashesExistentes(db, chavesDasLinhas(args.res.linhas)),
     criarCadastros,
   );
-  if (previa.length === 0) throw new Error(NADA_A_IMPORTAR);
-  // N5: nenhuma linha entra em mês fechado.
+  // Um arquivo só com "Saldo inicial" (preparação do retroativo) também é importação.
+  if (previa.length === 0 && (await saldosQueMudam(db, args.res.saldosIniciais, idxPrevio, criarCadastros)).length === 0) {
+    throw new ActionError(NADA_A_IMPORTAR);
+  }
+  // N5: nenhuma linha entra em mês fechado (pré-checagem barata; a que vale roda dentro da transação).
   await exigirPeriodoAberto(db, previa.flatMap(({ linha: l }) => [l.data, l.dataConfirmacao]));
 
   return db.$transaction(
@@ -349,12 +373,14 @@ export async function executarCommit(
         await hashesExistentes(tx, chavesDasLinhas(args.res.linhas)),
         criarCadastros,
       );
-      if (aImportar.length === 0) throw new Error(NADA_A_IMPORTAR);
+      const saldos = await saldosQueMudam(tx, args.res.saldosIniciais, idx, criarCadastros);
+      if (aImportar.length === 0 && saldos.length === 0) throw new ActionError(NADA_A_IMPORTAR);
+      // N5 sobre o conjunto que vai mesmo ser gravado (pode ter mudado desde a pré-checagem).
+      await exigirPeriodoAberto(tx, aImportar.flatMap(({ linha: l }) => [l.data, l.dataConfirmacao]));
 
       const r = await construirResolver(tx);
 
-      for (const s of args.res.saldosIniciais) {
-        if (errosDoSaldoInicial(s, idx, { criarCadastros }).length > 0) continue;
+      for (const s of saldos) {
         await r.resolverConta(s.contaNome, { valor: s.valor, data: s.data });
       }
 
@@ -438,7 +464,7 @@ export async function executarCommit(
         clientesCriados: r.cont.clientes,
       };
       await tx.importacaoFinanceira.update({ where: { id: lote.id }, data: contagens });
-      return { loteId: lote.id, contagens };
+      return { loteId: lote.id, contagens, saldosIniciais: saldos.length };
     },
     { maxWait: 15000, timeout: 120000 },
   );

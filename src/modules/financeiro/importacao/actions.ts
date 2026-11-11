@@ -76,19 +76,16 @@ export const commitImportacao = defineAction(
   },
   async (i, { user }) => {
     const res = await lerENormalizar(i.caminho, i.nomeArquivo, i.mapeamento as Mapeamento);
-    try {
-      const out = await executarCommit(prisma, {
-        nomeArquivo: i.nomeArquivo,
-        mapeamento: i.mapeamento,
-        res,
-        autorId: user.id,
-        criarCadastros: i.criarCadastros,
-      });
-      revalida();
-      return out;
-    } catch (e) {
-      throw new ActionError(e instanceof Error ? e.message : "Falha ao importar.");
-    }
+    // Erro de negócio já sai como ActionError (nada a importar, mês fechado); o resto o defineAction mascara.
+    const out = await executarCommit(prisma, {
+      nomeArquivo: i.nomeArquivo,
+      mapeamento: i.mapeamento,
+      res,
+      autorId: user.id,
+      criarCadastros: i.criarCadastros,
+    });
+    revalida();
+    return out;
   },
 );
 

@@ -7,12 +7,12 @@ const CNPJ_VALIDO = "11222333000181";
 function indice(): IndiceCadastros {
   return {
     categorias: [
-      { id: "cat-desp", tipo: "despesa", codigo: "2", nomeChave: "despesas", paiNomeChave: null },
-      { id: "cat-prolabore", tipo: "despesa", codigo: "2.08", nomeChave: "pro-labore", paiNomeChave: "despesas" },
-      { id: "cat-outros-topo", tipo: "despesa", codigo: "9", nomeChave: "outros", paiNomeChave: null },
-      { id: "cat-outros-filha", tipo: "despesa", codigo: "2.99", nomeChave: "outros", paiNomeChave: "despesas" },
-      { id: "cat-rec", tipo: "receita", codigo: "1", nomeChave: "receitas", paiNomeChave: null },
-      { id: "cat-servicos", tipo: "receita", codigo: "1.01", nomeChave: "servicos", paiNomeChave: "receitas" },
+      { id: "cat-desp", tipo: "despesa", codigo: "2", nomeChave: "despesas", paiNomeChave: null, paiId: null },
+      { id: "cat-prolabore", tipo: "despesa", codigo: "2.08", nomeChave: "pro-labore", paiNomeChave: "despesas", paiId: "cat-desp" },
+      { id: "cat-outros-topo", tipo: "despesa", codigo: "9", nomeChave: "outros", paiNomeChave: null, paiId: null },
+      { id: "cat-outros-filha", tipo: "despesa", codigo: "2.99", nomeChave: "outros", paiNomeChave: "despesas", paiId: "cat-desp" },
+      { id: "cat-rec", tipo: "receita", codigo: "1", nomeChave: "receitas", paiNomeChave: null, paiId: null },
+      { id: "cat-servicos", tipo: "receita", codigo: "1.01", nomeChave: "servicos", paiNomeChave: "receitas", paiId: "cat-rec" },
     ],
     contas: new Map([["santander", "conta-1"]]),
     formas: new Map([["pix", "forma-1"]]),
@@ -200,7 +200,7 @@ describe("resolverLinha — contato", () => {
 
 describe("errosDoSaldoInicial", () => {
   it("conta inexistente: erro no modo estrito, nada no outro", () => {
-    const s = { contaNome: "Conta X", valor: 100, data: null };
+    const s = { contaNome: "Conta X", valor: 100, data: new Date(Date.UTC(2026, 0, 1)) };
     expect(errosDoSaldoInicial(s, indice(), ESTRITO)).toEqual(["Conta «Conta X» não existe."]);
     expect(errosDoSaldoInicial(s, indice(), CRIAR)).toEqual([]);
     expect(errosDoSaldoInicial({ ...s, contaNome: "Santander" }, indice(), ESTRITO)).toEqual([]);
@@ -254,5 +254,45 @@ describe("linhasDaPrevia", () => {
   it("criando cadastros: categoria e conta novas marcam a linha", () => {
     const p = linhasDaPrevia([linha({ categoriaNome: "Software", contaNome: "Itaú" })], indice(), new Set(), CRIAR);
     expect(p[0]).toMatchObject({ erros: [], criaCadastro: true });
+  });
+});
+
+describe("revisão final", () => {
+  it("contato novo só com CPF/CNPJ e sem nome é erro, nos dois modos", () => {
+    const l = linha({ contatoNome: "", contatoDoc: "33445566000186" });
+    const msg = "Contato novo sem nome: preencha a coluna Contato.";
+    expect(resolverLinha(l, indice(), ESTRITO).erros).toEqual([msg]);
+    expect(resolverLinha(l, indice(), CRIAR).erros).toEqual([msg]);
+    // Documento de um contato que já existe dispensa o nome.
+    expect(resolverLinha(linha({ contatoNome: "", contatoDoc: CNPJ_VALIDO }), indice(), ESTRITO).erros).toEqual([]);
+  });
+
+  it("subcategoria sob código: o pai é o do código, não outro de mesmo nome", () => {
+    const idx = indice();
+    // "Outros" de topo (9) e "Outros" filha de Despesas (2.99): cada um com uma filha "Diversos".
+    idx.categorias.push(
+      { id: "div-sob-2.99", tipo: "despesa", codigo: "2.99.01", nomeChave: "diversos", paiNomeChave: "outros", paiId: "cat-outros-filha" },
+      { id: "div-sob-9", tipo: "despesa", codigo: "9.01", nomeChave: "diversos", paiNomeChave: "outros", paiId: "cat-outros-topo" },
+    );
+    expect(resolverLinha(linha({ categoriaNome: "9", subcategoriaNome: "Diversos" }), idx, ESTRITO).categoriaId).toBe("div-sob-9");
+    expect(resolverLinha(linha({ categoriaNome: "2.99", subcategoriaNome: "Diversos" }), idx, ESTRITO).categoriaId).toBe("div-sob-2.99");
+  });
+
+  it("subcategoria por nome com dois pais de mesmo nome é ambígua, nos dois modos", () => {
+    const idx = indice();
+    idx.categorias.push(
+      { id: "div-sob-2.99", tipo: "despesa", codigo: "2.99.01", nomeChave: "diversos", paiNomeChave: "outros", paiId: "cat-outros-filha" },
+      { id: "div-sob-9", tipo: "despesa", codigo: "9.01", nomeChave: "diversos", paiNomeChave: "outros", paiId: "cat-outros-topo" },
+    );
+    const msg = "Categoria «Outros > Diversos» é ambígua: use o código do plano de contas.";
+    expect(resolverLinha(linha({ categoriaNome: "Outros", subcategoriaNome: "Diversos" }), idx, ESTRITO).erros).toEqual([msg]);
+    expect(resolverLinha(linha({ categoriaNome: "Outros", subcategoriaNome: "Diversos" }), idx, CRIAR).erros).toEqual([msg]);
+  });
+
+  it("saldo inicial sem data no modo estrito é erro (o valor sem a data mistura o saldo)", () => {
+    expect(errosDoSaldoInicial({ contaNome: "Santander", valor: 100, data: null }, indice(), ESTRITO)).toEqual([
+      "Saldo inicial de «Santander» sem data.",
+    ]);
+    expect(errosDoSaldoInicial({ contaNome: "Santander", valor: 100, data: null }, indice(), CRIAR)).toEqual([]);
   });
 });
