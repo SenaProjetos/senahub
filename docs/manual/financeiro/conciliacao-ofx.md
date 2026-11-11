@@ -70,8 +70,37 @@ extrato de novo não a traz de volta.
   `financeiro:gerir`.
 
 ### Para que serve
-- Migrar dados de planilha (ex.: do "Meu Dinheiro") para o financeiro, com mapeamento de
-  colunas e validação antes de gravar.
+- Lançar no financeiro um **extrato do banco já categorizado** (uma linha por movimento) ou
+  migrar uma planilha do "Meu Dinheiro", com mapeamento de colunas e conferência antes de gravar.
+
+### Criar cadastros que não existirem
+- A opção vem **desmarcada**. Assim, categoria, conta, forma de pagamento ou centro de custo que
+  não existem no SenaHub viram **erro na linha** (ex.: «Categoria «X» não existe no plano de
+  contas.»), e a linha fica de fora. Nada novo é criado a partir de um nome truncado do banco.
+- Contato (fornecedor ou cliente) novo só entra se a linha trouxer um **CPF/CNPJ válido**.
+- Marque a opção só para migrar do Meu Dinheiro: aí o importador cria o que não encontrar, como
+  sempre fez. Trocar a opção refaz a conferência.
+- Nos dois modos: categoria do tipo errado (de despesa numa linha de receita), projeto que não
+  existe e sócio não encontrado são erro.
+
+### Colunas
+- **Categoria** aceita o **código** do plano de contas (ex.: `2.08`) além do nome. O código vale
+  primeiro.
+- **Projeto** recebe o código do projeto (ex.: `260031`); vazio deixa as regras de preenchimento
+  completarem.
+- **Sócio** recebe o nome do sócio (o começo do nome basta, como o banco trunca) ou o e-mail dele.
+- **Nº documento** vai para o número do documento do lançamento.
+- Linha de tipo **Saldo inicial** com data grava o saldo da conta e a data em que ele vale (o
+  saldo do início daquele dia).
+- Transferência entre contas entra com as duas pernas ou nenhuma: se uma perna tem erro, a outra
+  também fica de fora.
+
+### Conferir antes de importar
+- A conferência lista **todas** as linhas, 50 por página, com a situação de cada uma: o erro em
+  texto, **Duplicada** (já importada antes — não entra de novo), **Cria cadastro** ou **Entra**.
+- Filtros: **Todas**, **Só com erro**, **Só cadastros a criar**, **Só duplicadas**.
+- Duas linhas iguais no mesmo arquivo (mesma conta, dia, valor e descrição) viram dois
+  lançamentos; importar o mesmo arquivo de novo não cria nada.
 
 ### Desfazer uma importação
 - **Desfazer** tira do financeiro todos os lançamentos do lote (ficam guardados como excluídos).

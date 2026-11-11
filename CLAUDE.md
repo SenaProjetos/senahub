@@ -754,6 +754,19 @@ trava otimista por `versao`. Um modelo arquiva (não exclui) e há um só padrã
 schema.prisma). Trocar o modelo do projeto zera `secoesOcultas/camposOcultos` e recalcula o status; as respostas ficam. As perguntas
 extras por disciplina (`InputTemplate`/`InputProjeto`) são outra coisa e não mudaram. Verificação: `npm run smoke:modelos-briefing`.
 
+**Financial import: strict mode and the retroactive cut** (spec `docs/superpowers/specs/2026-11-10-lancamento-retroativo-extrato-design.md`):
+`importacao/cadastros.ts` (pure) is the ONE rule of what the preview shows and what the commit writes — `resolverLinhas` over
+`carregarIndice` (`commit-core.ts`), re-run by `executarCommit` inside the transaction. `criarCadastros: false` (strict, the
+screen default) never creates categoria/conta/forma/centro (unknown = line error) and a new contato only with a valid CPF/CNPJ;
+`true` is the old Meu Dinheiro behaviour. Both modes: wrong-tipo categoria, unknown projeto (`Projeto.codigo`) and sócio are
+errors; categoria accepts the plan `codigo` first; a transfer enters with both legs or none. The dedup key is `x:` + sha256 of
+`tipo|conta|data|centavos|descrição|n` (`n` = order among identical rows of the file), no categoria; `hashLegado` (old `h:`
+formula) is checked too, so old lots never come back — any new "already imported" check must use `chavesDasLinhas`/`jaImportada`.
+A "Saldo inicial" row with a date also writes `saldoInicialEm`. Folha: `rh/folha/corte.ts` + `ConfigSistema`
+`rh.folha.fechaNoFinanceiroDesde` (`"2026-10"`, migration) — `fecharFolhaNoBanco` refuses an earlier competência (it went in
+through the bank statement) and the screen disables the button with the same sentence. The Claude-side runbook and the
+read-only Postgres role live in `docs/financeiro/retroativo/`.
+
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em
 `docs/superpowers/specs/2026-09-19-proposta-composta.md`) — a proposta montada NO sistema: modelo +
 biblioteca de cláusulas (`ClausulaProposta`, variante por UF/disciplina, mantida só por

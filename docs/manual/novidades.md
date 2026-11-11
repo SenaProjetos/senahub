@@ -20,6 +20,19 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Importar extrato do banco já categorizado (novembro/2026)
+
+- Em **Financeiro → Mais → Importar planilha**, a opção **Criar cadastros que não existirem** vem
+  desmarcada: categoria, conta, forma ou centro que não existem viram erro na linha, em vez de
+  virar cadastro novo. Marque só para migrar do Meu Dinheiro.
+- Colunas novas: **Projeto** (código), **Sócio** e **Nº documento**. A categoria aceita o código
+  do plano de contas.
+- A conferência mostra todas as linhas, paginadas, com filtros (só com erro, só cadastros a criar,
+  só duplicadas).
+- Folha CLT: as folhas de competência anterior a 10/2026 foram lançadas no Financeiro pelo extrato
+  e **não fecham** mais (fechar criaria as contas em dobro). O botão aparece desabilitado com o
+  motivo.
+
 ## Projeto novo nasce no padrão de nomenclatura mais atual (novembro/2026)
 
 - Todo projeto novo — criado na tela, pelo aceite de proposta, importado de licitação ou duplicado — nasce na versão do padrão de nomenclatura **publicada mais recente**, a mesma que aparece como "vigente" em Configurações → Disciplinas e nomenclatura → Versões. A cópia de um projeto não herda mais o padrão do original.
