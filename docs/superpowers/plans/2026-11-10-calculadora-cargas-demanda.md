@@ -266,14 +266,26 @@ Respostas às perguntas 48 a 50 (2026-11-12):
   tsc sem erro, eslint limpo.
 
 Ainda em aberto:
-- **Q29 B** (alta tensão acima de 2.500 kW para Celesc e Copel, REN 1000/2021 art. 23): a REN não está na biblioteca
-  (`normas-e-catalogos`), e valor de norma não se digita de memória. Falta o PDF da REN 1000/2021 (ou a página do art. 23). Para a
-  Copel o aviso nem existe mais (Q24). Pergunta 51: pode vir o PDF?
-- **Q7 B:** aguardando a leitura do engenheiro da NDU-003 6.7.3 (abaixo de 276 kW segue sem aviso).
-- **Q34 B:** o engenheiro ainda não indicou a linha de 61 e 65 aparelhos (Equatorial T6/T7).
+- **Q29 B — fechada (2026-11-12, dono):** a REN 1000/2021 não está na biblioteca, então o sistema NÃO sugere o limite de 2.500 kW
+  nem emite aviso com número; a conferência fica com o projetista, na norma. Para o relatório (Fase 3): nota fixa "Confira na norma
+  da concessionária se a demanda exige atendimento em alta tensão", sem valor. Se o PDF vier, o aviso numérico entra depois.
+- **Q7 — aplicada (2026-11-12):** "considerar apenas o item da NDU 003". Energisa de 69 a 276 kW (não inclui 276) ganha o aviso do ramal
+  de entrada subterrâneo (6.7.3, mensagem nova `ramal_entrada`, lida do trecho); de 276 a 2.500 kW segue a 6.7.4. A 6.7.3 tem 69 kW em
+  220/127 V e 136 kW em 380/220 V: `EntradaAtendimento.sistema` (o sistema de tensão do estudo, `conteudo.sistema`: "220/127" | "380/220", como o campo
+  Tensão do protótipo, que mostra "380/220 V") escolhe — 380/220 = 136 kW; 220/127 = 69 kW; sem sistema, o menor. O campo antigo `tensaoV`
+  (127/220/380) foi trocado por `sistema` (o motor de corrente já usava `SISTEMAS`). `niveis.ts` repassa `sistema`; a tela (Fase 2) deve preencher. Abaixo do limite, sem aviso.
+- **Q34 B — aplicada (2026-11-12):** Tabela 6, 65 aparelhos = linha "56 a 65" (torneira 0,33); Tabela 7, 61 aparelhos = "Acima de 61".
+  Saíram `sobreposicaoAmbigua` e `APARELHOS_PENDENTES_T7` do uso da Equatorial (as opções genéricas de `fd-sugerido.ts` ficam).
 - **Q30 A:** sem objeto (o aviso de seletividade era da Copel e foi removido com a NTC 900600).
 - **Q33 A:** Tabela 7 para b1–b5: as duas tabelas seguem carregadas; a escolha é da tela (Fase 2).
-- Caso 8, Enel (média tensão, 0280): continua `todo`: Enel só tem o método por carga instalada, sem biblioteca de atendimento.
+- **Caso 8, Enel — feito (2026-11-12):** o engenheiro mandou ver "limites de fornecimento" na norma Enel. Trechos da 0280 v02, item 7.1.3
+  (páginas 13 e 14), entraram na biblioteca (`biblioteca/enel-0280-trechos.ts`, gerado por `cfg-enel-0280-trechos.cjs` a partir de
+  `_extracao/json/enel-0280.json`). `avisosDeAtendimento("enel")`: carga instalada acima de 75 kW e demanda até 2.500 kW = média tensão;
+  demanda acima de 2.500 kW = tensão de 69 kV ou mais; até 75 kW de carga instalada, sem aviso. O `it.todo` virou teste.
+  Divergência para o relatório: a 0018 (7.8.2) escreve "menor que 2500" e a 0280 "menor ou igual a 2.500 kW"; vale a 0280, como o caso 8.
+  A 0018 e a 0017 ainda não estão na biblioteca. O PDF CNC-OMBR-MAT-18-0126-EDCE (Enel Ceará, v03, 2022) foi colocado em
+  `pacote-implementacao-calculadora/`, mas o anexo F o lista como cancelado e fora da especificação, e o item 7.2/7.3 dele só fala em
+  75 kW de carga instalada (sem limite de média tensão): não foi usado. Perguntar ao dono se ele entra.
 - Cálculos que a tela vai precisar na Fase 2 (não feitos aqui): montar `CalculoNoNivel.cargaInstaladaKW` e `TipoNoNivel.cargaInstaladaKW`
   a partir do levantamento; aplicar a Tabela 22 da Neoenergia como duas linhas; Q36/Q33 na tela.
 
