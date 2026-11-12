@@ -73,7 +73,10 @@ const LARGURA_COLUNA_DATA = 108;
 export type { ModoGantt } from "@/components/planejamento/gantt-barra";
 
 /** O que se edita direto na célula. `pred` (Predecessoras) tem callback próprio: grava o conjunto inteiro. */
-export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred" | "inicio" | "termino";
+export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred" | "inicio" | "termino" | CampoReal;
+
+/** As datas reais do Gantt de Controle (Iníc. real / Térm. real): outra permissão (`cronograma:executado`), outro callback. */
+export type CampoReal = "inicioReal" | "fimReal";
 
 export type EdicaoDeCampo =
   | { campo: "nome"; nome: string }
@@ -119,6 +122,11 @@ export type PlanoGanttProps = {
    * elas as colunas abrem no tamanho padrão; arrastar a borda do cabeçalho grava a nova preferência.
    */
   largurasIniciais?: Larguras;
+  /**
+   * Gantt de Controle: início e término reais digitados na célula (`YYYY-MM-DD`, `null` = apagou) — quem registra a execução,
+   * que não é necessariamente quem monta o cronograma. Vale também com o plano travado: acompanhar é depois de aprovar.
+   */
+  onEditarExecucao?: (t: EapTarefaDTO, campo: CampoReal, dia: string | null) => Promise<string | null>;
   /** A célula Predecessoras: o conjunto inteiro de uma vez. */
   onEditarPredecessoras?: (t: EapTarefaDTO, vinculos: Vinculo[]) => Promise<string | null>;
   /** Uma edição que o texto digitado não permite (o que o servidor nem chega a ver). */
@@ -218,6 +226,7 @@ export function PlanoGantt({
   filtroIds,
   onAbrir,
   onEditarCampo,
+  onEditarExecucao,
   planoTravado = false,
   largurasIniciais,
   onEditarPredecessoras,
@@ -330,12 +339,18 @@ export function PlanoGantt({
 
   const podeEditar = !!onEditarCampo;
   const podeEditarPred = !!onEditarPredecessoras;
+  const podeEditarExecucao = !!onEditarExecucao;
   // Agrupamento só edita o nome: duração, % e predecessoras derivam dos filhos (Doc 03 §23). Marco não tem % digitado.
   const ehEditavel = (l: Linha, campo: CampoEditavel): boolean => {
     // Variação é só comparação com a base: nada se edita nela.
     if (conjuntoDeColunas === "variacao") return false;
     if (campo === "nome") return podeEditar;
     if (l.temFilhos) return false;
+    // Suspensa, cancelada ou arquivada não recebe datas reais; marco tem uma data só (a do término).
+    if (campo === "inicioReal" || campo === "fimReal") {
+      if (!podeEditarExecucao || ["sus", "can", "arq"].includes(l.t.status)) return false;
+      return campo === "fimReal" || !l.t.marco;
+    }
     if (campo === "duracao") return podeEditar && !planoTravado;
     if (campo === "inicio") return podeEditar && !planoTravado;
     if (campo === "termino") return podeEditar && !planoTravado && !l.t.marco; // marco é uma data só: muda-se o início
@@ -348,7 +363,7 @@ export function PlanoGantt({
       ? []
       : modo === "planejamento"
         ? ["nome", "duracao", "inicio", "termino", "pred"]
-        : ["nome", "progresso"];
+        : ["nome", "progresso", "inicioReal", "fimReal"];
 
   const textoInicial = (l: Linha, campo: CampoEditavel): string => {
     const t = l.t;
@@ -357,6 +372,8 @@ export function PlanoGantt({
     if (campo === "progresso") return String(t.progresso);
     if (campo === "inicio") return dataCurta(t.inicioPrevisto) || "";
     if (campo === "termino") return dataCurta(t.fimPrevisto) || "";
+    if (campo === "inicioReal") return dataCurta(t.inicioReal) || "";
+    if (campo === "fimReal") return dataCurta(t.fimReal) || "";
     return formatarPredecessoras(t.predecessoras, codigoPorId);
   };
 
@@ -431,6 +448,21 @@ export function PlanoGantt({
       if (r.dia === atual) return true;
       exibir = dataCurta(r.dia);
       erro = await onEditarCampo!(t, { campo, data: r.dia });
+    } else if (campo === "inicioReal" || campo === "fimReal") {
+      // Célula vazia = apagar a data real (reabrir, no término). O resto das regras é do servidor (e de `execucaoDaCelula`).
+      let dia: string | null = null;
+      if (texto.trim() !== "") {
+        const r = lerDataDigitada(texto, hoje);
+        if (!r.ok) {
+          onErro?.(r.erro);
+          return false;
+        }
+        dia = r.dia;
+      }
+      const atual = campo === "inicioReal" ? t.inicioReal : t.fimReal;
+      if (dia === (atual ?? null)) return true;
+      erro = await onEditarExecucao!(t, campo, dia);
+      exibir = "";
     } else {
       const r = lerPredecessoras(texto, idPorCodigo, t.id);
       if (!r.ok) {
@@ -447,7 +479,7 @@ export function PlanoGantt({
     }
     // Início e término NÃO mostram o texto digitado como se estivesse gravado: o motor pode dar outra data (predecessora, dia
     // não útil) e o término vira duração — a célula espera o dado novo do servidor.
-    if (campo !== "inicio" && campo !== "termino") setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
+    if (campo !== "inicio" && campo !== "termino" && campo !== "inicioReal" && campo !== "fimReal") setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
     return true;
   }
 
@@ -477,7 +509,17 @@ export function PlanoGantt({
   const envolver = (l: Linha, campo: CampoEditavel, rotulo: string, conteudo: ReactNode): ReactNode =>
     ehEditavel(l, campo) ? (
       <CelulaEditavel
-        data={campo === "inicio" ? { iso: l.t.inicioPrevisto } : campo === "termino" ? { iso: l.t.fimPrevisto } : undefined}
+        data={
+          campo === "inicio"
+            ? { iso: l.t.inicioPrevisto }
+            : campo === "termino"
+              ? { iso: l.t.fimPrevisto }
+              : campo === "inicioReal"
+                ? { iso: l.t.inicioReal, max: hoje }
+                : campo === "fimReal"
+                  ? { iso: l.t.fimReal, max: hoje }
+                  : undefined
+        }
         ativa={edicao?.id === l.t.id && edicao.campo === campo}
         salvando={salvando}
         invalida={invalida}
@@ -786,18 +828,42 @@ export function PlanoGantt({
       render: (l) => seloDeVariacao(diasDeVariacao(l.t.inicioBaseline, l.t.inicioPrevisto)),
     };
     const varTermino: Coluna = { ...desvio, id: "varTermino", rotulo: "Var. término" };
-    // ── Lote 7: o realizado (só leitura; "—" = não se mede) ──
+    // ── Lote 7: o realizado ("—" = não se mede). Início e término reais se digitam na célula, como no Project ──
     const inicioReal: Coluna = {
       id: "inicioReal",
       rotulo: "Iníc. real",
-      w: 84,
-      render: (l) => (l.t.inicioReal ? <span className="font-mono text-xs">{dataCurta(l.t.inicioReal)}</span> : SEM_VALOR),
+      w: podeEditarExecucao ? LARGURA_COLUNA_DATA : 84,
+      render: (l) =>
+        envolver(
+          l,
+          "inicioReal",
+          "Início real",
+          l.t.inicioReal ? (
+            <span className="font-mono text-xs" title="Digite, cole ou escolha no calendário (dd/mm/aaaa). Apague para tirar o início real.">
+              {dataCurta(l.t.inicioReal)}
+            </span>
+          ) : (
+            SEM_VALOR
+          ),
+        ),
     };
     const fimReal: Coluna = {
       id: "fimReal",
       rotulo: "Térm. real",
-      w: 84,
-      render: (l) => (l.t.fimReal ? <span className="font-mono text-xs">{dataCurta(l.t.fimReal)}</span> : SEM_VALOR),
+      w: podeEditarExecucao ? LARGURA_COLUNA_DATA : 84,
+      render: (l) =>
+        envolver(
+          l,
+          "fimReal",
+          l.t.marco ? "Data real" : "Término real",
+          l.t.fimReal ? (
+            <span className="font-mono text-xs" title="O término real conclui a tarefa (100%). Sem início real, ele vira o início previsto.">
+              {dataCurta(l.t.fimReal)}
+            </span>
+          ) : (
+            SEM_VALOR
+          ),
+        ),
     };
     const duracaoReal: Coluna = {
       id: "duracaoReal",
@@ -900,7 +966,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, conjuntoDeColunas, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, conjuntoDeColunas, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, podeEditarExecucao, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
   // da alça não refazer as células de todas as linhas (só a largura muda).
@@ -1306,8 +1372,8 @@ function CelulaEditavel({
   aoDigitar,
   children,
 }: {
-  /** Presente = célula de data: máscara dd/mm/aaaa ao digitar e calendário nativo (`iso` = o dia atual da linha). */
-  data?: { iso: string | null };
+  /** Presente = célula de data: máscara dd/mm/aaaa ao digitar e calendário nativo (`iso` = o dia atual da linha; `max` = o último dia que o calendário oferece). */
+  data?: { iso: string | null; max?: string };
   ativa: boolean;
   salvando: boolean;
   invalida: boolean;
@@ -1528,6 +1594,7 @@ function CelulaEditavel({
         tabIndex={-1}
         aria-hidden
         value={isoDoDia}
+        max={data.max}
         className="pointer-events-none absolute inset-0 opacity-0"
         onChange={(e) => escolheuDia(e.currentTarget.value)}
         onBlur={seletorFechou}

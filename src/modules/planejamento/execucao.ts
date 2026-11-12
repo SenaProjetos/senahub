@@ -145,6 +145,47 @@ export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecuc
   return { ok: true, inicioReal, fimReal, status, progresso, concluiu: status === "con" && linha.status !== "con" };
 }
 
+export const MOTIVO_REABRIR_NA_CELULA = "Para reabrir a tarefa, use Atualizar tarefa e informe o % concluído.";
+export const MOTIVO_APAGAR_INICIO_COM_TERMINO = "Apague o término real antes do início real.";
+
+/**
+ * As datas reais digitadas direto na tabela do Gantt de Controle (colunas Iníc. real / Térm. real). Uma célula muda uma
+ * data; esta regra completa a outra para a action `registrarExecucao`, que recebe as duas:
+ *
+ * - Marco tem uma data só: a célula do término é a data em que aconteceu (início = término). Apagar reabre (0%).
+ * - Término sem início real: o início real vira o início previsto, como o MS Project faz ao informar só o término — ou o
+ *   próprio término, se o previsto for depois dele. `inicioDeduzido` diz de onde veio (`previsto` | `termino`), para a tela
+ *   contar à pessoa; `false` = a pessoa informou.
+ * - Apagar o término de uma tarefa concluída é reabrir, e reabrir exige o % (D19: o % não é inventado) — a célula não tem
+ *   onde informar, então recusa e aponta o "Atualizar tarefa".
+ * - Apagar o início com término real deixaria término sem início: recusa (a action recusaria com outra frase).
+ *
+ * As demais recusas (futuro, término antes do início, bloqueada) ficam com `aplicarExecucao`, no servidor.
+ */
+export function execucaoDaCelula(
+  linha: { marco: boolean; status: StatusEap; inicioReal: Dia | null; fimReal: Dia | null; inicioPrevisto: Dia | null },
+  campo: "inicioReal" | "fimReal",
+  dia: Dia | null,
+): { ok: true; inicioReal: Dia | null; fimReal: Dia | null; inicioDeduzido: false | "previsto" | "termino" } | { ok: false; motivo: string } {
+  if (linha.marco) {
+    if (campo === "inicioReal") return { ok: false, motivo: "Marco tem uma data só: informe o término real." };
+    return { ok: true, inicioReal: dia, fimReal: dia, inicioDeduzido: false };
+  }
+  if (campo === "inicioReal") {
+    if (dia == null && linha.fimReal != null) return { ok: false, motivo: MOTIVO_APAGAR_INICIO_COM_TERMINO };
+    return { ok: true, inicioReal: dia, fimReal: linha.fimReal, inicioDeduzido: false };
+  }
+  if (dia == null) {
+    if (linha.status === "con") return { ok: false, motivo: MOTIVO_REABRIR_NA_CELULA };
+    return { ok: true, inicioReal: linha.inicioReal, fimReal: null, inicioDeduzido: false };
+  }
+  if (linha.inicioReal != null) return { ok: true, inicioReal: linha.inicioReal, fimReal: dia, inicioDeduzido: false };
+  if (linha.inicioPrevisto && linha.inicioPrevisto <= dia) {
+    return { ok: true, inicioReal: linha.inicioPrevisto, fimReal: dia, inicioDeduzido: "previsto" };
+  }
+  return { ok: true, inicioReal: dia, fimReal: dia, inicioDeduzido: "termino" };
+}
+
 /**
  * Status ao desbloquear: volta ao que as datas reais dizem. Antes da F7.0 o desbloqueio punha
  * sempre `and` — linha que nunca começou saía "em andamento" sem início real, e o verificador a
