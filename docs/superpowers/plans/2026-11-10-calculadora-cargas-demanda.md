@@ -217,6 +217,65 @@ Novas (passo 6, 2026-11-10) — o código segue a leitura indicada até a respos
     carga da linha (iluminação, TUG, TUE, aquecimento, motores, ar-condicionado, recarga, outro) saíram dos nomes da spec §3.1/§3.3 —
     a spec não traz uma lista fechada. Campos próprios de motor/ar-condicionado/recarga (cv, reservas, BTU/h, gerenciamento) ainda
     não existem no esquema: entram como campo opcional na Fase 2, sem migração.
+## Respostas do engenheiro (2026-11-12) — Q1 a Q47
+
+Respondidas todas. As que batem com o que o código já faz ("Hoje" do artifact) não pedem mudança: Q1, Q3, Q4, Q5, Q8, Q9, Q10,
+Q12, Q19–Q21, Q25, Q31, Q35, Q37–Q47 (A), mais Q7 (B = esperar a leitura dele; segue sem aviso abaixo de 276 kW).
+
+Mudaram o código (passo 7, feito em 2026-11-12; "hoje" entre parênteses = como estava):
+- Q2 A: usar 217 = 81,69 na Cemig T12 (a linha rotulada "228" sai como 217, com nota no relatório). (hoje: sem sugestão)
+- Q6 A: aviso de atendimento da Cemig com as faixas do texto da ND-5.2 (95 / 304 / 1.500 kVA). (hoje: sem aviso)
+- Q11 A e Q13 A: ficam sem efeito pela Q24 (NTC 900600 deixa de ser usada).
+- Q14 C: método D sem sugestão de FCA; o projetista escolhe a Tabela 44 ou 45. (hoje: linha 1 da Tabela 42)
+- Q15 A: um circuito enterrado, FCA = 1,00. (hoje: sem sugestão)
+- Q16 A: resistividade fora da Tabela 41, fator digitado + alerta "Resistividade fora da tabela. Informe o fator manualmente."
+- Q17 A: alerta "Corrente acima da capacidade da maior seção da tabela. Use condutores em paralelo ou outra forma de instalação."
+- Q18 A: alumínio em sinalização/controle (Tabela 47 "–") = "Alumínio não é admitido para este uso."
+- Q22 B: alerta novo "Valor fora da tabela da concessionária. Consulte a concessionária e informe o valor." no lugar da recusa
+  "Informe o valor de …" quando a tabela existe e não cobre o caso.
+- Q23 B: Enel só por carga instalada, FD digitado (resolve a parte Enel do caso 8 e tira o `todo`).
+- Q29 B: acima de 2.500 kW, aviso de alta tensão para todas (REN 1000/2021, art. 23), com nota no relatório.
+- Q32 A: Cemig ND-5.1 T10 e Equatorial T5 (residencial) carregadas com FD pela faixa INTEIRA da carga instalada.
+- Q33 A: Equatorial b1–b5 pela Tabela 7. Q36 A: Neoenergia T22 como duas linhas (iluminação 1,00; tomadas 0,50).
+
+Respostas às perguntas 48 a 50 (2026-11-12):
+- **48 / Q24 — Copel:** "sai": a NTC 900600 é ignorada (caso 1 da planilha removido dos testes; sem fator multiplicador, sem FD do
+  condomínio do 3.2, sem tabelas de motores da 900600). Copel só por carga instalada; o atendimento fica a cargo do projetista (sem aviso).
+- **49 / Q27 — duplex e lojas:** "manter o critério da Energisa e da Equatorial; o projetista confirma na norma". O duplex (1,52 da
+  Energisa, 1,4 da Equatorial) e as lojas (Q26 A) ficam como estão. A leitura "duplex sem regra própria" que eu tinha adotado foi desfeita.
+- **50 / Q28 — carga instalada:** a tabela do condomínio mostra o total de carga instalada (sem FD) e o total da demanda; a bomba de
+  incêndio entra na carga do condomínio; lojas entram nas cargas comerciais pelo método da carga instalada, e é útil ter a tabela do
+  levantamento quando o empreendimento é misto e tem lojas. A carga instalada do nível = flats do levantamento (quantidade × kW) +
+  cálculos; a Equatorial usa isso para a baixa tensão (≤ 75 kW).
+
+## Passo 7 — aplicar as respostas (feito em 2026-11-12, sem commit)
+
+- Copel e Enel só por carga instalada (`composicao.ts`: `soCargaInstalada`, `demandaSoCargaInstalada`; `IdConcessionaria` ganhou
+  `"enel"`); `concessionarias/copel.ts` ficou só com os FD da NTC 841001; `atendimento.ts` sem aviso para Copel e Enel; caso 1 removido
+  de `casos-planilha-metodos.test.ts` e `casos-planilha-niveis.test.ts`.
+- Carga instalada (Q28): `CalculoNoNivel.cargaInstaladaKW`, `TipoNoNivel.cargaInstaladaKW` (por unidade, do levantamento),
+  `ParcelaDoNivel.cargaInstaladaKW` e `ResultadoDoNivel.cargaInstaladaKW`; `niveis.ts` a passa ao aviso da Equatorial.
+- Q2: Cemig T12, a linha impressa "228" vale 217 (número lido da `obs` da biblioteca) + `NOTA_T12_RELATORIO`.
+- Q6: Cemig com aviso de atendimento (ND-5.2 4.4.1.1 a 4.4.1.4, limites lidos dos trechos).
+- Q14 C / Q15 A / Q16 A / Q17 A / Q18 A em `entrada.ts` (`formaSugerida`, FCA 1,00 com um circuito enterrado,
+  `resistividadeDoSolo`, `ResultadoSecao.avisos`, `avisoDeAluminio`) e 4 mensagens novas em `mensagens.ts` (a `seletividadeCopel` saiu).
+- Q22 B: `valorForaDaTabela` no lugar da recusa quando a tabela da concessionária não cobre (`area.ts`, `avisosDeFaltantes`).
+- Q32 A: `equatorial.fdIluminacaoTomadasUnidadeResidencial` e `cemig.fdIluminacaoTomadasResidencial` (faixa inteira).
+  Q36 A: `neoenergia.fdAdministracaoEdificios` (iluminação 1,00; tomadas 0,50, lidos do texto da T22).
+- `decisoes-engenheiro.test.ts` (novo) cobre Q2, Q6, Q14–Q18, Q22, Q23/Q24, Q28, Q32 e Q36. vitest (estudos + cargas-demanda) 278 + 1 todo,
+  tsc sem erro, eslint limpo.
+
+Ainda em aberto:
+- **Q29 B** (alta tensão acima de 2.500 kW para Celesc e Copel, REN 1000/2021 art. 23): a REN não está na biblioteca
+  (`normas-e-catalogos`), e valor de norma não se digita de memória. Falta o PDF da REN 1000/2021 (ou a página do art. 23). Para a
+  Copel o aviso nem existe mais (Q24). Pergunta 51: pode vir o PDF?
+- **Q7 B:** aguardando a leitura do engenheiro da NDU-003 6.7.3 (abaixo de 276 kW segue sem aviso).
+- **Q34 B:** o engenheiro ainda não indicou a linha de 61 e 65 aparelhos (Equatorial T6/T7).
+- **Q30 A:** sem objeto (o aviso de seletividade era da Copel e foi removido com a NTC 900600).
+- **Q33 A:** Tabela 7 para b1–b5: as duas tabelas seguem carregadas; a escolha é da tela (Fase 2).
+- Caso 8, Enel (média tensão, 0280): continua `todo`: Enel só tem o método por carga instalada, sem biblioteca de atendimento.
+- Cálculos que a tela vai precisar na Fase 2 (não feitos aqui): montar `CalculoNoNivel.cargaInstaladaKW` e `TipoNoNivel.cargaInstaladaKW`
+  a partir do levantamento; aplicar a Tabela 22 da Neoenergia como duas linhas; Q36/Q33 na tela.
 
 Diferenças de redação da planilha (sem ajuste de esperado): caso 2 chama de "Dr" a demanda já com o Fc (a Dtr do
 Anexo I); casos 13 e 18 citam a norma no texto da mensagem (vale a spec §6).
