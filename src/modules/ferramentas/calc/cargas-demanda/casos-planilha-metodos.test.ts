@@ -22,35 +22,8 @@ const fatorDe = (r: ResultadoAreaUtil, chave: string) => r.fatores.find((f) => f
 const passoDe = (r: ResultadoAreaUtil, chave: string) => r.passos.find((p) => p.chave === chave)!.valor!;
 const umTipo = (quantidade: number, areaUtilM2: number) => [{ nome: "tipo", quantidade, areaUtilM2 }];
 
-describe("caso 1 — Copel, exemplo da NTC 900600 (30 apartamentos, com condomínio, fator multiplicador 1,0)", () => {
-  const r = copel.demandaAreaUtil(
-    [
-      { nome: "tipo 1", quantidade: 12, areaUtilM2: 97 },
-      { nome: "tipo 2", quantidade: 18, areaUtilM2: 121 },
-    ],
-    { multiplicador: 1 },
-  );
-  const iluminacao = copel.iluminacaoCondominioKVA(15, 0.9);
-  const tomadas = copel.tomadasCondominioKVA(8, 0.8);
-  const elevadores = copel.motoresTabela3KVA({ ligacao: "trifasico", cv: "10", quantidade: 2 }).kva!;
-  const bombas = copel.motoresTabela3KVA({ ligacao: "trifasico", cv: "2", quantidade: 4, reserva: 2 }).kva!;
-  const piscina = copel.motoresTabela3KVA({ ligacao: "monofasico", cv: "1", quantidade: 2 }).kva!;
-  const ar = demandaDaLinha({ quantidade: 1, potenciaW: 8300, fp: 0.8 }, copel.fdArCondicionado("central", 1).fd!);
-  const d2 = iluminacao + tomadas + elevadores + bombas + piscina + ar;
-  it("área média a usar = 111 m²", () => expect(passoDe(r, "area_considerar")).toBe(111));
-  it("Da = 2,37 kVA", () => perto(fatorDe(r, "a"), 2.37));
-  it("diversidade (30 apartamentos) = 23,48", () => perto(fatorDe(r, "f"), 23.48));
-  it("D1 = 55,65 kVA", () => perto(passoDe(r, "d1"), 55.65));
-  it("iluminação do condomínio = 12,50 kVA", () => perto(iluminacao, 12.5));
-  it("tomadas do condomínio = 2,00 kVA", () => perto(tomadas, 2));
-  it("elevadores (Tabela 3) = 17,31 kVA", () => perto(elevadores, 17.31));
-  it("bombas d'água (Tabela 3, sem as reservas) = 4,05 kVA", () => perto(bombas, 4.05));
-  it("piscina (Tabela 3) = 2,34 kVA", () => perto(piscina, 2.34));
-  it("central de ar-condicionado = 10,38 kVA", () => perto(ar, 10.38));
-  it("D2 condomínio = 48,58 kVA", () => perto(d2, 48.58));
-  // A composição do nível (apartamentos + condomínio × fator do conjunto) é o passo 5; aqui, a soma do item 5.4.
-  it("DT = 104,23 kVA", () => perto(r.demandaKVA! + d2 * r.fatorDoConjunto!.adotado!, 104.23));
-});
+// Caso 1 (Copel, exemplo da NTC 900600) SAIU: o engenheiro mandou ignorar a NTC 900600 (Q24, 2026-11-12). A Copel vai só pela
+// carga instalada; os FD por tipo de carga da NTC 841001 seguem testados (caso 28 e fd-sugerido-tipos.test.ts).
 
 describe("caso 2 — Neoenergia, exemplo 1 do Anexo I da DIS-NOR-053 (20 apartamentos de 40 m²)", () => {
   const r = neoenergia.demandaAreaUtil(umTipo(20, 40));

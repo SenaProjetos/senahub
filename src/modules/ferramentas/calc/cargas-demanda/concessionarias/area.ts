@@ -27,11 +27,12 @@ export function formulaDaArea(coef: number, expoente: number, areaM2: number): n
   return coef * areaM2 ** expoente;
 }
 
-/** Recusa "campo âmbar" de cada fator do método sem valor (nem sugerido nem digitado). */
+/**
+ * Alerta "campo âmbar" quando algum fator do método fica sem valor (nem sugerido nem digitado). A tabela da
+ * concessionária existe e não cobre o caso: "Valor fora da tabela…" (Q22 B), uma vez só.
+ */
 export function avisosDeFaltantes(fatores: readonly FatorDoMetodo[]): Mensagem[] {
-  return fatores
-    .filter((f) => f.adotado == null)
-    .map((f) => MSG.campoObrigatorio(f.rotulo.charAt(0).toLowerCase() + f.rotulo.slice(1)));
+  return fatores.some((f) => f.adotado == null) ? [MSG.valorForaDaTabela()] : [];
 }
 
 /** Um fator "demanda por apartamento" para cada tipo, chave `<prefixo>:<índice>`. */

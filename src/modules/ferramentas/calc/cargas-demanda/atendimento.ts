@@ -4,12 +4,14 @@
  * é LIDO do trecho literal da biblioteca (`lerDoTrecho`); trecho que não casa = erro de carregamento.
  * Limite em kW comparado direto com a demanda em kVA (decisão da Fase 0: a favor da segurança; nota no relatório).
  *
- * Fora por enquanto: Cemig (passagem BT → MT "a confirmar", pergunta 6), Energisa abaixo de 276 kW (6.7.3 não lida a
- * fundo, pergunta 7) e Enel (sem biblioteca, pergunta 23).
+ * Cemig: faixas do texto da ND-5.2, 4.4.1.1 a 4.4.1.4 (resposta do engenheiro à Q6, 2026-11-12).
+ * Copel: sem aviso — o atendimento fica a cargo do projetista, na norma (Q24). Enel: sem biblioteca (Q23).
+ * Fora por enquanto: Energisa abaixo de 276 kW (6.7.3 não lida a fundo, Q7 = esperar a leitura do engenheiro) e o
+ * aviso de alta tensão acima de 2.500 kW para Celesc e Copel (Q29 B: falta a REN 1000/2021 na biblioteca).
  */
 
 import { CELESC_N3210003_TRECHOS } from "./biblioteca/celesc-n3210003-trechos";
-import { COPEL_OUTRAS_TRECHOS } from "./biblioteca/copel";
+import { CEMIG_ND52_TRECHOS } from "./biblioteca/cemig";
 import { ENERGISA_NDU003_TRECHOS } from "./biblioteca/energisa-ndu003-trechos";
 import { EQT_NT00004_TRECHOS } from "./biblioteca/equatorial";
 import { DIS_NOR_053, DIS_NOR_066, NEO_TRECHOS } from "./biblioteca/neoenergia";
@@ -46,9 +48,10 @@ const EQT_AT = lerDoTrecho(EQT_NT00004_TRECHOS, "5.15.6", /for superior a ([\d.]
 const CELESC_BT = lerDoTrecho(CELESC_N3210003_TRECHOS, "5.3.4", /demanda provável de até (\d+) kVA pode ser atendido em baixa tensão/);
 const CELESC_MT = lerDoTrecho(CELESC_N3210003_TRECHOS, "5.3.4", /demanda provável maior que (\d+) kVA.*?deve ser reservado o espaço físico necessário para construção, às expensas do interessado, de subestação abrigada/);
 
-const COPEL_BT_REDE = lerDoTrecho(COPEL_OUTRAS_TRECHOS, "5.1 Edificação com Demanda de até 76 kVA, alínea a)", /demanda de até (\d+) kVA .* será realizado em baixa tensão/);
-const COPEL_BT_TRAFO = lerDoTrecho(COPEL_OUTRAS_TRECHOS, "5.2 Edificação", /demanda superior a (\d+) kVA e inferior ou igual a (\d+) kVA/);
-const COPEL_MT = lerDoTrecho(COPEL_OUTRAS_TRECHOS, "5.3 Edificação", /demanda superior a (\d+) kVA será realizado em média tensão/);
+const CEMIG_BT_AEREO = lerDoTrecho(CEMIG_ND52_TRECHOS, "4.4.1.1", /Demanda igual ou inferior a (\d+)kVA/);
+const CEMIG_BT_SUBTERRANEO = lerDoTrecho(CEMIG_ND52_TRECHOS, "4.4.1.2", /Demanda entre (\d+) e (\d+)kVA/);
+const CEMIG_CAMARA = lerDoTrecho(CEMIG_ND52_TRECHOS, "4.4.1.3", /Demanda entre (\d+) e (\d+)kVA/);
+const CEMIG_ESPECIAL = lerDoTrecho(CEMIG_ND52_TRECHOS, "4.4.1.4", /Demanda Superior a (\d+)kVA/);
 
 const ENERGISA_SUBESTACAO = lerDoTrecho(ENERGISA_NDU003_TRECHOS, "6.7.4", /demanda entre (\d+) kW e ([\d.]+) kW.*?Subestações Aéreas.*?Subestação abrigada/);
 
@@ -90,10 +93,12 @@ export function avisosDeAtendimento(c: IdConcessionaria | "enel", e: EntradaAten
       if (d > CELESC_MT.valores[0]) r.mensagens.push(MSG.subestacaoEspaco("subestação abrigada", CELESC_MT.referencia));
       return r;
     }
-    case "copel": {
-      if (d <= COPEL_BT_REDE.valores[0]) return tipo(d, "baixa tensão", COPEL_BT_REDE.referencia);
-      if (d <= COPEL_BT_TRAFO.valores[1]) return tipo(d, "baixa tensão", COPEL_BT_TRAFO.referencia);
-      return tipo(d, "média tensão", COPEL_MT.referencia);
+    case "cemig": {
+      if (d <= CEMIG_BT_AEREO.valores[0]) return tipo(d, "baixa tensão, ramal de conexão aéreo", CEMIG_BT_AEREO.referencia);
+      if (d <= CEMIG_BT_SUBTERRANEO.valores[1]) return tipo(d, "baixa tensão, ramal de conexão subterrâneo", CEMIG_BT_SUBTERRANEO.referencia);
+      if (d <= CEMIG_CAMARA.valores[1]) return tipo(d, "câmara transformadora ou equipamento em pedestal", CEMIG_CAMARA.referencia);
+      if (d > CEMIG_ESPECIAL.valores[0]) return tipo(d, "projeto especial da Cemig", CEMIG_ESPECIAL.referencia);
+      return { nivel: null, mensagens: [] };
     }
     case "energisa": {
       const [de, ate] = ENERGISA_SUBESTACAO.valores;
@@ -102,7 +107,7 @@ export function avisosDeAtendimento(c: IdConcessionaria | "enel", e: EntradaAten
       }
       return { nivel: null, mensagens: [] };
     }
-    case "cemig":
+    case "copel":
     case "enel":
       return { nivel: null, mensagens: [] };
   }

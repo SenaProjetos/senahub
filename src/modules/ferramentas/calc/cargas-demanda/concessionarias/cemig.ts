@@ -10,6 +10,7 @@
  */
 
 import {
+  CEMIG_ND51_TABELA_10,
   CEMIG_ND51_TABELA_11,
   CEMIG_ND51_TABELA_12,
   CEMIG_ND51_TABELA_13,
@@ -45,15 +46,22 @@ export function aSugerido(areaM2: number): number | null {
 }
 
 /**
- * Linhas da Tabela 12 sem a do rótulo impresso errado: a ND-5.2 imprime "228" na posição do 217 (fator 81,69; a
- * ND-5.5 imprime 217). Essa linha tem `obs` e fica fora até o engenheiro decidir (pergunta 2): 228 lê o 228 de
- * verdade (82,17) e 217 sai sem sugestão.
+ * Linhas da Tabela 12. A ND-5.2 imprime "228" na posição do 217 (fator 81,69; a ND-5.5 imprime 217). Resposta do
+ * engenheiro à Q2 (2026-11-12): vale 217 = 81,69, com nota no relatório. A linha tem `obs` e o número que ela
+ * realmente ocupa é lido da própria observação ("na posição do 217"); o 228 de verdade (82,17) segue como está.
  */
 const LINHAS_T12 = CEMIG_ND52_TABELA_12.linhas.filter((l) => !l.obs);
+const LINHAS_T12_CORRIGIDAS = CEMIG_ND52_TABELA_12.linhas
+  .filter((l) => l.obs)
+  .map((l) => ({ n_aptos: Number(/na posição do (\d+)/.exec(l.obs ?? "")?.[1]), fator_mult: l.fator_mult }))
+  .filter((l) => Number.isFinite(l.n_aptos));
+
+/** Nota do relatório: a linha corrigida da Tabela 12 (Q2). */
+export const NOTA_T12_RELATORIO = `Tabela 12 da ND-5.2: a linha impressa "228" entre 216 e 218 foi lida como ${LINHAS_T12_CORRIGIDAS[0]?.n_aptos} (a ND-5.5 imprime ${LINHAS_T12_CORRIGIDAS[0]?.n_aptos}), por decisão do engenheiro.`;
 
 /** f da Tabela 12 (`null` até 3 apartamentos: "válido somente para quantidade superior a 3"). */
 export function fSugerido(apartamentos: number): number | null {
-  return LINHAS_T12.find((l) => l.n_aptos === apartamentos)?.fator_mult ?? null;
+  return (LINHAS_T12.find((l) => l.n_aptos === apartamentos) ?? LINHAS_T12_CORRIGIDAS.find((l) => l.n_aptos === apartamentos))?.fator_mult ?? null;
 }
 
 export type FormaCemig = "conjunto" | "media";
@@ -118,10 +126,15 @@ export function usosNaoResidenciais(): string[] {
 }
 
 /**
- * Tabela 11 — FD de iluminação e tomadas por uso não residencial, em degraus de kVA. `null` = uso fora da tabela.
- * A Tabela 10 (residencial, FD por faixa da carga instalada) fica fora: a ND-5.1 não diz se a faixa vale para a carga
- * inteira ou por degrau (perguntas novas do plano).
+ * ND-5.1, Tabela 10 — iluminação e tomadas de unidades consumidoras residenciais: FD da faixa da carga instalada (kW)
+ * aplicado à carga INTEIRA (resposta do engenheiro à Q32, 2026-11-12: faixa inteira, como a Neoenergia T6).
  */
+export function fdIluminacaoTomadasResidencial(cargaKW: number): FdSugerido {
+  const faixas = CEMIG_ND51_TABELA_10.linhas.map((l) => ({ de: l.carga_instalada_kw.de_exclusivo ?? 0, ate: l.carga_instalada_kw.ate_inclusivo, valor: l.fator_demanda }));
+  return fdDaFaixa(CEMIG_ND51_TABELA_10, faixas, cargaKW);
+}
+
+/** Tabela 11 — FD de iluminação e tomadas por uso não residencial, em degraus de kVA. `null` = uso fora da tabela. */
 export function fdIluminacaoTomadasNaoResidencial(uso: string): FdProgressivo | null {
   const l = CEMIG_ND51_TABELA_11.linhas.find((x) => x.descricao === uso);
   if (!l) return null;

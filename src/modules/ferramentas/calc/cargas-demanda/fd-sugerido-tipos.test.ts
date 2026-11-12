@@ -3,9 +3,9 @@
  * dos JSON da extração (`docs/calculadora-eletrica/normas-e-catalogos/_extracao/json`), nunca do código, e conferidos
  * por script antes de entrar aqui. Valores em fração (as tabelas em % já voltam divididas por 100).
  *
- * Fora daqui, de propósito: Cemig T10 e Equatorial T5 (linha "Unidades Consumidoras Residenciais") — a norma não diz
- * se o FD da faixa vale para a carga inteira ou por degrau; Neoenergia T22 "Administração de edifícios" (regra só em
- * texto); e as tabelas que os anexos dizem "não lidas" (Energisa 8–17 etc.).
+ * Fora daqui, de propósito: as tabelas que os anexos dizem "não lidas" (Energisa 8–17 etc.). Cemig T10, Equatorial T5
+ * (Unidades Consumidoras Residenciais) e Neoenergia T22 (administração de edifícios) estão em
+ * `decisoes-engenheiro.test.ts` (Q32 e Q36, respostas do engenheiro de 2026-11-12).
  */
 
 import { describe, expect, it } from "vitest";

@@ -86,12 +86,13 @@ describe("leitura da biblioteca", () => {
   });
 });
 
-// Pergunta 2 do plano: a linha impressa "228" na posição do 217 não pode responder pelo 228 de verdade.
+// Q2 (resposta do engenheiro, 2026-11-12): a linha impressa "228" na posição do 217 vale 217; o 228 de verdade segue.
 describe("Cemig, Tabela 12 com rótulo repetido", () => {
-  it("228 lê a linha sem observação; 217 fica sem sugestão", () => {
+  it("228 lê a linha sem observação; 217 lê a linha impressa como 228 (81,69)", () => {
     const linhas228 = CEMIG_ND52_TABELA_12.linhas.filter((l) => l.n_aptos === 228);
     expect(linhas228.length).toBe(2);
     expect(fCemig(228)).toBe(linhas228.find((l) => !l.obs)!.fator_mult);
-    expect(fCemig(217)).toBeNull();
+    expect(fCemig(217)).toBe(81.69);
+    expect(fCemig(217)).toBe(linhas228.find((l) => l.obs)!.fator_mult);
   });
 });

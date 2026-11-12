@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import { avisosDeAtendimento } from "./atendimento";
 import { demandaDaLinha } from "./carga-instalada";
 import { demandaDoNivel, ENERGISA_DUPLEX, ENERGISA_LOJAS, EQUATORIAL_DUPLEX, type CalculoNoNivel } from "./composicao";
-import * as copel from "./concessionarias/copel";
 import { avisosDoCmd, avisosDosCmds, demandaDoPredio, type Cmd } from "./niveis";
 
 const perto = (recebido: number | null, esperado: number, tol = 0.01) => {
@@ -69,27 +68,7 @@ describe("caso 8 — atendimento com demanda de 2.500 kW", () => {
   it.todo("Enel: média tensão (0280, 7.1.3)");
 });
 
-// Casos 1 e 2 já conferidos por parcela em casos-planilha-metodos.test.ts; aqui, o total pela composição do nível.
-describe("caso 1 — Copel, DT pela composição (apartamentos + condomínio × fator multiplicador 1,0)", () => {
-  const d2 =
-    copel.iluminacaoCondominioKVA(15, 0.9) +
-    copel.tomadasCondominioKVA(8, 0.8) +
-    copel.motoresTabela3KVA({ ligacao: "trifasico", cv: "10", quantidade: 2 }).kva! +
-    copel.motoresTabela3KVA({ ligacao: "trifasico", cv: "2", quantidade: 4, reserva: 2 }).kva! +
-    copel.motoresTabela3KVA({ ligacao: "monofasico", cv: "1", quantidade: 2 }).kva! +
-    demandaDaLinha({ quantidade: 1, potenciaW: 8300, fp: 0.8 }, copel.fdArCondicionado("central", 1).fd!);
-  const r = demandaDoNivel({
-    concessionaria: "copel",
-    tipos: [
-      { nome: "tipo 1", quantidade: 12, areaUtilM2: 97 },
-      { nome: "tipo 2", quantidade: 18, areaUtilM2: 121 },
-    ],
-    calculos: [calc("cond", "condominio", d2)],
-    ajustes: { apartamentos: { multiplicador: 1 } },
-  });
-  it("DT = 104,23 kVA", () => perto(r.demandaKVA, 104.23));
-});
-
+// Caso 1 (Copel, NTC 900600) saiu (Q24); o caso 2 já é conferido por parcela em casos-planilha-metodos.test.ts, aqui o total pela composição.
 describe("caso 2 — Neoenergia, Df pela composição (Drf + Ds)", () => {
   const a = demandaDaLinha({ quantidade: 1, potenciaW: 3000, fp: 0.8 }, 1) + demandaDaLinha({ quantidade: 1, potenciaW: 1500, fp: 0.8 }, 0.5);
   const r = demandaDoNivel({

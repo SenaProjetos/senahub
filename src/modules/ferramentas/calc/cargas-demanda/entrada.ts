@@ -116,6 +116,8 @@ export type ResultadoSecao = {
   referencia: string | null;
   /** Colunas possíveis (para a tela oferecer a disposição). */
   colunas: string[];
+  /** Q17: corrente corrigida acima da capacidade da maior seção da coluna. */
+  avisos: Mensagem[];
 };
 
 /** Passo 22 — menor seção com capacidade maior ou igual a Ib′, sem interpolação. */
@@ -123,7 +125,7 @@ export function secaoPelaCapacidade(e: EntradaSecao): ResultadoSecao {
   const opcoes = colunasDeCapacidade(e.metodo, e.isolacao, e.carregados);
   const escolhida = opcoes.find((o) => o.coluna === e.disposicao) ?? opcoes[0];
   const colunas = opcoes.map((o) => o.coluna);
-  if (!escolhida) return { secaoMm2: null, capacidadeA: null, referencia: null, colunas };
+  if (!escolhida) return { secaoMm2: null, capacidadeA: null, referencia: null, colunas, avisos: [] };
   const linhas = escolhida.tabela.linhas
     .filter((l) => l.material === e.material)
     .slice()
@@ -131,9 +133,9 @@ export function secaoPelaCapacidade(e: EntradaSecao): ResultadoSecao {
   const referencia = `${referenciaDe(escolhida.tabela)}, coluna ${escolhida.coluna}`;
   for (const l of linhas) {
     const cap = l[escolhida.coluna];
-    if (ehNumero(cap) && cap >= e.ibCorrigidaA - EPS) return { secaoMm2: l.secao_mm2, capacidadeA: cap, referencia, colunas };
+    if (ehNumero(cap) && cap >= e.ibCorrigidaA - EPS) return { secaoMm2: l.secao_mm2, capacidadeA: cap, referencia, colunas, avisos: [] };
   }
-  return { secaoMm2: null, capacidadeA: null, referencia, colunas };
+  return { secaoMm2: null, capacidadeA: null, referencia, colunas, avisos: [MSG.correnteAcimaMaiorSecao()] };
 }
 
 // ─── FCT (Tabela 40) e resistividade do solo (Tabela 41) ─────────────────────────────────────────────────────────
@@ -175,6 +177,15 @@ export function fatorDeTemperatura(e: EntradaFct, ajustes?: Ajustes): ResultadoF
 export function resistividadeDeReferencia(): number | null {
   const m = /diferente de ([\d,]+) K\.m\/W/.exec(NBR5410_TABELA_41.titulo);
   return m ? Number(m[1].replace(",", ".")) : null;
+}
+
+/**
+ * Q16 (engenheiro, 2026-11-12): resistividade que a Tabela 41 não tem (sem interpolar) → sem sugestão, o projetista
+ * digita o fator, com o alerta "Resistividade fora da tabela…".
+ */
+export function resistividadeDoSolo(resistividadeKmW: number, ajustes?: Ajustes): { fator: FatorDoMetodo; avisos: Mensagem[] } {
+  const f = fatorDeResistividade(resistividadeKmW, ajustes);
+  return { fator: f, avisos: f.sugerido == null ? [MSG.resistividadeForaDaTabela()] : [] };
 }
 
 /** Fator da Tabela 41 (linha enterrada). Resistividade de referência → 1; valor que a tabela não tem → `null`. */
@@ -233,8 +244,10 @@ export type FormaAgrupamento =
  * (método D; títulos "diretamente enterrados" e "eletrodutos enterrados").
  */
 export function formasDoMetodo(metodo: MetodoReferencia): FormaAgrupamento[] {
+  // Q14 C (engenheiro, 2026-11-12): no método D (enterrado) a linha 1 da Tabela 42 não é a sugestão; o projetista
+  // escolhe a Tabela 44 ou a 45 e a forma de instalação. Sem forma sugerida (`formaSugerida`).
   const formas: FormaAgrupamento[] = NBR5410_TABELA_42.linhas
-    .filter((l) => metodosDaLinha42(l.tabelas_dos_metodos_de_referencia).includes(metodo))
+    .filter((l) => metodo !== "D" && metodosDaLinha42(l.tabelas_dos_metodos_de_referencia).includes(metodo))
     .map((l) => ({ tabela: "42", ref: l.ref }));
   if (metodo === "C" || metodo === "E" || metodo === "F") formas.push({ tabela: "43" });
   if (metodo === "D") {
@@ -246,6 +259,11 @@ export function formasDoMetodo(metodo: MetodoReferencia): FormaAgrupamento[] {
     }
   }
   return formas;
+}
+
+/** Forma sugerida para o método: a primeira da lista; no método D, nenhuma (Q14 C). */
+export function formaSugerida(metodo: MetodoReferencia): FormaAgrupamento | null {
+  return metodo === "D" ? null : (formasDoMetodo(metodo)[0] ?? null);
 }
 
 export type EntradaFca = {
@@ -280,10 +298,12 @@ export function fcaDaTabela(e: EntradaFca): number | null {
       return linha ? valorPorChave(linha.fatores_por_circuitos_por_camada, n) : null;
     }
     case "44": {
+      if (n === 1) return 1; // Q15 A: um só circuito enterrado, sem agrupamento
       const d = e.forma.distancia;
       return NBR5410_TABELA_44.linhas.find((l) => l.numero_de_circuitos === n)?.fatores_por_distancia_entre_cabos[d] ?? null;
     }
     case "45": {
+      if (n === 1) return 1; // Q15 A
       const { parte, espacamento } = e.forma;
       return (
         NBR5410_TABELA_45.linhas.find((l) => l.parte === parte && l.numero_de_circuitos === n)?.fatores_por_espacamento_entre_eletrodutos[
@@ -322,6 +342,18 @@ export function secaoMinima(uso: UsoDoCircuito, material: Material): number | nu
   );
   if (!linha) return null;
   return material === "cobre" ? linha.cobre_mm2 : linha.aluminio_mm2;
+}
+
+/** Q18 (engenheiro, 2026-11-12): o "–" da coluna do alumínio na Tabela 47 é "não admitido para este uso". */
+export function avisoDeAluminio(uso: UsoDoCircuito, material: Material): Mensagem | null {
+  if (material !== "aluminio") return null;
+  const linha = NBR5410_TABELA_47.linhas.find(
+    (l) =>
+      l.tipo_de_linha === "Instalações fixas em geral" &&
+      l.subtipo === "Condutores e cabos isolados" &&
+      l.utilizacao_do_circuito.startsWith(PREFIXO_USO[uso]),
+  );
+  return linha && linha.aluminio_mm2 == null ? MSG.aluminioNaoAdmitido() : null;
 }
 
 export type ResultadoSecaoFinal = {

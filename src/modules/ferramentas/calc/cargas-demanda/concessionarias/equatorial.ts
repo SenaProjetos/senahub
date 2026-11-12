@@ -101,14 +101,25 @@ export function fdIluminacaoTomadasNaoResidencial(uso: string): FdProgressivo | 
 
 /**
  * Tabela 5, linha "Prédios Residenciais" — iluminação e tomadas de uso geral (soma das duas), em degraus de kW.
- * A linha "Unidades Consumidoras Residenciais" (FD por faixa da carga instalada) fica fora: a norma não diz se a faixa
- * vale para a carga inteira ou por degrau (perguntas novas do plano).
+ * A linha "Unidades Consumidoras Residenciais" é `fdIluminacaoTomadasUnidadeResidencial` (Q32 A: faixa inteira).
  */
 export function fdIluminacaoTomadasPredioResidencial(): FdProgressivo {
   const linha = EQT_TABELA_5.linhas.find((l) => l.descricao === "Prédios Residenciais");
   if (!linha?.faixas) throw new Error("Tabela 5 da Equatorial sem a linha dos Prédios Residenciais.");
   const degraus = degrausDeFaixasAcumuladas(linha.faixas.map((f) => ({ de: f.de_kW, ate: f.ate_kW, fd: pct(f.fd_pct) })));
   return { degraus, literal: linha.fator_demanda_rotulo, referencia: referenciaDe(EQT_TABELA_5) };
+}
+
+/**
+ * Tabela 5, linha "Unidades Consumidoras Residenciais" — FD da faixa da carga instalada (kW) aplicado à carga INTEIRA
+ * (resposta do engenheiro à Q32, 2026-11-12: faixa inteira, como a Neoenergia T6).
+ */
+export function fdIluminacaoTomadasUnidadeResidencial(cargaKW: number): FdSugerido {
+  const faixas = EQT_TABELA_5.linhas.flatMap((l) => {
+    const ci = "ci_kW" in l ? l.ci_kW : undefined;
+    return ci && typeof l.fd_pct === "number" ? [{ de: ci.de, ate: ci.ate, valor: pct(l.fd_pct) }] : [];
+  });
+  return fdDaFaixa(EQT_TABELA_5, faixas, cargaKW);
 }
 
 export type GrupoEquipamentoEquatorial = "chuveiro" | "torneira_aquecedor_ferro" | "fogao" | "secadora_lava_louca_forno_microondas";

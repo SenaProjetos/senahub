@@ -57,7 +57,10 @@ const DEFS = {
   tipo_atendimento: { tipo: "informativo", referencia: "anexos" },
   subestacao_espaco: { tipo: "informativo", referencia: "anexos" },
   recarga_acima_gatilho: { tipo: "alerta", referencia: "anexos" },
-  seletividade_copel: { tipo: "informativo", referencia: "anexo E" },
+  valor_fora_tabela: { tipo: "alerta", referencia: "regra da casa" },
+  resistividade_fora_tabela: { tipo: "alerta", referencia: "NBR 5410, Tabela 41" },
+  corrente_acima_maior_secao: { tipo: "alerta", referencia: "NBR 5410, Tabelas 36 a 39" },
+  aluminio_nao_admitido: { tipo: "alerta", referencia: "NBR 5410, Tabela 47" },
   escopo_secao_cabo: { tipo: "informativo", referencia: "decisão do usuário" },
   responsavel_nao_preenchido: { tipo: "alerta", referencia: null },
 } as const satisfies Record<string, Def>;
@@ -156,11 +159,24 @@ export const MSG = {
       `Potência de recarga acima de ${fmt2(gatilhoKW)} kW: a concessionária exige ${exigencia}.`,
       referencia,
     ),
-  seletividadeCopel: () =>
+  /**
+   * Resposta do engenheiro à Q22 (2026-11-12): quando a tabela da concessionária existe e não cobre o caso (área ou
+   * nº de apartamentos acima dela, célula sem valor). Fica fora da §6; a recusa "Informe o valor de …" é só para
+   * onde não há valor padrão (Enel).
+   */
+  valorForaDaTabela: () =>
+    m("valor_fora_tabela", "Valor fora da tabela da concessionária. Consulte a concessionária e informe o valor."),
+  /** Q16 (engenheiro, 2026-11-12). */
+  resistividadeForaDaTabela: () =>
+    m("resistividade_fora_tabela", "Resistividade fora da tabela. Informe o fator manualmente."),
+  /** Q17 (engenheiro, 2026-11-12). */
+  correnteAcimaMaiorSecao: () =>
     m(
-      "seletividade_copel",
-      "Considere corrente de dimensionamento não inferior à de 26 kVA mais a demanda do condomínio.",
+      "corrente_acima_maior_secao",
+      "Corrente acima da capacidade da maior seção da tabela. Use condutores em paralelo ou outra forma de instalação.",
     ),
+  /** Q18 (engenheiro, 2026-11-12): o "–" da Tabela 47 lido como "não admitido". */
+  aluminioNaoAdmitido: () => m("aluminio_nao_admitido", "Alumínio não é admitido para este uso."),
   escopoSecaoCabo: () =>
     m(
       "escopo_secao_cabo",

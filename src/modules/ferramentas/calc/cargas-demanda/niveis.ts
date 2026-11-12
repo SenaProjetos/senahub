@@ -109,7 +109,7 @@ export function avisosDosCmds(
 function nivel(p: Predio, tipos: TipoNoNivel[], calculos: CalculoNoNivel[], ajustes: AjustesDoNivel | undefined): ResultadoNivel {
   const r = demandaDoNivel({ concessionaria: p.concessionaria, tipos, calculos, ajustes, opcoes: p.opcoes });
   const uso = p.uso ?? (calculos.some((c) => c.papel === "comercial") ? "misto" : "residencial");
-  const atendimento = r.demandaKVA == null ? { nivel: null, mensagens: [] } : avisosDeAtendimento(p.concessionaria, { demandaKVA: r.demandaKVA, uso });
+  const atendimento = r.demandaKVA == null ? { nivel: null, mensagens: [] } : avisosDeAtendimento(p.concessionaria, { demandaKVA: r.demandaKVA, cargaInstaladaKW: r.cargaInstaladaKW, uso });
   return { ...r, atendimento };
 }
 

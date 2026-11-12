@@ -30,7 +30,7 @@ import { referenciaDe } from "../biblioteca/tipos";
 import { valorDaFaixa } from "../fd";
 import { avisosDeFaltantes, fatoresPorTipo, valorDaArea } from "./area";
 import { fdDaFaixa, maiorEDemais, type FdMaiorEDemais, type FdProgressivo, type FdSugerido, type PotenciaMotor } from "./fd-sugerido";
-import { lerDaNota } from "./texto";
+import { lerDaNota, numeroBr } from "./texto";
 import { avisosAbaixoDaNorma, fator, produto, totalDeApartamentos, type Ajustes, type ResultadoAreaUtil, type TipoApartamento } from "./tipos";
 
 export const NOME = "Neoenergia";
@@ -173,4 +173,16 @@ export function usosIluminacaoTomadas(): string[] {
 export function fdIluminacaoTomadasUso(uso: string): FdProgressivo | null {
   const l = NEO_TABELA_22.linhas.find((x) => x.uso === uso);
   return l ? { degraus: l.degraus, literal: l.literal, referencia: referenciaDe(NEO_TABELA_22) } : null;
+}
+
+/**
+ * Tabela 22, "Administração de edifícios de uso coletivo": a regra é "1,00 da carga de iluminação mais 0,50 da carga de
+ * tomadas". Resposta do engenheiro à Q36 (2026-11-12): duas linhas de carga, cada uma com o seu FD, lidos do texto da
+ * própria linha.
+ */
+export function fdAdministracaoEdificios(): { iluminacao: number; tomadas: number; referencia: string } {
+  const l = NEO_TABELA_22.linhas.find((x) => x.uso === "Administração de edifícios de uso coletivo");
+  const m = /([\d,]+) da carga de iluminação mais ([\d,]+) da carga de tomadas/.exec(l?.literal ?? "");
+  if (!m) throw new Error("Tabela 22 da Neoenergia: regra da administração de edifícios não encontrada.");
+  return { iluminacao: numeroBr(m[1]), tomadas: numeroBr(m[2]), referencia: referenciaDe(NEO_TABELA_22) };
 }

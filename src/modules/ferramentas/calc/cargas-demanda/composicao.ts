@@ -10,7 +10,8 @@
  *               apart-hotel: apartamentos pela carga instalada (6.11.8), sem o 1,2
  *   Cemig       D = D1 + D2                                                  (ND-5.2, 7.2)
  *   Celesc      DP = k · (D1 + D2) + De + Ds                                 (N-321.0003, 5.6.2)
- *   Copel       DT = (D1 + D2) × fator multiplicador; especiais e comercial fora do fator   (NTC 900600, 4.2 e 5.4)
+ *   Copel, Enel só pela carga instalada: D = Σ das demandas dos cálculos (decisão do engenheiro, 2026-11-12, Q23 e Q24;
+ *               a NTC 900600 não é usada)
  *   Energisa    D = (d1 + d2) × 1,3 + dce; duplex: (d1 + d2dup + d3) × 1,52 + dce, d2dup = f × a + nD × b;
  *               misto: + nL × d3 × 1,1                                       (NDU-003, 9.4.1 a 9.4.3; kW → kVA)
  * Papel de cada cálculo por concessionária: `GRUPOS` (perguntas 24 a 27 do plano).
@@ -18,7 +19,6 @@
 
 import { CELESC_N3210003_TRECHOS } from "./biblioteca/celesc-n3210003-trechos";
 import { CEMIG_ND52_TRECHOS } from "./biblioteca/cemig";
-import { COPEL_NTC900600_TRECHOS } from "./biblioteca/copel";
 import { ENERGISA_NDU003_TRECHOS } from "./biblioteca/energisa-ndu003-trechos";
 import { EQT_NT00004_TRECHOS } from "./biblioteca/equatorial";
 import { DIS_NOR_053, NEO_TRECHOS } from "./biblioteca/neoenergia";
@@ -39,7 +39,13 @@ import {
 } from "./concessionarias/tipos";
 import { MSG, type Mensagem } from "./mensagens";
 
-export type IdConcessionaria = "neoenergia" | "equatorial" | "cemig" | "celesc" | "copel" | "energisa";
+export type IdConcessionaria = "neoenergia" | "equatorial" | "cemig" | "celesc" | "copel" | "energisa" | "enel";
+
+/** Concessionárias que têm método de área útil (Copel e Enel vão só pela carga instalada). */
+type IdComAreaUtil = Exclude<IdConcessionaria, "copel" | "enel">;
+
+/** Copel e Enel: sem método de área útil; a demanda é a soma dos cálculos de carga instalada. */
+export const soCargaInstalada = (c: IdConcessionaria): c is "copel" | "enel" => c === "copel" || c === "enel";
 
 export const NOMES: Record<IdConcessionaria, string> = {
   neoenergia: neoenergia.NOME,
@@ -48,6 +54,7 @@ export const NOMES: Record<IdConcessionaria, string> = {
   celesc: celesc.NOME,
   copel: copel.NOME,
   energisa: energisa.NOME,
+  enel: "Enel",
 };
 
 /**
@@ -66,10 +73,16 @@ export type CalculoNoNivel = {
   demandaKVA: number | null;
   /** Σ P · FD (kW). Só a Energisa usa (d2, d3, b e lojas em kW, com o FP 0,92 embutido no 1,3/1,52/1,1). */
   demandaKW?: number | null;
+  /** Σ P (kW) do cálculo, SEM fator de demanda, no escopo (Q28: a tabela do condomínio mostra carga instalada e demanda). */
+  cargaInstaladaKW?: number | null;
 };
 
 /** Um tipo de apartamento no nível; `duplex` só muda a conta na Equatorial e na Energisa. */
-export type TipoNoNivel = TipoApartamento & { duplex?: boolean };
+export type TipoNoNivel = TipoApartamento & {
+  duplex?: boolean;
+  /** Carga instalada (kW) de UMA unidade do tipo, vinda do levantamento do apartamento (Q28). */
+  cargaInstaladaKW?: number | null;
+};
 
 /** Ajustes do projetista, por nível (spec §3.1 regra 5: cada nível tem a sua sugestão, editável). */
 export type AjustesDoNivel = { apartamentos?: Ajustes; duplex?: Ajustes; composicao?: Ajustes };
@@ -92,6 +105,8 @@ export type ParcelaDoNivel = {
   unidade: "kVA" | "kW";
   /** Ids dos cálculos somados na parcela. */
   calculos: string[];
+  /** Carga instalada da parcela (kW, sem FD); `null` = algum cálculo não informou. */
+  cargaInstaladaKW: number | null;
 };
 
 export type ResultadoDoNivel = {
@@ -106,6 +121,8 @@ export type ResultadoDoNivel = {
   formula: string;
   referencia: string;
   demandaKVA: number | null;
+  /** Carga instalada do nível (kW, sem FD): apartamentos do levantamento + cálculos; `null` = falta dado (Q28). */
+  cargaInstaladaKW: number | null;
   /** A mesma conta só com os valores sugeridos (pergunta 1 do plano). */
   demandaCriterioKVA: number | null;
   avisos: Mensagem[];
@@ -121,7 +138,6 @@ const F_EQT_MISTO = lerDoTrecho(EQT_NT00004_TRECHOS, "6.11.4.2 (misto)", /D = \(
 const F_EQT_APART_HOTEL = lerDoTrecho(EQT_NT00004_TRECHOS, "6.11.8", /critério da carga instalada/);
 const F_CEMIG = lerDoTrecho(CEMIG_ND52_TRECHOS, "7.2", /D = D1 \+ D2 \(kVA\)/);
 const F_CELESC = lerDoTrecho(CELESC_N3210003_TRECHOS, "5.6.2", /DP = k · \(D1 \+ D2\) \+ De \+ Ds/);
-const F_COPEL = lerDoTrecho(COPEL_NTC900600_TRECHOS, "5.4", /demanda dos apartamentos \+ demanda do condomínio/);
 const F_ENERGISA = lerDoTrecho(ENERGISA_NDU003_TRECHOS, "9.4.1", /D = \(d1 \+ d2\) × [\d,]+ \+ dce/);
 /** 1,52 do 9.4.2 e 1,1 do 9.4.3, lidos do texto. */
 export const ENERGISA_DUPLEX = lerDoTrecho(ENERGISA_NDU003_TRECHOS, "9.4.2", /D = \(d1 \+ d2 \+ d3\) × ([\d,]+) \+ dce/);
@@ -138,14 +154,19 @@ type Grupo = "condominio" | "fora" | "comercial" | "recarga" | "duplex" | "apart
  * "fora" = somado à parte (Celesc De, Energisa dce, Copel cargas especiais). Incêndio = motor do condomínio, exceto na
  * Energisa, onde motor é dce (Tabelas 15 a 17) — pergunta 25.
  */
-const GRUPOS: Record<IdConcessionaria, Record<PapelCalculo, Grupo>> = {
+const GRUPOS: Record<IdComAreaUtil, Record<PapelCalculo, Grupo>> = {
   neoenergia: { condominio: "condominio", incendio: "condominio", especial: "condominio", comercial: "comercial", recarga: "recarga", duplex: "fora", apartamentos: "fora" },
   equatorial: { condominio: "condominio", incendio: "condominio", especial: "condominio", comercial: "comercial", recarga: "recarga", duplex: "duplex", apartamentos: "apartamentos" },
   cemig: { condominio: "condominio", incendio: "condominio", especial: "condominio", comercial: "condominio", recarga: "condominio", duplex: "condominio", apartamentos: "condominio" },
   celesc: { condominio: "condominio", incendio: "condominio", especial: "fora", comercial: "comercial", recarga: "fora", duplex: "fora", apartamentos: "fora" },
-  copel: { condominio: "condominio", incendio: "condominio", especial: "fora", comercial: "fora", recarga: "fora", duplex: "fora", apartamentos: "fora" },
   energisa: { condominio: "condominio", incendio: "fora", especial: "fora", comercial: "comercial", recarga: "fora", duplex: "duplex", apartamentos: "fora" },
 };
+
+/** Σ da carga instalada (kW) dos cálculos; `null` se algum não informou. */
+function cargaDosCalculos(calculos: readonly CalculoNoNivel[]): number | null {
+  const vs = calculos.map((c) => c.cargaInstaladaKW);
+  return vs.some((v) => v == null) ? null : vs.reduce<number>((t, v) => t + (v as number), 0);
+}
 
 function somar(calculos: readonly CalculoNoNivel[], campo: "demandaKVA" | "demandaKW"): { valor: number | null; ids: string[] } {
   const ids = calculos.map((c) => c.id);
@@ -157,7 +178,7 @@ const soma = (vs: readonly (number | null)[]): number | null =>
   vs.some((v) => v == null) ? null : vs.reduce<number>((s, v) => s + (v as number), 0);
 const vezes = (a: number | null, b: number | null): number | null => (a == null || b == null ? null : a * b);
 
-function metodo(c: IdConcessionaria, tipos: readonly TipoApartamento[], ajustes: Ajustes | undefined, opcoes: OpcoesDoNivel | undefined): ResultadoAreaUtil {
+function metodo(c: IdComAreaUtil, tipos: readonly TipoApartamento[], ajustes: Ajustes | undefined, opcoes: OpcoesDoNivel | undefined): ResultadoAreaUtil {
   switch (c) {
     case "neoenergia":
       return neoenergia.demandaAreaUtil(tipos, ajustes, { studio: opcoes?.studio });
@@ -167,8 +188,6 @@ function metodo(c: IdConcessionaria, tipos: readonly TipoApartamento[], ajustes:
       return cemig.demandaAreaUtil(tipos, ajustes, { forma: opcoes?.formaCemig });
     case "celesc":
       return celesc.demandaAreaUtil(tipos, ajustes);
-    case "copel":
-      return copel.demandaAreaUtil(tipos, ajustes);
     case "energisa":
       return energisa.demandaAreaUtil(tipos, ajustes);
   }
@@ -180,6 +199,7 @@ const d1De = (r: ResultadoAreaUtil): number | null => r.passos.find((p) => p.cha
 /** Passo 15 a 18 para um nível. */
 export function demandaDoNivel(e: EntradaDoNivel): ResultadoDoNivel {
   const c = e.concessionaria;
+  if (soCargaInstalada(c)) return demandaSoCargaInstalada(e, c);
   const nome = NOMES[c];
   const grupo = GRUPOS[c];
   const doGrupo = (g: Grupo) => e.calculos.filter((x) => grupo[x.papel] === g);
@@ -202,6 +222,7 @@ export function demandaDoNivel(e: EntradaDoNivel): ResultadoDoNivel {
     valor: s.valor,
     unidade,
     calculos: s.ids,
+    cargaInstaladaKW: cargaDosCalculos(e.calculos.filter((x) => s.ids.includes(x.id))),
   });
   const apto = (usar: "adotado" | "sugerido") => (apartamentos ? (usar === "adotado" ? apartamentos.demandaKVA : apartamentos.demandaCriterioKVA) : 0);
 
@@ -283,19 +304,6 @@ export function demandaDoNivel(e: EntradaDoNivel): ResultadoDoNivel {
       total = (u) => soma([apto(u), vezes(k[u], d2.valor), de.valor, ds.valor]);
       break;
     }
-    case "copel": {
-      const fm = apartamentos?.fatorDoConjunto ?? copel.fatorDoConjunto(e.ajustes?.apartamentos);
-      const d2 = kva("condominio"), fora = kva("fora");
-      fatores = apartamentos ? [] : [fm];
-      parcelas = [
-        parcela("d2", "Demanda do condomínio", "D2", d2),
-        parcela("fora", "Cargas especiais e comerciais", "De", fora),
-      ];
-      formula = "DT = (D1 + D2) × fator multiplicador + De";
-      referencia = F_COPEL.referencia;
-      total = (u) => soma([apto(u), vezes(fm[u], d2.valor), fora.valor]);
-      break;
-    }
     case "energisa": {
       const m13 = apartamentos?.fatorDoConjunto ?? energisa.fatorDoConjunto(e.ajustes?.apartamentos);
       const m152 = fator("multiplicador_duplex", "Fator multiplicativo (tipo e duplex)", ENERGISA_DUPLEX.valores[0], ENERGISA_DUPLEX.referencia, e.ajustes?.composicao);
@@ -336,7 +344,65 @@ export function demandaDoNivel(e: EntradaDoNivel): ResultadoDoNivel {
     formula,
     referencia,
     demandaKVA: total("adotado"),
+    cargaInstaladaKW: cargaInstaladaDoNivel(e, apartHotel),
     demandaCriterioKVA: total("sugerido"),
+    avisos,
+  };
+}
+
+/**
+ * Carga instalada do nível (kW, sem FD) — Q28. Apartamentos: quantidade × carga de UMA unidade (do levantamento do
+ * apartamento), exceto quando eles já vêm como cálculo de carga instalada (apart-hotel), que entra pela soma dos
+ * cálculos. `null` = algum tipo ou cálculo sem a carga.
+ */
+function cargaInstaladaDoNivel(e: EntradaDoNivel, apartamentosPorCalculo: boolean): number | null {
+  const calcs = cargaDosCalculos(e.calculos);
+  let aptos = 0;
+  if (!apartamentosPorCalculo) {
+    for (const t of e.tipos) {
+      if (t.cargaInstaladaKW == null) return null;
+      aptos += t.quantidade * t.cargaInstaladaKW;
+    }
+  }
+  return calcs == null ? null : aptos + calcs;
+}
+
+/** Copel e Enel (Q23 e Q24): a demanda é a soma das demandas dos cálculos de carga instalada, sem método de área útil. */
+function demandaSoCargaInstalada(e: EntradaDoNivel, c: "copel" | "enel"): ResultadoDoNivel {
+  const nome = NOMES[c];
+  const parte = (papeis: readonly PapelCalculo[]) => e.calculos.filter((x) => papeis.includes(x.papel));
+  const parcela = (chave: string, rotulo: string, simbolo: string, calculos: readonly CalculoNoNivel[]): ParcelaDoNivel => ({
+    chave,
+    rotulo,
+    simbolo,
+    valor: soma(calculos.map((x) => x.demandaKVA)),
+    unidade: "kVA",
+    calculos: calculos.map((x) => x.id),
+    cargaInstaladaKW: cargaDosCalculos(calculos),
+  });
+  const apartamentos = parte(["apartamentos", "duplex"]);
+  const avisos: Mensagem[] = [];
+  const faltaApartamentos = e.tipos.length > 0 && apartamentos.length === 0;
+  if (faltaApartamentos) avisos.push(MSG.campoObrigatorio("demanda dos apartamentos pela carga instalada"));
+  // Incêndio entra na carga do condomínio, como a norma pede (resposta do engenheiro, Q28).
+  const parcelas = [
+    ...(apartamentos.length ? [parcela("apartamentos", "Apartamentos pela carga instalada", "Da", apartamentos)] : []),
+    parcela("condominio", "Condomínio, com a bomba de incêndio", "D2", parte(["condominio", "incendio"])),
+    ...(parte(["comercial"]).length ? [parcela("comercial", "Lojas e cargas comerciais", "Dc", parte(["comercial"]))] : []),
+    ...(parte(["especial"]).length ? [parcela("especial", "Cargas especiais", "De", parte(["especial"]))] : []),
+    ...(parte(["recarga"]).length ? [parcela("recarga", "Recarga de veículos elétricos", "Dve", parte(["recarga"]))] : []),
+  ];
+  const demanda = faltaApartamentos ? null : soma(e.calculos.map((x) => x.demandaKVA));
+  return {
+    apartamentos: null,
+    duplex: null,
+    fatores: [],
+    parcelas,
+    formula: "D = Σ demandas dos cálculos de carga instalada",
+    referencia: `Método da carga instalada, critério informado pelo engenheiro para a ${nome} (sem método de área útil)`,
+    demandaKVA: demanda,
+    cargaInstaladaKW: cargaDosCalculos(e.calculos),
+    demandaCriterioKVA: demanda,
     avisos,
   };
 }
