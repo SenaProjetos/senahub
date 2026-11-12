@@ -64,8 +64,18 @@ describe("caso 8 — atendimento com demanda de 2.500 kW", () => {
       "Pela demanda calculada (2.500,00 kVA), o atendimento esperado é em tensão de 69 kV ou mais. Confira com a concessionária.",
     );
   });
-  // Enel sem biblioteca nem método (pergunta 23 do plano).
-  it.todo("Enel: média tensão (0280, 7.1.3)");
+  it("Enel: média tensão (0280, 7.1.3)", () => {
+    const a = avisosDeAtendimento("enel", { demandaKVA: 2500 });
+    expect(a.nivel).toBe("média tensão");
+    expect(a.mensagens.map((m) => m.texto)).toContain(
+      "Pela demanda calculada (2.500,00 kVA), o atendimento esperado é em média tensão. Confira com a concessionária.",
+    );
+  });
+  it("Enel: acima de 2.500 kW, tensão de 69 kV ou mais; até 75 kW de carga instalada, sem aviso", () => {
+    expect(avisosDeAtendimento("enel", { demandaKVA: 2500.01 }).nivel).toBe("tensão de 69 kV ou mais");
+    expect(avisosDeAtendimento("enel", { demandaKVA: 60, cargaInstaladaKW: 70 }).nivel).toBeNull();
+    expect(avisosDeAtendimento("enel", { demandaKVA: 60, cargaInstaladaKW: 80 }).nivel).toBe("média tensão");
+  });
 });
 
 // Caso 1 (Copel, NTC 900600) saiu (Q24); o caso 2 já é conferido por parcela em casos-planilha-metodos.test.ts, aqui o total pela composição.
@@ -99,5 +109,25 @@ describe("apart-hotel na Equatorial: apartamentos pela carga instalada, em todos
     expect(r.avisos.map((a) => a.texto)).toContain(
       "Informe o valor de demanda dos apartamentos pela carga instalada. Não há valor padrão para esta concessionária.",
     );
+  });
+});
+
+describe("Energisa — atendimento pela NDU-003 (Q7)", () => {
+  it("69 a 276 kW: ramal subterrâneo (6.7.3); 276 a 2.500 kW: subestação (6.7.4); abaixo de 69 kW, sem aviso", () => {
+    const ids = (d: number) => avisosDeAtendimento("energisa", { demandaKVA: d }).mensagens.map((m) => m.id);
+    expect(ids(100)).toEqual(["ramal_entrada"]);
+    expect(ids(275.9)).toEqual(["ramal_entrada"]);
+    expect(ids(276)).toEqual(["subestacao_espaco"]);
+    expect(ids(68)).toEqual([]);
+    expect(avisosDeAtendimento("energisa", { demandaKVA: 100 }).mensagens[0].texto).toBe(
+      "Pela demanda calculada, o atendimento esperado é por ramal de entrada subterrâneo, trifásico, de baixa tensão, com uma entrada e um transformador. Confira com a concessionária.",
+    );
+  });
+  it("sistema 380/220 V: o ramal começa em 136 kW; 220/127 V ou sem sistema, em 69 kW", () => {
+    const ids = (d: number, sistema: "220/127" | "380/220" | null) => avisosDeAtendimento("energisa", { demandaKVA: d, sistema }).mensagens.map((m) => m.id);
+    expect(ids(100, "380/220")).toEqual([]);
+    expect(ids(136, "380/220")).toEqual(["ramal_entrada"]);
+    expect(ids(100, "220/127")).toEqual(["ramal_entrada"]);
+    expect(ids(100, null)).toEqual(["ramal_entrada"]);
   });
 });

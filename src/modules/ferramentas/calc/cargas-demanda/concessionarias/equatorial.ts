@@ -133,24 +133,24 @@ const COLUNA_T6: Record<GrupoEquipamentoEquatorial, "chuveiro_eletrico" | "torne
 
 /**
  * Tabela 6 — equipamentos de utilização específica por grupo e nº de aparelhos (o anexo B da spec manda esta tabela
- * para os grupos b1–b5). As faixas "56 a 65" e "65 a 75" se sobrepõem em 65: onde as duas linhas diferem (torneira,
- * aquecedor e ferro), 65 aparelhos fica sem sugestão.
+ * para os grupos b1–b5). As faixas "56 a 65" e "65 a 75" se sobrepõem em 65: vale "56 a 65" (resposta do engenheiro à
+ * Q34, 2026-11-12).
  */
 export function fdEquipamentoEspecifico(grupo: GrupoEquipamentoEquatorial, aparelhos: number): FdSugerido {
   const coluna = COLUNA_T6[grupo];
   const faixas = EQT_TABELA_6.linhas.map((l) => ({ de: l.n_aparelhos.de, ate: l.n_aparelhos.ate, valor: l[coluna] }));
-  return fdDaFaixa(EQT_TABELA_6, faixas, aparelhos, { sobreposicaoAmbigua: true });
+  return fdDaFaixa(EQT_TABELA_6, faixas, aparelhos);
 }
-
-/** Linhas da Tabela 7 cujo "Acima de 61" deixa o 61 em aberto: esse número de aparelhos fica sem sugestão. */
-const APARELHOS_PENDENTES_T7 = new Set([61]);
 
 export type PotenciaDoAparelho = "ate_3_5_kW" | "maior_que_3_5_kW";
 
-/** Tabela 7 — aparelhos de aquecimento e eletrodomésticos em geral, por nº de aparelhos e potência (até/acima de 3,5 kW). */
+/**
+ * Tabela 7 — aparelhos de aquecimento e eletrodomésticos em geral, por nº de aparelhos e potência (até/acima de 3,5 kW).
+ * 61 aparelhos cai em "Acima de 61" (resposta do engenheiro à Q34, 2026-11-12).
+ */
 export function fdAquecimentoEletrodomesticos(potencia: PotenciaDoAparelho, aparelhos: number): FdSugerido {
   const faixas = EQT_TABELA_7.linhas.map((l) => ({ de: l.n_aparelhos.de, ate: l.n_aparelhos.ate, valor: l[potencia] }));
-  return fdDaFaixa(EQT_TABELA_7, faixas, aparelhos, { pendentes: APARELHOS_PENDENTES_T7 });
+  return fdDaFaixa(EQT_TABELA_7, faixas, aparelhos);
 }
 
 export type UsoArCondicionadoEquatorial = "residenciais" | "comerciais";

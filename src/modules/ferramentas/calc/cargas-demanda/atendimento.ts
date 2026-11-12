@@ -5,17 +5,23 @@
  * Limite em kW comparado direto com a demanda em kVA (decisão da Fase 0: a favor da segurança; nota no relatório).
  *
  * Cemig: faixas do texto da ND-5.2, 4.4.1.1 a 4.4.1.4 (resposta do engenheiro à Q6, 2026-11-12).
- * Copel: sem aviso — o atendimento fica a cargo do projetista, na norma (Q24). Enel: sem biblioteca (Q23).
- * Fora por enquanto: Energisa abaixo de 276 kW (6.7.3 não lida a fundo, Q7 = esperar a leitura do engenheiro) e o
- * aviso de alta tensão acima de 2.500 kW para Celesc e Copel (Q29 B: falta a REN 1000/2021 na biblioteca).
+ * Copel: sem aviso — o atendimento fica a cargo do projetista, na norma (Q24).
+ * Enel: 0280, 7.1.3 (carga instalada acima de 75 kW e demanda até 2.500 kW = média tensão; acima, 69 kV ou mais). O limite
+ * da demanda é "menor ou igual a 2.500 kW" na 0280 (caso 8 da planilha); a 0018, 7.8.2, escreve "menor que 2500" — o
+ * engenheiro aponta a 0280 (2026-11-12). Sem a carga instalada e com demanda até 75 kW a norma não permite dizer.
+ * Energisa: só a NDU-003 (resposta do engenheiro à Q7, 2026-11-12): 6.7.3 de 69 a 276 kW, 6.7.4 de 276 a 2.500 kW.
+ * Sem aviso de alta tensão acima de 2.500 kW para Celesc (Q29 B: falta a REN 1000/2021 na biblioteca; o projetista confere
+ * na norma, e o relatório traz a nota fixa).
  */
 
 import { CELESC_N3210003_TRECHOS } from "./biblioteca/celesc-n3210003-trechos";
 import { CEMIG_ND52_TRECHOS } from "./biblioteca/cemig";
+import { ENEL_0280_TRECHOS } from "./biblioteca/enel-0280-trechos";
 import { ENERGISA_NDU003_TRECHOS } from "./biblioteca/energisa-ndu003-trechos";
 import { EQT_NT00004_TRECHOS } from "./biblioteca/equatorial";
 import { DIS_NOR_053, DIS_NOR_066, NEO_TRECHOS } from "./biblioteca/neoenergia";
 import type { IdConcessionaria } from "./composicao";
+import type { Sistema } from "./corrente";
 import { lerDoTrecho } from "./concessionarias/texto";
 import { MSG, type Mensagem } from "./mensagens";
 
@@ -27,6 +33,8 @@ export type EntradaAtendimento = {
   /** Carga instalada do nível, quando conhecida (Equatorial: baixa tensão até 75 kW de carga instalada). */
   cargaInstaladaKW?: number | null;
   uso?: UsoDaEdificacao;
+  /** Sistema de tensão do estudo. `null` = não informado (vale o menor limite). */
+  sistema?: Sistema | null;
 };
 
 export type Atendimento = {
@@ -52,6 +60,10 @@ const CEMIG_BT_AEREO = lerDoTrecho(CEMIG_ND52_TRECHOS, "4.4.1.1", /Demanda igual
 const CEMIG_BT_SUBTERRANEO = lerDoTrecho(CEMIG_ND52_TRECHOS, "4.4.1.2", /Demanda entre (\d+) e (\d+)kVA/);
 const CEMIG_CAMARA = lerDoTrecho(CEMIG_ND52_TRECHOS, "4.4.1.3", /Demanda entre (\d+) e (\d+)kVA/);
 const CEMIG_ESPECIAL = lerDoTrecho(CEMIG_ND52_TRECHOS, "4.4.1.4", /Demanda Superior a (\d+)kVA/);
+
+const ENEL_LIMITES = lerDoTrecho(ENEL_0280_TRECHOS, "7.1.3 Nota", /carga instalada superior a ([\d.]+) kW.*?menor ou igual a ([\d.]+) kW.*?inferior a (\d+) kV/);
+
+const ENERGISA_RAMAL = lerDoTrecho(ENERGISA_NDU003_TRECHOS, "6.7.3", /demanda entre (\d+) kW e (\d+) kW \(220\/127 V\) e entre (\d+) e (\d+) kW \(380\/220 V\)/);
 
 const ENERGISA_SUBESTACAO = lerDoTrecho(ENERGISA_NDU003_TRECHOS, "6.7.4", /demanda entre (\d+) kW e ([\d.]+) kW.*?Subestações Aéreas.*?Subestação abrigada/);
 
@@ -101,14 +113,27 @@ export function avisosDeAtendimento(c: IdConcessionaria | "enel", e: EntradaAten
       return { nivel: null, mensagens: [] };
     }
     case "energisa": {
+      // 6.7.3: de 69 kW (220/127 V) ou 136 kW (380/220 V) até 276 kW, ramal subterrâneo. Sem a tensão, vale o menor limite.
+      const [de127, ateRamal, de380] = ENERGISA_RAMAL.valores;
+      const deRamal = e.sistema === "380/220" ? de380 : de127;
+      if (d >= deRamal && d < ateRamal) {
+        return { nivel: null, mensagens: [MSG.ramalDeEntrada("ramal de entrada subterrâneo, trifásico, de baixa tensão, com uma entrada e um transformador", ENERGISA_RAMAL.referencia)] };
+      }
       const [de, ate] = ENERGISA_SUBESTACAO.valores;
       if (d >= de && d <= ate) {
         return { nivel: null, mensagens: [MSG.subestacaoEspaco("subestação aérea ou abrigada", ENERGISA_SUBESTACAO.referencia)] };
       }
       return { nivel: null, mensagens: [] };
     }
+    case "enel": {
+      const [ciMT, demandaMT, kv] = ENEL_LIMITES.valores;
+      if (d > demandaMT) return tipo(d, `tensão de ${kv} kV ou mais`, ENEL_LIMITES.referencia);
+      // A demanda nunca passa da carga instalada: demanda acima de 75 kW já garante carga acima dele.
+      const ci = e.cargaInstaladaKW ?? (d > ciMT ? d : null);
+      if (ci != null && ci > ciMT) return tipo(d, "média tensão", ENEL_LIMITES.referencia);
+      return { nivel: null, mensagens: [] };
+    }
     case "copel":
-    case "enel":
       return { nivel: null, mensagens: [] };
   }
 }

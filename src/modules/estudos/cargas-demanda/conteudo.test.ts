@@ -66,7 +66,7 @@ describe("estudo vazio e leitura", () => {
       versaoEsquema: 1,
       concessionaria: null,
       tipoEmpreendimento: null,
-      tensaoV: null,
+      sistema: null,
       ligacao: null,
       criterioIluminacao: null,
       peDireitoM: null,
@@ -160,8 +160,8 @@ describe("faixas válidas, com o texto da spec §6", () => {
   });
 
   it("listas fechadas", () => {
-    expect(com((c) => (c.tensaoV = 110)).success).toBe(false);
-    expect(com((c) => (c.tensaoV = 220)).success).toBe(true);
+    expect(com((c) => (c.sistema = "127/220")).success).toBe(false);
+    expect(com((c) => (c.sistema = "380/220")).success).toBe(true);
     expect(com((c) => (c.ligacao = "penta")).success).toBe(false);
     expect(com((c) => (c.tipoEmpreendimento = "galpao")).success).toBe(false);
     expect(com((c) => (c.criterioIluminacao = "ambos")).success).toBe(false);

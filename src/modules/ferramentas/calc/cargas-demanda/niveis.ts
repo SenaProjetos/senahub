@@ -9,6 +9,7 @@
  */
 
 import { avisosDeAtendimento, type Atendimento, type UsoDaEdificacao } from "./atendimento";
+import type { Sistema } from "./corrente";
 import {
   demandaDoNivel,
   type AjustesDoNivel,
@@ -46,6 +47,8 @@ export type Predio = {
   ajustesCpg?: AjustesDoNivel;
   opcoes?: OpcoesDoNivel;
   uso?: UsoDaEdificacao;
+  /** Sistema de tensão do estudo; `null` = não informado. */
+  sistema?: Sistema | null;
 };
 
 export type ResultadoNivel = ResultadoDoNivel & { atendimento: Atendimento };
@@ -109,7 +112,7 @@ export function avisosDosCmds(
 function nivel(p: Predio, tipos: TipoNoNivel[], calculos: CalculoNoNivel[], ajustes: AjustesDoNivel | undefined): ResultadoNivel {
   const r = demandaDoNivel({ concessionaria: p.concessionaria, tipos, calculos, ajustes, opcoes: p.opcoes });
   const uso = p.uso ?? (calculos.some((c) => c.papel === "comercial") ? "misto" : "residencial");
-  const atendimento = r.demandaKVA == null ? { nivel: null, mensagens: [] } : avisosDeAtendimento(p.concessionaria, { demandaKVA: r.demandaKVA, cargaInstaladaKW: r.cargaInstaladaKW, uso });
+  const atendimento = r.demandaKVA == null ? { nivel: null, mensagens: [] } : avisosDeAtendimento(p.concessionaria, { demandaKVA: r.demandaKVA, cargaInstaladaKW: r.cargaInstaladaKW, uso, sistema: p.sistema });
   return { ...r, atendimento };
 }
 

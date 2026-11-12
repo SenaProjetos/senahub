@@ -56,6 +56,7 @@ const DEFS = {
   metodo_outra_concessionaria: { tipo: "alerta", referencia: "anexo F e Copel" },
   tipo_atendimento: { tipo: "informativo", referencia: "anexos" },
   subestacao_espaco: { tipo: "informativo", referencia: "anexos" },
+  ramal_entrada: { tipo: "informativo", referencia: "anexos" },
   recarga_acima_gatilho: { tipo: "alerta", referencia: "anexos" },
   valor_fora_tabela: { tipo: "alerta", referencia: "regra da casa" },
   resistividade_fora_tabela: { tipo: "alerta", referencia: "NBR 5410, Tabela 41" },
@@ -145,6 +146,12 @@ export const MSG = {
     m(
       "tipo_atendimento",
       `Pela demanda calculada (${fmt2(demandaKVA)} kVA), o atendimento esperado é em ${nivel}. Confira com a concessionária.`,
+      referencia,
+    ),
+  ramalDeEntrada: (descricao: string, referencia: string) =>
+    m(
+      "ramal_entrada",
+      `Pela demanda calculada, o atendimento esperado é por ${descricao}. Confira com a concessionária.`,
       referencia,
     ),
   subestacaoEspaco: (subestacao: string, referencia: string) =>

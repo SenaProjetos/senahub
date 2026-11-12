@@ -109,15 +109,16 @@ describe("Equatorial — NT.00004, item 8 Tabelas", () => {
     perto(equatorial.fdEquipamentoEspecifico("fogao", 18).fd, 0.26);
     perto(equatorial.fdEquipamentoEspecifico("secadora_lava_louca_forno_microondas", 18).fd, 0.4);
   });
-  it("Tabela 6, 65 aparelhos: as duas linhas diferem só na torneira — essa fica sem sugestão", () => {
+  it("Tabela 6, 65 aparelhos: vale a linha '56 a 65' (Q34), inclusive na torneira (0,33, não 0,32)", () => {
     perto(equatorial.fdEquipamentoEspecifico("chuveiro", 65).fd, 0.24);
-    expect(equatorial.fdEquipamentoEspecifico("torneira_aquecedor_ferro", 65).fd).toBeNull();
+    perto(equatorial.fdEquipamentoEspecifico("torneira_aquecedor_ferro", 65).fd, 0.33);
+    perto(equatorial.fdEquipamentoEspecifico("torneira_aquecedor_ferro", 66).fd, 0.32);
   });
-  it("Tabela 7: 2 aparelhos → 0,75 até 3,5 kW e 0,65 acima; 61 fica em aberto", () => {
+  it("Tabela 7: 2 aparelhos → 0,75 até 3,5 kW e 0,65 acima; 61 cai em 'Acima de 61' (Q34)", () => {
     perto(equatorial.fdAquecimentoEletrodomesticos("ate_3_5_kW", 2).fd, 0.75);
     perto(equatorial.fdAquecimentoEletrodomesticos("maior_que_3_5_kW", 2).fd, 0.65);
-    expect(equatorial.fdAquecimentoEletrodomesticos("ate_3_5_kW", 61).fd).toBeNull();
-    expect(equatorial.fdAquecimentoEletrodomesticos("ate_3_5_kW", 62).fd).not.toBeNull();
+    perto(equatorial.fdAquecimentoEletrodomesticos("maior_que_3_5_kW", 61).fd, 0.16);
+    perto(equatorial.fdAquecimentoEletrodomesticos("maior_que_3_5_kW", 60).fd, 0.18);
   });
   it("Tabela 8: 8 aparelhos → residenciais 0,90, comerciais 1,00", () => {
     perto(equatorial.fdArCondicionadoEdificio("residenciais", 8).fd, 0.9);
@@ -238,8 +239,8 @@ describe("cobertura das faixas: nenhum nº de aparelhos 1 a 120 fica sem valor (
   });
   it("Equatorial", () => {
     expect(todas((n) => equatorial.fdEquipamentoEspecifico("chuveiro", n).fd, 1000)).toEqual([]);
-    expect(todas((n) => equatorial.fdEquipamentoEspecifico("torneira_aquecedor_ferro", n).fd, 1000)).toEqual([65]);
-    expect(todas((n) => equatorial.fdAquecimentoEletrodomesticos("ate_3_5_kW", n).fd, 1000)).toEqual([61]);
+    expect(todas((n) => equatorial.fdEquipamentoEspecifico("torneira_aquecedor_ferro", n).fd, 1000)).toEqual([]);
+    expect(todas((n) => equatorial.fdAquecimentoEletrodomesticos("ate_3_5_kW", n).fd, 1000)).toEqual([]);
     expect(todas((n) => equatorial.fdArCondicionadoEdificio("residenciais", n).fd, 1000)).toEqual([]);
     expect(todas((n) => equatorial.fdArCondicionadoResidencia(n).fd, 10)).toEqual([]);
     expect(todas((n) => equatorial.fdHidromassagem(n).fd)).toEqual([]);

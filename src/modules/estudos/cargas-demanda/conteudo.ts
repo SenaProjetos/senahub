@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { TIPOS_COMODO } from "@/modules/ferramentas/calc/cargas-demanda/biblioteca/nbr5410-habitacao";
-import { LIGACOES } from "@/modules/ferramentas/calc/cargas-demanda/corrente";
+import { LIGACOES, SISTEMAS } from "@/modules/ferramentas/calc/cargas-demanda/corrente";
 import { MSG } from "@/modules/ferramentas/calc/cargas-demanda/mensagens";
 
 /**
@@ -67,7 +67,8 @@ export const TIPO_EMPREENDIMENTO_ROTULO: Record<TipoEmpreendimento, string> = {
 export const CRITERIOS_ILUMINACAO = ["habitacao", "lux"] as const;
 export type CriterioIluminacao = (typeof CRITERIOS_ILUMINACAO)[number];
 
-export const TENSOES = [127, 220, 380] as const;
+/** Sistema de tensão do estudo ("220/127" ou "380/220"; a tela mostra "220/127 V" e "380/220 V"). */
+export const SISTEMAS_DO_ESTUDO = Object.keys(SISTEMAS) as [keyof typeof SISTEMAS, ...(keyof typeof SISTEMAS)[]];
 
 export const TIPOS_PONTO = ["tug", "tue", "outro"] as const;
 export type TipoPonto = (typeof TIPOS_PONTO)[number];
@@ -383,7 +384,8 @@ export const conteudoSchema = z
     /** Distribuidora, quando a concessionária atende por mais de uma. */
     distribuidora: texto(80, "A distribuidora").default(""),
     tipoEmpreendimento: z.enum(TIPOS_EMPREENDIMENTO).nullable().default(null),
-    tensaoV: z.union([z.literal(127), z.literal(220), z.literal(380)]).nullable().default(null),
+    /** Sistema de tensão (fase-neutro / fase-fase); com a ligação dá a tensão e o k da corrente. */
+    sistema: z.enum(SISTEMAS_DO_ESTUDO).nullable().default(null),
     ligacao: z.enum(LIGACOES).nullable().default(null),
     criterioIluminacao: z.enum(CRITERIOS_ILUMINACAO).nullable().default(null),
     /** Pé-direito único no estudo, editável (m). */
