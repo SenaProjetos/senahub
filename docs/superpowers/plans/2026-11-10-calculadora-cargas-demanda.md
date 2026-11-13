@@ -286,6 +286,9 @@ Ainda em aberto:
   A 0018 e a 0017 ainda não estão na biblioteca. O PDF CNC-OMBR-MAT-18-0126-EDCE (Enel Ceará, v03, 2022) foi colocado em
   `pacote-implementacao-calculadora/`, mas o anexo F o lista como cancelado e fora da especificação, e o item 7.2/7.3 dele só fala em
   75 kW de carga instalada (sem limite de média tensão): não foi usado. Perguntar ao dono se ele entra.
+- **Relatório de revisão humana da Fase 1 — entregue ao dono em 2026-11-12** (no chat): cobertura, fora de propósito, divergências
+  (Enel 0018 × 0280, kW × kVA, Cemig 217, Equatorial T6 × T7) e pendências. Verificação no dia: vitest (cargas-demanda + estudos)
+  282/282, tsc sem erro, eslint limpo. Dono (2026-11-12): OK para a Fase 2; Enel Ceará 0126 fica FORA (o PDF fica na pasta, sem uso).
 - Cálculos que a tela vai precisar na Fase 2 (não feitos aqui): montar `CalculoNoNivel.cargaInstaladaKW` e `TipoNoNivel.cargaInstaladaKW`
   a partir do levantamento; aplicar a Tabela 22 da Neoenergia como duas linhas; Q36/Q33 na tela.
 
@@ -304,3 +307,44 @@ Novas (passo 1, Copel): NTC 841001 T07 125 cv a 127 V = 117,3 A (100 cv = 144,8;
 cabeçalho "Revisão 13/12/2025" × rodapé "FEVEREIRO/2026". NTC 901110 5.1 b cita a Tabela 7 e 5.2.2 a a Tabela 4 (não
 extraídas). NTC 900600 (já registradas): T2 13 aptos = 11,93; T1 298 m² = 5,57 e 332 m² = "631"; T3a/T3b com várias
 células que não batem com coluna 1 × fator do cabeçalho; T3b 1/3 CV = "0377".
+
+## Fase 2 — telas (em andamento, 2026-11-12; sem commit até o OK do dono)
+
+Mock aprovado: https://claude.ai/artifact/WiT6biG2T4tPvirD3SnUwC (dono: "carga instalada em kW **e** kVA em colunas separadas"; escolha T6 × T7 por
+cálculo). Decisão de desenho: critério de lux com catálogo "Luminárias deste estudo" (L1, L2…) como no protótipo (campo novo `luminarias` +
+`iluminacao.luminariaId`, sem migração).
+
+Feito:
+1. **Despacho por tipo** (`EstudoProjeto.tipo`): `registry.ts` ganhou `soEstudo` + entrada `cargas-demanda` (fora da galeria, 404 em
+   `/ferramentas/cargas-demanda`, cálculo avulso recusado); `estudos/acesso.ts` (`TIPOS_DE_ESTUDO`, `FERRAMENTA_POR_TIPO`, `liberacaoDaAba`),
+   `estudos/tipos.ts` (vazio e validação por tipo), `service/actions/queries/memoria` por tipo (memória só do legado; `salvarEstudo` valida o
+   documento contra o esquema do tipo lido da linha). Lista: pill do tipo, criar escolhendo o tipo (só os liberados). Página do estudo despacha.
+2. **Casca do editor** (`components/estudos/cargas-demanda/editor.tsx` + `estudo-card.tsx` + `campos.tsx`): salvar com trava de versão, Ctrl+S,
+   conflito, sair sem salvar, etapas 1–3, campo `sistema` ("380/220 V"), `CampoNumero` pt-BR (`numero-br.ts`).
+3. **Etapa 1 — levantamento** (habitação e lux, validada no navegador): `ambiente.ts` (campo em branco adota o sugerido da NBR 5410; totais do
+   levantamento passam a usar o sugerido), `edicao.ts` (puro: fábricas, cópias com ids novos, mover, FP do levantamento, luminárias),
+   `acoes-levantamento.ts` (ADR-0002: menu de contexto + `⋯` em levantamento, pavimento, ambiente, tomada), `etapa-levantamento.tsx`,
+   `pavimento-card.tsx`, `linha-ambiente.tsx`, `celulas-tomadas.tsx`, `seletor-atividade.tsx`. Arrastar a alça reordena ambientes (teclado = ⋯).
+4. **Resultado do estudo** (`resultado.ts`, puro): linha, cálculo de carga instalada (kW, kVA, demanda, × N), tipos de apartamento com carga
+   instalada do levantamento (campo novo `tipoApartamento.levantamentoId`), resumo do empreendimento e prédio (CMD/CPG). Teste: o documento do
+   caso 29 dá 29,21 / 23,82 / 23,82 / 55,16.
+
+5. **Etapa 2 — demandas** (`etapa-demandas.tsx`, `calculo-carga-instalada.tsx`, `calculo-area-util.tsx`, `fatores.tsx`, `escolha-fd-aquecimento.tsx`):
+   cálculo por carga instalada (escopo + × N, trazer/atualizar do levantamento com "diferente do levantamento", tabela com carga instalada em
+   **kW e kVA** sem FD, FD, demanda, total) e por área útil (tipos, fatores sugeridos/adotados do método de cada concessionária, duplex,
+   levantamento da unidade); resumo e avisos (inclui nível de tensão esperado) ao lado. `fd-linha.ts`: FD sugerido por regra (campo em branco
+   adota o sugerido) — Neoenergia T22 em **duas linhas** (botão "Administração de edifícios") e Equatorial aquecimento **T7 × T6 por cálculo**
+   (`CalculoEstudo.fdAquecimento`, `LinhaCargaEstudo.regraFd/subtipo`). Resto das tabelas de FD continua digitado.
+6. **Etapa 3 — centros e entradas** (`etapa-centros.tsx`, `form-entrada.tsx`): CMDs (capacidade, medidores, fatores por CMD, entrada),
+   CPG (total do prédio, fatores do CPG, "não é a soma dos CMDs"), entrada pelo `entrada-estudo.ts` (corrente, FCT/FCA, disjuntor, seção, neutro,
+   proteção; CMD herda as condições do CPG), uso da edificação e opções do método, responsável técnico; relatório = botões desabilitados (Fase 3).
+7. **Resumo dos levantamentos** (misto com lojas): `resumoDosLevantamentos`. Aparece com 2+ levantamentos ou tipo "Misto".
+
+Verificação (2026-11-12/13): vitest 676 arquivos / 7897 testes, `tsc` e `eslint src` limpos, `smoke:estudos` ok; telas conferidas no Chrome a
+1680 px no worktree vscode (:3001): habitação (280/280, 4/400/320, 4/1.900/1.520, 1/600/480; totais 540/2.900/2.320), lux, etapa 2
+(26,16 kVA, 21,12 × 19,14, T22), etapa 3 (21,48 / 23,82 / 23,82; CPG 47,43; 72,07 A, 80 A, 25 mm²), salvar e reabrir.
+
+Pendências da Fase 2: FD sugerido das demais tabelas (Cemig, Celesc, Copel 841001, motores, ar-condicionado) não ligado às linhas; unidade "cv"
+dos motores (a tabela dá kVA) não modelada; entrada por flat individual (cálculo sem papel) ainda sem tela própria; relatório e exportação = Fase 3;
+celular (390 px) e tema claro ainda não conferidos; desvios do mock a confirmar com o dono: coluna **Qtd** na tomada de uso específico e a escolha
+do critério de lux por catálogo de luminárias (como no protótipo).
