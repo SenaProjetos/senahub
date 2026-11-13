@@ -29,6 +29,8 @@ const mocks = vi.hoisted(() => ({
   catalogoFindFirst: vi.fn(),
   userFindMany: vi.fn(),
   documentoFindMany: vi.fn(),
+  recalcularStatusDisciplina: vi.fn(),
+  txEtapaUpdateMany: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
@@ -42,10 +44,16 @@ vi.mock("@/modules/uploads/pagamento", () => ({
   situacaoPagamento: mocks.situacaoPagamento,
 }));
 vi.mock("./etapas-service", () => ({ sincronizarPrazoDisciplina: mocks.sincronizarPrazoDisciplina }));
+vi.mock("./status-pelas-fases-service", () => ({
+  recalcularStatusDisciplina: mocks.recalcularStatusDisciplina,
+  travarDisciplina: vi.fn(),
+  avisarSeDisciplinaEntregue: vi.fn(),
+}));
 
 const tx = {
   disciplinaEtapa: {
     upsert: mocks.etapaUpsert,
+    updateMany: mocks.txEtapaUpdateMany,
     delete: mocks.etapaDelete,
     aggregate: mocks.etapaAggregate,
     findMany: vi.fn().mockResolvedValue([]),
@@ -132,6 +140,38 @@ describe("aprovarEtapaDisciplina", () => {
     expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/Publique todos os documentos da fase/) });
     expect(mocks.documentoFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ faseId: "f-bs" }) }));
     expect(mocks.liberarPagamentosDaFase).not.toHaveBeenCalled();
+  });
+
+  it("reaprovação (fase liberada que voltou a revisão): aprova sem pagamento novo e recalcula a disciplina", async () => {
+    mocks.etapaFindUnique.mockResolvedValue({ ...FASE_ENTREGUE, status: "em_revisao", liberadaEm: new Date() });
+    mocks.disciplinaFindUnique.mockResolvedValue(disciplina([PJ]));
+    mocks.txEtapaUpdateMany.mockResolvedValue({ count: 1 });
+
+    const r = await aprovarEtapaDisciplina({ id: "de1" });
+
+    expect(r).toEqual({ ok: true, data: { id: "de1", pagamentos: 0 } });
+    expect(mocks.liberarPagamentosDaFase).not.toHaveBeenCalled();
+    expect(mocks.txEtapaUpdateMany).toHaveBeenCalledWith({
+      where: { id: "de1", status: { in: ["entregue", "em_revisao"] } },
+      data: { status: "aprovado" },
+    });
+    expect(mocks.recalcularStatusDisciplina).toHaveBeenCalledWith(tx, "d1", expect.objectContaining({ autorId: "u1" }));
+    expect(mocks.notificarMuitos).toHaveBeenCalledWith(
+      expect.arrayContaining(["g1", "pj1"]),
+      expect.objectContaining({ titulo: "Fase reaprovada" }),
+      { categoria: "aprovacao_disciplina" },
+    );
+  });
+
+  it("reaprovação que perdeu a corrida: recusa sem fingir sucesso", async () => {
+    mocks.etapaFindUnique.mockResolvedValue({ ...FASE_ENTREGUE, status: "entregue", liberadaEm: new Date() });
+    mocks.disciplinaFindUnique.mockResolvedValue(disciplina([PJ]));
+    mocks.txEtapaUpdateMany.mockResolvedValue({ count: 0 });
+
+    const r = await aprovarEtapaDisciplina({ id: "de1" });
+
+    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/A fase mudou/) });
+    expect(mocks.recalcularStatusDisciplina).not.toHaveBeenCalled();
   });
 
   it("caminho feliz: libera a fase, avisa o PJ com a tag DA FASE e a gestão; não devolve valor (Q15)", async () => {
@@ -229,6 +269,8 @@ describe("travas da F4 sobre fase liberada", () => {
     const r = await salvarEtapaDisciplina({ disciplinaId: "d1", etapaId: "f1", percentual: 40, prazo: "2026-12-01", status: "aprovado" });
     expect(r.ok).toBe(true);
     expect(mocks.etapaUpsert).toHaveBeenCalled();
+    // Spec 2026-11-13: salvar a fase recalcula o status da disciplina na MESMA transação.
+    expect(mocks.recalcularStatusDisciplina).toHaveBeenCalledWith(tx, "d1", expect.objectContaining({ autorId: "u1" }));
   });
 
   it("não remove fase liberada", async () => {

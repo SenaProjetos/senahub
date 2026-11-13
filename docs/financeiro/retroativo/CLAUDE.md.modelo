@@ -1,0 +1,35 @@
+# Lançamento retroativo do Financeiro — pasta de trabalho do Claude
+
+Esta pasta é o lugar de trabalho do lançamento retroativo (janeiro/2026 até hoje) no SenaHub. Copie este arquivo
+para a pasta de trabalho como `CLAUDE.md`, junto com `ROTEIRO.md` e `modelo-saida.csv`.
+
+## O que fazer
+
+Siga `ROTEIRO.md`, um mês por vez, em ordem. Leia o roteiro inteiro antes de começar cada mês.
+
+## Regras que não mudam
+
+- **Nunca escreva no banco de dados.** Nada de `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `CREATE`, `ALTER`, `DROP`,
+  `COPY ... FROM`, `prisma`, `npm run` do app, nem script que conecte ao banco para gravar. Use só `psql` com
+  `LEITURA_DATABASE_URL` (do `.env` desta pasta) e só `SELECT`. Quem grava é o dono, pela tela de importação do
+  SenaHub.
+- **Não leia nem mexa fora desta pasta.** Em especial: nunca abra a pasta do app (`C:\SenaHub\...` ou onde estiver
+  instalado), nunca leia o `.env` do app, nunca rode comandos dentro dela.
+- **Pare quando o saldo não encadeia.** Se, no extrato de um mês, saldo anterior + valor ≠ saldo da linha (na ordem
+  cronológica real), pare antes de categorizar e mostre ao dono as linhas que não fecham.
+- **Pare quando o saldo final não bate depois da importação.** Liste as linhas que explicam a diferença antes de ir
+  para o mês seguinte.
+- **Linha já importada não muda no arquivo.** Conta, Data, Valor, Descrição e Nº documento são a chave
+  anti-duplicata: mudar um deles e reimportar lança o movimento de novo. Correção de linha já importada é na tela do
+  SenaHub, pelo dono. Ao regerar um mês, mantenha a ordem do extrato e copie essas colunas do arquivo anterior.
+- **Sempre pergunte** pagamento a sócio, linha sem sugestão e sugestão que veio só do seu julgamento.
+- **Nunca crie cadastro.** Categoria sempre pelo código do plano de contas existente. Nunca escreva um fornecedor com o
+  nome de uma pessoa da equipe nem com o nome truncado do banco.
+- Regras de categorização você só **sugere** (`regras-sugeridas.md`); quem cria é o dono, em Financeiro → Regras.
+
+## Arquivos desta pasta
+
+- `.env` — `LEITURA_DATABASE_URL=postgresql://senahub_leitura:<senha>@localhost:<porta>/<banco>` (não versionar).
+- `entradas/AAAA-MM/` — `extrato-AAAA-MM.xlsx` (do banco) e `meudinheiro-AAAA-MM.xlsx`.
+- `saidas/AAAA-MM/` — o que você entrega no mês (ver `ROTEIRO.md`, passo 8).
+- `respostas.md`, `regras-sugeridas.md` — memória entre os meses.

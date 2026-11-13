@@ -641,6 +641,7 @@ export const aplicarAoProjeto = defineAction(
         await tx.disciplina.update({ where: { id }, data: { prazo } });
       }
       for (const [id, prazo] of plano.porEtapa) {
+        // recalculo-ok: só o prazo vindo do cronograma; status e conjunto de fases não mudam.
         await tx.disciplinaEtapa.update({ where: { id }, data: { prazo } });
       }
       for (const id of plano.aReconsolidar) await sincronizarPrazoDisciplina(tx, id);

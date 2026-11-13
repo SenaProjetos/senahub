@@ -20,6 +20,33 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Status da disciplina pelas fases (novembro/2026)
+
+- Disciplina com etapas (EP, BS, EX…) não tem mais o status escolhido à mão: ele **vem das fases**. Acabou
+  o card com a disciplina "Em revisão" e a fase "Aguardando" ao mesmo tempo.
+- Todas as fases aguardando → **Aguardando**; alguma andando → **Em andamento**; todas entregues ou
+  aprovadas → **Entregue**; todas aprovadas → **Aprovado**; alguma em revisão → **Em revisão**.
+- Para mudar o status, mude a fase: **Enviei os documentos**, o diálogo **Etapas** ou **Aprovar**.
+- **Reabrir** a disciplina e **enviar apontamentos** levam a fase do documento para Em revisão. Reaprovar
+  não gera pagamento novo.
+- Aprovar a disciplina inteira de uma equipe só CLT agora aprova as fases também.
+- Disciplina sem etapa continua como era.
+
+## Importar extrato do banco já categorizado (novembro/2026)
+
+- Em **Financeiro → Mais → Importar planilha**, a opção **Criar cadastros que não existirem** vem
+  desmarcada: categoria, conta, forma ou centro que não existem viram erro na linha, em vez de
+  virar cadastro novo. Marque só para migrar do Meu Dinheiro.
+- Colunas novas: **Projeto** (código), **Sócio** e **Nº documento**. A categoria aceita o código
+  do plano de contas.
+- A conferência mostra todas as linhas, paginadas, com filtros (só com erro, só cadastros a criar,
+  só duplicadas).
+- Com a opção desmarcada, o importador também recusa: cadastro inativo, linha paga sem conta,
+  linha paga com data futura e transferência sem conta de destino.
+- Folha CLT: as folhas de competência anterior a 10/2026 foram lançadas no Financeiro pelo extrato
+  e **não fecham** mais (fechar criaria as contas em dobro). O botão aparece desabilitado com o
+  motivo. Uma folha dessas que já esteja fechada também não reabre.
+
 ## Projeto novo nasce no padrão de nomenclatura mais atual (novembro/2026)
 
 - Todo projeto novo — criado na tela, pelo aceite de proposta, importado de licitação ou duplicado — nasce na versão do padrão de nomenclatura **publicada mais recente**, a mesma que aparece como "vigente" em Configurações → Disciplinas e nomenclatura → Versões. A cópia de um projeto não herda mais o padrão do original.

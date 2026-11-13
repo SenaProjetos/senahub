@@ -81,7 +81,7 @@ const VOCABULARIO: readonly TermoGuia[] = [
   {
     termo: "Status da disciplina",
     definicao:
-      "Aguardando → Em andamento → Entregue ⇄ Em revisão → Aprovado. O vaivém entre Entregue e Em revisão é normal e esperado; Aprovado é ponto final.",
+      "Aguardando → Em andamento → Entregue ⇄ Em revisão → Aprovado. O vaivém entre Entregue e Em revisão é normal e esperado; Aprovado é ponto final. Disciplina com etapas tem o status calculado pelas fases: muda-se a fase, não a disciplina.",
   },
   {
     termo: "Progresso",
@@ -486,6 +486,11 @@ export function GuiaProjetosView() {
           e voltar para <strong>Em revisão</strong> quantas vezes for preciso — isso é normal, não é
           retrabalho mal-feito. O último passo, <strong>Aprovado</strong>, é ponto final e{" "}
           <strong>não se escolhe no seletor de status</strong>.
+        </p>
+        <p>
+          Com <strong>etapas</strong> (EP, BS, EX…), o status da disciplina <strong>vem das fases</strong>: alguma em
+          revisão deixa a disciplina em revisão, todas entregues deixam entregue, todas aprovadas deixam aprovado. O
+          seletor some — mude a situação da fase.
         </p>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">

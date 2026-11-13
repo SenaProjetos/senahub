@@ -86,7 +86,13 @@ export function FolhaDetalheView({
   reaberturas,
   totais,
   podeAbrirLancamento,
+  motivoNaoFechar,
+  motivoNaoReabrir,
 }: {
+  /** Por que "Reabrir" está desabilitado (mesma frase do servidor); `null` = pode reabrir. */
+  motivoNaoReabrir: string | null;
+  /** Por que "Fechar folha" está desabilitado (mesma frase do servidor); `null` = pode fechar. */
+  motivoNaoFechar: string | null;
   /** Quem tem o Financeiro abre a conta lançada; os demais veem só o nome. */
   podeAbrirLancamento: boolean;
   custo: CustoDaFolha | null;
@@ -194,13 +200,17 @@ export function FolhaDetalheView({
                   <Wand2 className="size-4" /> Gerar automático
                 </Button>
               )}
-              <Button onClick={() => setPreview(true)} disabled={pending || folha.holerites.length === 0}>
+              <Button
+                onClick={() => setPreview(true)}
+                disabled={pending || folha.holerites.length === 0 || motivoNaoFechar != null}
+                title={motivoNaoFechar ?? undefined}
+              >
                 <Lock className="size-4" /> Fechar folha
               </Button>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={reabrir} disabled={pending}>
+              <Button variant="outline" onClick={reabrir} disabled={pending || motivoNaoReabrir != null} title={motivoNaoReabrir ?? undefined}>
                 <Unlock className="size-4" /> Reabrir
               </Button>
               <Button onClick={enviar} disabled={pending}>
@@ -210,6 +220,13 @@ export function FolhaDetalheView({
           )}
         </div>
       </div>
+
+      {aberta && motivoNaoFechar && (
+        <p className="rounded-sm border border-dashed p-3 text-sm text-muted-foreground">{motivoNaoFechar}</p>
+      )}
+      {!aberta && motivoNaoReabrir && (
+        <p className="rounded-sm border border-dashed p-3 text-sm text-muted-foreground">{motivoNaoReabrir}</p>
+      )}
 
       {aberta && semHolerite.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-sm border border-dashed p-3">

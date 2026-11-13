@@ -60,11 +60,14 @@ npm run smoke:conclusao-eap  # aviso ao gestor quando alguém conclui o card de 
 npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
 npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
+npm run smoke:status-pelas-fases  # status da disciplina pelas fases: envio/desfazer, aprovação global PJ e CLT, reabrir/reaprovar sem pagamento novo, apontamentos, paga inteira, corrida, prévia da migração
+npm run disciplinas:recalcular-status [-- --gravar]  # migração (deploy): lista as disciplinas cujo status mudaria; só grava com --gravar
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
 npm run smoke:retencoes             # retenções na nota (C4): pagar líquido + contas dos impostos, parcial/desconto recusados, estorno, conciliação, cobrança, contabilidade
+npm run smoke:importacao-extrato    # importação de extrato categorizado: projeto/sócio/nº doc, modo estrito sem cadastro novo, reimportar sem duplicar (chave nova e antiga), saldo inicial com data
 npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do projeto, projetista pago no Financeiro, recebido pelo pago) e N1 (estorno, reabrir, caminhos impossíveis, desfazer importação)
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:contabil              # integração contábil (M5): plano do contador, partidas (reconhecimento+baixa, parcial, cartão, transferência, folha fora), invariante do extrato, exportação só de mês fechado
@@ -645,6 +648,12 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
   pagamento por fase espera a soma dos % fechar 100%. Disciplinas anteriores à mudança não ganham etapa. Aplicar um modelo de EAP
   PREENCHE esses % com os do modelo (`modelos/preencher-percentuais.ts`) só se a disciplina inteira está a 0%, sem fase liberada,
   e o modelo traz % de TODA etapa dela somando 100% (unifamiliar: o modelo precisa ser só BS/EX); senão segue a 0%.
+- **Status da disciplina vem das fases** (spec `docs/superpowers/specs/2026-11-13-status-disciplina-pelas-fases.md`): disciplina
+  com fase e fora do fluxo de pastas (`statusVemDasFases`) tem o status calculado (`status-pelas-fases.ts`, puro) e gravado SÓ por
+  `recalcularStatusDisciplina(tx, …)` (`status-pelas-fases-service.ts`: trava a linha da disciplina, lê as fases, grava + AuditLog),
+  chamado na MESMA transação de toda escrita de `DisciplinaEtapa` — guarda `status-pelas-fases-guarda.test.ts` (escrita sem efeito
+  em status leva `// recalculo-ok:`). Troca manual e em massa recusam (`MOTIVO_STATUS_DAS_FASES`). Reabrir e apontamentos põem a
+  fase em `em_revisao` (exceção sancionada, pagamento intacto); reaprovar não paga de novo (`aprovarFasesSemPagamento`).
 - **"Enviei os documentos"** (`projetos/envio-etapa*.ts`): só responsável da disciplina; etapa → `entregue`; desfaz até
   aprovar; avisa coordenação + responsáveis (`aprovacao_disciplina`). Escrita é `updateMany` condicionada ao status lido.
 - **Ponto** (`ponto/tarefa-ponto.ts`, puro): janela ±7 dias, atrasada ABERTA nunca some (topo), "outras da etapa" recolhidas
@@ -752,6 +761,25 @@ forma). Condição de seção por disciplina = `SecaoBriefing.disciplinas` (term
 trava otimista por `versao`. Um modelo arquiva (não exclui) e há um só padrão (índice parcial `modelo_briefing_um_padrao`, fora do
 schema.prisma). Trocar o modelo do projeto zera `secoesOcultas/camposOcultos` e recalcula o status; as respostas ficam. As perguntas
 extras por disciplina (`InputTemplate`/`InputProjeto`) são outra coisa e não mudaram. Verificação: `npm run smoke:modelos-briefing`.
+
+**Financial import: strict mode and the retroactive cut** (spec `docs/superpowers/specs/2026-11-10-lancamento-retroativo-extrato-design.md`):
+`importacao/cadastros.ts` (pure) is the ONE rule of what the preview shows and what the commit writes — `resolverLinhas` over
+`carregarIndice` (`commit-core.ts`), re-run by `executarCommit` inside the transaction. `criarCadastros: false` (strict, the
+screen default) never creates categoria/conta/forma/centro (unknown = line error) and a new contato only with a valid CPF/CNPJ;
+`true` is the old Meu Dinheiro behaviour. Both modes: wrong-tipo categoria, unknown projeto (`Projeto.codigo`) and sócio are
+errors; categoria accepts the plan `codigo` first; a transfer enters with both legs or none. Strict only: an inactive
+categoria/conta/forma/centro, a paid row without conta, a paid row dated after today (`OpcoesCadastro.hoje`, São Paulo day)
+and a transfer without two legs in two different contas are line errors. The dedup key is `x:` + sha256 of
+`tipo|conta|data|centavos|descrição|nº documento|n` (`n` = order among identical rows of the file), no categoria — changing
+any part makes a new row, so an imported row is fixed on screen, never in the file; `hashLegado` (old `h:` formula, no conta)
+is checked too, so old lots never come back — any new "already imported" check must use `chavesDasLinhas`/`jaImportada`.
+There is no unique index on `importHash`: `executarCommit` takes `pg_advisory_xact_lock(TRAVA_IMPORTACAO)` first, so imports
+queue and the second one re-reads the keys. A "Saldo inicial" row with a date also writes `saldoInicialEm` (undoing the lot
+does not revert it). Folha: `rh/folha/corte.ts` + `ConfigSistema`
+`rh.folha.fechaNoFinanceiroDesde` (`"2026-10"`, migration) — `fecharFolhaNoBanco` refuses an earlier competência (it went in
+through the bank statement), `reabrirFolhaNoBanco` refuses to reopen one (it could never close again), and the screen
+disables each button with the same sentence. The Claude-side runbook and the
+read-only Postgres role live in `docs/financeiro/retroativo/`.
 
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em
 `docs/superpowers/specs/2026-09-19-proposta-composta.md`) — a proposta montada NO sistema: modelo +

@@ -9,6 +9,7 @@ import {
   type ContextoAcoesDisciplina,
   type DisciplinaParaAcoes,
 } from "./acoes-disciplina";
+import { MOTIVO_STATUS_DAS_FASES } from "./status-pelas-fases";
 
 const ids = (itens: AcaoItem[]) => itens.map((i) => i.id);
 const achar = (itens: AcaoItem[], id: string) => itens.find((i) => i.id === id) as AcaoItemAcao | undefined;
@@ -17,6 +18,7 @@ function disc(p: Partial<DisciplinaParaAcoes> = {}): DisciplinaParaAcoes {
   return {
     status: "entregue",
     usaPastas: false,
+    statusDasFases: false,
     qtdArquivos: 7,
     qtdRevisoes: 0,
     aguardandoConfirmacao: false,
@@ -89,6 +91,14 @@ describe("itensDeDisciplina", () => {
     expect(ids(itens)).not.toContain("aprovar");
     expect(ids(itens)).toContain("reabrir");
     expect(achar(itens, ACAO_DISCIPLINA.excluir)?.desabilitado).toBe(MOTIVO_EXCLUIR_APROVADA);
+  });
+
+  it("status vindo das fases: 'Mudar status' inerte com o motivo (estado, ADR-0002), o resto igual (spec 2026-11-13)", () => {
+    const itens = itensDeDisciplina(disc({ statusDasFases: true }), GESTOR);
+    const status = itens.find((i) => i.id === "status");
+    expect(status).toMatchObject({ tipo: "acao", desabilitado: MOTIVO_STATUS_DAS_FASES });
+    expect(ids(itens)).toContain(ACAO_DISCIPLINA.etapas);
+    expect(ids(itens)).toContain(ACAO_DISCIPLINA.aprovar);
   });
 
   it("aprovação/laudo: confirmar e recusar para o gestor; marcar aprovado para o responsável", () => {

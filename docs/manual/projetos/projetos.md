@@ -70,6 +70,20 @@ Cada disciplina passa por um ciclo de status:
 | Aprovado | Validada (status final) | 100% |
 
 - O **progresso do projeto** é a média desses pesos entre suas disciplinas.
+- **Disciplina com etapas (fases): o status vem das fases** e não se escolhe à mão. O card mostra o
+  status calculado, sem o seletor. A regra:
+  - alguma fase **Em revisão** → a disciplina fica **Em revisão**;
+  - todas as fases **Aprovadas** → **Aprovado** (disciplina aprovada só sai de Aprovado se uma fase
+    voltar a revisão);
+  - todas **Entregues** ou **Aprovadas** → **Entregue**;
+  - alguma fase andando (em andamento, entregue ou aprovada) → **Em andamento**;
+  - todas **Aguardando** → **Aguardando**.
+
+  Para mudar o status, mude a **situação da fase** (diálogo de etapas, **Enviei os documentos** ou
+  **Aprovar**). Reabrir a disciplina e enviar apontamentos levam a fase do documento a **Em revisão**
+  (o pagamento já liberado não muda). Ver [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md).
+- **Disciplina sem etapa** (e as do fluxo de aprovação em 2 etapas) continua com o status manual,
+  como descrito abaixo.
 - **Quem altera o status:** gestores (admin/supervisor) **ou** os **responsáveis** pela
   disciplina.
 - **Transições para não-gestores** são limitadas: Aguardando→Em andamento; Em
