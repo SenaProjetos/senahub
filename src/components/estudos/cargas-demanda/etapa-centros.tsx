@@ -44,6 +44,7 @@ import type { ResultadoCmd, ResultadoNivel } from "@/modules/ferramentas/calc/ca
 
 import { CampoNumero, LegendaDasCores, Rotulo } from "./campos";
 import { BlocoDeFatores } from "./fatores";
+import { EntradasIndividuais } from "./entradas-individuais";
 import { FormEntrada } from "./form-entrada";
 import type { Atualizar, PropsEtapa } from "./tipos";
 
@@ -57,7 +58,7 @@ const ROTULO_MEDIDOR = { residencial: "Residencial", condominio: "Condomínio", 
 const USOS = { residencial: "Residencial", comercial: "Comercial", misto: "Misto" } as const;
 
 /** Etapa 3 — centros de medição (CMD), entrada geral (CPG), entradas, responsável técnico e relatório. */
-export function EtapaCentros({ conteudo, atualizar, podeEditar }: PropsEtapa) {
+export function EtapaCentros({ conteudo, atualizar, podeEditar, onCompletarCalculo }: PropsEtapa & { onCompletarCalculo: () => void }) {
   const { predio, resumo } = useMemo(() => calcularPredio(conteudo), [conteudo]);
   const dist = apartamentosDistribuidos(conteudo);
   const cmds = conteudo.centros.cmds;
@@ -103,6 +104,8 @@ export function EtapaCentros({ conteudo, atualizar, podeEditar }: PropsEtapa) {
           ))}
 
           {predio && cmds.length > 0 && <CpgCard conteudo={conteudo} cpg={predio.cpg} somaDosCmds={predio.cmds.reduce((s, c) => s + (c.demandaKVA ?? 0), 0)} atualizar={atualizar} podeEditar={podeEditar} dist={dist} />}
+
+          <EntradasIndividuais conteudo={conteudo} atualizar={atualizar} podeEditar={podeEditar} onCompletar={onCompletarCalculo} />
 
           <ResponsavelTecnico conteudo={conteudo} atualizar={atualizar} podeEditar={podeEditar} />
 
@@ -449,6 +452,7 @@ function CpgCard({
         <span className="ml-auto text-base font-bold tabular-nums">{fmt(cpg.demandaKVA)} kVA</span>
       </header>
       <div className="space-y-3 px-4 py-3">
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[420px] border-collapse text-sm">
           <caption className="sr-only">Composição do CPG</caption>
           <thead className="text-xs text-muted-foreground">
@@ -479,6 +483,7 @@ function CpgCard({
               ))}
           </tbody>
         </table>
+        </div>
         {cpg.apartamentos && <BlocoDeFatores concessionaria={conteudo.concessionaria ?? ""} titulo={`Fatores dos apartamentos, para ${dist.noPredio} apartamentos`} r={cpg.apartamentos} grupo="apartamentos" podeEditar={podeEditar} onAjustar={ajustar} nomes={nomesDosTipos(conteudo)} />}
         {cpg.duplex && <BlocoDeFatores concessionaria={conteudo.concessionaria ?? ""} titulo="Duplex" r={cpg.duplex} grupo="duplex" podeEditar={podeEditar} onAjustar={ajustar} nomes={nomesDosTipos(conteudo)} />}
         <p className="text-xs text-muted-foreground">

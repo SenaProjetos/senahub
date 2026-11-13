@@ -45,7 +45,7 @@ import {
   trazerDoLevantamento,
 } from "@/modules/estudos/cargas-demanda/edicao-calculo";
 import { mover, novoId } from "@/modules/estudos/cargas-demanda/edicao";
-import { GRUPOS_EQUIPAMENTO_EQUATORIAL, fdEfetivoDaLinha, regraDaLinha, REGRA_EQT_AQUECIMENTO } from "@/modules/estudos/cargas-demanda/fd-linha";
+import { GRUPOS_EQUIPAMENTO_EQUATORIAL, fdEfetivoDaLinha, regraCabeNoTipo, regraDaLinha, regrasOferecidas, REGRA_EQT_AQUECIMENTO } from "@/modules/estudos/cargas-demanda/fd-linha";
 import { estadoDoVinculo, totaisDoEscopo } from "@/modules/estudos/cargas-demanda/levantamento";
 import { formatarNumeroBR } from "@/modules/estudos/cargas-demanda/numero-br";
 import { calcularCalculoDeCargaInstalada } from "@/modules/estudos/cargas-demanda/resultado";
@@ -185,7 +185,7 @@ export function CardCargaInstalada(props: PropsCalculo) {
       {aberto && (
         <div className="space-y-3 px-4 py-3">
           <div className="flex flex-wrap items-end gap-3">
-            <div className="flex w-72 flex-col gap-1">
+            <div className="flex w-72 max-w-full flex-col gap-1">
               <Rotulo>Papel na demanda do empreendimento</Rotulo>
               <Select value={k.papel ?? SEM} disabled={!podeEditar} onValueChange={(v) => setK((x) => ({ ...x, papel: v && v !== SEM ? (v as (typeof PAPEIS_CALCULO)[number]) : null }))}>
                 <SelectTrigger className="w-full" aria-label={`Papel do cálculo ${k.nome}`}>
@@ -201,7 +201,7 @@ export function CardCargaInstalada(props: PropsCalculo) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex min-w-0 flex-1 basis-48 flex-col gap-1">
               <Rotulo>Cargas dos levantamentos</Rotulo>
               <div className="flex flex-wrap items-center gap-1.5">
                 {conteudo.levantamentos.length === 0 && <span className="text-sm text-muted-foreground">Nenhum levantamento: digite as cargas abaixo.</span>}
@@ -267,6 +267,7 @@ export function CardCargaInstalada(props: PropsCalculo) {
                       calculo={k}
                       linha={l}
                       indice={i}
+                      resultadoLinha={resultado.linhas[i]}
                       totais={totais}
                       podeEditar={podeEditar}
                       onLinha={(f) => setK((x) => mapLinha(x, l.id, f))}
@@ -315,6 +316,7 @@ function LinhaDeCarga({
   calculo: k,
   linha: l,
   indice,
+  resultadoLinha,
   totais,
   podeEditar,
   onLinha,
@@ -325,15 +327,17 @@ function LinhaDeCarga({
   calculo: CalculoEstudo;
   linha: LinhaCargaEstudo;
   indice: number;
+  resultadoLinha: ReturnType<typeof calcularCalculoDeCargaInstalada>["linhas"][number];
   totais: ReturnType<typeof totaisDoEscopo>;
   podeEditar: boolean;
   onLinha: (f: (l: LinhaCargaEstudo) => LinhaCargaEstudo) => void;
   onAcao: (item: AcaoItemAcao) => void;
   onSoltar: (origemId: string) => void;
 }) {
-  const ctx = { concessionaria: conteudo.concessionaria, escopoN: k.escopo.quantidade, fdAquecimento: k.fdAquecimento };
+  const ctx = { concessionaria: conteudo.concessionaria, escopoN: k.escopo.quantidade, fdAquecimento: k.fdAquecimento, linhas: k.linhas };
   const fd = fdEfetivoDaLinha(ctx, l);
-  const r = calcularCalculoDeCargaInstalada({ ...k, linhas: [l] }, conteudo.concessionaria).linhas[0];
+  const r = resultadoLinha;
+  const regras = regrasOferecidas(conteudo.concessionaria, l.tipoCarga);
   const vinculo = estadoDoVinculo(l, totais);
   const itens = podeEditar
     ? itensDeLinhaDeCarga({
@@ -391,6 +395,21 @@ function LinhaDeCarga({
             )}
           </span>
         )}
+        {regras.length > 0 && (
+          <Select value={l.regraFd && regras.some((x) => x.id === l.regraFd) ? l.regraFd : SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => ({ ...x, regraFd: v && v !== SEM ? v : null }))}>
+            <SelectTrigger className="mt-1 w-full" aria-label={`Tabela do FD de ${nome}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={SEM}>FD digitado (sem tabela)</SelectItem>
+              {regras.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.rotulo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         {equipamento && (
           <Select value={l.subtipo ?? SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => ({ ...x, subtipo: v && v !== SEM ? v : null }))}>
             <SelectTrigger className="mt-1 w-full" aria-label={`Tipo de equipamento de ${nome}`}>
@@ -408,7 +427,7 @@ function LinhaDeCarga({
         )}
       </td>
       <td className="px-1 py-1.5">
-        <Select value={l.tipoCarga ?? SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => ({ ...x, tipoCarga: v && v !== SEM ? (v as TipoCarga) : null }))}>
+        <Select value={l.tipoCarga ?? SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => { const tipoCarga = v && v !== SEM ? (v as TipoCarga) : null; return { ...x, tipoCarga, regraFd: regraCabeNoTipo(x.regraFd, tipoCarga) ? x.regraFd : null }; })}>
           <SelectTrigger className="w-44 max-w-44" aria-label={`Tipo de carga de ${nome}`}>
             <SelectValue />
           </SelectTrigger>

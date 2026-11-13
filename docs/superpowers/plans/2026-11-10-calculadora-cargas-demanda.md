@@ -348,3 +348,22 @@ Pendências da Fase 2: FD sugerido das demais tabelas (Cemig, Celesc, Copel 8410
 dos motores (a tabela dá kVA) não modelada; entrada por flat individual (cálculo sem papel) ainda sem tela própria; relatório e exportação = Fase 3;
 celular (390 px) e tema claro ainda não conferidos; desvios do mock a confirmar com o dono: coluna **Qtd** na tomada de uso específico e a escolha
 do critério de lux por catálogo de luminárias (como no protótipo).
+
+### Fase 2 — fechamento do passo 1 (2026-11-13, sem commit)
+
+- **Desvios do mock confirmados pelo dono:** coluna Qtd na tomada de uso específico MANTIDA; catálogo de luminárias L1/L2 no critério de lux MANTIDO.
+- **Entrada do flat individual** (`components/estudos/cargas-demanda/entradas-individuais.tsx`, `unidadesIndividuais` em `edicao-centros.ts`): cálculo por
+  carga instalada SEM papel ganha o cartão "Entrada do …" na etapa 3 (corrente, disjuntor, cabo pelo mesmo `FormEntrada`, `alvo.nivel = "calculo"`);
+  sem dados mostra "Faltam dados" + "Completar o cálculo" (volta à etapa 2). Não entra no CMD nem no CPG (spec §3.1, regra 6).
+- **FD sugerido por tabela** (`fd-linha.ts`, catálogo `REGRAS_FD`): ligadas as tabelas POR Nº DE APARELHOS / POTÊNCIA: Celesc T06/T07, Copel T04/T05/T11, Cemig T12/T13,
+  Equatorial T6/T7 (já), T8/T9/T10, Neoenergia T7/T8/T9/T10/T12/T13/T16. A linha escolhe a tabela no seletor "Tabela do FD" (`regraFd`); única opção do tipo
+  (Celesc/Copel aquecimento, Neo recarga, Copel motores) vale sozinha. Contagem = quantidade × N da linha, exceto Neoenergia T7 e Copel T11 (soma das linhas do
+  cálculo com a mesma regra). Valor sempre da biblioteca. Trocar o tipo da linha solta a regra que não cabe (`regraCabeNoTipo`).
+- **Ainda digitado (decisão pendente):** (1) FD por faixa da CARGA — Neo T6, Cemig T10, Equatorial T5 unidade residencial: falta decidir se a faixa usa a carga do
+  cálculo × N ou a por unidade; (2) iluminação/tomadas por USO em degraus — Neo T22, Cemig T11, Celesc T05, Copel T12, Equatorial T4/T5 prédio: a linha não divide em faixas;
+  (3) motores/equipamentos "o maior e os demais" — Neo T14/T15, Copel T08–T10, Equatorial T13 — e a unidade cv (Cemig T14/T15, Celesc T04, Copel T06/T07, Neo T18/T19: a
+  tabela dá kVA). Energisa e Enel não têm tabelas de FD carregadas.
+- **Celular/tema claro:** corrigidos dois estouros em 390 px (linha de papel/escopo do cálculo; tabela de composição do CPG). 390×844 = 390 nas três etapas; 1366×768 com o
+  menu aberto sem sobreposição; tema claro e escuro conferidos.
+- **Auditoria:** nível 3. vitest 676 arquivos / 7907 testes, tsc e eslint (estudos) limpos, `smoke:estudos` ok. Prints e LEIAME em
+  `prints-auditoria/2026-11-13_1135_cargas-demanda/` (ignorada pelo git). Subagentes revisores não acionados (limite de um subagente da sessão).

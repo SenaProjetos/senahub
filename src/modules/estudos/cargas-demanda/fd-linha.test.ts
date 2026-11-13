@@ -1,10 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import { fdAquecimentoEletrodomesticos, fdEquipamentoEspecifico } from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/equatorial";
-import { fdAdministracaoEdificios } from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/neoenergia";
+import { fdAquecimento as fdAquecimentoCelesc, fdArCondicionado as fdArCelesc } from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/celesc";
+import { fdAparelhos as fdAparelhosCemig, fdFornosFogoes } from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/cemig";
+import { fdAquecimento as fdAquecimentoCopel, fdArCondicionado as fdArCopel, fdMotores as fdMotoresCopel } from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/copel";
+import {
+  fdAquecimentoEletrodomesticos,
+  fdArCondicionadoEdificio,
+  fdArCondicionadoResidencia,
+  fdEquipamentoEspecifico,
+  fdHidromassagem,
+} from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/equatorial";
+import {
+  fdAdministracaoEdificios,
+  fdAquecimento as fdAquecimentoNeo,
+  fdArCondicionado as fdArNeo,
+  fdFogao,
+  fdRecargaIndividual,
+} from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/neoenergia";
 
+import type { Concessionaria, LinhaCargaEstudo } from "./conteudo";
 import { linhasAdministracaoEdificios, novaLinhaCarga } from "./edicao-calculo";
-import { REGRA_EQT_AQUECIMENTO, fdEfetivoDaLinha, fdSugeridoDaLinha, regraVale, type ContextoFd } from "./fd-linha";
+import { REGRA_EQT_AQUECIMENTO, REGRA_NEO_ADM_ILUMINACAO, fdEfetivoDaLinha, fdSugeridoDaLinha, regraCabeNoTipo, regraVale, regrasOferecidas, type ContextoFd } from "./fd-linha";
 import { calcularLinha } from "./resultado";
 
 const neo: ContextoFd = { concessionaria: "neoenergia", escopoN: 1, fdAquecimento: null };
@@ -88,5 +104,79 @@ describe("linha sem regra", () => {
   it("não tem sugestão", () => {
     expect(fdSugeridoDaLinha(neo, novaLinhaCarga())).toBeNull();
     expect(fdEfetivoDaLinha(neo, novaLinhaCarga())).toEqual({ fd: null, ehSugerido: false });
+  });
+});
+
+// ─── Demais tabelas por nº de aparelhos (passo 1d da retomada) ─────────────────────────────────────────────────────
+
+const linhaDe = (extra: Partial<LinhaCargaEstudo>): LinhaCargaEstudo => ({ ...novaLinhaCarga(), ...extra });
+const ctxDe = (concessionaria: Concessionaria, extra: Partial<ContextoFd> = {}): ContextoFd => ({ concessionaria, escopoN: 1, fdAquecimento: null, ...extra });
+
+describe("regras por nº de aparelhos (o valor é o da biblioteca)", () => {
+  it("Celesc: aquecimento vale sozinho (única regra do tipo); ar-condicionado só depois de escolhido", () => {
+    const aq = linhaDe({ tipoCarga: "aquecimento", quantidade: 4 });
+    expect(fdSugeridoDaLinha(ctxDe("celesc"), aq)).toBe(fdAquecimentoCelesc(4).fd);
+    const ar = linhaDe({ tipoCarga: "ar_condicionado", quantidade: 6 });
+    expect(fdSugeridoDaLinha(ctxDe("celesc"), ar)).toBeNull();
+    expect(fdSugeridoDaLinha(ctxDe("celesc"), { ...ar, regraFd: "celesc-ar" })).toBe(fdArCelesc(false, 6).fd);
+    expect(fdSugeridoDaLinha(ctxDe("celesc"), { ...ar, regraFd: "celesc-ar-central" })).toBe(fdArCelesc(true, 1).fd);
+  });
+
+  it("o × N do escopo multiplica a contagem", () => {
+    const aq = linhaDe({ tipoCarga: "aquecimento", quantidade: 4 });
+    expect(fdSugeridoDaLinha(ctxDe("copel", { escopoN: 5 }), aq)).toBe(fdAquecimentoCopel(20).fd);
+  });
+
+  it("Copel: ar-condicionado por uso e motores pelo TOTAL de motores do cálculo", () => {
+    const ar = linhaDe({ tipoCarga: "ar_condicionado", quantidade: 3, regraFd: "copel-ar-comercial" });
+    expect(fdSugeridoDaLinha(ctxDe("copel"), ar)).toBe(fdArCopel("comercial", 3).fd);
+    const m1 = linhaDe({ tipoCarga: "motores", quantidade: 2 });
+    const m2 = linhaDe({ tipoCarga: "motores", quantidade: 4 });
+    expect(fdSugeridoDaLinha(ctxDe("copel", { linhas: [m1, m2] }), m1)).toBe(fdMotoresCopel(6).fd);
+    expect(fdSugeridoDaLinha(ctxDe("copel"), m1)).toBe(fdMotoresCopel(2).fd);
+  });
+
+  it("Neoenergia: aquecimento soma os aparelhos do cálculo que seguem a mesma tabela; o resto conta por linha", () => {
+    const a = linhaDe({ tipoCarga: "aquecimento", quantidade: 3, regraFd: "neo-aquecimento" });
+    const b = linhaDe({ tipoCarga: "aquecimento", quantidade: 5, regraFd: "neo-aquecimento" });
+    const fogao = linhaDe({ tipoCarga: "tomadas_uso_especifico", quantidade: 7, regraFd: "neo-fogao" });
+    const ctx = ctxDe("neoenergia", { linhas: [a, b, fogao] });
+    expect(fdSugeridoDaLinha(ctx, a)).toBe(fdAquecimentoNeo(8).fd);
+    expect(fdSugeridoDaLinha(ctx, fogao)).toBe(fdFogao(7).fd);
+    expect(fdSugeridoDaLinha(ctxDe("neoenergia"), linhaDe({ tipoCarga: "recarga", quantidade: 9 }))).toBe(fdRecargaIndividual(9).fd);
+    expect(fdSugeridoDaLinha(ctxDe("neoenergia"), linhaDe({ tipoCarga: "ar_condicionado", quantidade: 2, regraFd: "neo-ar-central" }))).toBe(fdArNeo("central", 1).fd);
+  });
+
+  it("Cemig: fogão e forno pela potência do aparelho (3,5 kW inclusive) e aparelhos pelo grupo", () => {
+    const f = (potenciaW: number | null) => linhaDe({ tipoCarga: "tomadas_uso_especifico", quantidade: 5, potenciaW, regraFd: "cemig-fogoes-fornos" });
+    expect(fdSugeridoDaLinha(ctxDe("cemig"), f(3500))).toBe(fdFornosFogoes("ate_3_5kw", 5).fd);
+    expect(fdSugeridoDaLinha(ctxDe("cemig"), f(3501))).toBe(fdFornosFogoes("superior_3_5kw", 5).fd);
+    expect(fdSugeridoDaLinha(ctxDe("cemig"), f(null))).toBeNull();
+    expect(fdSugeridoDaLinha(ctxDe("cemig"), linhaDe({ tipoCarga: "ar_condicionado", quantidade: 8, regraFd: "cemig-aparelhos" }))).toBe(fdAparelhosCemig(8).fd);
+  });
+
+  it("Equatorial: ar-condicionado e hidromassagem", () => {
+    const ar = (regraFd: string) => linhaDe({ tipoCarga: "ar_condicionado", quantidade: 10, regraFd });
+    expect(fdSugeridoDaLinha(ctxDe("equatorial"), ar("eqt-ar-edificio-comerciais"))).toBe(fdArCondicionadoEdificio("comerciais", 10).fd);
+    expect(fdSugeridoDaLinha(ctxDe("equatorial"), ar("eqt-ar-residencia"))).toBe(fdArCondicionadoResidencia(10).fd);
+    expect(fdSugeridoDaLinha(ctxDe("equatorial"), linhaDe({ tipoCarga: "outro", quantidade: 4, regraFd: "eqt-hidromassagem" }))).toBe(fdHidromassagem(4).fd);
+  });
+
+  it("regra de outra concessionária, de outro tipo ou sem quantidade não sugere", () => {
+    const ar = linhaDe({ tipoCarga: "ar_condicionado", quantidade: 6, regraFd: "celesc-ar" });
+    expect(fdSugeridoDaLinha(ctxDe("copel"), ar)).toBeNull();
+    expect(fdSugeridoDaLinha(ctxDe("celesc"), { ...ar, tipoCarga: "iluminacao" })).toBeNull();
+    expect(fdSugeridoDaLinha(ctxDe("celesc"), { ...ar, quantidade: null })).toBeNull();
+  });
+
+  it("a lista da tela traz as regras do tipo, sem as automáticas; trocar o tipo solta a regra que não cabe", () => {
+    expect(regrasOferecidas("celesc", "ar_condicionado").map((r) => r.id)).toEqual(["celesc-ar", "celesc-ar-central"]);
+    expect(regrasOferecidas("celesc", "aquecimento")).toEqual([]);
+    expect(regrasOferecidas("energisa", "ar_condicionado")).toEqual([]);
+    expect(regrasOferecidas(null, "aquecimento")).toEqual([]);
+    expect(regraCabeNoTipo("celesc-ar", "ar_condicionado")).toBe(true);
+    expect(regraCabeNoTipo("celesc-ar", "iluminacao")).toBe(false);
+    expect(regraCabeNoTipo(REGRA_NEO_ADM_ILUMINACAO, "tomadas_uso_geral")).toBe(true);
+    expect(regraCabeNoTipo(null, null)).toBe(true);
   });
 });

@@ -142,7 +142,7 @@ const somaOuNull = (vs: readonly (number | null)[]): number | null =>
 
 /** Cálculo de carga instalada: linhas, totais (passos 13 e 14) e o `CalculoNoNivel` para a composição. */
 export function calcularCalculoDeCargaInstalada(k: CalculoEstudo, concessionaria: Concessionaria | null = null): CalculoCalculado {
-  const ctx = { concessionaria, escopoN: k.escopo.quantidade, fdAquecimento: k.fdAquecimento };
+  const ctx = { concessionaria, escopoN: k.escopo.quantidade, fdAquecimento: k.fdAquecimento, linhas: k.linhas };
   const linhas = k.linhas.map((l) => calcularLinha(l, k.escopo.quantidade, fdEfetivoDaLinha(ctx, l).fd));
   const cargaKW = linhas.length ? somaOuNull(linhas.map((l) => l.cargaKW)) : 0;
   const cargaKVA = linhas.length ? somaOuNull(linhas.map((l) => l.cargaKVA)) : 0;

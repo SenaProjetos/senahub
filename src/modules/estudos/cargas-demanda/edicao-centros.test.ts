@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { itensDeCmd, itensDeMedidor } from "./acoes-centros";
 import { conteudoSchema, type ConteudoCargasDemanda } from "./conteudo";
-import { apartamentosDistribuidos, copiarCmd, definirEntrada, entradaDoAlvo, entradaEfetiva, mapCmd, novoCmd, novoMedidor, removerCmd } from "./edicao-centros";
+import { apartamentosDistribuidos, copiarCmd, definirEntrada, entradaDoAlvo, entradaEfetiva, mapCmd, novoCmd, novoMedidor, removerCmd, unidadesIndividuais } from "./edicao-centros";
 
 const valido = (c: ConteudoCargasDemanda) => conteudoSchema.safeParse(c);
 
@@ -76,6 +76,25 @@ describe("entradas", () => {
     c = definirEntrada(c, { nivel: "cpg" }, (e) => ({ ...e, material: "cobre" }));
     c = definirEntrada(c, { nivel: "cmd", cmdId: "c1" }, (e) => ({ ...e, material: "aluminio" }));
     expect(entradaEfetiva(c, { nivel: "cmd", cmdId: "c1" }).material).toBe("aluminio");
+  });
+});
+
+describe("unidade individual", () => {
+  it("só carga instalada sem papel conta; apartamentos e papéis do prédio ficam de fora", () => {
+    const c = base();
+    expect(unidadesIndividuais(c)).toHaveLength(0);
+    const com = conteudoSchema.parse({
+      ...c,
+      calculos: [...c.calculos, { id: "flat", nome: "Flat tipo A", metodo: "carga_instalada" }, { id: "novo", nome: "Sem método" }],
+    });
+    expect(unidadesIndividuais(com).map((k) => k.id)).toEqual(["flat"]);
+  });
+
+  it("a entrada do flat é gravada e validada pelo esquema", () => {
+    const c0 = conteudoSchema.parse({ ...base(), calculos: [...base().calculos, { id: "flat", nome: "Flat tipo A", metodo: "carga_instalada" }] });
+    const c = definirEntrada(c0, { nivel: "calculo", calculoId: "flat" }, (e) => ({ ...e, material: "cobre" }));
+    expect(entradaDoAlvo(c, { nivel: "calculo", calculoId: "flat" }).material).toBe("cobre");
+    expect(valido(c).success).toBe(true);
   });
 });
 

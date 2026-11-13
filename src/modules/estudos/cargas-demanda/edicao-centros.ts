@@ -82,6 +82,11 @@ export function entradaEfetiva(c: Pick<ConteudoCargasDemanda, "entradas">, alvo:
   return mesclada as EntradaEstudo;
 }
 
+/** Cálculos de unidade individual (flat, loja, casa): carga instalada SEM papel no prédio — não entram no CMD nem no CPG (spec §3.1, regra 6). */
+export function unidadesIndividuais(c: Pick<ConteudoCargasDemanda, "calculos">): ConteudoCargasDemanda["calculos"] {
+  return c.calculos.filter((k) => k.metodo === "carga_instalada" && k.papel == null);
+}
+
 /** Quantos apartamentos estão distribuídos nos CMDs, e quantos o cálculo tem no prédio. */
 export function apartamentosDistribuidos(c: Pick<ConteudoCargasDemanda, "centros" | "calculos">): { nosCmds: number; noPredio: number } {
   const nosCmds = c.centros.cmds.flatMap((m) => m.medidores).reduce((s, md) => s + (md.tipo === "residencial" ? md.quantidade : 0), 0);
