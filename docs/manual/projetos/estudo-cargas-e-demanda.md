@@ -54,12 +54,16 @@ três etapas; o número de cada uma vira um ✓ quando ela tem conteúdo.
    valor novo (ela nunca muda sozinha).
 2. Onde a concessionária tem tabela de FD por número de aparelhos, o FD sugerido aparece em azul; escolha a
    tabela em **Tabela do FD** quando houver mais de uma. Sem tabela, o FD é digitado.
-3. **Demanda por área útil:** os tipos de apartamento (nome, quantidade e área útil). Copel e Enel calculam só
+3. **Iluminação e tomadas por uso (degraus de carga):** em **Tabela do FD**, escolha a tabela de degraus e, logo
+   abaixo, o **Uso da edificação** (hotel, escritório, escola…). As linhas do cálculo com a mesma tabela e o mesmo uso
+   somam a carga (× N), que percorre os degraus da norma; cada linha recebe o FD equivalente, em azul. O relatório
+   mostra a conta degrau por degrau.
+4. **Demanda por área útil:** os tipos de apartamento (nome, quantidade e área útil). Copel e Enel calculam só
    pela carga instalada.
-4. **Papel na demanda do empreendimento** diz como o cálculo entra no total (condomínio, incêndio, cargas
+5. **Papel na demanda do empreendimento** diz como o cálculo entra no total (condomínio, incêndio, cargas
    especiais, lojas, recarga…). Cálculo sem papel é uma unidade individual: tem entrada própria na etapa 3, mas
    não entra no prédio.
-5. O **Resumo da demanda** mostra a composição do empreendimento e os **Avisos** (valor abaixo do critério da
+6. O **Resumo da demanda** mostra a composição do empreendimento e os **Avisos** (valor abaixo do critério da
    norma, valor fora da tabela, atendimento esperado: baixa ou média tensão).
 
 ### Etapa 3 — Centros e entradas

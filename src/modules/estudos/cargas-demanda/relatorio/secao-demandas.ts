@@ -4,7 +4,7 @@ import type { Mensagem } from "@/modules/ferramentas/calc/cargas-demanda/mensage
 import { TIPO_CARGA_ROTULO, type CalculoEstudo, type ConteudoCargasDemanda } from "../conteudo";
 import { fatorEmPercentual } from "../fator-escala";
 import { formatarNumeroBR } from "../numero-br";
-import { fdSugeridoComFonte, rotuloDaRegra } from "../fd-linha";
+import { degrausDaLinha, fdSugeridoComFonte, rotuloDaRegra } from "../fd-linha";
 import { avisosDeVinculo, totaisDoEscopo } from "../levantamento";
 import { calcularCalculoDeCargaInstalada, resumoDoEstudo } from "../resultado";
 import { type BlocoRel, type Celula, num, type TabelaRel } from "./tipos";
@@ -113,6 +113,36 @@ function tabelaDeCarga(c: ConteudoCargasDemanda, k: CalculoEstudo, avisos: Mensa
   };
 }
 
+/**
+ * Conta dos degraus de cada grupo do cálculo (linhas com a mesma regra e o mesmo uso): faixa, carga na faixa, FD e demanda, e
+ * o FD equivalente que as linhas adotam. Só os grupos cujo FD veio da tabela (alguma linha do grupo com o FD em branco).
+ */
+function tabelasDeDegraus(c: ConteudoCargasDemanda, k: CalculoEstudo): TabelaRel[] {
+  const ctx = { concessionaria: c.concessionaria, escopoN: k.escopo.quantidade, fdAquecimento: k.fdAquecimento, linhas: k.linhas };
+  const vistos = new Set<string>();
+  const out: TabelaRel[] = [];
+  for (const l of k.linhas) {
+    if (l.fd != null) continue;
+    const d = degrausDaLinha(ctx, l);
+    if (!d) continue;
+    const chave = `${d.regra}|${d.uso ?? ""}`;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    const u = d.unidade;
+    const nomes = k.linhas.filter((x) => d.linhas.includes(x.id)).map((x) => x.descricao.trim() || "—").join(", ");
+    out.push({
+      titulo: `FD em degraus${d.uso ? ` — ${d.uso}` : ""} (linhas: ${nomes})`,
+      colunas: ["Faixa", `Carga na faixa (${u})`, "FD", `Demanda (${u})`],
+      linhas: [
+        ...d.partes.map((p): Celula[] => [`${formatarNumeroBR(p.de, 2, 2)} a ${formatarNumeroBR(p.ate, 2, 2)} ${u}`, num(p.carga), num(p.fd), num(p.demanda)]),
+        [`Total (FD equivalente ${formatarNumeroBR(d.fdEquivalente ?? 0, 4, 4)})`, num(d.carga), num(d.fdEquivalente, 4), num(d.demanda)],
+      ],
+      ultimaEhTotal: true,
+    });
+  }
+  return out;
+}
+
 const PAPEL: Record<string, string> = {
   condominio: "condomínio", incendio: "incêndio", especial: "cargas especiais", comercial: "cargas comerciais (lojas)",
   recarga: "recarga de veículos elétricos", duplex: "duplex (aquecimento e ar-condicionado)", apartamentos: "apartamentos por carga instalada",
@@ -157,7 +187,10 @@ export function secaoDemandas(c: ConteudoCargasDemanda, levantamentoNome: (id: s
     const escopo = k.escopo.levantamentoIds.map(levantamentoNome).filter(Boolean);
     blocos.push({ tipo: "texto", texto: `Papel: ${papel}. ${escopo.length > 0 ? `Levantamentos do escopo: ${escopo.join(", ")}; quantidade (× N): ${k.escopo.quantidade}.` : "Sem levantamento no escopo: cargas digitadas."}` });
     if (k.linhas.length === 0) blocos.push({ tipo: "texto", texto: "O cálculo não tem linhas de carga." });
-    else blocos.push({ tipo: "tabela", tabela: tabelaDeCarga(c, k, avisos, fontes) });
+    else {
+      blocos.push({ tipo: "tabela", tabela: tabelaDeCarga(c, k, avisos, fontes) });
+      for (const t of tabelasDeDegraus(c, k)) blocos.push({ tipo: "tabela", tabela: t });
+    }
   }
 
   // Composição do empreendimento (todos os cálculos com papel + apartamentos).

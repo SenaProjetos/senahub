@@ -45,7 +45,7 @@ import {
   trazerDoLevantamento,
 } from "@/modules/estudos/cargas-demanda/edicao-calculo";
 import { mover, novoId } from "@/modules/estudos/cargas-demanda/edicao";
-import { GRUPOS_EQUIPAMENTO_EQUATORIAL, fdEfetivoDaLinha, regraCabeNoTipo, regraDaLinha, regrasOferecidas, REGRA_EQT_AQUECIMENTO } from "@/modules/estudos/cargas-demanda/fd-linha";
+import { escolhaDaRegra, fdEfetivoDaLinha, regraCabeNoTipo, regraDaLinha, regrasOferecidas, REGRA_EQT_AQUECIMENTO } from "@/modules/estudos/cargas-demanda/fd-linha";
 import { estadoDoVinculo, totaisDoEscopo } from "@/modules/estudos/cargas-demanda/levantamento";
 import { formatarNumeroBR } from "@/modules/estudos/cargas-demanda/numero-br";
 import { calcularCalculoDeCargaInstalada } from "@/modules/estudos/cargas-demanda/resultado";
@@ -350,7 +350,8 @@ function LinhaDeCarga({
       })
     : [];
   const nome = l.descricao || `linha ${indice + 1}`;
-  const equipamento = regraDaLinha(conteudo.concessionaria, l) === REGRA_EQT_AQUECIMENTO && k.fdAquecimento === "equipamento";
+  // Escolha que a regra pede: o uso da tabela de degraus ou o tipo de equipamento da Equatorial (T6).
+  const escolha = escolhaDaRegra(ctx, l);
   const numero = (rotulo: string, valor: number | null, casas: number, set: (v: number | null) => void, extra?: { tom?: "sugerido" | "digitado"; placeholder?: string }) => (
     <CampoNumero rotulo={`${rotulo} de ${nome}`} valor={valor} casas={casas} maximoCasas={Math.max(casas, 4)} tom={extra?.tom ?? "digitado"} placeholder={extra?.placeholder ?? "digite"} desabilitado={!podeEditar} onChange={set} className="min-w-16" />
   );
@@ -396,7 +397,7 @@ function LinhaDeCarga({
           </span>
         )}
         {regras.length > 0 && (
-          <Select value={l.regraFd && regras.some((x) => x.id === l.regraFd) ? l.regraFd : SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => ({ ...x, regraFd: v && v !== SEM ? v : null }))}>
+          <Select value={l.regraFd && regras.some((x) => x.id === l.regraFd) ? l.regraFd : SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => { const regraFd = v && v !== SEM ? v : null; return regraFd === x.regraFd ? x : { ...x, regraFd, subtipo: null }; })}>
             <SelectTrigger className="mt-1 w-full" aria-label={`Tabela do FD de ${nome}`}>
               <SelectValue />
             </SelectTrigger>
@@ -410,14 +411,14 @@ function LinhaDeCarga({
             </SelectContent>
           </Select>
         )}
-        {equipamento && (
-          <Select value={l.subtipo ?? SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => ({ ...x, subtipo: v && v !== SEM ? v : null }))}>
-            <SelectTrigger className="mt-1 w-full" aria-label={`Tipo de equipamento de ${nome}`}>
+        {escolha && (
+          <Select value={l.subtipo && escolha.opcoes.some((g) => g.valor === l.subtipo) ? l.subtipo : SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => ({ ...x, subtipo: v && v !== SEM ? v : null }))}>
+            <SelectTrigger className="mt-1 w-full max-w-64" aria-label={`${escolha.rotulo} de ${nome}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={SEM}>Tipo de equipamento…</SelectItem>
-              {GRUPOS_EQUIPAMENTO_EQUATORIAL.map((g) => (
+              <SelectItem value={SEM}>{escolha.rotulo}…</SelectItem>
+              {escolha.opcoes.map((g) => (
                 <SelectItem key={g.valor} value={g.valor}>
                   {g.rotulo}
                 </SelectItem>
@@ -427,7 +428,7 @@ function LinhaDeCarga({
         )}
       </td>
       <td className="px-1 py-1.5">
-        <Select value={l.tipoCarga ?? SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => { const tipoCarga = v && v !== SEM ? (v as TipoCarga) : null; return { ...x, tipoCarga, regraFd: regraCabeNoTipo(x.regraFd, tipoCarga) ? x.regraFd : null }; })}>
+        <Select value={l.tipoCarga ?? SEM} disabled={!podeEditar} onValueChange={(v) => onLinha((x) => { const tipoCarga = v && v !== SEM ? (v as TipoCarga) : null; return regraCabeNoTipo(x.regraFd, tipoCarga) ? { ...x, tipoCarga } : { ...x, tipoCarga, regraFd: null, subtipo: null }; })}>
           <SelectTrigger className="w-44 max-w-44" aria-label={`Tipo de carga de ${nome}`}>
             <SelectValue />
           </SelectTrigger>

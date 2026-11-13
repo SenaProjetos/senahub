@@ -413,3 +413,19 @@ do critério de lux por catálogo de luminárias (como no protótipo).
   dona: "<título> (<edição>) vale a partir de <data>. A calculadora não usa valores desta norma; confira se o estudo é afetado." Depois da
   data: "está em vigor desde <data>". Tudo do `FonteNorma` (`avisosDeNormasFuturas`, `relatorio/fontes.ts`); nada resume o conteúdo da norma.
 - **Cosmético:** no PDF (renderizador comum) um subtítulo pode ficar sozinho no pé da página ("Total do levantamento").
+
+## Passo 2 da Fase 4 — decisões do dono (2026-11-13)
+
+- **Word e Excel:** conferidos no Office pelo dono, aprovados.
+- **FD em degraus por uso (feito):** regras novas em `fd-linha.ts` — `neo-ilum-tug-uso` (T22), `celesc-ilum-tug-uso` (T05),
+  `cemig-ilum-tug-uso` (T11, degraus em kVA), `copel-ilum-uso` (T12, só iluminação), `eqt-ilum-tug-uso` (T4) e `eqt-ilum-tug-predio` (T5,
+  prédios residenciais, sem uso). A linha escolhe a tabela em "Tabela do FD" e o uso em "Uso da edificação" (`subtipo`; `escolhaDaRegra`
+  generaliza o seletor que antes era só do equipamento da Equatorial T6). A carga do grupo (mesma regra e mesmo uso no cálculo, × N) percorre
+  os degraus (`degrausDaLinha` → `aplicarProgressivo` do motor); cada linha adota o FD equivalente; o relatório traz a tabela "FD em degraus".
+  Trocar a tabela do FD ou o tipo de carga limpa o uso. Testes em `fd-degraus.test.ts` (contas à mão sobre o texto literal das tabelas: não
+  há caso na planilha).
+- **FD por faixa (Q48), leitura dos degraus (Q49) e motores em cv / "o maior e os demais" (Q50):** perguntas ao engenheiro, com exemplos
+  numéricos da biblioteca e o mock da linha de motor, em https://claude.ai/artifact/3GHEpsyBd1YJzTiAXq9Rx9 (respostas gravadas no
+  `ArtifactData`, coleção `respostas`, docs `q48`, `q49`, `q50`). Compartilhar com o engenheiro com acesso de edição.
+- **PDF:** fica como está (dono).
+- **Deploy:** depois destas correções (dono).
