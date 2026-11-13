@@ -1,6 +1,6 @@
-import { calcularLux } from "@/modules/ferramentas/calc/cargas-demanda/lux";
 import { MSG, type Mensagem } from "@/modules/ferramentas/calc/cargas-demanda/mensagens";
 
+import { iluminacaoDoAmbienteCompleta, pontoDoAmbiente } from "./ambiente";
 import {
   ambientesDoLevantamento,
   type AmbienteEstudo,
@@ -8,6 +8,7 @@ import {
   type ConteudoCargasDemanda,
   type CriterioIluminacao,
   type LinhaCargaEstudo,
+  type LuminariaEstudo,
   type OrigemVinculo,
   type TipoCarga,
   type ValoresDaLinha,
@@ -80,73 +81,61 @@ function somar(parcelas: readonly Parcela[]): Total {
   return { itens: parcelas.length, quantidade, va, w, fp: va != null && w != null && va > 0 ? w / va : null };
 }
 
-/** Iluminação de UM ambiente, em VA e W, pelo critério do estudo. `null` = faltam dados (ou critério não escolhido). */
+/**
+ * Iluminação de UM ambiente, em VA e W, pelo critério do estudo. `null` = faltam dados (ou critério não escolhido).
+ * Na habitação, o campo sem valor adota o sugerido pela área (`ambiente.ts`); o valor digitado vale sempre.
+ */
 export function iluminacaoDoAmbiente(
   a: AmbienteEstudo,
   criterio: CriterioIluminacao | null,
   peDireitoM: number | null,
+  catalogo: readonly LuminariaEstudo[] = [],
 ): { va: number; w: number } | null {
-  const il = a.iluminacao;
-  if (criterio === "habitacao") {
-    if (il.vaAdotado == null || il.fp == null) return null;
-    return { va: il.vaAdotado, w: il.vaAdotado * il.fp };
-  }
-  if (criterio === "lux") {
-    const { areaM2, perimetroM, alturaPlanoM } = a;
-    const { emLux, fu, fm, luminaria } = il;
-    if (
-      peDireitoM == null || areaM2 == null || perimetroM == null || alturaPlanoM == null || emLux == null || fu == null ||
-      fm == null || luminaria.fluxoLm == null || luminaria.potenciaW == null || luminaria.fp == null
-    ) {
-      return null;
-    }
-    const r = calcularLux({
-      areaM2,
-      perimetroM,
-      peDireitoM,
-      alturaPlanoM,
-      emLux,
-      fu,
-      fm,
-      luminaria: { fluxoLm: luminaria.fluxoLm, potenciaW: luminaria.potenciaW, fp: luminaria.fp },
-      quantidade: il.quantidade ?? undefined,
-    });
-    return { va: r.potenciaVA, w: r.potenciaW };
-  }
-  return null;
+  const r = iluminacaoDoAmbienteCompleta(a, criterio, peDireitoM, catalogo);
+  return r.va != null && r.w != null ? { va: r.va, w: r.w } : null;
 }
 
 /** Passo 11 — totais dos levantamentos do escopo (sem o × N). */
 export function totaisDoEscopo(
-  c: Pick<ConteudoCargasDemanda, "levantamentos" | "criterioIluminacao" | "peDireitoM">,
+  c: Pick<ConteudoCargasDemanda, "levantamentos" | "criterioIluminacao" | "peDireitoM"> & { luminarias?: readonly LuminariaEstudo[] },
   levantamentoIds: readonly string[],
 ): TotaisDoEscopo {
-  const ambientes = c.levantamentos.filter((l) => levantamentoIds.includes(l.id)).flatMap(ambientesDoLevantamento);
+  return totaisDosAmbientes(c.levantamentos.filter((l) => levantamentoIds.includes(l.id)).flatMap(ambientesDoLevantamento), c);
+}
+
+/** Totais de uma lista de ambientes (um pavimento, um levantamento ou o escopo inteiro): a mesma regra para a tela e o cálculo. */
+export function totaisDosAmbientes(
+  ambientes: readonly AmbienteEstudo[],
+  c: Pick<ConteudoCargasDemanda, "criterioIluminacao" | "peDireitoM"> & { luminarias?: readonly LuminariaEstudo[] },
+): TotaisDoEscopo {
 
   const iluminacao = somar(
     ambientes.map((a): Parcela => {
-      const i = iluminacaoDoAmbiente(a, c.criterioIluminacao, c.peDireitoM);
+      const i = iluminacaoDoAmbiente(a, c.criterioIluminacao, c.peDireitoM, c.luminarias ?? []);
       return { quantidade: 1, va: i?.va ?? null, w: i?.w ?? null };
     }),
   );
   // A iluminação entra na linha como UM item (spec §3.1 regra 1: "iluminação total (W, VA e FP)").
   if (iluminacao.itens > 0) iluminacao.quantidade = 1;
 
-  const pontos = ambientes.flatMap((a) => a.pontos);
-  const parcela = (p: (typeof pontos)[number]): Parcela => {
-    const va = p.quantidade != null && p.vaPorPonto != null ? p.quantidade * p.vaPorPonto : null;
-    return { quantidade: p.quantidade, va, w: va != null && p.fp != null ? va * p.fp : null };
+  // Cada ponto leva o ambiente junto: na habitação o primeiro TUG adota o sugerido da norma quando a quantidade ou a
+  // potência estão em branco.
+  const pontos = ambientes.flatMap((a) => a.pontos.map((p) => ({ p, a })));
+  const parcela = ({ p, a }: (typeof pontos)[number]): Parcela => {
+    const e = pontoDoAmbiente(a, p, c.criterioIluminacao);
+    return { quantidade: e.quantidade, va: e.vaTotal, w: e.w };
   };
 
-  const tug = somar(pontos.filter((p) => p.tipo === "tug").map(parcela));
+  const tug = somar(pontos.filter(({ p }) => p.tipo === "tug").map(parcela));
 
   const grupos = new Map<string, { tipo: "tue" | "outro"; chave: string; descricao: string; parcelas: Parcela[] }>();
-  for (const p of pontos) {
+  for (const item of pontos) {
+    const p = item.p;
     if (p.tipo === "tug") continue;
     const chave = chaveDoEquipamento(p.descricao);
     const id = `${p.tipo}:${chave}`;
     const g = grupos.get(id) ?? { tipo: p.tipo, chave, descricao: p.descricao.trim(), parcelas: [] };
-    g.parcelas.push(parcela(p));
+    g.parcelas.push(parcela(item));
     grupos.set(id, g);
   }
   const equipamentos = [...grupos.values()].map(
@@ -211,6 +200,8 @@ export function trazerLinha(totais: TotaisDoEscopo, origem: OrigemVinculo, id: s
     fp: v.fp,
     fd: null,
     vinculo: { origem, trazido: { ...v } },
+    regraFd: null,
+    subtipo: null,
   };
 }
 

@@ -37,6 +37,7 @@ export const MAX_TIPOS_APARTAMENTO = 40;
 export const MAX_CMDS = 60;
 export const MAX_MEDIDORES_POR_CMD = 60;
 export const MAX_ENTRADAS = 150;
+export const MAX_LUMINARIAS = 40;
 
 // ─── Listas fechadas ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,10 @@ export const TIPO_CARGA_ROTULO: Record<TipoCarga, string> = {
 export const METODOS_CALCULO = ["carga_instalada", "area_util", "composicao"] as const;
 export type MetodoCalculo = (typeof METODOS_CALCULO)[number];
 
+/** De onde a Equatorial tira o FD dos aparelhos de aquecimento (Q33): pela potência do aparelho ou pelo tipo de equipamento. */
+export const CRITERIOS_FD_AQUECIMENTO = ["potencia", "equipamento"] as const;
+export type CriterioFdAquecimento = (typeof CRITERIOS_FD_AQUECIMENTO)[number];
+
 export const PAPEIS_CALCULO = ["condominio", "incendio", "especial", "comercial", "recarga", "duplex", "apartamentos"] as const;
 
 export const TIPOS_MEDIDOR_SEM_APARTAMENTO = ["condominio", "incendio", "outro"] as const;
@@ -164,6 +169,21 @@ export const pontoSchema = z.object({
   fp: fpOpcional(),
 });
 
+/**
+ * Luminária do catálogo do estudo ("Luminárias deste estudo", L1, L2…). O ambiente escolhe uma por `luminariaId`; mudar
+ * o fluxo ou a potência aqui vale para todos os ambientes que a usam.
+ */
+export const luminariaSchema = z.object({
+  id: idSchema,
+  /** "L1", "L2"…: o rótulo curto que a tela mostra na escolha do ambiente. */
+  codigo: nome("à luminária", 20),
+  descricao: texto(120, "A descrição").default(""),
+  fluxoLm: positivo(MSG_POSITIVO),
+  potenciaW: positivo(MSG_POSITIVO),
+  fp: fpOpcional(),
+});
+export type LuminariaEstudo = z.infer<typeof luminariaSchema>;
+
 /** Iluminação do ambiente. Habitação: VA adotado + FP. Lux: Em, Fu, Fm, luminária e quantidade (o resto é calculado). */
 export const iluminacaoSchema = z
   .object({
@@ -175,13 +195,16 @@ export const iluminacaoSchema = z
     emLux: positivo(MSG_POSITIVO),
     fu: numero().gt(0).max(1).nullable().default(null),
     fm: numero().gt(0).max(1).nullable().default(null),
+    /** Lux: luminária do catálogo do estudo. Quando preenchida, vale o fluxo, a potência e o FP dela. */
+    luminariaId: idSchema.nullable().default(null),
+    /** Lux: luminária digitada direto no ambiente (documento sem catálogo). Só vale quando `luminariaId` é `null`. */
     luminaria: z
       .object({ fluxoLm: positivo(MSG_POSITIVO), potenciaW: positivo(MSG_POSITIVO), fp: fpOpcional() })
       .default({ fluxoLm: null, potenciaW: null, fp: null }),
     /** Lux: quantidade escolhida; `null` = adota a sugerida. */
     quantidade: inteiroNaoNegativo(MSG_QTD),
   })
-  .default({ vaAdotado: null, fp: null, emLux: null, fu: null, fm: null, luminaria: { fluxoLm: null, potenciaW: null, fp: null }, quantidade: null });
+  .default({ vaAdotado: null, fp: null, emLux: null, fu: null, fm: null, luminariaId: null, luminaria: { fluxoLm: null, potenciaW: null, fp: null }, quantidade: null });
 
 export const ambienteSchema = z.object({
   id: idSchema,
@@ -209,6 +232,9 @@ export const pavimentoSchema = z.object({
 export const levantamentoSchema = z.object({
   id: idSchema,
   nome: nome("ao levantamento", 120),
+  /** FP da iluminação e das tomadas de uso geral do levantamento: o que um ambiente novo herda e o que "aplicar a todos" grava. */
+  fpIluminacao: fpOpcional(),
+  fpTomadas: fpOpcional(),
   pavimentos: z.array(pavimentoSchema).max(MAX_PAVIMENTOS).default([]),
 });
 
@@ -251,6 +277,13 @@ export const linhaCargaSchema = z.object({
   fd: numero().gt(0, MSG_POSITIVO).nullable().default(null),
   /** `null` = linha digitada pelo projetista. */
   vinculo: vinculoSchema.nullable().default(null),
+  /**
+   * Regra de FD sugerido que a linha segue (chave de `fd-linha.ts`). Com o `fd` em branco a linha adota o sugerido da
+   * regra; digitado, o `fd` vale. `null` = sem sugestão (o projetista digita).
+   */
+  regraFd: z.string().max(40).nullable().default(null),
+  /** Escolha que a regra de FD pede (ex.: o grupo do equipamento na Equatorial). */
+  subtipo: z.string().max(60).nullable().default(null),
 });
 export type LinhaCargaEstudo = z.infer<typeof linhaCargaSchema>;
 
@@ -261,6 +294,8 @@ export const tipoApartamentoSchema = z.object({
   areaUtilM2: positivo(MSG.areaInvalida().texto),
   /** Só muda a conta na Equatorial e na Energisa. */
   duplex: z.boolean().default(false),
+  /** Levantamento que descreve UMA unidade deste tipo: dá a carga instalada da unidade (Q28) e o escopo do apart-hotel. */
+  levantamentoId: idSchema.nullable().default(null),
 });
 
 export const escopoSchema = z
@@ -283,6 +318,8 @@ export const calculoSchema = z.object({
   papel: z.enum(PAPEIS_CALCULO).nullable().default(null),
   escopo: escopoSchema,
   linhas: z.array(linhaCargaSchema).max(MAX_LINHAS_POR_CALCULO).default([]),
+  /** Equatorial, aquecimento: de onde vem o FD sugerido (por cálculo, resposta do dono ao mock). `null` = pela potência. */
+  fdAquecimento: z.enum(CRITERIOS_FD_AQUECIMENTO).nullable().default(null),
   /** Método da área útil: tipos de apartamento do cálculo, com a quantidade e a área de cada um. */
   apartamentos: z.array(tipoApartamentoSchema).max(MAX_TIPOS_APARTAMENTO).default([]),
   ajustes: ajustesDoNivelSchema,
@@ -390,6 +427,8 @@ export const conteudoSchema = z
     criterioIluminacao: z.enum(CRITERIOS_ILUMINACAO).nullable().default(null),
     /** Pé-direito único no estudo, editável (m). */
     peDireitoM: positivo(MSG_POSITIVO),
+    /** Catálogo de luminárias do estudo (critério de lux). */
+    luminarias: z.array(luminariaSchema).max(MAX_LUMINARIAS).default([]),
     levantamentos: z.array(levantamentoSchema).max(MAX_LEVANTAMENTOS).default([]),
     calculos: z.array(calculoSchema).max(MAX_CALCULOS).default([]),
     centros: centrosSchema,
@@ -425,6 +464,7 @@ export const conteudoSchema = z
       for (const t of k.apartamentos) registrar(t.id);
     }
     for (const m of c.centros.cmds) registrar(m.id);
+    for (const lm of c.luminarias) registrar(lm.id);
     if (repetido) erro(["levantamentos"], "Há identificadores repetidos no estudo.");
     if (ambientes > MAX_AMBIENTES) erro(["levantamentos"], `O estudo comporta no máximo ${MAX_AMBIENTES} ambientes.`);
 
@@ -433,8 +473,20 @@ export const conteudoSchema = z
     const calculoIds = new Set(c.calculos.map((k) => k.id));
     const tipoIds = new Set(c.calculos.flatMap((k) => k.apartamentos.map((t) => t.id)));
     const cmdIds = new Set(c.centros.cmds.map((m) => m.id));
+    const luminariaIds = new Set(c.luminarias.map((lm) => lm.id));
+    c.levantamentos.forEach((l, i) =>
+      l.pavimentos.forEach((p, j) =>
+        p.ambientes.forEach((a, k) => {
+          const id = a.iluminacao.luminariaId;
+          if (id != null && !luminariaIds.has(id)) erro(["levantamentos", i, "pavimentos", j, "ambientes", k], "O ambiente cita uma luminária que não existe mais.");
+        }),
+      ),
+    );
 
     c.calculos.forEach((k, i) => {
+      k.apartamentos.forEach((t, j) => {
+        if (t.levantamentoId != null && !levantamentoIds.has(t.levantamentoId)) erro(["calculos", i, "apartamentos", j], "O tipo de apartamento cita um levantamento que não existe mais.");
+      });
       const vistos = new Set<string>();
       for (const id of k.escopo.levantamentoIds) {
         if (!levantamentoIds.has(id)) erro(["calculos", i, "escopo"], "O escopo cita um levantamento que não existe mais.");
