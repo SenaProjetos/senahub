@@ -4,9 +4,10 @@ import { montarMemoria } from "@/modules/ferramentas/service";
 import type { MemoriaDoc } from "@/modules/ferramentas/memoria/types";
 
 import { entradaDoMotor } from "./calculo";
-import { FERRAMENTA_DO_ESTUDO } from "./acesso";
+import { FERRAMENTA_DO_ESTUDO, TIPO_ESTUDO_CARGAS } from "./acesso";
 import { lerConteudo } from "./conteudo";
 import { exigirAcesso } from "./service";
+import { tipoDaLinha } from "./tipos";
 
 /**
  * Memória do estudo para os renderizadores PDF/Word/Excel da calculadora: o MESMO documento da
@@ -18,6 +19,7 @@ export async function memoriaDoEstudo(user: SessionUser, estudoId: string): Prom
   const estudo = await prisma.estudoProjeto.findUnique({
     where: { id: estudoId },
     select: {
+      tipo: true,
       nome: true,
       projetoId: true,
       conteudo: true,
@@ -27,7 +29,9 @@ export async function memoriaDoEstudo(user: SessionUser, estudoId: string): Prom
     },
   });
   if (!estudo) return null;
-  await exigirAcesso(user, estudo.projetoId, false);
+  // A memória do estudo de cargas e demanda é outro relatório (Fase 3): este só monta a do estudo por ambiente.
+  if (tipoDaLinha(estudo.tipo) !== TIPO_ESTUDO_CARGAS) return null;
+  await exigirAcesso(user, estudo.projetoId, false, TIPO_ESTUDO_CARGAS);
   const conteudo = lerConteudo(estudo.conteudo);
   if (!conteudo || conteudo.ambientes.every((a) => a.cargas.length === 0)) return null;
 

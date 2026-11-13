@@ -4,19 +4,43 @@ import { prisma } from "@/lib/prisma";
 import { can, podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import type { SessionUser } from "@/lib/session";
 
-import { estudosLiberados, podeEditarEstudos, situacaoDoMotor } from "./acesso";
+import {
+  TIPO_ESTUDO_CARGAS_DEMANDA,
+  TIPOS_DE_ESTUDO,
+  estudosLiberados,
+  liberacaoDaAba,
+  podeEditarEstudos,
+  situacaoDoMotor,
+  type TipoDeEstudo,
+} from "./acesso";
 import { calcularEstudo } from "./calculo";
+import {
+  ambientesDoLevantamento,
+  lerConteudo as lerConteudoCargasDemanda,
+  type ConteudoCargasDemanda,
+} from "./cargas-demanda/conteudo";
 import { lerConteudo, totalDeCargas, type ConteudoEstudo } from "./conteudo";
+import { tipoDaLinha } from "./tipos";
 
 /**
  * Leituras do Estudos. O acesso ao PROJETO é conferido por quem chama (`projetoVisivel` na página ou
  * `exigirAcesso` do service); aqui o recorte é sempre `projetoId` + o id do estudo.
  */
 
-/** A aba está liberada para esta pessoa? (motor em validação: só quem gere as ferramentas). */
-export async function liberacaoDosEstudos(user: SessionUser) {
+/**
+ * O estudo está liberado para esta pessoa? (motor em validação: só quem gere as ferramentas.) Com `tipo`, vale a
+ * validação do motor daquele tipo; sem ele, é a aba inteira (abre se algum tipo estiver liberado).
+ */
+export async function liberacaoDosEstudos(user: SessionUser, tipo?: TipoDeEstudo) {
   const podeGerir = await can(user, "ferramentas", "gerir");
-  return estudosLiberados(situacaoDoMotor(), podeGerir);
+  if (tipo) return estudosLiberados(situacaoDoMotor(tipo), podeGerir);
+  return liberacaoDaAba(TIPOS_DE_ESTUDO.map((t) => situacaoDoMotor(t)), podeGerir);
+}
+
+/** Tipos de estudo que esta pessoa pode criar e abrir agora (cada um segue a validação do próprio motor). */
+export async function tiposLiberadosParaPessoa(user: SessionUser): Promise<TipoDeEstudo[]> {
+  const podeGerir = await can(user, "ferramentas", "gerir");
+  return TIPOS_DE_ESTUDO.filter((t) => estudosLiberados(situacaoDoMotor(t), podeGerir).liberado);
 }
 
 /** Quem escreve nos estudos do projeto: atua em disciplina alheia OU é responsável por alguma delas. */
@@ -30,6 +54,7 @@ export async function podeEditarEstudosDoProjeto(user: SessionUser, projetoId: s
 
 export type EstudoResumo = {
   id: string;
+  tipo: TipoDeEstudo;
   nome: string;
   versao: number;
   atualizadoEm: Date;
@@ -38,6 +63,9 @@ export type EstudoResumo = {
   cargas: number | null;
   ambientes: number | null;
   demandaKw: number | null;
+  /** Só no estudo de cargas e demanda: quantos levantamentos e cálculos ele tem (`null` = ilegível). */
+  levantamentos?: number | null;
+  calculos?: number | null;
 };
 
 /** Quantos estudos o projeto tem (o editor só precisa do número, sem calcular cada um). */
@@ -45,13 +73,26 @@ export async function contarEstudosDoProjeto(projetoId: string): Promise<number>
   return prisma.estudoProjeto.count({ where: { projetoId } });
 }
 
-export async function estudosDoProjeto(projetoId: string): Promise<EstudoResumo[]> {
+export async function estudosDoProjeto(projetoId: string, tipos: readonly TipoDeEstudo[] = TIPOS_DE_ESTUDO): Promise<EstudoResumo[]> {
   const linhas = await prisma.estudoProjeto.findMany({
-    where: { projetoId },
+    where: { projetoId, tipo: { in: [...tipos] } },
     orderBy: { createdAt: "asc" },
-    select: { id: true, nome: true, versao: true, updatedAt: true, conteudo: true, atualizadoPor: { select: { name: true } } },
+    select: { id: true, tipo: true, nome: true, versao: true, updatedAt: true, conteudo: true, atualizadoPor: { select: { name: true } } },
   });
   return linhas.map((l) => {
+    const base = { id: l.id, nome: l.nome, versao: l.versao, atualizadoEm: l.updatedAt, atualizadoPor: l.atualizadoPor.name };
+    if (tipoDaLinha(l.tipo) === TIPO_ESTUDO_CARGAS_DEMANDA) {
+      const c = lerConteudoCargasDemanda(l.conteudo);
+      return {
+        ...base,
+        tipo: TIPO_ESTUDO_CARGAS_DEMANDA,
+        cargas: c ? c.calculos.reduce((s, k) => s + k.linhas.length, 0) : null,
+        ambientes: c ? c.levantamentos.reduce((s, lev) => s + ambientesDoLevantamento(lev).length, 0) : null,
+        demandaKw: null,
+        levantamentos: c ? c.levantamentos.length : null,
+        calculos: c ? c.calculos.length : null,
+      } satisfies EstudoResumo;
+    }
     const c = lerConteudo(l.conteudo);
     // Um estudo que o motor recuse não derruba a lista inteira: fica sem a demanda.
     let demanda: number | null = null;
@@ -61,19 +102,16 @@ export async function estudosDoProjeto(projetoId: string): Promise<EstudoResumo[
       demanda = null;
     }
     return {
-      id: l.id,
-      nome: l.nome,
-      versao: l.versao,
-      atualizadoEm: l.updatedAt,
-      atualizadoPor: l.atualizadoPor.name,
+      ...base,
+      tipo: "cargas_eletricas",
       cargas: c ? totalDeCargas(c) : null,
       ambientes: c ? c.ambientes.length : null,
       demandaKw: demanda == null ? null : demanda / 1000,
-    };
+    } satisfies EstudoResumo;
   });
 }
 
-export type EstudoCompleto = {
+type EstudoBase = {
   id: string;
   projetoId: string;
   nome: string;
@@ -82,9 +120,12 @@ export type EstudoCompleto = {
   atualizadoEm: Date;
   criadoPor: string;
   atualizadoPor: string;
-  /** `null` quando o conteúdo gravado não passa mais no esquema (a tela avisa em vez de quebrar). */
-  conteudo: ConteudoEstudo | null;
 };
+
+/** `conteudo` é `null` quando o documento gravado não passa mais no esquema (a tela avisa em vez de quebrar). */
+export type EstudoCompleto =
+  | (EstudoBase & { tipo: "cargas_eletricas"; conteudo: ConteudoEstudo | null })
+  | (EstudoBase & { tipo: "cargas_demanda"; conteudo: ConteudoCargasDemanda | null });
 
 export async function estudoDoProjeto(projetoId: string, estudoId: string): Promise<EstudoCompleto | null> {
   const l = await prisma.estudoProjeto.findFirst({
@@ -92,6 +133,7 @@ export async function estudoDoProjeto(projetoId: string, estudoId: string): Prom
     select: {
       id: true,
       projetoId: true,
+      tipo: true,
       nome: true,
       versao: true,
       conteudo: true,
@@ -102,7 +144,7 @@ export async function estudoDoProjeto(projetoId: string, estudoId: string): Prom
     },
   });
   if (!l) return null;
-  return {
+  const base: EstudoBase = {
     id: l.id,
     projetoId: l.projetoId,
     nome: l.nome,
@@ -111,8 +153,11 @@ export async function estudoDoProjeto(projetoId: string, estudoId: string): Prom
     atualizadoEm: l.updatedAt,
     criadoPor: l.criadoPor.name,
     atualizadoPor: l.atualizadoPor.name,
-    conteudo: lerConteudo(l.conteudo),
   };
+  if (tipoDaLinha(l.tipo) === TIPO_ESTUDO_CARGAS_DEMANDA) {
+    return { ...base, tipo: TIPO_ESTUDO_CARGAS_DEMANDA, conteudo: lerConteudoCargasDemanda(l.conteudo) };
+  }
+  return { ...base, tipo: "cargas_eletricas", conteudo: lerConteudo(l.conteudo) };
 }
 
 export const ROTULO_ACAO_ESTUDO: Record<string, string> = {

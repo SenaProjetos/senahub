@@ -51,7 +51,7 @@ export const salvarCalculo = defineAction(
   },
   async (i, { user }) => {
     const meta = getFerramenta(i.ferramenta);
-    if (!meta) throw new ActionError("Ferramenta desconhecida.");
+    if (!meta || meta.soEstudo) throw new ActionError("Ferramenta desconhecida.");
     if (!ferramentaVisivel(meta, await can(user, "ferramentas", "gerir"))) {
       throw new ActionError("Esta calculadora ainda não foi validada por um engenheiro.");
     }

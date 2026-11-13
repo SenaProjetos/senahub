@@ -67,6 +67,12 @@ export type FerramentaMeta = {
    */
   exigeValidacao?: boolean;
   validacao?: ValidacaoFerramenta;
+  /**
+   * Motor que só roda dentro do módulo Estudos (não é calculadora avulsa): fica fora da galeria, a rota
+   * `/ferramentas/[key]` responde 404 e o cálculo avulso o recusa. A entrada existe para a trava de validação
+   * (`exigeValidacao`/`validacao`) do estudo daquele tipo.
+   */
+  soEstudo?: boolean;
   icon: LucideIcon;
 };
 
@@ -317,6 +323,18 @@ export const FERRAMENTAS: FerramentaMeta[] = [
     exigeValidacao: true,
     icon: PlugZap,
   },
+  {
+    key: "cargas-demanda",
+    nome: "Cargas e demanda",
+    descricao: "Demanda de edificações de múltiplas unidades por concessionária, a partir do levantamento de cargas, com entrada por CMD e CPG.",
+    disciplina: "Elétrico",
+    tipo: "completa",
+    norma: "NBR 5410",
+    exportaveis: ["docx", "xlsx", "pdf"],
+    exigeValidacao: true,
+    soEstudo: true,
+    icon: PlugZap,
+  },
 ];
 
 export function getFerramenta(key: string): FerramentaMeta | undefined {
@@ -331,6 +349,7 @@ export function versaoCalcDe(key: string): number {
 export function porDisciplina(): Record<Disciplina, FerramentaMeta[]> {
   const map = {} as Record<Disciplina, FerramentaMeta[]>;
   for (const f of FERRAMENTAS) {
+    if (f.soEstudo) continue; // só roda no módulo Estudos: não entra na galeria
     if (!map[f.disciplina]) map[f.disciplina] = [];
     map[f.disciplina].push(f);
   }

@@ -98,7 +98,7 @@ async function main() {
     // 1) Criar
     const c = await criarEstudo(admin, { projetoId: projeto.id, nome: `${tag} Casa` });
     const criado = await estudoDoProjeto(projeto.id, c.id);
-    check("criar: estudo nasce vazio, versão 1, tipo de cargas", !!criado && criado.versao === 1 && criado.conteudo?.ambientes.length === 0);
+    check("criar: estudo nasce vazio, versão 1, tipo de cargas", !!criado && criado.versao === 1 && criado.tipo === "cargas_eletricas" && criado.conteudo?.ambientes.length === 0);
 
     // 2) Salvar e reler
     const t0 = (await prisma.estudoProjeto.findUniqueOrThrow({ where: { id: c.id }, select: { updatedAt: true } })).updatedAt;
@@ -110,7 +110,7 @@ async function main() {
     check("salvar: nome e conteúdo relidos iguais ao enviado", relido?.nome === `${tag} Casa 2` && JSON.stringify(relido?.conteudo) === JSON.stringify(conteudo));
     const t1 = (await prisma.estudoProjeto.findUniqueOrThrow({ where: { id: c.id }, select: { updatedAt: true } })).updatedAt;
     check("salvar: updatedAt avança (updateMany grava @updatedAt)", t1.getTime() > t0.getTime());
-    const calc = relido?.conteudo ? calcularEstudo(relido.conteudo) : null;
+    const calc = relido?.tipo === "cargas_eletricas" && relido.conteudo ? calcularEstudo(relido.conteudo) : null;
     // 40 + 100 (2 × 100 × 0,5) + 5500 W demandados
     check("conta do conteúdo gravado: demanda 5640 W", Math.abs((calc?.total?.pDemandadaW ?? 0) - 5640) < 1e-6, `${calc?.total?.pDemandadaW}`);
 

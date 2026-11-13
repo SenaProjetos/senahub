@@ -29,6 +29,8 @@ export function itensDeEstudo(ctx: {
   totalEstudos: number;
   /** Há alterações na tela que ainda não foram salvas (só o editor sabe). */
   alterado?: boolean;
+  /** Tipo do estudo; sem informar é o legado. A memória do estudo de cargas e demanda ainda não existe (Fase 3). */
+  tipo?: string;
 }): AcaoItem[] {
   const itens: AcaoItem[] = [
     { tipo: "link", id: "abrir-estudo", rotulo: "Abrir estudo", icone: ExternalLink, href: hrefDoEstudo(ctx.projetoId, ctx.estudoId) },
@@ -42,12 +44,14 @@ export function itensDeEstudo(ctx: {
       desabilitado: ctx.totalEstudos >= MAX_ESTUDOS_POR_PROJETO ? MOTIVO_LIMITE_ESTUDOS : ctx.alterado ? MOTIVO_SALVE_ANTES : undefined,
     });
   }
-  itens.push(
-    { tipo: "separador", id: "sep-memoria" },
-    { tipo: "link", id: "memoria-pdf", rotulo: "Memória em PDF", icone: FileText, href: hrefDaMemoria(ctx.estudoId, "pdf") },
-    { tipo: "link", id: "memoria-docx", rotulo: "Memória em Word", icone: FileDown, href: hrefDaMemoria(ctx.estudoId, "docx") },
-    { tipo: "link", id: "memoria-xlsx", rotulo: "Memória em Excel", icone: FileSpreadsheet, href: hrefDaMemoria(ctx.estudoId, "xlsx") },
-  );
+  if (ctx.tipo === undefined || ctx.tipo === "cargas_eletricas") {
+    itens.push(
+      { tipo: "separador", id: "sep-memoria" },
+      { tipo: "link", id: "memoria-pdf", rotulo: "Memória em PDF", icone: FileText, href: hrefDaMemoria(ctx.estudoId, "pdf") },
+      { tipo: "link", id: "memoria-docx", rotulo: "Memória em Word", icone: FileDown, href: hrefDaMemoria(ctx.estudoId, "docx") },
+      { tipo: "link", id: "memoria-xlsx", rotulo: "Memória em Excel", icone: FileSpreadsheet, href: hrefDaMemoria(ctx.estudoId, "xlsx") },
+    );
+  }
   if (ctx.podeEditar) {
     itens.push(
       { tipo: "separador", id: "sep-excluir" },
