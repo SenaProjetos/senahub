@@ -58,7 +58,7 @@ const ROTULO_MEDIDOR = { residencial: "Residencial", condominio: "Condomínio", 
 const USOS = { residencial: "Residencial", comercial: "Comercial", misto: "Misto" } as const;
 
 /** Etapa 3 — centros de medição (CMD), entrada geral (CPG), entradas, responsável técnico e relatório. */
-export function EtapaCentros({ conteudo, atualizar, podeEditar, onCompletarCalculo }: PropsEtapa & { onCompletarCalculo: () => void }) {
+export function EtapaCentros({ conteudo, atualizar, podeEditar, onCompletarCalculo, estudoId, alterado }: PropsEtapa & { onCompletarCalculo: () => void; estudoId: string; alterado: boolean }) {
   const { predio, resumo } = useMemo(() => calcularPredio(conteudo), [conteudo]);
   const dist = apartamentosDistribuidos(conteudo);
   const cmds = conteudo.centros.cmds;
@@ -113,10 +113,21 @@ export function EtapaCentros({ conteudo, atualizar, podeEditar, onCompletarCalcu
             <h3 className="text-sm font-bold">Relatório</h3>
             <p className="mb-2 text-sm text-muted-foreground">Traz fórmulas, tabelas, a fonte de cada valor e o responsável técnico.</p>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" disabled title="O relatório entra na próxima fase.">Baixar Excel</Button>
-              <Button type="button" size="sm" disabled title="O relatório entra na próxima fase.">Baixar Word</Button>
+              {(["xlsx", "docx", "pdf"] as const).map((f) => (
+                <Button
+                  key={f}
+                  type="button"
+                  variant={f === "docx" ? "default" : "outline"}
+                  size="sm"
+                  disabled={alterado}
+                  title={alterado ? "Salve o estudo antes de baixar o relatório." : undefined}
+                  render={alterado ? undefined : <a href={`/api/estudos/${estudoId}/memoria?formato=${f}`} download />}
+                >
+                  {f === "xlsx" ? "Baixar Excel" : f === "docx" ? "Baixar Word" : "Baixar PDF"}
+                </Button>
+              ))}
             </div>
-            <p className="mt-2 text-xs text-muted-foreground">O relatório ainda não está disponível neste estudo.</p>
+            <p className="mt-2 text-xs text-muted-foreground">{alterado ? "Há alterações não salvas: o relatório sai com o que está salvo, por isso salve antes." : "O relatório sai com o que está salvo no estudo."}</p>
           </div>
         </div>
 

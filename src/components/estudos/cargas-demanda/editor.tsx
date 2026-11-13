@@ -245,7 +245,7 @@ export function EstudoCargasDemandaEditor({ projetoId, estudo, conteudoInicial, 
 
       {etapa === 1 && <EtapaLevantamento conteudo={conteudo} atualizar={atualizar} podeEditar={podeEditar} onContinuar={() => setEtapa(2)} />}
       {etapa === 2 && <EtapaDemandas conteudo={conteudo} atualizar={atualizar} podeEditar={podeEditar} onContinuar={() => setEtapa(3)} />}
-      {etapa === 3 && <EtapaCentros conteudo={conteudo} atualizar={atualizar} podeEditar={podeEditar} onCompletarCalculo={() => setEtapa(2)} />}
+      {etapa === 3 && <EtapaCentros conteudo={conteudo} atualizar={atualizar} podeEditar={podeEditar} onCompletarCalculo={() => setEtapa(2)} estudoId={estudo.id} alterado={alterado} />}
 
       <CollapsibleSection titulo="Alterações" descricao="Quem salvou este estudo e quando (últimas 20)." resumo={<span className="text-xs text-muted-foreground">{alteracoes.length}</span>}>
         {alteracoes.length === 0 ? (

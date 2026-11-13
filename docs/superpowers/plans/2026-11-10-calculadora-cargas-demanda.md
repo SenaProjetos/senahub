@@ -367,3 +367,20 @@ do critério de lux por catálogo de luminárias (como no protótipo).
   menu aberto sem sobreposição; tema claro e escuro conferidos.
 - **Auditoria:** nível 3. vitest 676 arquivos / 7907 testes, tsc e eslint (estudos) limpos, `smoke:estudos` ok. Prints e LEIAME em
   `prints-auditoria/2026-11-13_1135_cargas-demanda/` (ignorada pelo git). Subagentes revisores não acionados (limite de um subagente da sessão).
+
+## Fase 3 — relatório (2026-11-13, sem commit até o OK do dono)
+
+- **Modelo neutro** (`modules/estudos/cargas-demanda/relatorio/`): `tipos.ts` (células `{n, c}`: número e casas), `montar.ts` (`montarRelatorio`: 7 seções da spec §7),
+  `secao-levantamento.ts` (3), `secao-demandas.ts` (4), `secao-centros.ts` (5), `fontes.ts` (normas e edições, lidas dos `FonteNorma` da biblioteca; só as CITADAS),
+  `formato.ts` (texto pt-BR, `paraMemoriaDoc`, nome do arquivo). A fonte (norma, edição, tabela, item) aparece só nas seções 2 e 7; a tela não mudou.
+- **Saídas:** PDF = `paraMemoriaDoc` → `renderMemoriaHtml` + `htmlParaPdf` existentes; Word = `render-docx.ts` (compacto: A4, 1,5 cm, 8–9 pt, tabelas cinza, `cantSplit`, cabeçalho
+  repetido, rodapé "Página X de Y"); Excel = `render-xlsx.ts` (uma aba por etapa: Resumo, Levantamento, Demandas, Centros e entradas, Fontes; números numéricos; paisagem).
+- **Rota** `/api/estudos/[id]/memoria?formato=pdf|docx|xlsx` despacha por tipo (`memoriaDoEstudo` devolve `ExportacaoDoEstudo`); etapa 3 tem os três botões (desabilitados com
+  alterações não salvas).
+- **Notas fixas:** Q29 (confira na norma se exige alta tensão, sem valor), limite em kW comparado direto com kVA, divergências por concessionária (Enel 0018 × 0280; Cemig T12
+  linha 217 via `NOTA_T12_RELATORIO`; Equatorial T6 × T7), marca "Dados não conferidos por responsável técnico" sem declaração ou CREA.
+- **FD com fonte:** `fd-linha.ts` agora devolve `{fd, referencia}` (`fdSugeridoComFonte`), para a seção 7 citar a tabela de cada FD sugerido.
+- **Verificação:** vitest 678 arquivos / 7922 testes, tsc e eslint limpos, `smoke:estudos` ok (inclui o relatório de um estudo vazio). Prints e arquivos gerados em
+  `prints-auditoria/2026-11-13_1135_cargas-demanda/`. Word e Excel só lidos por código (não abertos no Office).
+- **Fora desta rodada / a decidir:** o Word usa `Calibri`; a coluna "Un." (cv) do exemplo não existe (a potência é em kW); hipóteses da seção 2 são as de §8 resumidas; o relatório
+  não traz memória de fórmulas passo a passo do levantamento (K, Φ do critério de lux) além das colunas da tabela.

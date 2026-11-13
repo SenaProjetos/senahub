@@ -3,11 +3,21 @@ import type { SessionUser } from "@/lib/session";
 import { montarMemoria } from "@/modules/ferramentas/service";
 import type { MemoriaDoc } from "@/modules/ferramentas/memoria/types";
 
+import { diaDeSaoPaulo } from "@/lib/data";
+
 import { entradaDoMotor } from "./calculo";
-import { FERRAMENTA_DO_ESTUDO, TIPO_ESTUDO_CARGAS } from "./acesso";
+import { FERRAMENTA_DO_ESTUDO, TIPO_ESTUDO_CARGAS, TIPO_ESTUDO_CARGAS_DEMANDA } from "./acesso";
+import { lerConteudo as lerConteudoCargasDemanda } from "./cargas-demanda/conteudo";
+import { montarRelatorio } from "./cargas-demanda/relatorio/montar";
+import type { RelatorioCargas } from "./cargas-demanda/relatorio/tipos";
 import { lerConteudo } from "./conteudo";
 import { exigirAcesso } from "./service";
 import { tipoDaLinha } from "./tipos";
+
+/** O que a rota exporta: a memória do estudo por ambiente (legado) ou o relatório do estudo de cargas e demanda. */
+export type ExportacaoDoEstudo =
+  | { tipo: typeof TIPO_ESTUDO_CARGAS; doc: MemoriaDoc; nome: string }
+  | { tipo: typeof TIPO_ESTUDO_CARGAS_DEMANDA; relatorio: RelatorioCargas; nome: string };
 
 /**
  * Memória do estudo para os renderizadores PDF/Word/Excel da calculadora: o MESMO documento da
@@ -15,7 +25,7 @@ import { tipoDaLinha } from "./tipos";
  * dos fatores de demanda e as observações. Sem subtotal por ambiente nesta versão. Lança `ActionError`
  * se a pessoa não pode ver; `null` se o estudo não existe ou o conteúdo gravado está ilegível.
  */
-export async function memoriaDoEstudo(user: SessionUser, estudoId: string): Promise<{ doc: MemoriaDoc; nome: string } | null> {
+export async function memoriaDoEstudo(user: SessionUser, estudoId: string): Promise<ExportacaoDoEstudo | null> {
   const estudo = await prisma.estudoProjeto.findUnique({
     where: { id: estudoId },
     select: {
@@ -29,8 +39,20 @@ export async function memoriaDoEstudo(user: SessionUser, estudoId: string): Prom
     },
   });
   if (!estudo) return null;
-  // A memória do estudo de cargas e demanda é outro relatório (Fase 3): este só monta a do estudo por ambiente.
-  if (tipoDaLinha(estudo.tipo) !== TIPO_ESTUDO_CARGAS) return null;
+  const tipo = tipoDaLinha(estudo.tipo);
+  if (tipo === TIPO_ESTUDO_CARGAS_DEMANDA) {
+    await exigirAcesso(user, estudo.projetoId, false, TIPO_ESTUDO_CARGAS_DEMANDA);
+    const doc = lerConteudoCargasDemanda(estudo.conteudo);
+    if (!doc) return null;
+    const relatorio = montarRelatorio(doc, {
+      nomeEstudo: estudo.nome,
+      obra: `${estudo.projeto.codigo} — ${estudo.projeto.nome}`,
+      cliente: estudo.projeto.cliente.nome,
+      local: estudo.projeto.endereco ?? undefined,
+      emissao: diaDeSaoPaulo(),
+    });
+    return { tipo, relatorio, nome: estudo.nome };
+  }
   await exigirAcesso(user, estudo.projetoId, false, TIPO_ESTUDO_CARGAS);
   const conteudo = lerConteudo(estudo.conteudo);
   if (!conteudo || conteudo.ambientes.every((a) => a.cargas.length === 0)) return null;
@@ -49,5 +71,5 @@ export async function memoriaDoEstudo(user: SessionUser, estudoId: string): Prom
     ...(conteudo.observacoes ? [`Observações: ${conteudo.observacoes}`] : []),
   ];
   doc.secoes.push({ titulo: "Origem dos fatores e observações do estudo", paragrafos });
-  return { doc, nome: estudo.nome };
+  return { tipo: TIPO_ESTUDO_CARGAS, doc, nome: estudo.nome };
 }

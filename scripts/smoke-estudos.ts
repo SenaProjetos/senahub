@@ -144,11 +144,17 @@ async function main() {
     // 8) Memória exportável
     const mem = await memoriaDoEstudo(admin, c.id);
     const emValidacao = situacaoDoMotor() === "em_validacao";
-    check("memória: montada, com a seção da fonte dos fatores", !!mem && mem.doc.secoes.some((x) => x.titulo.startsWith("Origem dos fatores")));
-    check("memória: selo de validação segue o registro do motor", (mem?.doc.subtitulo ?? "").includes("EM VALIDAÇÃO") === emValidacao);
+    check("memória: montada, com a seção da fonte dos fatores", !!mem && mem.tipo === "cargas_eletricas" && mem.doc.secoes.some((x) => x.titulo.startsWith("Origem dos fatores")));
+    check("memória: selo de validação segue o registro do motor", ((mem?.tipo === "cargas_eletricas" ? mem.doc.subtitulo : "") ?? "").includes("EM VALIDAÇÃO") === emValidacao);
     const vazio = await criarEstudo(admin, { projetoId: projeto.id, nome: `${tag} vazio` });
     check("memória: estudo sem cargas não exporta", (await memoriaDoEstudo(admin, vazio.id)) === null);
     await excluirEstudo(admin, { id: vazio.id });
+
+    // 8b) Relatório do estudo de cargas e demanda: mesmo com o estudo vazio, sai com as 7 seções da spec §7.
+    const cd = await criarEstudo(admin, { projetoId: projeto.id, nome: `${tag} cargas e demanda`, tipo: "cargas_demanda" });
+    const rel = await memoriaDoEstudo(admin, cd.id);
+    check("relatório de cargas e demanda: 7 seções e marca de não conferido", rel?.tipo === "cargas_demanda" && rel.relatorio.secoes.length === 7 && rel.relatorio.naoConferido);
+    await excluirEstudo(admin, { id: cd.id });
 
     // 9) Limite por projeto
     const atuais = await prisma.estudoProjeto.count({ where: { projetoId: projeto.id } });

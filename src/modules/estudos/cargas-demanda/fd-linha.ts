@@ -49,6 +49,9 @@ export const GRUPOS_EQUIPAMENTO_EQUATORIAL: readonly { valor: GrupoEquipamentoEq
   { valor: "secadora_lava_louca_forno_microondas", rotulo: "Secadora, lava-louças ou forno de micro-ondas" },
 ];
 
+/** FD sugerido e a tabela de onde veio ("Quadro 35, DIS-NOR-053 Rev. 06…"). */
+export type FdComFonte = { fd: number | null; referencia: string };
+
 type LinhaDaRegra = Pick<LinhaCargaEstudo, "regraFd" | "tipoCarga" | "subtipo" | "quantidade" | "potenciaW">;
 
 export type ContextoFd = {
@@ -71,16 +74,18 @@ type RegraFd = {
   /** Sem contagem de aparelhos (a regra é um valor fixo). */
   semContagem?: boolean;
   contagem?: "linha" | "calculo";
-  /** FD pelo nº de aparelhos; `null` = sem sugestão (falta dado ou fora da tabela). */
-  fd: (aparelhos: number, l: LinhaDaRegra, ctx: ContextoFd) => number | null;
+  /** FD pelo nº de aparelhos, com a referência da tabela (só o relatório a mostra); `fd` nulo = sem sugestão (falta dado ou fora da tabela). */
+  fd: (aparelhos: number, l: LinhaDaRegra, ctx: ContextoFd) => FdComFonte;
 };
+
+const SEM_FD: FdComFonte = { fd: null, referencia: "" };
 
 const ATE_3_5 = (l: LinhaDaRegra) => (l.potenciaW == null || !(l.potenciaW > 0) ? null : l.potenciaW <= LIMITE_POTENCIA_APARELHO_W);
 
 const REGRAS_LISTA: readonly RegraFd[] = [
   // Neoenergia — administração de edifícios (Q36): duas linhas, por botão.
-  { id: REGRA_NEO_ADM_ILUMINACAO, concessionaria: "neoenergia", tipos: null, rotulo: "Administração de edifícios — iluminação", semContagem: true, fd: () => fdAdministracaoEdificios().iluminacao },
-  { id: REGRA_NEO_ADM_TOMADAS, concessionaria: "neoenergia", tipos: null, rotulo: "Administração de edifícios — tomadas", semContagem: true, fd: () => fdAdministracaoEdificios().tomadas },
+  { id: REGRA_NEO_ADM_ILUMINACAO, concessionaria: "neoenergia", tipos: null, rotulo: "Administração de edifícios — iluminação", semContagem: true, fd: () => { const a = fdAdministracaoEdificios(); return { fd: a.iluminacao, referencia: a.referencia }; } },
+  { id: REGRA_NEO_ADM_TOMADAS, concessionaria: "neoenergia", tipos: null, rotulo: "Administração de edifícios — tomadas", semContagem: true, fd: () => { const a = fdAdministracaoEdificios(); return { fd: a.tomadas, referencia: a.referencia }; } },
 
   // Equatorial — aquecimento: T7 (potência) × T6 (equipamento), à escolha do cálculo (Q33).
   {
@@ -92,39 +97,39 @@ const REGRAS_LISTA: readonly RegraFd[] = [
     fd: (n, l, ctx) => {
       if ((ctx.fdAquecimento ?? "potencia") === "equipamento") {
         const grupo = GRUPOS_EQUIPAMENTO_EQUATORIAL.find((g) => g.valor === l.subtipo)?.valor ?? null;
-        return grupo ? fdEquipamentoEspecifico(grupo, n).fd : null;
+        return grupo ? fdEquipamentoEspecifico(grupo, n) : SEM_FD;
       }
       const ate = ATE_3_5(l);
-      return ate == null ? null : fdAquecimentoEletrodomesticos(ate ? "ate_3_5_kW" : "maior_que_3_5_kW", n).fd;
+      return ate == null ? SEM_FD : fdAquecimentoEletrodomesticos(ate ? "ate_3_5_kW" : "maior_que_3_5_kW", n);
     },
   },
-  { id: "eqt-ar-edificio-comerciais", concessionaria: "equatorial", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado de edifício comercial", fd: (n) => fdArCondicionadoEdificio("comerciais", n).fd },
-  { id: "eqt-ar-edificio-residenciais", concessionaria: "equatorial", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado de edifício residencial", fd: (n) => fdArCondicionadoEdificio("residenciais", n).fd },
-  { id: "eqt-ar-residencia", concessionaria: "equatorial", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado de residência individual", fd: (n) => fdArCondicionadoResidencia(n).fd },
-  { id: "eqt-hidromassagem", concessionaria: "equatorial", tipos: ["outro"], rotulo: "Motor-bomba de hidromassagem", fd: (n) => fdHidromassagem(n).fd },
+  { id: "eqt-ar-edificio-comerciais", concessionaria: "equatorial", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado de edifício comercial", fd: (n) => fdArCondicionadoEdificio("comerciais", n) },
+  { id: "eqt-ar-edificio-residenciais", concessionaria: "equatorial", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado de edifício residencial", fd: (n) => fdArCondicionadoEdificio("residenciais", n) },
+  { id: "eqt-ar-residencia", concessionaria: "equatorial", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado de residência individual", fd: (n) => fdArCondicionadoResidencia(n) },
+  { id: "eqt-hidromassagem", concessionaria: "equatorial", tipos: ["outro"], rotulo: "Motor-bomba de hidromassagem", fd: (n) => fdHidromassagem(n) },
 
   // Neoenergia
-  { id: "neo-aquecimento", concessionaria: "neoenergia", tipos: ["aquecimento"], rotulo: "Chuveiros, torneiras, aquecedores de passagem e ferros", contagem: "calculo", fd: (n) => fdAquecimentoNeo(n).fd },
-  { id: "neo-aquecedor-central", concessionaria: "neoenergia", tipos: ["aquecimento"], rotulo: "Aquecedor central ou de acumulação (boiler)", fd: (n) => fdAquecedorCentral(n).fd },
-  { id: "neo-secadora-forno-lavadoras", concessionaria: "neoenergia", tipos: ["aquecimento", "tomadas_uso_especifico"], rotulo: "Secadora, forno, lavadora, lava-louças e micro-ondas", fd: (n) => fdSecadoraFornoLavadoras(n).fd },
-  { id: "neo-fogao", concessionaria: "neoenergia", tipos: ["aquecimento", "tomadas_uso_especifico"], rotulo: "Fogão elétrico", fd: (n) => fdFogao(n).fd },
-  { id: "neo-ar-comercial", concessionaria: "neoenergia", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado comercial", fd: (n) => fdArNeo("comercial", n).fd },
-  { id: "neo-ar-residencial", concessionaria: "neoenergia", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado residencial", fd: (n) => fdArNeo("residencial", n).fd },
-  { id: "neo-ar-central", concessionaria: "neoenergia", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado — unidade central", semContagem: true, fd: () => fdArNeo("central", 1).fd },
-  { id: "neo-recarga", concessionaria: "neoenergia", tipos: ["recarga"], rotulo: "Estação de recarga individual", automatica: true, fd: (n) => fdRecargaIndividual(n).fd },
-  { id: "neo-bombas-hidromassagem", concessionaria: "neoenergia", tipos: ["outro"], rotulo: "Bombas e hidromassagem", fd: (n) => fdBombasHidromassagem(n).fd },
+  { id: "neo-aquecimento", concessionaria: "neoenergia", tipos: ["aquecimento"], rotulo: "Chuveiros, torneiras, aquecedores de passagem e ferros", contagem: "calculo", fd: (n) => fdAquecimentoNeo(n) },
+  { id: "neo-aquecedor-central", concessionaria: "neoenergia", tipos: ["aquecimento"], rotulo: "Aquecedor central ou de acumulação (boiler)", fd: (n) => fdAquecedorCentral(n) },
+  { id: "neo-secadora-forno-lavadoras", concessionaria: "neoenergia", tipos: ["aquecimento", "tomadas_uso_especifico"], rotulo: "Secadora, forno, lavadora, lava-louças e micro-ondas", fd: (n) => fdSecadoraFornoLavadoras(n) },
+  { id: "neo-fogao", concessionaria: "neoenergia", tipos: ["aquecimento", "tomadas_uso_especifico"], rotulo: "Fogão elétrico", fd: (n) => fdFogao(n) },
+  { id: "neo-ar-comercial", concessionaria: "neoenergia", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado comercial", fd: (n) => fdArNeo("comercial", n) },
+  { id: "neo-ar-residencial", concessionaria: "neoenergia", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado residencial", fd: (n) => fdArNeo("residencial", n) },
+  { id: "neo-ar-central", concessionaria: "neoenergia", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado — unidade central", semContagem: true, fd: () => fdArNeo("central", 1) },
+  { id: "neo-recarga", concessionaria: "neoenergia", tipos: ["recarga"], rotulo: "Estação de recarga individual", automatica: true, fd: (n) => fdRecargaIndividual(n) },
+  { id: "neo-bombas-hidromassagem", concessionaria: "neoenergia", tipos: ["outro"], rotulo: "Bombas e hidromassagem", fd: (n) => fdBombasHidromassagem(n) },
 
   // Celesc
-  { id: "celesc-aquecimento", concessionaria: "celesc", tipos: ["aquecimento"], rotulo: "Aparelhos de aquecimento (cada tipo)", automatica: true, fd: (n) => fdAquecimentoCelesc(n).fd },
-  { id: "celesc-ar", concessionaria: "celesc", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado", fd: (n) => fdArCelesc(false, n).fd },
-  { id: "celesc-ar-central", concessionaria: "celesc", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado — unidade central, órgão público ou única empresa", semContagem: true, fd: () => fdArCelesc(true, 1).fd },
+  { id: "celesc-aquecimento", concessionaria: "celesc", tipos: ["aquecimento"], rotulo: "Aparelhos de aquecimento (cada tipo)", automatica: true, fd: (n) => fdAquecimentoCelesc(n) },
+  { id: "celesc-ar", concessionaria: "celesc", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado", fd: (n) => fdArCelesc(false, n) },
+  { id: "celesc-ar-central", concessionaria: "celesc", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado — unidade central, órgão público ou única empresa", semContagem: true, fd: () => fdArCelesc(true, 1) },
 
   // Copel
-  { id: "copel-aquecimento", concessionaria: "copel", tipos: ["aquecimento"], rotulo: "Chuveiros, torneiras, aquecedores e ferros (cada tipo)", automatica: true, fd: (n) => fdAquecimentoCopel(n).fd },
-  { id: "copel-ar-comercial", concessionaria: "copel", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado tipo janela comercial", fd: (n) => fdArCopel("comercial", n).fd },
-  { id: "copel-ar-residencial", concessionaria: "copel", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado de unidade residencial", semContagem: true, fd: () => fdArCopel("residencial", 1).fd },
-  { id: "copel-ar-central", concessionaria: "copel", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado — unidade central", semContagem: true, fd: () => fdArCopel("central", 1).fd },
-  { id: "copel-motores", concessionaria: "copel", tipos: ["motores"], rotulo: "Motores (pelo total de motores)", automatica: true, contagem: "calculo", fd: (n) => fdMotoresCopel(n).fd },
+  { id: "copel-aquecimento", concessionaria: "copel", tipos: ["aquecimento"], rotulo: "Chuveiros, torneiras, aquecedores e ferros (cada tipo)", automatica: true, fd: (n) => fdAquecimentoCopel(n) },
+  { id: "copel-ar-comercial", concessionaria: "copel", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado tipo janela comercial", fd: (n) => fdArCopel("comercial", n) },
+  { id: "copel-ar-residencial", concessionaria: "copel", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado de unidade residencial", semContagem: true, fd: () => fdArCopel("residencial", 1) },
+  { id: "copel-ar-central", concessionaria: "copel", tipos: ["ar_condicionado"], rotulo: "Ar-condicionado — unidade central", semContagem: true, fd: () => fdArCopel("central", 1) },
+  { id: "copel-motores", concessionaria: "copel", tipos: ["motores"], rotulo: "Motores (pelo total de motores)", automatica: true, contagem: "calculo", fd: (n) => fdMotoresCopel(n) },
 
   // Cemig
   {
@@ -134,10 +139,10 @@ const REGRAS_LISTA: readonly RegraFd[] = [
     rotulo: "Fornos e fogões elétricos",
     fd: (n, l) => {
       const ate = ATE_3_5(l);
-      return ate == null ? null : fdFornosFogoes(ate ? "ate_3_5kw" : "superior_3_5kw", n).fd;
+      return ate == null ? SEM_FD : fdFornosFogoes(ate ? "ate_3_5kw" : "superior_3_5kw", n);
     },
   },
-  { id: "cemig-aparelhos", concessionaria: "cemig", tipos: ["aquecimento", "ar_condicionado", "tomadas_uso_especifico"], rotulo: "Aparelhos eletrodomésticos, de aquecimento, de refrigeração e ar-condicionado", fd: (n) => fdAparelhosCemig(n).fd },
+  { id: "cemig-aparelhos", concessionaria: "cemig", tipos: ["aquecimento", "ar_condicionado", "tomadas_uso_especifico"], rotulo: "Aparelhos eletrodomésticos, de aquecimento, de refrigeração e ar-condicionado", fd: (n) => fdAparelhosCemig(n) },
 ];
 
 const POR_ID = new Map(REGRAS_LISTA.map((r) => [r.id, r]));
@@ -181,14 +186,25 @@ function aparelhosDaLinha(r: RegraFd, ctx: ContextoFd, l: LinhaDaRegra): number 
   return Math.round(soma * ctx.escopoN);
 }
 
-/** FD que a regra da linha sugere; `null` = sem regra, regra de outra concessionária ou de outro tipo, ou falta dado. */
-export function fdSugeridoDaLinha(ctx: ContextoFd, l: LinhaDaRegra): number | null {
+/** FD e fonte que a regra da linha sugere; `null` = sem regra, regra de outra concessionária ou de outro tipo, ou falta dado. */
+export function fdSugeridoComFonte(ctx: ContextoFd, l: LinhaDaRegra): (FdComFonte & { regra: string }) | null {
   const id = regraDaLinha(ctx.concessionaria, l);
   if (!regraVale(id, ctx.concessionaria, l.tipoCarga)) return null;
   const r = POR_ID.get(id as string) as RegraFd;
-  if (r.semContagem) return r.fd(0, l, ctx);
-  const n = aparelhosDaLinha(r, ctx, l);
-  return n == null ? null : r.fd(n, l, ctx);
+  const n = r.semContagem ? 0 : aparelhosDaLinha(r, ctx, l);
+  if (n == null) return null;
+  const v = r.fd(n, l, ctx);
+  return v.fd == null ? null : { ...v, regra: r.id };
+}
+
+/** FD que a regra da linha sugere (só o número). */
+export function fdSugeridoDaLinha(ctx: ContextoFd, l: LinhaDaRegra): number | null {
+  return fdSugeridoComFonte(ctx, l)?.fd ?? null;
+}
+
+/** Rótulo da regra, para o relatório. */
+export function rotuloDaRegra(id: string): string | null {
+  return POR_ID.get(id)?.rotulo ?? null;
 }
 
 /** O FD que vale na linha: o digitado, ou (em branco) o sugerido da regra. */

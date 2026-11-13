@@ -4,13 +4,9 @@ import { TriangleAlert } from "lucide-react";
 
 import type { FatorDoMetodo, PassoDoMetodo, ResultadoAreaUtil } from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/tipos";
 
-import { CampoNumero, Rotulo } from "./campos";
+import { fatorEmPercentual } from "@/modules/estudos/cargas-demanda/fator-escala";
 
-/**
- * Fatores que o mock aprovado mostra em porcentagem (Neoenergia, fator de coincidência: 87,20 e não 0,872). A conta e o
- * documento guardam a fração; só a tela multiplica por 100.
- */
-const EM_PERCENTUAL = new Set(["neoenergia:fc"]);
+import { CampoNumero, Rotulo } from "./campos";
 
 function comNomes(rotulo: string, nomes?: Record<string, string>): string {
   let r = rotulo;
@@ -66,7 +62,7 @@ export function BlocoDeFatores({
 }
 
 function Fator({ f, concessionaria, podeEditar, onChange }: { f: FatorDoMetodo; concessionaria: string; podeEditar: boolean; onChange: (v: number | null) => void }) {
-  const pct = EM_PERCENTUAL.has(`${concessionaria}:${f.chave}`);
+  const pct = fatorEmPercentual(concessionaria, f.chave);
   const escala = pct ? 100 : 1;
   const sugerido = f.sugerido != null && !f.digitado;
   const rotulo = `${f.rotulo}${pct ? " (%)" : f.unidade ? ` (${f.unidade})` : ""}`;
