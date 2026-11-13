@@ -395,6 +395,7 @@ export function DocumentosShell({
             colunas={colunas}
             exclusoesPendentes={exclusoesPendentes}
             envioAutomaticoAoCliente={envioAutomaticoAoCliente}
+            ehAdmin={configCiclo !== null}
           />
           </div>
           {/* Pasta só com subpastas (raiz, fase) não tem documento para paginar. */}

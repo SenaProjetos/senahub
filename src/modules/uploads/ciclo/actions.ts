@@ -93,10 +93,16 @@ export const enviarParaAnalise = defineAction(
        * revisão ("Descrição contestada") — não sai notificação.
        */
       contestarCarimbo: z.boolean().optional(),
+      /**
+       * Exceção de administrador: o motivo (obrigatório) liga o "enviar mesmo assim" — pula nome, descrição e
+       * código/revisão do carimbo. Só `superUsuario`; fica no histórico da revisão com o que foi dispensado.
+       */
+      excecaoAdmin: z.string().trim().min(1, "Informe o motivo da exceção.").max(500).optional(),
     }),
     entidadeId: (_d, input) => input.revisaoId,
   },
   async (input, { user }) => {
+    if (input.excecaoAdmin && !ehAdminDoCiclo(user)) throw new ActionError("Só um administrador pode enviar para análise sem as conferências.");
     await exigirEscopoDaRevisao(user, input.revisaoId);
     // O carimbo é lido ANTES da transação: ler um PDF leva tempo e não pode segurar a conexão. E é sempre
     // relido aqui — a descrição que a tela mostrou não vale como prova.
@@ -111,6 +117,7 @@ export const enviarParaAnalise = defineAction(
           confirmarSemCarimbo: input.confirmarSemCarimbo === true,
           contestarCarimbo: input.contestarCarimbo === true,
           userId: user.id,
+          excecaoAdmin: input.excecaoAdmin ?? null,
         }),
     });
     await notificarTransicao(r, "enviar_analise", user.id);

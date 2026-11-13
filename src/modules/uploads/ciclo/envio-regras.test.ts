@@ -127,6 +127,25 @@ describe("problemasDoEnvio (A4)", () => {
 });
 
 // Quadro sem âncora "EMISSÃO INICIAL": o número da linha é a revisão (modelo B/C).
+describe("problemasDoEnvio — exceção de administrador (pularConferencias)", () => {
+  const nomeForaDoPadrao = { ...entrada().nome, casouPadrao: false as const };
+
+  it("pula o nome e a descrição, mas segue exigindo as travas de arquivo", () => {
+    const base = entrada({ numero: 2, nome: nomeForaDoPadrao, descricao: null });
+    expect(problemasDoEnvio(base).length).toBeGreaterThanOrEqual(2);
+    expect(problemasDoEnvio({ ...base, pularConferencias: true })).toEqual([]);
+  });
+
+  it("não pula arquivo ausente, desenho sem PDF nem arquivo idêntico ao anterior", () => {
+    const semArquivo = entrada({ arquivos: [], pularConferencias: true });
+    expect(problemasDoEnvio(semArquivo)).toEqual(["A revisão não tem arquivo para enviar."]);
+    const semPdf = entrada({ arquivos: [{ nome: "a.dwg", ext: "dwg", hash: "h" }], pularConferencias: true });
+    expect(problemasDoEnvio(semPdf)).toEqual([MOTIVO_DESENHO_SEM_PDF]);
+    const igual = entrada({ anteriores: [{ nome: "a.pdf", ext: "pdf", hash: "h1" }], pularConferencias: true });
+    expect(problemasDoEnvio(igual)).toHaveLength(1);
+  });
+});
+
 const quadro = (...textos: string[]): QuadroRevisao => ({ linhas: textos.map((texto, numero) => ({ numero, texto })) });
 
 describe("descricaoDoCarimbo", () => {

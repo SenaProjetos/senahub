@@ -387,6 +387,7 @@ export function TabelaDocumentos({
   colunas,
   exclusoesPendentes,
   envioAutomaticoAoCliente = false,
+  ehAdmin = false,
 }: {
   projetoId: string;
   linhas: LinhaDoc[];
@@ -413,6 +414,8 @@ export function TabelaDocumentos({
   exclusoesPendentes: Set<string>;
   /** O projeto envia ao cliente o que é publicado (o lote "Publicar" avisa). */
   envioAutomaticoAoCliente?: boolean;
+  /** Administrador: o diálogo de envio para análise oferece a exceção (o servidor revalida). */
+  ehAdmin?: boolean;
 }) {
   // Título recém-gravado, por documento: a linha muda na hora e o servidor confirma depois. Some quando
   // chega a página nova (padrão "derivar estado da prop": comparar durante o render, sem efeito).
@@ -582,7 +585,7 @@ export function TabelaDocumentos({
             description: "Envie o primeiro arquivo para começar.",
           };
     return (
-      <EnvioAoClienteProvider ativo={envioAutomaticoAoCliente}>
+      <EnvioAoClienteProvider ativo={envioAutomaticoAoCliente} ehAdmin={ehAdmin}>
         <div className="rounded-md border border-border bg-card">
           <EmptyState icon={temFiltroAtivo ? SearchX : FileX2} title={vazio.title} description={vazio.description} />
           {/* Excluir a última linha cai aqui: o diálogo em curso não pode sumir no meio. */}
@@ -595,7 +598,7 @@ export function TabelaDocumentos({
 
   return (
     // O diálogo do ciclo (do hook e do painel de detalhes) lê daqui se "Publicar" envia ao cliente.
-    <EnvioAoClienteProvider ativo={envioAutomaticoAoCliente}>
+    <EnvioAoClienteProvider ativo={envioAutomaticoAoCliente} ehAdmin={ehAdmin}>
     <div className="space-y-3">
       <DicaMenuContexto />
 
