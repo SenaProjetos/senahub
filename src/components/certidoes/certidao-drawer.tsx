@@ -34,11 +34,14 @@ const SITUACAO_LABEL: Record<StatusCertidao, string> = {
  */
 export function CertidaoDrawer({
   certidao,
+  diasEmBreve,
   podeGerir,
   onClose,
   onAtualizar,
 }: {
   certidao: Certidao | null;
+  /** Janela de "Vence em breve" configurada (`prazos.ts`). */
+  diasEmBreve: number;
   podeGerir: boolean;
   onClose: () => void;
   onAtualizar: (c: Certidao) => void;
@@ -46,7 +49,7 @@ export function CertidaoDrawer({
   return (
     <Sheet open={!!certidao} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        {certidao && <Conteudo certidao={certidao} podeGerir={podeGerir} onAtualizar={onAtualizar} />}
+        {certidao && <Conteudo certidao={certidao} diasEmBreve={diasEmBreve} podeGerir={podeGerir} onAtualizar={onAtualizar} />}
       </SheetContent>
     </Sheet>
   );
@@ -54,15 +57,17 @@ export function CertidaoDrawer({
 
 function Conteudo({
   certidao: c,
+  diasEmBreve,
   podeGerir,
   onAtualizar,
 }: {
   certidao: Certidao;
+  diasEmBreve: number;
   podeGerir: boolean;
   onAtualizar: (c: Certidao) => void;
 }) {
-  const situacao = statusCertidao(c.validade);
-  const validade = textoValidade(c.validade);
+  const situacao = statusCertidao(c.validade, diasEmBreve);
+  const validade = textoValidade(c.validade, diasEmBreve);
   const temArquivo = !!c.arquivoNome;
   const ehPdf = temArquivo && c.arquivoNome!.toLowerCase().endsWith(".pdf");
   // A versão mais recente com arquivo é a que originou o arquivo "atual" da certidão.

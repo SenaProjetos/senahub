@@ -46,6 +46,7 @@ npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um 
 npm run smoke:pedido-dados   # "Atualize seus dados" + reconfirmação anual: faixa, um aberto por pessoa, CPF/RG ao RH, fechamento (restaura a pessoa)
 npm run smoke:desenvolvimento  # liderança única ativa, 1:1 compartilhado × privado (o privado não sai do servidor), lembrete sem conteúdo
 npm run smoke:documentos-validade  # documento com validade: aviso 60/30/7/vencido uma vez por faixa, renovar rearma
+npm run smoke:prazos-certidoes     # prazos das certidões (ConfigSistema certidoes.prazos): sem config = 30 dias e 30/15/7, janela no badge/card, dias do job, aviso no dia certo, lista vazia desliga
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta (atrasada não some), sugestão da atividade de hoje, validação, edição do dia, apontado × previsto
 npm run ensaio:eap [-- --refazer]  # (só banco de dev) projeto de ensaio estilo Arapiraca: etapas, EAP com gente, cronograma aprovado, cards e 1 usuário por perfil (senha Demo@2026); `ensaio:conferir` lê o que cada perfil enxerga
 npm run smoke:desfazer-eap  # Ctrl+Z da EAP: foto do plano, passo só se o plano mudou, mesmos ids e idCorporativo ao restaurar (linha, vínculo, pessoa, parcela de contrato), recusa se outra pessoa editou, pilha de 20, plano aprovado

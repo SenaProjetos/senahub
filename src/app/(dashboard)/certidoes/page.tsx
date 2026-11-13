@@ -18,6 +18,7 @@ export default async function CertidoesPage() {
     tipos,
     responsaveisPossiveis,
     links,
+    prazos,
     auditLogs,
     habilitacoes,
     versaoIdParaCertidaoId,
@@ -82,6 +83,7 @@ export default async function CertidoesPage() {
 
   const panorama = panoramaCompliance(
     certidoes.map((c) => ({ id: c.id, tipoId: c.tipoId, validade: c.validade.toISOString().slice(0, 10), arquivoPath: c.arquivoPath })),
+    prazos.diasEmBreve,
   );
   const faltando = tiposObrigatoriosFaltantes(
     tipos,
@@ -118,6 +120,7 @@ export default async function CertidoesPage() {
       panorama={panorama}
       faltando={faltando}
       podeGerir={podeGerir}
+      prazos={prazos}
     />
   );
 }

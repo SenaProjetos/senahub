@@ -62,6 +62,8 @@ import { dispatcharAviso } from "@/modules/notificacoes/avisos/service";
 import { Prisma } from "@/generated/prisma/client";
 import { executarAutomacoesComerciais } from "@/modules/comercial/automacoes";
 import { diasAvisoVencimentoContrato } from "@/modules/juridico/config";
+import { prazosCertidoes } from "@/modules/certidoes/queries";
+import { tituloAvisoCertidao } from "@/modules/certidoes/prazos";
 import { vencimentoEfetivo } from "@/modules/juridico/contrato/estado";
 import { inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc, prazoVencido } from "@/lib/data";
 import { aplicarDesligamentosVencidos } from "@/modules/usuarios/vinculo/service";
@@ -316,13 +318,24 @@ export async function alertaPendenteParado(): Promise<number> {
   return parados.length;
 }
 
-/** Certidões vencendo em 30/15/7 dias → gestores + responsável (se houver). */
+/**
+ * Certidões que vencem daqui a exatamente N dias, para cada N configurado em
+ * `certidoes.prazos` (`prazos.ts`; padrão 30/15/7) → gestores + responsável (se houver).
+ *
+ * `Certidao.validade` é `@db.Date` (meia-noite UTC): compara com o dia-calendário em UTC. O antigo
+ * `diaAlvo` (meia-noite LOCAL) pegava, no servidor em BRT, a certidão do dia SEGUINTE — o aviso
+ * "vence em 30 dias" saía para a que vencia em 31.
+ */
 export async function alertaCertidoes(): Promise<number> {
+  const { diasAvisos } = await prazosCertidoes();
+  if (diasAvisos.length === 0) return 0;
   let n = 0;
+  const hoje0 = inicioDoDiaUtc();
   const idsGestores = await destinatarios("gestao_operacional");
-  for (const dias of [30, 15, 7]) {
+  for (const dias of diasAvisos) {
     const certs = await prisma.certidao.findMany({
-      where: { validade: diaAlvo(dias) },
+      // Soma em milissegundos (não `addDays`, que anda pelo calendário LOCAL): a data fica em UTC.
+      where: { validade: new Date(hoje0.getTime() + dias * 86_400_000) },
       include: { tipo: true },
     });
     for (const c of certs) {
@@ -330,7 +343,7 @@ export async function alertaCertidoes(): Promise<number> {
       await notificarMuitos(
         destinatarios,
         {
-          titulo: `Certidão vence em ${dias} dia(s)`,
+          titulo: tituloAvisoCertidao(dias),
           corpo: `${c.tipo.nome}${c.descricao ? ` — ${c.descricao}` : ""}`,
           href: "/certidoes",
           tag: `cert-${c.id}-${dias}`,

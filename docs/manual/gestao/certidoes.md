@@ -31,7 +31,8 @@ terceiros (contador, advogado) sem precisar de login.
 - **Buscar e filtrar:** busca por tipo, descrição ou responsável, e o botão **Filtrar** combina
   situação, documento, obrigatoriedade, responsável e tipo. O número no botão mostra quantos
   filtros estão ativos.
-- **Aviso no menu e no Início:** quando há certidão vencida ou vencendo em 30 dias,
+- **Aviso no menu e no Início:** quando há certidão vencida ou vencendo dentro do prazo de
+  "Vence em breve" (30 dias, se ninguém mudou — veja **Prazos de vencimento** abaixo),
   o item **Certidões** do menu ganha uma bolinha com o número (vermelha se alguma já
   venceu, âmbar se só há vencendo), e o Início mostra o card **Certidões a renovar**.
   Some sozinho quando tudo está em dia. Só aparece para quem tem `certidoes:ver`.
@@ -69,7 +70,16 @@ terceiros (contador, advogado) sem precisar de login.
   certidões do diálogo, uma bolinha mostra a situação de cada uma: vermelha
   (vencida), amarela (vence em breve) ou verde (válida).
 - **Exportar:** baixa uma planilha `.xlsx` com o panorama completo (tipo, validade,
-  status, responsável, versões).
+  status, responsável, versões). Quem pode gerir encontra no botão **⋯** do topo, junto de
+  **Gerenciar tipos** e **Prazos de vencimento**.
+- **Prazos de vencimento** (botão **⋯** do topo, exige `certidoes:gerir`): define dois prazos
+  que valem para todas as certidões.
+  - **"Vence em breve" a partir de N dias antes** (padrão 30, de 1 a 365): muda a cor da
+    certidão na lista, o filtro, o aviso do menu, o card do Início, a planilha e o link público.
+  - **Notificar quando faltarem** (padrão 30, 15 e 7 dias; até 10 dias, de 0 a 365): um aviso
+    por dia da lista, para a gestão e o responsável. 0 = no dia do vencimento. Lista vazia =
+    ninguém é notificado. Se um aviso chega antes da faixa "Vence em breve", a tela avisa.
+  - **Usar o padrão** volta aos valores de fábrica.
 - **Responsável:** cada certidão pode ter um responsável — ele também recebe os
   alertas de vencimento dessa certidão.
 
@@ -86,7 +96,7 @@ detalhes** e **Editar** ficam esmaecidos, porque só valem para uma certidão po
 | Ação | Permissão |
 | --- | --- |
 | Ver certidões e histórico | `certidoes:ver` |
-| Registrar, renovar, editar, excluir, compartilhar | `certidoes:gerir` |
+| Registrar, renovar, editar, excluir, compartilhar, mudar os prazos de vencimento | `certidoes:gerir` |
 
 ## Regras de negócio
 
@@ -97,8 +107,9 @@ detalhes** e **Editar** ficam esmaecidos, porque só valem para uma certidão po
   público já gerado — restaure antes.
 - O link público só expõe as certidões marcadas na lista de compartilhamento; revogar
   ou deixar expirar desliga o acesso na hora.
-- Alertas de vencimento disparam em 30/15/7 dias antes, para gestores e para o
-  responsável da certidão (quando definido). Pode ser desativado em Preferências.
+- Alertas de vencimento disparam nos dias configurados em **Prazos de vencimento** (padrão
+  30/15/7 dias antes), às 08:00, para gestores e para o responsável da certidão (quando
+  definido). Cada pessoa pode desligar os dela em Preferências.
 
 ## Funcionalidades relacionadas
 

@@ -50,6 +50,7 @@
     "smoke:pedido-dados": "tsx --tsconfig tsconfig.server.json scripts/smoke-pedido-dados.ts",
     "smoke:desenvolvimento": "tsx --tsconfig tsconfig.server.json scripts/smoke-desenvolvimento.ts",
     "smoke:documentos-validade": "tsx --tsconfig tsconfig.server.json scripts/smoke-documentos-validade.ts",
+    "smoke:prazos-certidoes": "tsx --tsconfig tsconfig.server.json scripts/smoke-prazos-certidoes.ts",
     "smoke:etapa-proxima": "tsx --tsconfig tsconfig.server.json scripts/smoke-etapa-proxima.ts",
     "ensaio:conferir": "tsx --tsconfig tsconfig.server.json scripts/conferir-ensaio-eap.ts",
     "ensaio:eap": "tsx --tsconfig tsconfig.server.json scripts/ensaio-eap.ts",

@@ -2,8 +2,15 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { whereAudiencia } from "@/lib/audiencias";
 import { janelaAtencaoUtc } from "./service";
+import { CHAVE_CONFIG_PRAZOS_CERTIDOES, parsePrazosCertidoes, type PrazosCertidoes } from "./prazos";
 
-export type AtencaoCertidoes = { vencidas: number; venceEmBreve: number };
+/** Prazos em vigor (`ConfigSistema` `certidoes.prazos`; sem linha = padrão de `prazos.ts`). */
+export async function prazosCertidoes(): Promise<PrazosCertidoes> {
+  const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_PRAZOS_CERTIDOES } });
+  return parsePrazosCertidoes(c?.valor);
+}
+
+export type AtencaoCertidoes = { vencidas: number; venceEmBreve: number; diasEmBreve: number };
 
 /**
  * Só os DOIS contadores do badge do menu e do card do Início — não a tela inteira.
@@ -18,19 +25,20 @@ export type AtencaoCertidoes = { vencidas: number; venceEmBreve: number };
  * `lib/prisma.ts` já injeta `excluidoEm: null`.
  */
 export async function contarCertidoesAtencao(): Promise<AtencaoCertidoes> {
-  const { hojeUtc, limiteUtc } = janelaAtencaoUtc();
+  const { diasEmBreve } = await prazosCertidoes();
+  const { hojeUtc, limiteUtc } = janelaAtencaoUtc(diasEmBreve);
 
   const [vencidas, venceEmBreve] = await Promise.all([
     prisma.certidao.count({ where: { validade: { lt: hojeUtc } } }),
     prisma.certidao.count({ where: { validade: { gte: hojeUtc, lte: limiteUtc } } }),
   ]);
 
-  return { vencidas, venceEmBreve };
+  return { vencidas, venceEmBreve, diasEmBreve };
 }
 
 /** Tudo que a tela principal de certidões precisa, num só carregamento (poucas dezenas de linhas). */
 export async function dadosDaTela() {
-  const [certidoes, excluidas, tipos, responsaveisPossiveis, links] = await Promise.all([
+  const [certidoes, excluidas, tipos, responsaveisPossiveis, links, prazos] = await Promise.all([
     prisma.certidao.findMany({
       orderBy: { validade: "asc" },
       include: {
@@ -53,6 +61,7 @@ export async function dadosDaTela() {
       select: { id: true, name: true },
     }),
     prisma.linkPublicoCertidoes.findMany({ orderBy: { createdAt: "desc" } }),
+    prazosCertidoes(),
   ]);
 
   const certidaoIds = certidoes.map((c) => c.id);
@@ -116,6 +125,7 @@ export async function dadosDaTela() {
     tipos,
     responsaveisPossiveis,
     links,
+    prazos,
     auditLogs,
     habilitacoes,
     versaoIdParaCertidaoId,

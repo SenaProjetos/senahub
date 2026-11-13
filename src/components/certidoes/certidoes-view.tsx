@@ -17,6 +17,7 @@ import {
   ArchiveRestore,
   SearchX,
   Loader2,
+  CalendarClock,
 } from "lucide-react";
 import { formatarData, formatarDataHora } from "@/lib/utils";
 import {
@@ -26,6 +27,7 @@ import {
   type PanoramaCompliance,
   type TipoObrigatorio,
 } from "@/modules/certidoes/service";
+import type { PrazosCertidoes } from "@/modules/certidoes/prazos";
 import { extrairValidadeDoTexto } from "@/modules/certidoes/extrair-validade";
 import { lerTextoPdf } from "@/lib/ler-texto-pdf";
 import {
@@ -40,7 +42,8 @@ import {
   revogarLinkCertidoes,
 } from "@/modules/certidoes/actions";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import type { AcaoItemAcao } from "@/components/ui/acoes";
+import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { BarraSelecao } from "@/components/ui/barra-selecao";
 import { BotaoSelecionados } from "@/components/ui/botao-selecionados";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
@@ -69,6 +72,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CertidoesResumo } from "@/components/certidoes/certidoes-resumo";
+import { PrazosCertidoesDialog } from "@/components/certidoes/prazos-certidoes-dialog";
 import { CertidoesConformidade } from "@/components/certidoes/certidoes-conformidade";
 import { CertidoesFiltros } from "@/components/certidoes/certidoes-filtros";
 import { CertidoesTabela } from "@/components/certidoes/certidoes-tabela";
@@ -89,6 +93,16 @@ import {
 } from "@/components/certidoes/tipos";
 
 const NONE = "__none";
+
+const ACAO_TIPOS = "cabecalho-tipos";
+const ACAO_PRAZOS = "cabecalho-prazos";
+
+/** O ⋯ do cabeçalho (só para quem gere): exportar, tipos e prazos de vencimento. */
+const ITENS_CABECALHO: AcaoItem[] = [
+  { tipo: "link", id: "cabecalho-exportar", rotulo: "Exportar planilha", icone: FileSpreadsheet, href: "/api/certidoes/exportar" },
+  { tipo: "acao", id: ACAO_TIPOS, rotulo: "Gerenciar tipos", icone: Tags },
+  { tipo: "acao", id: ACAO_PRAZOS, rotulo: "Prazos de vencimento", icone: CalendarClock },
+];
 
 /** Filtro de responsável: valor especial para "quem está sem ninguém atribuído" (§9). */
 const SEM_RESPONSAVEL = "__sem";
@@ -114,6 +128,7 @@ export function CertidoesView({
   panorama,
   faltando,
   podeGerir,
+  prazos,
 }: {
   certidoes: Certidao[];
   excluidas: CertidaoExcluida[];
@@ -123,7 +138,10 @@ export function CertidoesView({
   panorama: PanoramaCompliance;
   faltando: TipoObrigatorio[];
   podeGerir: boolean;
+  /** Prazos configurados (`prazos.ts`): a faixa "Vence em breve" e os dias de aviso. */
+  prazos: PrazosCertidoes;
 }) {
+  const { diasEmBreve } = prazos;
   const router = useRouter();
   const confirm = useConfirm();
   const [pending, start] = useTransition();
@@ -144,6 +162,7 @@ export function CertidoesView({
   const [loteAberto, setLoteAberto] = useState(false);
   const [compartilharAberto, setCompartilharAberto] = useState(false);
   const [tiposAberto, setTiposAberto] = useState(false);
+  const [prazosAberto, setPrazosAberto] = useState(false);
 
   // §9/§10 — filtros e busca combinam; a ordem (§8) é aplicada depois do recorte.
   const visiveis = useMemo(() => {
@@ -151,7 +170,7 @@ export function CertidoesView({
 
     const filtradas = (selecao.soSelecionados ? certidoes.filter((c) => selecao.ids.has(c.id)) : certidoes).filter((c) => {
       if (selecao.soSelecionados) return true;
-      if (filtros.situacao && statusCertidao(c.validade) !== filtros.situacao) return false;
+      if (filtros.situacao && statusCertidao(c.validade, diasEmBreve) !== filtros.situacao) return false;
 
       if (filtros.documento === "com" && !c.arquivoNome) return false;
       if (filtros.documento === "sem" && c.arquivoNome) return false;
@@ -178,13 +197,13 @@ export function CertidoesView({
     });
 
     // Regra do §8 — pura e testada em `service.ts`, não reimplementada aqui.
-    if (ordem === "prioridade") return ordenarPorPrioridade(filtradas);
+    if (ordem === "prioridade") return ordenarPorPrioridade(filtradas, diasEmBreve);
     return [...filtradas].sort((a, b) => {
       if (ordem === "nome") return a.tipo.localeCompare(b.tipo, "pt-BR");
       const cmp = a.validade.localeCompare(b.validade);
       return ordem === "validade_desc" ? -cmp : cmp;
     });
-  }, [certidoes, filtros, ordem, selecao.soSelecionados, selecao.ids]);
+  }, [certidoes, filtros, ordem, selecao.soSelecionados, selecao.ids, diasEmBreve]);
 
   const filtrosAtivos = contarFiltrosAtivos(filtros);
 
@@ -291,28 +310,31 @@ export function CertidoesView({
         titulo="Certidões"
         descricao="Controle de validade, versionamento e compartilhamento das certidões da empresa."
         acoes={
-          <>
-          <div className="flex flex-wrap gap-1.5">
-            <Button size="sm" variant="outline" render={<a href="/api/certidoes/exportar" rel="noopener" />}>
-              <FileSpreadsheet className="size-3.5" aria-hidden /> Exportar
-            </Button>
-            {podeGerir && (
+          // Até duas ações à vista; o resto no ⋯ (regra do CabecalhoPagina). Sem `gerir`, sobra
+          // só o Exportar — e menu de uma ação só não existe (ADR-0002), então ele vira botão.
+          podeGerir ? (
+            <div className="flex flex-wrap items-center gap-1.5">
               <Button size="sm" variant="outline" onClick={() => setCompartilharAberto(true)}>
                 <Share2 className="size-3.5" aria-hidden /> Compartilhar
               </Button>
-            )}
-            {podeGerir && (
-              <Button size="sm" variant="outline" onClick={() => setTiposAberto(true)}>
-                <Tags className="size-3.5" aria-hidden /> Gerenciar tipos
-              </Button>
-            )}
-            {podeGerir && (
               <Button size="sm" onClick={() => setNovaAberta(true)}>
                 <Plus className="size-3.5" aria-hidden /> Nova certidão
               </Button>
-            )}
-          </div>
-          </>
+              <BotaoAcoes
+                itens={ITENS_CABECALHO}
+                rotulo="Mais ações das certidões"
+                className="size-8"
+                onSelect={(item) => {
+                  if (item.id === ACAO_TIPOS) setTiposAberto(true);
+                  else if (item.id === ACAO_PRAZOS) setPrazosAberto(true);
+                }}
+              />
+            </div>
+          ) : (
+            <Button size="sm" variant="outline" render={<a href="/api/certidoes/exportar" rel="noopener" />}>
+              <FileSpreadsheet className="size-3.5" aria-hidden /> Exportar
+            </Button>
+          )
         }
       />
       <DicaMenuContexto />
@@ -321,6 +343,7 @@ export function CertidoesView({
 
       <CertidoesConformidade
         certidoes={certidoes}
+        diasEmBreve={diasEmBreve}
         faltando={faltando}
         onVerPendencias={verPendencias}
       />
@@ -409,6 +432,7 @@ export function CertidoesView({
       ) : (
         <CertidoesTabela
           certidoes={visiveis}
+          diasEmBreve={diasEmBreve}
           podeGerir={podeGerir}
           selecao={selecao}
           menuDe={menuDe}
@@ -421,6 +445,7 @@ export function CertidoesView({
 
       <CertidaoDrawer
         certidao={detalhe}
+        diasEmBreve={diasEmBreve}
         podeGerir={podeGerir}
         onClose={() => setDetalhe(null)}
         onAtualizar={(c) => {
@@ -470,10 +495,14 @@ export function CertidoesView({
         open={compartilharAberto}
         onClose={() => setCompartilharAberto(false)}
         certidoes={certidoes}
+        diasEmBreve={diasEmBreve}
         preSelecionadas={new Set(selecao.lista)}
         links={links}
       />
       <GerenciarTiposDialog open={tiposAberto} onClose={() => setTiposAberto(false)} tipos={tipos} />
+      {podeGerir && (
+        <PrazosCertidoesDialog open={prazosAberto} onClose={() => setPrazosAberto(false)} prazos={prazos} />
+      )}
     </div>
   );
 }
@@ -764,12 +793,14 @@ function CompartilharDialog({
   open,
   onClose,
   certidoes,
+  diasEmBreve,
   preSelecionadas,
   links,
 }: {
   open: boolean;
   onClose: () => void;
   certidoes: Certidao[];
+  diasEmBreve: number;
   preSelecionadas: Set<string>;
   links: LinkPublico[];
 }) {
@@ -902,8 +933,8 @@ function CompartilharDialog({
           </div>
           <div className="max-h-40 space-y-1 overflow-y-auto rounded-sm border p-2">
             {certidoes.map((c) => {
-              const situacao = statusCertidao(c.validade);
-              const { texto } = textoValidade(c.validade);
+              const situacao = statusCertidao(c.validade, diasEmBreve);
+              const { texto } = textoValidade(c.validade, diasEmBreve);
               const rotulo = `${SITUACAO_ROTULO[situacao]} — ${texto}`;
               return (
                 <label key={c.id} className="flex items-center gap-2 py-0.5 text-sm">

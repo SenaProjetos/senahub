@@ -20,6 +20,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Prazos de vencimento das certidões (novembro/2026)
+
+- Em **Certidões**, botão **⋯** do topo → **Prazos de vencimento**: escolha a partir de quantos
+  dias antes a certidão aparece como **Vence em breve** e em quais dias sai a notificação.
+- Até agora era fixo: 30 dias para "Vence em breve" e avisos com 30, 15 e 7 dias. Continua assim
+  enquanto ninguém mudar.
+- Correção: o aviso "vence em 30 dias" saía um dia atrasado na conta, para a certidão que vencia
+  em 31. Agora sai no dia certo.
+- **Exportar** e **Gerenciar tipos** também foram para o **⋯** do topo.
+
 ## Status da disciplina pelas fases (novembro/2026)
 
 - Disciplina com etapas (EP, BS, EX…) não tem mais o status escolhido à mão: ele **vem das fases**. Acabou

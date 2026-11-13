@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import type { LinkPublicoCertidoes } from "@/generated/prisma/client";
 import { statusCertidao } from "./service";
+import { prazosCertidoes } from "./queries";
 
 /**
  * Link público (sem login) de certidões — somente ver + baixar. Fonte única usada pela
@@ -35,6 +36,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<CertidaoPu
   // `id: { in: [...] }` sozinho é lookup-por-id — isento do filtro automático de soft delete
   // (ver lib/prisma.ts) — por isso `excluidoEm: null` explícito: certidão arquivada não deve
   // continuar exposta num link público já compartilhado com terceiros.
+  const { diasEmBreve } = await prazosCertidoes();
   const certidoes = await prisma.certidao.findMany({
     where: { id: { in: link.certidaoIds }, excluidoEm: null },
     orderBy: { validade: "asc" },
@@ -46,7 +48,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<CertidaoPu
     tipo: c.tipo.nome,
     descricao: c.descricao,
     validade: c.validade.toISOString().slice(0, 10),
-    status: statusCertidao(c.validade.toISOString().slice(0, 10)),
+    status: statusCertidao(c.validade.toISOString().slice(0, 10), diasEmBreve),
     arquivoNome: c.arquivoNome,
   }));
 }
