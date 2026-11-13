@@ -22,6 +22,7 @@ import type { StatusDisciplina } from "@/generated/prisma/client";
 import { limparSeparadores, type AcaoItem, type AcaoItemAcao } from "@/components/ui/acoes";
 import { STATUS_LABEL, transicaoDisciplinaPermitida } from "@/modules/projetos/status";
 import { ORDEM_STATUS_DISCIPLINA } from "@/modules/projetos/ordem-disciplinas";
+import { MOTIVO_STATUS_DAS_FASES } from "@/modules/projetos/status-pelas-fases";
 import type { ProximoPasso } from "@/modules/projetos/proximo-passo";
 
 /**
@@ -53,6 +54,11 @@ export const PREFIXO_STATUS = "status:";
 export type DisciplinaParaAcoes = {
   status: StatusDisciplina;
   usaPastas: boolean;
+  /**
+   * O status vem das fases (`statusVemDasFases`, spec 2026-11-13): sem troca manual. É ESTADO (some ao remover
+   * as fases), então "Mudar status" fica desabilitado com o motivo, como manda o ADR-0002 — não omitido.
+   */
+  statusDasFases: boolean;
   qtdArquivos: number;
   qtdRevisoes: number;
   /** Aprovação/laudo: há marcação de "aprovado" esperando a confirmação do gestor. */
@@ -142,7 +148,9 @@ export function itensDeDisciplina(d: DisciplinaParaAcoes, ctx: ContextoAcoesDisc
     ctx.hrefChat ? { tipo: "link", id: "chat", rotulo: "Chat da disciplina", icone: MessageSquare, href: ctx.hrefChat, novaAba: true } : null,
     { tipo: "separador", id: "sep-fluxo" },
     ctx.podeMexerStatus && !aprovada
-      ? { tipo: "sub", id: "status", rotulo: "Mudar status", icone: CircleDot, itens: itensDeStatus(d.status) }
+      ? d.statusDasFases
+        ? { tipo: "acao", id: "status", rotulo: "Mudar status", icone: CircleDot, desabilitado: MOTIVO_STATUS_DAS_FASES }
+        : { tipo: "sub", id: "status", rotulo: "Mudar status", icone: CircleDot, itens: itensDeStatus(d.status) }
       : null,
     ...aprovacao,
     { tipo: "separador", id: "sep-gerir" },

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { avisarSeDisciplinaEntregue, recalcularStatusDisciplina, travarDisciplina } from "./status-pelas-fases-service";
 import { MOTIVO_NAO_RESPONSAVEL, STATUS_AO_DESFAZER, motivoParaDesfazerEnvio, motivoParaEnviar } from "./envio-etapa";
 
 /**
@@ -22,6 +23,7 @@ async function lerEtapa(etapaId: string) {
     select: {
       id: true,
       status: true,
+      disciplinaId: true,
       etapa: { select: { nome: true } },
       disciplina: {
         select: {
@@ -55,11 +57,17 @@ export async function enviarEtapaParaAnalise({ etapaId, userId, notificar = noti
   const motivo = motivoParaEnviar(e.status);
   if (motivo) throw new ActionError(motivo);
 
-  const r = await prisma.disciplinaEtapa.updateMany({
-    where: { id: etapaId, status: e.status },
-    data: { status: "entregue", entregueEm: new Date() },
+  // A fase e o status da disciplina (que vem das fases, spec 2026-11-13) confirmam juntos.
+  const recalculo = await prisma.$transaction(async (tx) => {
+    await travarDisciplina(tx, e.disciplinaId);
+    const r = await tx.disciplinaEtapa.updateMany({
+      where: { id: etapaId, status: e.status },
+      data: { status: "entregue", entregueEm: new Date() },
+    });
+    if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+    return recalcularStatusDisciplina(tx, e.disciplinaId, { autorId: userId, motivo: `fase ${e.etapa.nome} enviada para análise` });
   });
-  if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+  await avisarSeDisciplinaEntregue(recalculo, e.disciplinaId, { autorId: userId, notificar });
 
   const nome = `${e.disciplina.disciplinaTextoLegado} · ${e.etapa.nome}`;
   await notificar(
@@ -82,11 +90,15 @@ export async function desfazerEnvioEtapa({ etapaId, userId, notificar = notifica
   const motivo = motivoParaDesfazerEnvio(e.status);
   if (motivo) throw new ActionError(motivo);
 
-  const r = await prisma.disciplinaEtapa.updateMany({
-    where: { id: etapaId, status: "entregue" },
-    data: { status: STATUS_AO_DESFAZER, entregueEm: null },
+  await prisma.$transaction(async (tx) => {
+    await travarDisciplina(tx, e.disciplinaId);
+    const r = await tx.disciplinaEtapa.updateMany({
+      where: { id: etapaId, status: "entregue" },
+      data: { status: STATUS_AO_DESFAZER, entregueEm: null },
+    });
+    if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
+    await recalcularStatusDisciplina(tx, e.disciplinaId, { autorId: userId, motivo: `envio da fase ${e.etapa.nome} desfeito` });
   });
-  if (r.count !== 1) throw new ActionError(MOTIVO_MUDOU);
 
   const nome = `${e.disciplina.disciplinaTextoLegado} · ${e.etapa.nome}`;
   await notificar(

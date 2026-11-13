@@ -64,6 +64,8 @@ import { deveDeslocarPrazoDoProjeto } from "@/modules/projetos/prazo-reabertura"
 import { faixaConflitante } from "@/modules/projetos/faixa-numeracao";
 import { motivoCodigoTravado } from "@/modules/projetos/cadastro-disciplina";
 import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
+import { MOTIVO_STATUS_DAS_FASES, statusVemDasFases } from "./status-pelas-fases";
+import { recalcularStatusDisciplina, travarDisciplina } from "./status-pelas-fases-service";
 
 
 /**
@@ -308,6 +310,7 @@ export const atualizarStatusDisciplina = defineAction(
         responsaveis: true,
         pastas: { select: { origem: true } },
         projeto: { select: { id: true, codigo: true, tipo: true } },
+        _count: { select: { etapas: true } },
       },
     });
     if (!disciplina) throw new ActionError("Disciplina não encontrada.");
@@ -333,6 +336,10 @@ export const atualizarStatusDisciplina = defineAction(
     const ehResp = disciplina.responsaveis.some((r) => r.userId === user.id);
     if (!ehGerir && !ehResp) {
       throw new ActionError("Apenas responsáveis ou gestores alteram o status.");
+    }
+    // Spec 2026-11-13: disciplina com fase (fora do fluxo de pastas) tem o status calculado pelas fases.
+    if (statusVemDasFases({ qtdFases: disciplina._count.etapas, usaPastas: disciplinaUsaPastas(disciplina.pastas) })) {
+      throw new ActionError(MOTIVO_STATUS_DAS_FASES);
     }
 
     // Decisão de processo (2026-07-24): máquina de estados canônica da disciplina,
@@ -443,6 +450,7 @@ export const reabrirDisciplina = defineAction(
     // antes (como era) deslocaria o projeto para uma data que a disciplina não tem — ou deixaria
     // de deslocar quando outra etapa já passava do planejado.
     const { deslocaProjeto, prazoFinal } = await prisma.$transaction(async (tx) => {
+      await travarDisciplina(tx, input.disciplinaId);
       const etapas = await tx.disciplinaEtapa.findMany({
         where: { disciplinaId: input.disciplinaId },
         select: { id: true, prazo: true, ordem: true },
@@ -452,8 +460,15 @@ export const reabrirDisciplina = defineAction(
         const alvo = etapaQueDefineOPrazo(
           etapas.map((e) => ({ ...e, prazo: e.prazo ? e.prazo.toISOString().slice(0, 10) : null })),
         )!;
-        await tx.disciplinaEtapa.update({ where: { id: alvo.id }, data: { prazo: novoPrazo } });
+        // A fase que recebe o prazo novo volta a revisão (spec 2026-11-13), qualquer que seja o status dela —
+        // na disciplina paga inteira antes das fases ela pode estar "aguardando". Pagamento e `liberadaEm`
+        // ficam como estão. Exceção sancionada a `transicaoEtapaPermitida` (o editor não faz isso).
+        await tx.disciplinaEtapa.update({ where: { id: alvo.id }, data: { prazo: novoPrazo, status: "em_revisao" } });
         await tx.disciplina.update({ where: { id: input.disciplinaId }, data: { status: "em_revisao" } });
+        await recalcularStatusDisciplina(tx, input.disciplinaId, {
+          autorId: ctx.user.id,
+          motivo: `disciplina reaberta: ${input.motivo}`,
+        });
         const consolidado = await sincronizarPrazoDisciplina(tx, input.disciplinaId);
         if (consolidado) prazoFinal = new Date(`${consolidado}T00:00:00.000Z`);
       } else {
@@ -717,8 +732,13 @@ export const editarDisciplinasEmMassa = defineAction(
     if (input.status !== undefined) {
       const atuais = await prisma.disciplina.findMany({
         where: { id: { in: input.disciplinaIds }, projetoId: input.projetoId },
-        select: { disciplinaTextoLegado: true, status: true, pastas: { select: { origem: true } } },
+        select: { disciplinaTextoLegado: true, status: true, pastas: { select: { origem: true } }, _count: { select: { etapas: true } } },
       });
+      // Spec 2026-11-13: recusa nomeando qual, no padrão do prazo em massa logo abaixo.
+      const dasFases = atuais.find((d) => statusVemDasFases({ qtdFases: d._count.etapas, usaPastas: disciplinaUsaPastas(d.pastas) }));
+      if (dasFases) {
+        throw new ActionError(`${dasFases.disciplinaTextoLegado} tem fases — o status dela vem das fases e não muda em massa.`);
+      }
       // Disciplina com árvore de pastas: "entregue" só via solicitarAprovacaoDisciplina
       // (fluxo em 2 etapas). Gate por DISCIPLINA, não pelo tipo do projeto — as legadas
       // de aprovação/laudo (sem template) usam o fluxo A/B e entram normalmente no lote.

@@ -20,6 +20,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Status da disciplina pelas fases (novembro/2026)
+
+- Disciplina com etapas (EP, BS, EX…) não tem mais o status escolhido à mão: ele **vem das fases**. Acabou
+  o card com a disciplina "Em revisão" e a fase "Aguardando" ao mesmo tempo.
+- Todas as fases aguardando → **Aguardando**; alguma andando → **Em andamento**; todas entregues ou
+  aprovadas → **Entregue**; todas aprovadas → **Aprovado**; alguma em revisão → **Em revisão**.
+- Para mudar o status, mude a fase: **Enviei os documentos**, o diálogo **Etapas** ou **Aprovar**.
+- **Reabrir** a disciplina e **enviar apontamentos** levam a fase do documento para Em revisão. Reaprovar
+  não gera pagamento novo.
+- Aprovar a disciplina inteira de uma equipe só CLT agora aprova as fases também.
+- Disciplina sem etapa continua como era.
+
 ## Importar extrato do banco já categorizado (novembro/2026)
 
 - Em **Financeiro → Mais → Importar planilha**, a opção **Criar cadastros que não existirem** vem

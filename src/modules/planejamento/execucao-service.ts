@@ -6,6 +6,11 @@ import { paraDataUtc } from "./agenda";
 import { aplicarExecucao } from "./execucao";
 import { registrarProgresso } from "./progresso-historico-service";
 import { ehEtapaDeTerceiro } from "./recursos";
+import {
+  avisarSeDisciplinaEntregue,
+  recalcularStatusDisciplina,
+  travarDisciplina,
+} from "@/modules/projetos/status-pelas-fases-service";
 
 /**
  * Fase ligada a um marco que acabou de ser concluído — o que a tela oferece aprovar (D31). Concluir o marco
@@ -130,11 +135,22 @@ export async function registrarExecucaoNaLinha(p: {
       let marcadaEntregue = false;
       if (de.status === "aguardando" || de.status === "em_andamento") {
         // Condicional na escrita: se alguém aprovou ou liberou a fase entre a leitura e agora, não mexe.
-        const marcada = await prisma.disciplinaEtapa.updateMany({
-          where: { id: de.id, liberadaEm: null, status: { in: ["aguardando", "em_andamento"] } },
-          data: { status: "entregue" },
+        const disciplinaId = linha.disciplinaId;
+        const recalculo = await prisma.$transaction(async (tx) => {
+          await travarDisciplina(tx, disciplinaId);
+          const marcada = await tx.disciplinaEtapa.updateMany({
+            where: { id: de.id, liberadaEm: null, status: { in: ["aguardando", "em_andamento"] } },
+            data: { status: "entregue" },
+          });
+          if (marcada.count === 0) return null;
+          // Status da disciplina vem das fases (spec 2026-11-13).
+          return recalcularStatusDisciplina(tx, disciplinaId, {
+            autorId: p.autorId ?? null,
+            motivo: `marco da EAP concluído: fase ${de.etapa.sigla} entregue`,
+          });
         });
-        marcadaEntregue = marcada.count > 0;
+        marcadaEntregue = recalculo != null;
+        if (recalculo) await avisarSeDisciplinaEntregue(recalculo, disciplinaId, { autorId: p.autorId ?? null });
       }
       fase = {
         id: de.id,

@@ -35,6 +35,12 @@ import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/module
 import { registrarEventoUploads } from "@/modules/uploads/historico/service";
 import { statusAposDesvalidacao } from "@/modules/uploads/status-automatico";
 import { liberarRestricaoDePendencias } from "@/modules/uploads/ciclo/service";
+import {
+  devolverFaseEntregueParaRevisao,
+  marcarFaseEmRevisao,
+  recalcularStatusDisciplina,
+  travarDisciplina,
+} from "@/modules/projetos/status-pelas-fases-service";
 
 /**
  * A3, volta: a revisão publicada com pendências ganhou uma restrição automática; quando o último
@@ -241,6 +247,8 @@ async function carregarUploadParaApontar(uploadId: string) {
       versao: true,
       autorId: true,
       documentoId: true,
+      /** Fase do documento — leva a revisão para a fase certa (spec 2026-11-13). */
+      documento: { select: { faseId: true } },
       disciplinaId: true,
       disciplina: {
         select: {
@@ -635,6 +643,8 @@ export const enviarApontamentos = defineAction(
     const eraAprovada = disciplina.status === "aprovado";
 
     const { tarefaId, revisaoNumero } = await prisma.$transaction(async (tx) => {
+      // Disciplina antes da fase (ordem única de travas, status-pelas-fases-service).
+      await travarDisciplina(tx, upload.disciplinaId);
       const tarefa = await tx.tarefa.create({
         data: {
           titulo,
@@ -680,6 +690,12 @@ export const enviarApontamentos = defineAction(
       });
 
       let revisaoNumero: number | null = null;
+      // Status da disciplina vem das fases (spec 2026-11-13): os apontamentos levam a fase do documento a
+      // revisão — na aprovada, qualquer que seja o status dela (pagamento intacto); na não aprovada, só a
+      // fase já entregue (a análise devolveu ajustes; quem ainda está trabalhando segue como está).
+      const faseDoDocumento = upload.documento?.faseId ?? null;
+      if (eraAprovada) await marcarFaseEmRevisao(tx, upload.disciplinaId, faseDoDocumento);
+      else await devolverFaseEntregueParaRevisao(tx, upload.disciplinaId, faseDoDocumento);
       if (eraAprovada) {
         // Abre revisão SEM tocar nos pagamentos (validação financeira preservada).
         await tx.disciplina.update({ where: { id: upload.disciplinaId }, data: { status: "em_revisao" } });
@@ -693,6 +709,10 @@ export const enviarApontamentos = defineAction(
           data: { disciplinaId: upload.disciplinaId, numero: revisaoNumero, motivo: resumo, autorId: user.id },
         });
       }
+      await recalcularStatusDisciplina(tx, upload.disciplinaId, {
+        autorId: user.id,
+        motivo: `apontamentos enviados em ${upload.nomeArquivo}`,
+      });
       return { tarefaId: tarefa.id, revisaoNumero };
     });
 
