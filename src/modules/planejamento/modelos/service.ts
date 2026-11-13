@@ -21,6 +21,7 @@ import {
   type Conferencia,
 } from "./mapeamento";
 import { lerMspdi } from "./mspdi";
+import { recalcularStatusDisciplina } from "@/modules/projetos/status-pelas-fases-service";
 
 /**
  * Modelos de EAP — o I/O (decisão #5). As regras estão nos arquivos puros ao lado:
@@ -454,10 +455,15 @@ export async function aplicarModeloNoProjeto(p: {
 
     // D38 — as fases ANTES das linhas: a linha guarda `etapaId` de fase que está sendo criada aqui.
     if (r.etapasParaCriar.length > 0) await tx.disciplinaEtapa.createMany({ data: r.etapasParaCriar });
+    // Disciplina que ganhou fase passa a ter o status calculado por elas (spec 2026-11-13).
+    for (const disciplinaId of new Set(r.etapasParaCriar.map((e) => e.disciplinaId))) {
+      await recalcularStatusDisciplina(tx, disciplinaId, { autorId: null, motivo: "fases criadas pelo modelo de EAP" });
+    }
     // Etapas já semeadas a 0%: o modelo preenche o percentual dele. Condicionado ao 0% lido agora — se alguém
     // preencheu ou liberou entre a leitura e a gravação, não sobrescreve.
     let percentuaisPreenchidos = 0;
     for (const f of preenchimentoDeEtapas(estrutura, ctx, r.linhas)) {
+      // recalculo-ok: só o percentual da fase; status e conjunto de fases não mudam.
       const w = await tx.disciplinaEtapa.updateMany({
         where: { disciplinaId: f.disciplinaId, etapaId: f.etapaId, percentual: 0, liberadaEm: null },
         data: { percentual: f.percentual },

@@ -60,6 +60,8 @@ npm run smoke:conclusao-eap  # aviso ao gestor quando alguém conclui o card de 
 npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
 npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
+npm run smoke:status-pelas-fases  # status da disciplina pelas fases: envio/desfazer, aprovação global PJ e CLT, reabrir/reaprovar sem pagamento novo, apontamentos, paga inteira, corrida, prévia da migração
+npm run disciplinas:recalcular-status [-- --gravar]  # migração (deploy): lista as disciplinas cujo status mudaria; só grava com --gravar
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
@@ -646,6 +648,12 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
   pagamento por fase espera a soma dos % fechar 100%. Disciplinas anteriores à mudança não ganham etapa. Aplicar um modelo de EAP
   PREENCHE esses % com os do modelo (`modelos/preencher-percentuais.ts`) só se a disciplina inteira está a 0%, sem fase liberada,
   e o modelo traz % de TODA etapa dela somando 100% (unifamiliar: o modelo precisa ser só BS/EX); senão segue a 0%.
+- **Status da disciplina vem das fases** (spec `docs/superpowers/specs/2026-11-13-status-disciplina-pelas-fases.md`): disciplina
+  com fase e fora do fluxo de pastas (`statusVemDasFases`) tem o status calculado (`status-pelas-fases.ts`, puro) e gravado SÓ por
+  `recalcularStatusDisciplina(tx, …)` (`status-pelas-fases-service.ts`: trava a linha da disciplina, lê as fases, grava + AuditLog),
+  chamado na MESMA transação de toda escrita de `DisciplinaEtapa` — guarda `status-pelas-fases-guarda.test.ts` (escrita sem efeito
+  em status leva `// recalculo-ok:`). Troca manual e em massa recusam (`MOTIVO_STATUS_DAS_FASES`). Reabrir e apontamentos põem a
+  fase em `em_revisao` (exceção sancionada, pagamento intacto); reaprovar não paga de novo (`aprovarFasesSemPagamento`).
 - **"Enviei os documentos"** (`projetos/envio-etapa*.ts`): só responsável da disciplina; etapa → `entregue`; desfaz até
   aprovar; avisa coordenação + responsáveis (`aprovacao_disciplina`). Escrita é `updateMany` condicionada ao status lido.
 - **Ponto** (`ponto/tarefa-ponto.ts`, puro): janela ±7 dias, atrasada ABERTA nunca some (topo), "outras da etapa" recolhidas

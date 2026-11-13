@@ -14,6 +14,7 @@ import { validarIntegridade } from "./edicao";
 import { estruturaModeloSchema, lerEstrutura } from "./estrutura";
 import { validarPercentuaisPorFase } from "./mapeamento";
 import { ID_RAIZ_DISCIPLINA, disciplinasDoModelo, estruturaDaDisciplina, extrairDisciplina, modeloPadraoDaDisciplina } from "./por-disciplina";
+import { recalcularStatusDisciplina } from "@/modules/projetos/status-pelas-fases-service";
 
 /**
  * Modelos de EAP por DISCIPLINA (pedido do dono, 2026-09-27): criar a partir de um modelo de projeto, e aplicar
@@ -253,7 +254,13 @@ export async function gerarEapDasDisciplinasNoProjeto(p: {
           if (l.id === raizId) l.nome = d.disciplinaTextoLegado;
         }
       }
-      if (r.etapasParaCriar.length > 0) await tx.disciplinaEtapa.createMany({ data: r.etapasParaCriar });
+      if (r.etapasParaCriar.length > 0) {
+        await tx.disciplinaEtapa.createMany({ data: r.etapasParaCriar });
+        // Disciplina que ganhou fase passa a ter o status calculado por elas (spec 2026-11-13).
+        for (const disciplinaId of new Set(r.etapasParaCriar.map((e) => e.disciplinaId))) {
+          await recalcularStatusDisciplina(tx, disciplinaId, { autorId: null, motivo: "fases criadas pelo modelo da disciplina" });
+        }
+      }
       await tx.eapTarefa.createMany({ data: r.linhas });
       if (r.dependencias.length > 0) await tx.eapDependencia.createMany({ data: r.dependencias, skipDuplicates: true });
       if (r.atribuicoesExternas.length > 0) await tx.eapAtribuicao.createMany({ data: r.atribuicoesExternas });

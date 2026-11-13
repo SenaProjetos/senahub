@@ -14,6 +14,7 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { liberarPagamentosDaFase, situacaoPagamento } from "@/modules/uploads/pagamento";
 import { bloqueioValorDisciplina, ehPagavel } from "@/modules/uploads/rateio";
 import { mensagemTransicaoDisciplina } from "./status";
+import { avisarSeDisciplinaEntregue, recalcularStatusDisciplina, travarDisciplina } from "./status-pelas-fases-service";
 import { documentosPendentesDePublicacao } from "@/modules/uploads/ciclo/service";
 import { motivoEntregaSemPublicacao } from "@/modules/uploads/ciclo/regras";
 
@@ -85,7 +86,7 @@ export const salvarEtapaDisciplina = defineAction(
         select: { inicio: true, prazo: true, percentual: true, status: true },
       }),
   },
-  async (input): Promise<ResultadoEtapa> => {
+  async (input, { user }): Promise<ResultadoEtapa> => {
     const disciplina = await prisma.disciplina.findUnique({
       where: { id: input.disciplinaId },
       select: { projetoId: true, projeto: { select: { prazoPlanejado: true } } },
@@ -136,7 +137,9 @@ export const salvarEtapaDisciplina = defineAction(
     }
 
     const prazo = input.prazo ? new Date(`${input.prazo}T00:00:00.000Z`) : null;
-    const { etapa, prazoDisciplina } = await prisma.$transaction(async (tx) => {
+    const { etapa, prazoDisciplina, recalculo } = await prisma.$transaction(async (tx) => {
+      // Disciplina antes da fase: a mesma ordem de travas de todo escritor de fase (status-pelas-fases-service).
+      await travarDisciplina(tx, input.disciplinaId);
       const ordem =
         input.ordem ??
         (existente
@@ -165,8 +168,14 @@ export const salvarEtapaDisciplina = defineAction(
         },
         select: { id: true },
       });
-      return { etapa, prazoDisciplina: await sincronizarPrazoDisciplina(tx, input.disciplinaId) };
+      // Status da disciplina vem das fases (spec 2026-11-13): fase nova ou status mudado recalcula aqui.
+      const recalculo = await recalcularStatusDisciplina(tx, input.disciplinaId, {
+        autorId: user.id,
+        motivo: `fase ${fase.nome} salva no editor de etapas`,
+      });
+      return { etapa, prazoDisciplina: await sincronizarPrazoDisciplina(tx, input.disciplinaId), recalculo };
     });
+    await avisarSeDisciplinaEntregue(recalculo, input.disciplinaId, { autorId: user.id });
 
     revalidatePath(`/projetos/${disciplina.projetoId}`);
     revalidatePath(`/planejamento/${disciplina.projetoId}`);
@@ -190,10 +199,10 @@ export const excluirEtapaDisciplina = defineAction(
         select: { disciplinaId: true, etapaId: true, prazo: true, percentual: true, status: true },
       }),
   },
-  async (input): Promise<ResultadoEtapa> => {
+  async (input, { user }): Promise<ResultadoEtapa> => {
     const etapa = await prisma.disciplinaEtapa.findUnique({
       where: { id: input.id },
-      select: { disciplinaId: true, liberadaEm: true, disciplina: { select: { projetoId: true } } },
+      select: { disciplinaId: true, liberadaEm: true, disciplina: { select: { projetoId: true } }, etapa: { select: { nome: true } } },
     });
     if (!etapa) throw new ActionError("Etapa não encontrada.");
     // F7.4: fase com pagamento liberado é história de dinheiro — o banco também recusa (FK).
@@ -202,7 +211,10 @@ export const excluirEtapaDisciplina = defineAction(
     }
 
     const prazoDisciplina = await prisma.$transaction(async (tx) => {
+      await travarDisciplina(tx, etapa.disciplinaId);
       await tx.disciplinaEtapa.delete({ where: { id: input.id } });
+      // Sem a última fase, a disciplina volta a ser manual e fica com o status que tinha (regra 1).
+      await recalcularStatusDisciplina(tx, etapa.disciplinaId, { autorId: user.id, motivo: `fase ${etapa.etapa.nome} removida` });
       return sincronizarPrazoDisciplina(tx, etapa.disciplinaId);
     });
 
@@ -323,12 +335,15 @@ export const aprovarEtapaDisciplina = defineAction(
       select: { id: true, status: true, liberadaEm: true, disciplinaId: true, etapaId: true, etapa: { select: { sigla: true } } },
     });
     if (!etapa) throw new ActionError("Fase não encontrada.");
-    if (etapa.liberadaEm || etapa.status === "aprovado") {
+    if (etapa.status === "aprovado") {
       throw new ActionError("Esta fase já foi aprovada.");
     }
     if (etapa.status !== "entregue" && etapa.status !== "em_revisao") {
       throw new ActionError("A fase precisa estar entregue para ser aprovada.");
     }
+    // Fase já liberada que voltou a revisão (reabertura/apontamentos, spec 2026-11-13): reaprovar não
+    // gera pagamento novo — o pool dela foi congelado na primeira liberação.
+    const reaprovacao = etapa.liberadaEm != null;
     // 6-B (2026-10-09): o pagamento sai na PUBLICAÇÃO — os documentos desta fase precisam estar publicados.
     const semPublicacao = motivoEntregaSemPublicacao(
       await documentosPendentesDePublicacao(prisma, { disciplinaId: etapa.disciplinaId, faseId: etapa.etapaId }),
@@ -350,6 +365,41 @@ export const aprovarEtapaDisciplina = defineAction(
 
     const temPagavel = disciplina.responsaveis.some(ehPagavel);
     const agora = new Date();
+    const codigo = formatarCodigo(disciplina.projeto.codigo);
+    const href = `/projetos/${disciplina.projeto.id}`;
+
+    if (reaprovacao) {
+      await prisma.$transaction(async (tx) => {
+        await travarDisciplina(tx, etapa.disciplinaId);
+        const r = await tx.disciplinaEtapa.updateMany({
+          where: { id: etapa.id, status: { in: ["entregue", "em_revisao"] } },
+          data: { status: "aprovado" },
+        });
+        if (r.count !== 1) throw new ActionError("A fase mudou enquanto a tela estava aberta — atualize e tente de novo.");
+        await recalcularStatusDisciplina(tx, etapa.disciplinaId, {
+          autorId: user.id,
+          motivo: `fase ${etapa.etapa.sigla} reaprovada`,
+          agora,
+        });
+      });
+      const gestoresRe = await prisma.user.findMany({
+        where: { ...whereAudiencia("gestao_operacional"), id: { not: user.id } },
+        select: { id: true },
+      });
+      await notificarMuitos(
+        [...new Set([...gestoresRe.map((g) => g.id), ...disciplina.responsaveis.map((r) => r.userId)])].filter((id) => id !== user.id),
+        {
+          titulo: "Fase reaprovada",
+          corpo: `Fase ${etapa.etapa.sigla} de ${disciplina.disciplinaTextoLegado} (${codigo}) reaprovada — pagamento já liberado, sem novo pagamento.`,
+          href,
+          tag: `aprovacao-fase-${etapa.id}`,
+        },
+        { categoria: "aprovacao_disciplina" },
+      );
+      revalidatePath(href);
+      return { id: etapa.id, pagamentos: 0 };
+    }
+
     if (temPagavel) {
       const bloqueio = bloqueioValorDisciplina(
         disciplina.responsaveis,
@@ -364,8 +414,6 @@ export const aprovarEtapaDisciplina = defineAction(
       liberarPagamentosDaFase(tx, { disciplina, faseId: etapa.id, autorId: user.id, agora }),
     );
 
-    const codigo = formatarCodigo(disciplina.projeto.codigo);
-    const href = `/projetos/${disciplina.projeto.id}`;
     if (pagaveis.length > 0) {
       await notificarMuitos(
         pagaveis.map((p) => p.userId),

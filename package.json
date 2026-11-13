@@ -69,6 +69,8 @@
     "smoke:folha-financeiro": "tsx --tsconfig tsconfig.server.json scripts/smoke-folha-financeiro.ts",
     "smoke:horas-disciplina": "tsx --tsconfig tsconfig.server.json scripts/smoke-horas-disciplina.ts",
     "smoke:pagamento-fase": "tsx --tsconfig tsconfig.server.json scripts/smoke-pagamento-fase.ts",
+    "smoke:status-pelas-fases": "tsx --tsconfig tsconfig.server.json scripts/smoke-status-pelas-fases.ts",
+    "disciplinas:recalcular-status": "tsx --tsconfig tsconfig.server.json scripts/recalcular-status-disciplinas.ts",
     "smoke:previsao-recebimento": "tsx --tsconfig tsconfig.server.json scripts/smoke-previsao-recebimento.ts",
     "smoke:duplicar-projeto": "tsx --tsconfig tsconfig.server.json scripts/smoke-duplicar-projeto.ts",
     "smoke:editar-cronograma": "tsx --tsconfig tsconfig.server.json scripts/smoke-editar-cronograma.ts",
