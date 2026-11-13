@@ -5,7 +5,7 @@ import type { FonteNorma } from "@/modules/ferramentas/calc/cargas-demanda/bibli
 
 import { CONCESSIONARIA_ROTULO, TIPO_EMPREENDIMENTO_ROTULO, type ConteudoCargasDemanda } from "../conteudo";
 import { tiposDoEstudo } from "../resultado";
-import { edicaoPorExtenso, FONTES_DE_DISJUNTORES, fontesCitadas, NBR_5410, NBR_8995_1 } from "./fontes";
+import { avisosDeNormasFuturas, edicaoPorExtenso, FONTES_DE_DISJUNTORES, fontesCitadas, fonteDaReferencia, NBR_5410, NBR_8995_1 } from "./fontes";
 import { secaoCentros } from "./secao-centros";
 import { secaoDemandas, type FonteDoValor } from "./secao-demandas";
 import { secaoLevantamento } from "./secao-levantamento";
@@ -125,12 +125,19 @@ export function montarRelatorio(c: ConteudoCargasDemanda, meta: MetaRelatorio): 
   if (c.criterioIluminacao === "lux" && c.levantamentos.length > 0) fontesDosValores.push({ valor: "Iluminância mantida (Em) pela atividade", referencia: `${NBR_8995_1.documento} ${NBR_8995_1.edicaoCurta}, seção 5` });
   const temEntrada = cen.blocos.some((b) => b.tipo === "tabela" && b.tabela.colunas.includes("Disjuntor (A)"));
   if (temEntrada) fontesDosValores.push({ valor: "Série de correntes dos disjuntores", referencia: FONTES_DE_DISJUNTORES.map((f) => `${f.documento} (${f.edicao})`).join("; ") });
+  // A tela mostra o aviso sem a norma (spec §6); o item da norma aparece aqui (planilha, caso 27: "a fonte aparece só no relatório").
+  // Só referências de norma: "regra da casa" e "calculadora existente" não são fonte de valor.
+  for (const m of todosOsAvisos) if (m.referencia && fonteDaReferencia(m.referencia)) fontesDosValores.push({ valor: `Aviso: ${m.texto}`, referencia: m.referencia });
 
   // Fontes citadas: pelas referências dos valores, dos avisos e das fixas.
   const referencias = [...fontesDosValores.map((f) => f.referencia), ...todosOsAvisos.flatMap((m) => (m.referencia ? [m.referencia] : [])), ...lev.referencias];
   const sempre: FonteNorma[] = [...(temEntrada || c.criterioIluminacao === "habitacao" ? [NBR_5410] : []), ...(c.criterioIluminacao === "lux" ? [NBR_8995_1] : []), ...(temEntrada ? FONTES_DE_DISJUNTORES : [])];
   const fontes = fontesCitadas(referencias, sempre);
-  const edicao = avisosDeEdicao(fontes);
+  // Avisos de edição das normas citadas + as normas futuras da concessionária que o estudo não cita (NDU-042, Nota Técnica 004/2026).
+  const edicao = [
+    ...avisosDeEdicao(fontes).map((m) => m.texto),
+    ...avisosDeNormasFuturas(c.concessionaria ? CONCESSIONARIA_ROTULO[c.concessionaria] : null, fontes, meta.emissao),
+  ];
 
   const premissas: SecaoRel = {
     numero: 2,
@@ -150,7 +157,7 @@ export function montarRelatorio(c: ConteudoCargasDemanda, meta: MetaRelatorio): 
 
   const avisosBlocos: BlocoRel[] = [];
   if (todosOsAvisos.length > 0) avisosBlocos.push({ tipo: "subtitulo", texto: "Avisos do cálculo" }, { tipo: "lista", itens: todosOsAvisos.map((m) => m.texto) });
-  if (edicao.length > 0) avisosBlocos.push({ tipo: "subtitulo", texto: "Edição das normas" }, { tipo: "lista", itens: edicao.map((m) => m.texto) });
+  if (edicao.length > 0) avisosBlocos.push({ tipo: "subtitulo", texto: "Edição das normas" }, { tipo: "lista", itens: edicao });
   avisosBlocos.push({ tipo: "subtitulo", texto: "Observações" }, { tipo: "lista", itens: observacoesFixas(c) });
   if (c.observacoes?.trim()) avisosBlocos.push({ tipo: "texto", texto: `Observações do estudo: ${c.observacoes.trim()}` });
   if (naoConferido(c)) avisosBlocos.push({ tipo: "texto", texto: `${MARCA_NAO_CONFERIDO}.`, negrito: true });

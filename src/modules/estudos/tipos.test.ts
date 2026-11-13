@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { FERRAMENTA_POR_TIPO, TIPOS_DE_ESTUDO, liberacaoDaAba, situacaoDoMotor, tipoDeEstudoValido } from "./acesso";
-import { conteudoVazioDoTipo, tipoDaLinha, validarConteudoDoTipo } from "./tipos";
+import { conteudoVazioDoTipo, MOTIVO_CONTEUDO_DE_OUTRO_TIPO, tipoDaLinha, validarConteudoDoTipo } from "./tipos";
 
 describe("tipo do estudo", () => {
   it("linha sem tipo reconhecível é o legado (cargas por ambiente)", () => {
@@ -22,7 +22,10 @@ describe("tipo do estudo", () => {
   it("o documento de um tipo não serve no outro", () => {
     const r = validarConteudoDoTipo("cargas_eletricas", conteudoVazioDoTipo("cargas_demanda"));
     expect(r.ok).toBe(false);
-    expect(validarConteudoDoTipo("cargas_demanda", { ambientes: [] }).ok).toBe(true); // o esquema do novo tipo aceita o vazio com defaults
+    // O documento do legado não vira um estudo de cargas e demanda vazio (apagaria o gravado).
+    expect(validarConteudoDoTipo("cargas_demanda", { ambientes: [] })).toEqual({ ok: false, mensagem: MOTIVO_CONTEUDO_DE_OUTRO_TIPO });
+    expect(validarConteudoDoTipo("cargas_demanda", { toString: 1, ambientes: [] }).ok).toBe(false); // chave herdada não engana a trava
+    expect(validarConteudoDoTipo("cargas_demanda", {}).ok).toBe(true); // o vazio, com os defaults, segue valendo
   });
 
   it("recusa com a mensagem do esquema", () => {

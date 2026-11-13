@@ -34,8 +34,16 @@ export type ConteudoValidado = { ok: true; conteudo: unknown } | { ok: false; me
  * Confere o documento que a tela mandou contra o esquema do tipo do estudo. A mensagem é a do primeiro problema
  * (a mesma que o esquema usa para a tela), pronta para virar `ActionError`.
  */
+export const MOTIVO_CONTEUDO_DE_OUTRO_TIPO = "O conteúdo enviado não é deste tipo de estudo.";
+
 export function validarConteudoDoTipo(tipo: TipoDeEstudo, json: unknown): ConteudoValidado {
-  const r = (tipo === TIPO_ESTUDO_CARGAS_DEMANDA ? conteudoCargasDemandaSchema : conteudoCargasSchema).safeParse(json);
+  const esquema = tipo === TIPO_ESTUDO_CARGAS_DEMANDA ? conteudoCargasDemandaSchema : conteudoCargasSchema;
+  // O esquema descarta chave desconhecida; sem esta trava, o documento do outro tipo ("ambientes") passaria como um estudo
+  // VAZIO e apagaria o que estava gravado. Só o nível de cima é estrito: os documentos antigos seguem abrindo (`lerConteudo`).
+  if (json && typeof json === "object" && !Array.isArray(json) && Object.keys(json).some((k) => !Object.hasOwn(esquema.shape, k))) {
+    return { ok: false, mensagem: MOTIVO_CONTEUDO_DE_OUTRO_TIPO };
+  }
+  const r = esquema.safeParse(json);
   if (r.success) return { ok: true, conteudo: r.data };
   return { ok: false, mensagem: r.error.issues[0]?.message ?? "O conteúdo do estudo é inválido." };
 }

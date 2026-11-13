@@ -180,6 +180,8 @@ export function tiposDoEstudo(c: ConteudoCargasDemanda): TiposDoEstudo {
         avisos.push(MSG.areaInvalida());
         continue;
       }
+      // Zero grava (rascunho) e segue na lista, para o medidor que o cita não quebrar; o cálculo recusa (caso 19 da planilha).
+      if (q === 0) avisos.push(MSG.apartamentosInvalido());
       tipos.push({
         nome: t.id,
         quantidade: q,

@@ -28,6 +28,22 @@ import {
   salvarEstudo,
 } from "../src/modules/estudos/service";
 import type { SessionUser } from "../src/lib/session";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Packer } from "docx";
+import ExcelJS from "exceljs";
+import { empresaParaTimbrado } from "../src/modules/configuracoes/empresa/queries";
+import { MOTIVO_CONTEUDO_DE_OUTRO_TIPO } from "../src/modules/estudos/tipos";
+import { conteudoSchema as conteudoCargasDemandaSchema, type ConteudoCargasDemanda } from "../src/modules/estudos/cargas-demanda/conteudo";
+import { metodosDeInstalacao } from "../src/modules/estudos/cargas-demanda/entrada-estudo";
+import { nomeDoArquivo, paraMemoriaDoc } from "../src/modules/estudos/cargas-demanda/relatorio/formato";
+import { renderRelatorioDocx } from "../src/modules/estudos/cargas-demanda/relatorio/render-docx";
+import { preencherWorkbookRelatorio } from "../src/modules/estudos/cargas-demanda/relatorio/render-xlsx";
+import { abrirFaixaDoCabecalho, cabecalhoPdfDoTimbrado } from "../src/modules/estudos/cargas-demanda/relatorio/timbrado";
+import { ABAS_EXCEL, ehNum, type Celula } from "../src/modules/estudos/cargas-demanda/relatorio/tipos";
+import { renderMemoriaHtml } from "../src/modules/ferramentas/memoria/render-html";
+import { htmlParaPdf } from "../src/modules/ferramentas/memoria/render-pdf";
 
 const carga = (id: string, over: Record<string, unknown> = {}) => ({
   id,
@@ -51,6 +67,116 @@ function conteudoDeTeste(): ConteudoEstudo {
     condicoes: {},
     fonteFatorDemanda: "Tabela de demanda de teste",
   });
+}
+
+/**
+ * Estudo de cargas e demanda completo: caso 29 da planilha (52 apartamentos de 40 m² em 3 CMDs de 18 medidores, Neoenergia;
+ * esperados do §5 da spec), um levantamento de habitação, a entrada do CPG e o responsável técnico com a declaração.
+ */
+function conteudoCargasDemanda(): ConteudoCargasDemanda {
+  const linha = (id: string, descricao: string, quantidade: number, potenciaW: number, fp: number, fd: number) => ({ id, descricao, quantidade, potenciaW, fp, fd });
+  const b1 = metodosDeInstalacao().find((m) => m.referencia === "B1")?.valor ?? null;
+  return conteudoCargasDemandaSchema.parse({
+    concessionaria: "neoenergia",
+    sistema: "380/220",
+    ligacao: "tri",
+    criterioIluminacao: "habitacao",
+    tipoEmpreendimento: "muc_residencial",
+    levantamentos: [{ id: "lv1", nome: "Flat tipo A", fpIluminacao: 1, fpTomadas: 0.8, pavimentos: [{ id: "pv1", nome: "Térreo", ambientes: [
+      { id: "am1", nome: "Recepção", tipo: "sala", areaM2: 18, perimetroM: 17, iluminacao: { fp: 1 }, pontos: [{ id: "pt1", tipo: "tug", fp: 0.8 }] },
+      { id: "am2", nome: "Sanitário", tipo: "banheiro", areaM2: 4, perimetroM: 8, iluminacao: { fp: 1 }, pontos: [{ id: "pt2", tipo: "tug", fp: 0.8 }, { id: "pt3", tipo: "tue", descricao: "Chuveiro", quantidade: 1, vaPorPonto: 5500, fp: 1 }] },
+    ] }] }],
+    calculos: [
+      { id: "apt", nome: "Apartamentos", metodo: "area_util", papel: "apartamentos", apartamentos: [{ id: "flat", nome: "Apartamento tipo", quantidade: 52, areaUtilM2: 40, levantamentoId: "lv1" }] },
+      { id: "cond", nome: "Condomínio", metodo: "carga_instalada", papel: "condominio", linhas: [linha("l1", "Iluminação", 1, 3000, 0.8, 1), linha("l2", "Tomadas", 1, 1500, 0.8, 0.5), linha("l3", "Motor 1 cv", 1, 1520, 1, 1)] },
+      { id: "inc", nome: "Incêndio", metodo: "carga_instalada", papel: "incendio", linhas: [linha("l4", "Bomba de incêndio", 1, 1520, 1, 1)] },
+    ],
+    centros: { cmds: [
+      { id: "c1", nome: "CMD 1", capacidade: 18, medidores: [{ tipo: "residencial", tipoApartamentoId: "flat", quantidade: 16 }, { tipo: "condominio", calculoId: "cond" }, { tipo: "incendio", calculoId: "inc" }] },
+      { id: "c2", nome: "CMD 2", capacidade: 18, medidores: [{ tipo: "residencial", tipoApartamentoId: "flat", quantidade: 18 }] },
+      { id: "c3", nome: "CMD 3", capacidade: 18, medidores: [{ tipo: "residencial", tipoApartamentoId: "flat", quantidade: 18 }] },
+    ] },
+    entradas: [{ alvo: { nivel: "cpg" }, metodoInstalacao: b1, isolacao: "PVC", material: "cobre", carregados: 3 }],
+    responsavel: { nome: "Responsável de teste", crea: "000000", uf: "CE", declaracaoConferencia: true, conferidoEm: "2026-11-13" },
+  });
+}
+
+type Check = (nome: string, cond: boolean, extra?: string) => void;
+
+async function smokeCargasDemanda(admin: SessionUser, projetoId: string, tag: string, check: Check, erroDe: (p: Promise<unknown>) => Promise<string | null>) {
+  const criado = await criarEstudo(admin, { projetoId, nome: `${tag} prédio`, tipo: "cargas_demanda" });
+  try {
+    const novo = await estudoDoProjeto(projetoId, criado.id);
+    check("cargas e demanda — criar: tipo cargas_demanda, versão 1, documento vazio", novo?.tipo === "cargas_demanda" && novo.versao === 1 && novo.conteudo?.calculos.length === 0);
+
+    // Salvar e reabrir: o que volta do banco é o mesmo documento (só entradas; nada calculado é gravado).
+    const conteudo = conteudoCargasDemanda();
+    const s = await salvarEstudo(admin, { id: criado.id, versao: 1, nome: `${tag} prédio`, conteudo });
+    check("cargas e demanda — salvar: versão 2", s.versao === 2);
+    const reaberto = await estudoDoProjeto(projetoId, criado.id);
+    check("cargas e demanda — reabrir: documento igual ao enviado", reaberto?.tipo === "cargas_demanda" && JSON.stringify(reaberto.conteudo) === JSON.stringify(conteudo));
+    const gravado = (await prisma.estudoProjeto.findUniqueOrThrow({ where: { id: criado.id }, select: { conteudo: true } })).conteudo;
+    check("cargas e demanda — nada calculado vai para o banco (sem demanda/corrente gravadas)", !/demandaKVA|correnteA|ibCorrigida/.test(JSON.stringify(gravado)));
+
+    // O documento do outro tipo não serve; FP fora da faixa é recusado com o texto da spec §6.
+    const outroTipo = await erroDe(salvarEstudo(admin, { id: criado.id, versao: 2, nome: "x", conteudo: { ambientes: [], condicoes: {} } }));
+    check("cargas e demanda — documento de outro tipo recusado", outroTipo === MOTIVO_CONTEUDO_DE_OUTRO_TIPO, `${outroTipo}`);
+    const fpRuim = structuredClone(conteudo);
+    fpRuim.calculos[1].linhas[0].fp = 1.2;
+    const recusaFp = await erroDe(salvarEstudo(admin, { id: criado.id, versao: 2, nome: "x", conteudo: fpRuim }));
+    check("cargas e demanda — FP 1,2 recusado com o texto da spec (caso 17)", recusaFp === "Fator de potência inválido. Informe um valor maior que 0 e até 1.", `${recusaFp}`);
+    check("cargas e demanda — recusas não mudam a versão", (await estudoDoProjeto(projetoId, criado.id))?.versao === 2);
+
+    // Trava de versão: versão velha recusada; dois cliques com a mesma versão, só um grava.
+    check("cargas e demanda — versão velha recusada", (await erroDe(salvarEstudo(admin, { id: criado.id, versao: 1, nome: "Perdido", conteudo }))) === MOTIVO_ALTERADO_POR_OUTRA_PESSOA);
+    const corrida = await Promise.allSettled([
+      salvarEstudo(admin, { id: criado.id, versao: 2, nome: `${tag} prédio A`, conteudo }),
+      salvarEstudo(admin, { id: criado.id, versao: 2, nome: `${tag} prédio B`, conteudo }),
+    ]);
+    check("cargas e demanda — corrida: um só grava, versão 3", corrida.filter((r) => r.status === "fulfilled").length === 1 && (await estudoDoProjeto(projetoId, criado.id))?.versao === 3);
+
+    // Duplicar leva o documento inteiro e o tipo.
+    const d = await duplicarEstudo(admin, { id: criado.id });
+    const copia = await estudoDoProjeto(projetoId, d.id);
+    check("cargas e demanda — duplicar: mesmo tipo e mesmo documento", copia?.tipo === "cargas_demanda" && JSON.stringify(copia.conteudo) === JSON.stringify(conteudo));
+    await excluirEstudo(admin, { id: d.id });
+
+    // Relatório: os números do caso 29 (§5 da spec) chegam ao relatório montado a partir do banco.
+    const exp = await memoriaDoEstudo(admin, criado.id);
+    if (exp?.tipo !== "cargas_demanda") {
+      check("cargas e demanda — relatório montado", false, "memoriaDoEstudo não devolveu o relatório");
+      return;
+    }
+    const rel = exp.relatorio;
+    const comp = rel.secoes.find((x) => x.numero === 5)?.blocos.find((b) => b.tipo === "tabela");
+    const total = comp?.tipo === "tabela" ? comp.tabela.linhas.find((l) => l[0] === "Demanda total (kVA)") : undefined;
+    const valores = (total ?? []).slice(1).map((c: Celula) => (ehNum(c) ? c.n : null));
+    const esperado = [29.21, 23.82, 23.82, 55.16];
+    check("cargas e demanda — relatório: CMD 1, 2, 3 e CPG = 29,21 / 23,82 / 23,82 / 55,16 kVA", valores.length === 4 && esperado.every((e, i) => valores[i] != null && Math.abs((valores[i] as number) - e) <= 0.01), JSON.stringify(valores));
+    check("cargas e demanda — relatório: com declaração e CREA, sem a marca de não conferido", !rel.naoConferido);
+
+    // Exportar nos 3 formatos, pelo mesmo caminho da rota /api/estudos/[id]/memoria.
+    const empresa = await empresaParaTimbrado();
+    const saida = process.env.SMOKE_ESTUDOS_SAIDA || join(tmpdir(), "smoke-estudos");
+    mkdirSync(saida, { recursive: true });
+    const base = join(saida, nomeDoArquivo(rel));
+    const pdf = await htmlParaPdf(abrirFaixaDoCabecalho(renderMemoriaHtml(paraMemoriaDoc(rel)), empresa), { headerTemplate: cabecalhoPdfDoTimbrado(empresa) ?? undefined });
+    if (pdf) writeFileSync(`${base}.pdf`, pdf);
+    check("cargas e demanda — exportar PDF (precisa do CHROME_PATH)", !!pdf && pdf.subarray(0, 4).toString() === "%PDF", process.env.CHROME_PATH ? "PDF vazio" : "CHROME_PATH não definido");
+    const docx = await Packer.toBuffer(renderRelatorioDocx(rel, empresa));
+    writeFileSync(`${base}.docx`, docx);
+    check("cargas e demanda — exportar Word (.docx é um zip)", docx.subarray(0, 2).toString() === "PK");
+    const wb = new ExcelJS.Workbook();
+    preencherWorkbookRelatorio(wb, rel, empresa);
+    const xlsx = Buffer.from(await wb.xlsx.writeBuffer());
+    writeFileSync(`${base}.xlsx`, xlsx);
+    const relido = new ExcelJS.Workbook();
+    await relido.xlsx.load(xlsx as unknown as ArrayBuffer);
+    check("cargas e demanda — exportar Excel: reabre com uma aba por etapa", JSON.stringify(relido.worksheets.map((w) => w.name)) === JSON.stringify(ABAS_EXCEL), relido.worksheets.map((w) => w.name).join(", "));
+    console.log(`   arquivos gerados em ${saida}`);
+  } finally {
+    await prisma.estudoProjeto.delete({ where: { id: criado.id } }).catch(() => {});
+  }
 }
 
 async function main() {
@@ -155,6 +281,9 @@ async function main() {
     const rel = await memoriaDoEstudo(admin, cd.id);
     check("relatório de cargas e demanda: 7 seções e marca de não conferido", rel?.tipo === "cargas_demanda" && rel.relatorio.secoes.length === 7 && rel.relatorio.naoConferido);
     await excluirEstudo(admin, { id: cd.id });
+
+    // 8c) Cargas e demanda de ponta a ponta: criar, salvar, reabrir, trava de versão, duplicar e exportar nos 3 formatos.
+    await smokeCargasDemanda(admin, projeto.id, tag, check, erroDe);
 
     // 9) Limite por projeto
     const atuais = await prisma.estudoProjeto.count({ where: { projetoId: projeto.id } });

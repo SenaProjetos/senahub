@@ -8,9 +8,10 @@ import { fatorEmPercentual } from "@/modules/estudos/cargas-demanda/fator-escala
 
 import { CampoNumero, Rotulo } from "./campos";
 
+/** Troca só o id entre parênteses ("Demanda por apartamento (id)"), nunca um pedaço de palavra (mesma regra do relatório). */
 function comNomes(rotulo: string, nomes?: Record<string, string>): string {
   let r = rotulo;
-  for (const [id, nome] of Object.entries(nomes ?? {})) r = r.split(id).join(nome);
+  for (const [id, nome] of Object.entries(nomes ?? {})) r = r.split(`(${id})`).join(`(${nome})`);
   return r;
 }
 

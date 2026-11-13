@@ -30,8 +30,12 @@ export const TODAS_AS_FONTES: readonly FonteNorma[] = [
 
 /** A fonte cujo "documento + edição" abre a referência ("DIS-NOR-053 Rev. 06, Quadro 36" → DIS-NOR-053). `null` = não reconhecida. */
 export function fonteDaReferencia(referencia: string): FonteNorma | null {
+  // As mensagens da spec §6 citam a norma pelo nome curto ("NBR 5410, Tabela 40", "NT.00004, 6.11.8"): sem o "ABNT " e o ".EQTL".
+  const curto = (doc: string) => doc.replace(/^ABNT /, "").replace(/\.EQTL$/, "");
   // A mais específica primeiro (NDU-042 antes de um nome que a contenha).
-  const achadas = TODAS_AS_FONTES.filter((f) => referencia.includes(`${f.documento} ${f.edicao}`) || referencia.startsWith(f.documento));
+  const achadas = TODAS_AS_FONTES.filter(
+    (f) => referencia.includes(`${f.documento} ${f.edicao}`) || referencia.startsWith(f.documento) || referencia === curto(f.documento) || referencia.startsWith(`${curto(f.documento)},`),
+  );
   if (achadas.length === 0) return null;
   return achadas.reduce((a, b) => (b.documento.length > a.documento.length ? b : a));
 }
@@ -48,6 +52,29 @@ export function fontesCitadas(referencias: readonly string[], sempre: readonly F
 }
 
 export const FONTES_DE_DISJUNTORES: readonly FonteNorma[] = [CATALOGO_ACTI9, CATALOGO_WEG_DWB_DWA, CATALOGO_EASY9];
+
+/** "24/02/2027" → "2027-02-24"; `null` se não estiver nesse formato. */
+function isoDaData(br: string | undefined): string | null {
+  const m = br ? /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(br) : null;
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+}
+
+/**
+ * Normas com vigência futura da concessionária (spec §8: "usa-se a mais nova, com aviso") que o estudo NÃO cita — nenhum valor
+ * da calculadora vem delas, então não entram na lista de normas da seção 2, mas o relatório avisa na seção 6 que elas existem.
+ * Edição, data e título vêm do `FonteNorma`; o texto não resume o conteúdo da norma. Depois da data, o aviso diz que já vale.
+ */
+export function avisosDeNormasFuturas(emissor: string | null, citadas: readonly FonteNorma[], emissaoIso: string): string[] {
+  if (!emissor) return [];
+  const ids = new Set(citadas.map((f) => f.id));
+  return TODAS_AS_FONTES.filter((f) => f.emissor === emissor && f.situacao === "futura" && !ids.has(f.id)).map((f) => {
+    const nome = f.titulo.startsWith(f.documento) ? f.titulo : `${f.documento} — ${f.titulo}`;
+    const data = f.valeAPartirDe ?? "data a confirmar";
+    const inicio = isoDaData(f.valeAPartirDe);
+    const quando = inicio != null && emissaoIso >= inicio ? `está em vigor desde ${data}` : `vale a partir de ${data}`;
+    return `${nome} (${f.edicao}) ${quando}. A calculadora não usa valores desta norma; confira se o estudo é afetado.`;
+  });
+}
 export { NBR_5410, NBR_8995_1 };
 
 /** Texto da edição para a tabela: "Rev. 06, 09/09/2025" (a data só quando a edição não a traz). */

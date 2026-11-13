@@ -1,10 +1,11 @@
-import type { FatorDoMetodo, PassoDoMetodo, ResultadoAreaUtil } from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/tipos";
+import type { FatorDoMetodo, ResultadoAreaUtil } from "@/modules/ferramentas/calc/cargas-demanda/concessionarias/tipos";
 import type { Mensagem } from "@/modules/ferramentas/calc/cargas-demanda/mensagens";
 
 import { TIPO_CARGA_ROTULO, type CalculoEstudo, type ConteudoCargasDemanda } from "../conteudo";
 import { fatorEmPercentual } from "../fator-escala";
 import { formatarNumeroBR } from "../numero-br";
 import { fdSugeridoComFonte, rotuloDaRegra } from "../fd-linha";
+import { avisosDeVinculo, totaisDoEscopo } from "../levantamento";
 import { calcularCalculoDeCargaInstalada, resumoDoEstudo } from "../resultado";
 import { type BlocoRel, type Celula, num, type TabelaRel } from "./tipos";
 
@@ -24,9 +25,10 @@ export function nomesDosTipos(c: ConteudoCargasDemanda): Record<string, string> 
   return Object.fromEntries(c.calculos.filter((k) => k.metodo === "area_util").flatMap((k) => k.apartamentos.map((t, i) => [t.id, t.nome.trim() || `Tipo ${i + 1}`])));
 }
 
+/** O motor escreve o id entre parênteses ("Demanda por apartamento (id)"); só ele é trocado, nunca um pedaço de palavra. */
 export function comNomes(rotulo: string, nomes: Record<string, string>): string {
   let r = rotulo;
-  for (const [id, nome] of Object.entries(nomes)) r = r.split(id).join(nome);
+  for (const [id, nome] of Object.entries(nomes)) r = r.split(`(${id})`).join(`(${nome})`);
   return r;
 }
 
@@ -48,18 +50,25 @@ function tabelaDeFatores(concessionaria: string | null, titulo: string, fatores:
   };
 }
 
-function tabelaDePassos(passos: readonly PassoDoMetodo[]): TabelaRel {
-  return {
-    titulo: "Passos do cálculo",
-    colunas: ["Passo", "Fórmula", "Valor", "Un."],
-    linhas: passos.map((p) => [p.rotulo + (p.simbolo ? ` (${p.simbolo})` : ""), p.formula ?? "—", num(p.valor, 2), p.unidade]),
-  };
+export const ROTULO_DEMANDA_CRITERIO = "Demanda pelo critério da norma";
+
+/**
+ * Passos do método. Quando algum fator foi digitado e a demanda muda, a última linha traz a demanda com os fatores da norma
+ * (Pergunta 1 do plano, caso 13: o engenheiro confere os dois números — o adotado e o do critério).
+ */
+function tabelaDePassos(r: Pick<ResultadoAreaUtil, "passos" | "demandaKVA" | "demandaCriterioKVA">): TabelaRel {
+  const linhas: Celula[][] = r.passos.map((p) => [p.rotulo + (p.simbolo ? ` (${p.simbolo})` : ""), p.formula ?? "—", num(p.valor, 2), p.unidade]);
+  const { demandaKVA: adotada, demandaCriterioKVA: criterio } = r;
+  if (adotada != null && criterio != null && Math.abs(adotada - criterio) > 1e-9) {
+    linhas.push([ROTULO_DEMANDA_CRITERIO, "mesmos passos, com os fatores sugeridos pela norma", num(criterio, 2), "kVA"]);
+  }
+  return { titulo: "Passos do cálculo", colunas: ["Passo", "Fórmula", "Valor", "Un."], linhas };
 }
 
 function blocosDeAreaUtil(conc: string | null, titulo: string, r: ResultadoAreaUtil, fontes: FonteDoValor[], nomes: Record<string, string>): BlocoRel[] {
   const blocos: BlocoRel[] = [
     { tipo: "tabela", tabela: tabelaDeFatores(conc, titulo, r.fatores, nomes) },
-    { tipo: "tabela", tabela: tabelaDePassos(r.passos) },
+    { tipo: "tabela", tabela: tabelaDePassos(r) },
   ];
   if (r.fatorDoConjunto) blocos.push({ tipo: "tabela", tabela: tabelaDeFatores(conc, "Fator do conjunto", [r.fatorDoConjunto], nomes) });
   for (const f of [...r.fatores, ...(r.fatorDoConjunto ? [r.fatorDoConjunto] : [])]) if (f.referencia) fontes.push({ valor: comNomes(f.rotulo, nomes), referencia: f.referencia });
@@ -69,6 +78,8 @@ function blocosDeAreaUtil(conc: string | null, titulo: string, r: ResultadoAreaU
 function tabelaDeCarga(c: ConteudoCargasDemanda, k: CalculoEstudo, avisos: Mensagem[], fontes: FonteDoValor[]): TabelaRel {
   const r = calcularCalculoDeCargaInstalada(k, c.concessionaria);
   const ctx = { concessionaria: c.concessionaria, escopoN: k.escopo.quantidade, fdAquecimento: k.fdAquecimento, linhas: k.linhas };
+  // Os mesmos avisos de vínculo da tela ("O levantamento foi alterado depois de trazer…", "Valor diferente do levantamento.").
+  const vinculo = avisosDeVinculo(k, totaisDoEscopo(c, k.escopo.levantamentoIds));
   const linhas: Celula[][] = k.linhas.map((l, i) => {
     const calc = r.linhas[i];
     let origemFd = "—";
@@ -80,7 +91,7 @@ function tabelaDeCarga(c: ConteudoCargasDemanda, k: CalculoEstudo, avisos: Mensa
         if (s) fontes.push({ valor: `FD de ${l.descricao.trim() || "linha"} (${k.nome}): ${rotuloDaRegra(s.regra) ?? s.regra}`, referencia: s.referencia });
       }
     }
-    for (const m of calc.avisos) avisos.push({ ...m, texto: `${k.nome}, ${l.descricao.trim() || `linha ${i + 1}`}: ${m.texto}` });
+    for (const m of [...calc.avisos, ...(vinculo.get(l.id) ?? [])]) avisos.push({ ...m, texto: `${k.nome}, ${l.descricao.trim() || `linha ${i + 1}`}: ${m.texto}` });
     return [
       l.descricao.trim() || "—",
       l.tipoCarga ? TIPO_CARGA_ROTULO[l.tipoCarga] : "—",
