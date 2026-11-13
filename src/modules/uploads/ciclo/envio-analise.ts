@@ -42,6 +42,10 @@ function extensao(nome: string): string {
  * Projeto em "Nomenclatura livre" (licitação segue o padrão do órgão): o nome e a revisão do carimbo não
  * bloqueiam; PDF, arquivo idêntico, descrição e o código do carimbo × nome do arquivo continuam valendo.
  *
+ * Exceção de administrador (`excecaoAdmin`, 2026-11-13): pula o que se lê do NOME, a descrição e o código/revisão do
+ * carimbo (inclusive o carimbo ilegível), com motivo obrigatório; grava o evento "envio_com_excecao" listando o
+ * que foi dispensado. Sem arquivo, desenho sem PDF e arquivo idêntico ao anterior seguem bloqueando.
+ *
  * Descrição (spec de 2026-10-21 §3): da R01 em diante a descrição é a do quadro de revisão do carimbo; linha
  * vazia ou genérica bloqueia. `contestarCarimbo` = o projetista disse que o carimbo foi lido errado: vale a
  * descrição digitada (mesma regra de genérico) e a revisão guarda o que o carimbo dizia: quem analisa vê o aviso
@@ -50,7 +54,14 @@ function extensao(nome: string): string {
 export async function verificarEnvioParaAnalise(
   r: RevisaoCarregada,
   tx: Tx,
-  opts: { carimbo: CarimboDoEnvio; confirmarSemCarimbo: boolean; contestarCarimbo: boolean; userId: string },
+  opts: {
+    carimbo: CarimboDoEnvio;
+    confirmarSemCarimbo: boolean;
+    contestarCarimbo: boolean;
+    userId: string;
+    /** Motivo da exceção de administrador (a action já checou quem é); `null` = envio normal. */
+    excecaoAdmin?: string | null;
+  },
 ): Promise<Record<string, Prisma.InputJsonValue>> {
   const projetoId = r.documento.disciplina.projetoId;
   // Uma leitura por vez: a transação tem UMA conexão (sem Promise.all em `tx` — guard do projeto).
@@ -100,7 +111,7 @@ export async function verificarEnvioParaAnalise(
   // Só se contesta uma leitura que existe: sem quadro (ou sem PDF) a descrição já é a digitada.
   const contestada = opts.contestarCarimbo && descricaoLida !== null && descricaoLida.tipo !== "sem_quadro";
 
-  const problemas = problemasDoEnvio({
+  const entrada = {
     numero: r.numero,
     descricao: r.descricao,
     arquivos,
@@ -112,14 +123,30 @@ export async function verificarEnvioParaAnalise(
     nomenclaturaLivre: !nomenclatura.exigir,
     carimbo: descricaoLida,
     contestada,
-  });
+  };
   const carimbo = opts.carimbo
     ? conferirCarimbo(opts.carimbo.leitura, { nomeArquivo: opts.carimbo.nomeArquivo, numero: r.numero, conferirRevisao: nomenclatura.exigir })
     : null;
-  problemas.push(...(carimbo?.problemas ?? []));
+  const todos = [...problemasDoEnvio(entrada), ...(carimbo?.problemas ?? [])];
+  // Exceção de administrador: só as travas de arquivo seguem valendo; o resto vira registro no histórico.
+  const excecao = opts.excecaoAdmin;
+  const problemas = excecao ? problemasDoEnvio({ ...entrada, pularConferencias: true }) : todos;
   if (problemas.length > 0) throw new ActionError(mensagemDosProblemas(problemas));
+  if (excecao) {
+    const dispensados = todos.filter((p) => !problemas.includes(p));
+    if (carimbo?.leituraFalhou) dispensados.push("Carimbo ilegível: código e revisão não conferidos.");
+    if (dispensados.length > 0) {
+      await gravarEventoNoTx(tx, {
+        documentoId: r.documentoId,
+        revisaoId: r.id,
+        tipo: "envio_com_excecao",
+        userId: opts.userId,
+        detalhe: { motivo: excecao, dispensados, revisao: r.numero },
+      });
+    }
+  }
 
-  if (carimbo?.leituraFalhou) {
+  if (carimbo?.leituraFalhou && !excecao) {
     if (!opts.confirmarSemCarimbo) throw new ActionError(MOTIVO_CARIMBO_ILEGIVEL);
     await gravarEventoNoTx(tx, {
       documentoId: r.documentoId,

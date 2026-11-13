@@ -110,6 +110,17 @@ describe("pendências do ciclo documental", () => {
   });
 });
 
+describe("envio com exceção de administrador", () => {
+  it("é catalogado como alteração e o complemento traz o motivo e o que foi dispensado", () => {
+    expect(ehTipoEvento("envio_com_excecao")).toBe(true);
+    expect(categoriaDoTipo("envio_com_excecao")).toBe("alteracao");
+    expect(complementoEvento("envio_com_excecao", { motivo: "Carimbo com Ç", dispensados: ["Nome fora do padrão.", "Carimbo ilegível."] })).toBe(
+      "Carimbo com Ç · Dispensado: Nome fora do padrão. Carimbo ilegível.",
+    );
+    expect(complementoEvento("envio_com_excecao", {})).toBeNull();
+  });
+});
+
 describe("envio para análise com a descrição contestada", () => {
   const base = { de: "em_andamento", para: "compartilhado", revisao: 2, automatico: false };
 
