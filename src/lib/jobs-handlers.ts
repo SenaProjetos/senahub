@@ -65,7 +65,7 @@ import { diasAvisoVencimentoContrato } from "@/modules/juridico/config";
 import { prazosCertidoes } from "@/modules/certidoes/queries";
 import { tituloAvisoCertidao } from "@/modules/certidoes/prazos";
 import { vencimentoEfetivo } from "@/modules/juridico/contrato/estado";
-import { inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc, prazoVencido } from "@/lib/data";
+import { faixaDoDiaUtc, inicioDoDia, inicioDoDiaLocal, inicioDoDiaUtc, prazoVencido } from "@/lib/data";
 import { aplicarDesligamentosVencidos } from "@/modules/usuarios/vinculo/service";
 
 /** Rotinas das automações (chamadas pelos jobs do pg-boss em lib/jobs.ts). */
@@ -154,12 +154,12 @@ async function notificarAlertaLicitacaoUmaVez(
   return enviados;
 }
 
-function diaAlvo(dias: number): { gte: Date; lte: Date } {
-  const d = addDays(new Date(), dias);
-  const ini = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const fim = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59);
-  return { gte: ini, lte: fim };
-}
+/**
+ * O dia "daqui a N dias" (negativo = passado) como faixa de `where`, em UTC — as colunas comparadas
+ * são datas (`@db.Date`, ou `Disciplina.prazo` gravado em meia-noite UTC). O antigo, em meia-noite
+ * LOCAL, avisava um dia antes (timestamp) ou nos dois dias (`@db.Date`). Regra em `faixaDoDiaUtc`.
+ */
+const diaAlvo = (dias: number) => faixaDoDiaUtc(dias);
 
 /** D-7/D-3/D-1: prazos de disciplina → responsáveis + gestores. */
 export async function alertasPrazoDisciplina(): Promise<number> {
@@ -1963,9 +1963,9 @@ export async function alertasPrazoApontamento(): Promise<number> {
  * propósito; ele reaparece na tela, na área "Atenção necessária", para quem tem acesso.
  *
  * ── Idempotência ──────────────────────────────────────────────────────────────────────────
- * Pela `tag` da notificação (`acesso-<id>-venc-<dias>`), igual a `alertaCertidoes`. O job roda
- * uma vez ao dia e `diaAlvo` casa a data exata, então cada marco dispara num dia só; a `tag`
- * cobre o retry do pg-boss depois de uma falha no meio do fan-out.
+ * O job roda uma vez ao dia e `diaAlvo` casa a data exata, então cada marco dispara num dia só.
+ * A `tag` (`acesso-<id>-venc-<dias>`) só junta o push no aparelho — não fica no banco, então um
+ * retry do pg-boss depois de falha no meio do fan-out repete o sino (igual a `alertaCertidoes`).
  *
  * Não avisa sobre `bloqueado`/`inativo`: são estados declarados por gente, que já sabe.
  */

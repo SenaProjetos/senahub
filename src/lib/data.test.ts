@@ -13,7 +13,34 @@ import {
   diferencaEmDias,
   prazoVencido,
   diasVencidos,
+  faixaDoDiaUtc,
 } from "./data";
+
+describe("faixaDoDiaUtc (dia-alvo dos jobs)", () => {
+  const iso = (f: { gte: Date; lt: Date }) => [f.gte.toISOString(), f.lt.toISOString()];
+  it("daqui a 7 dias = o dia inteiro em UTC, sem o dia seguinte", () => {
+    const agora = new Date("2026-11-13T13:00:00.000Z"); // 10:00 BRT
+    expect(iso(faixaDoDiaUtc(7, agora))).toEqual(["2026-11-20T00:00:00.000Z", "2026-11-21T00:00:00.000Z"]);
+  });
+  it("ontem (D+1) e hoje", () => {
+    const agora = new Date("2026-11-13T13:00:00.000Z");
+    expect(iso(faixaDoDiaUtc(-1, agora))).toEqual(["2026-11-12T00:00:00.000Z", "2026-11-13T00:00:00.000Z"]);
+    expect(iso(faixaDoDiaUtc(0, agora))).toEqual(["2026-11-13T00:00:00.000Z", "2026-11-14T00:00:00.000Z"]);
+  });
+  it("22h em São Paulo ainda conta a partir do dia de São Paulo, não do UTC", () => {
+    const agora = new Date("2026-11-14T01:00:00.000Z"); // 22:00 BRT de 13/11
+    expect(iso(faixaDoDiaUtc(1, agora))).toEqual(["2026-11-14T00:00:00.000Z", "2026-11-15T00:00:00.000Z"]);
+    // 23:59 BRT: último minuto do dia em São Paulo, já 02:59Z do dia seguinte.
+    expect(iso(faixaDoDiaUtc(0, new Date("2026-11-14T02:59:00.000Z")))).toEqual([
+      "2026-11-13T00:00:00.000Z",
+      "2026-11-14T00:00:00.000Z",
+    ]);
+  });
+  it("atravessa a virada do mês sem pular dia", () => {
+    const agora = new Date("2026-11-30T13:00:00.000Z");
+    expect(iso(faixaDoDiaUtc(1, agora))).toEqual(["2026-12-01T00:00:00.000Z", "2026-12-02T00:00:00.000Z"]);
+  });
+});
 
 /**
  * Regressão do bug "um dia a menos": o banco devolve prazos como meia-noite UTC

@@ -20,6 +20,24 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Avisos de prazo no dia certo (novembro/2026)
+
+Alguns avisos diários do sino erravam o dia por causa do fuso horário. Agora cada um sai uma vez,
+no dia que o título diz:
+
+- **Prazo de disciplina** (7, 3 e 1 dia antes): saía **um dia antes** do que dizia (o "prazo em 7
+  dias" chegava 8 dias antes). Agora sai um dia depois do que saía, no dia certo.
+- **Licitação** (15, 7 e 1 dia antes), **cotação** (3 e 1 dia antes) e **acesso do cofre** (90, 30
+  e 7 dias antes): saíam **duas vezes**, um dia antes e no dia certo. Agora só no dia certo.
+- **Cotação com fornecedor sem resposta**: saía já no dia do prazo, quando o fornecedor ainda podia
+  responder. Agora sai no dia seguinte ao prazo.
+- **Recebimento vencido (D+1)**, sino interno do financeiro: saía no próprio dia do vencimento,
+  quando o recebimento ainda não estava atrasado. Agora sai no dia seguinte ao vencimento, como o
+  nome diz. O **e-mail de cobrança ao cliente** não muda: ele já saía no dia certo.
+- Avisos de **vigência e garantia de contrato** já saíam no dia certo e continuam iguais.
+- No primeiro dia depois da atualização, um aviso de prazo de disciplina pode chegar repetido uma
+  vez (ele já tinha saído, adiantado, na véspera).
+
 ## Prazos de vencimento das certidões (novembro/2026)
 
 - Em **Certidões**, botão **⋯** do topo → **Prazos de vencimento**: escolha a partir de quantos
