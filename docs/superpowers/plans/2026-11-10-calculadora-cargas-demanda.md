@@ -384,3 +384,32 @@ do critério de lux por catálogo de luminárias (como no protótipo).
   `prints-auditoria/2026-11-13_1135_cargas-demanda/`. Word e Excel só lidos por código (não abertos no Office).
 - **Fora desta rodada / a decidir:** o Word usa `Calibri`; a coluna "Un." (cv) do exemplo não existe (a potência é em kW); hipóteses da seção 2 são as de §8 resumidas; o relatório
   não traz memória de fórmulas passo a passo do levantamento (K, Φ do critério de lux) além das colunas da tabela.
+
+## Fase 4 — conferência (2026-11-13, sem commit até o OK do dono)
+
+- **Casos da planilha pelo DOCUMENTO** (`casos-planilha-documento.test.ts`): os casos 2–28, 30 e 31 passam por conteudo → resultado → relatório,
+  esperados só da planilha (o 29 já estava em `montar.test.ts`; o 1 saiu na Q24). K, fluxo e iluminância final do lux (casos 11 e 12) são
+  conferidos no resultado do ambiente: o relatório não tem essas colunas (decisão da Fase 3).
+- **Relatório por concessionária** (`relatorio/concessionarias.test.ts`): as 7, com seções, norma principal com edição (seção 2) e na seção 7,
+  nenhuma norma de outra concessionária, NBR 5410 "a confirmar" com o aviso, notas fixas só na dona (Enel, Cemig T12, Equatorial T6 × T7), FD de
+  aquecimento pela tabela onde existe, e o critério de lux (catálogo, 15 colunas por pavimento, 8995-1 a confirmar).
+- **Defeitos achados e corrigidos:**
+  1. `comNomes` (relatório e `fatores.tsx`) trocava o id do tipo em QUALQUER trecho do rótulo; agora só "(id)".
+  2. Tipo de apartamento com 0 unidades não dava a recusa do caso 19 (`tiposDoEstudo`); agora dá, e o tipo fica na lista.
+  3. O relatório não mostrava o D1 pelo critério da norma quando o fator é digitado (caso 13, Pergunta 1): linha "Demanda pelo critério da norma"
+     nos passos.
+  4. O alerta "O levantamento foi alterado depois de trazer…" (caso 20) não chegava ao relatório; agora vai para a seção 6.
+  5. Referência curta das mensagens ("NBR 5410, Tabela 40", "NT.00004, 6.11.8") não achava a norma: não entrava na seção 2 e o item sumia.
+     `fonteDaReferencia` aceita o nome curto, e os avisos com referência de norma entram na seção 7 ("Aviso: …") — caso 27.
+  6. `validarConteudoDoTipo` aceitava o documento do legado (`{ambientes, condicoes}`) num estudo de cargas e demanda como um estudo VAZIO
+     (apagava o gravado). Agora chave de nível de cima desconhecida é recusada (`MOTIVO_CONTEUDO_DE_OUTRO_TIPO`).
+- **Smoke** (`smoke:estudos`, bloco `smokeCargasDemanda`): criar, salvar, reabrir igual, nada calculado no banco, recusa do outro tipo e do FP
+  1,2, versão velha, corrida, duplicar, relatório do caso 29 a partir do banco e exportação nos 3 formatos (arquivos em `SMOKE_ESTUDOS_SAIDA`).
+- **Office:** o Word por COM travou invisível e foi encerrado; Excel não tentado (planilha do usuário aberta). Roteiro para o dono no
+  `LEIAME.md` de `prints-auditoria/2026-11-13_fase4_cargas-demanda/`. PDF do lux renderizado e conferido (15 colunas cabem).
+- **Manual:** `docs/manual/projetos/estudo-cargas-e-demanda.md` (+ README da seção e `search-index.json`).
+- **Normas futuras não citadas (decisão do dono, 2026-11-13, "conforme recomendado"):** NDU-042 (Energisa) e Nota Técnica 004/2026
+  (Equatorial) não dão valor à calculadora, então NÃO entram na lista da seção 2; a seção 6 ("Edição das normas") avisa, só na concessionária
+  dona: "<título> (<edição>) vale a partir de <data>. A calculadora não usa valores desta norma; confira se o estudo é afetado." Depois da
+  data: "está em vigor desde <data>". Tudo do `FonteNorma` (`avisosDeNormasFuturas`, `relatorio/fontes.ts`); nada resume o conteúdo da norma.
+- **Cosmético:** no PDF (renderizador comum) um subtítulo pode ficar sozinho no pé da página ("Total do levantamento").

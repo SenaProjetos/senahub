@@ -3133,6 +3133,50 @@
         "coordenação bim",
         "juntar ifcs"
       ]
+    },
+    {
+      "titulo": "Estudo de cargas e demanda por concessionária",
+      "path": "projetos/estudo-cargas-e-demanda.md",
+      "descricao": "Estudo preliminar de demanda de edificações de múltiplas unidades, pelo método da concessionária, na aba Estudos do projeto.",
+      "resumo": "Levantamento de iluminação e tomadas por ambiente, cálculos de demanda (carga instalada ou área útil), CMDs, CPG e entrada, e o relatório em PDF, Word e Excel para o memorial.",
+      "tags": [
+        "estudos",
+        "cargas",
+        "demanda",
+        "concessionária",
+        "cmd",
+        "cpg",
+        "entrada",
+        "relatório",
+        "elétrico"
+      ],
+      "palavrasChave": [
+        "levantamento de cargas",
+        "demanda",
+        "carga instalada",
+        "área útil",
+        "neoenergia",
+        "equatorial",
+        "cemig",
+        "celesc",
+        "copel",
+        "enel",
+        "energisa",
+        "centro de medição",
+        "cmd",
+        "cpg",
+        "disjuntor",
+        "seção do cabo",
+        "lux",
+        "habitação",
+        "nbr 5410"
+      ],
+      "sinonimos": [
+        "calculadora de cargas e demanda",
+        "cálculo de demanda",
+        "demanda provável",
+        "memorial de cálculo elétrico"
+      ]
     }
   ]
 }
