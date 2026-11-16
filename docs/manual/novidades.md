@@ -20,6 +20,24 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Datas reais direto no Gantt de Controle (novembro/2026)
+
+- No **Gantt de Controle**, o **início real** e o **término real** agora se digitam na própria tabela, sem
+  abrir o diálogo da tarefa. Vale a mesma permissão de quem já registra o executado.
+- Informou só o término? O sistema usa o início previsto (ou o próprio término) como início. Marco tem
+  uma data só. O calendário não deixa escolher dia depois de hoje.
+- **Tab** e **Enter** andam pelas células das datas reais. Reabrir uma tarefa concluída continua sendo
+  pelo **%** (Atualizar tarefa), não pela data.
+- Continua funcionando com o cronograma aprovado.
+
+## Administrador pode enviar para análise com exceção (novembro/2026)
+
+- Na pasta do projeto, só o **administrador** pode enviar uma revisão para análise **sem** as conferências
+  de nome, descrição e carimbo, informando o **motivo**. Quem não é administrador não vê essa opção.
+- As travas de arquivo continuam: sem arquivo, desenho sem PDF e arquivo idêntico ao da revisão anterior
+  seguem barrando o envio.
+- O motivo e o que foi dispensado ficam no histórico do documento.
+
 ## Avisos de prazo no dia certo (novembro/2026)
 
 Alguns avisos diários do sino erravam o dia por causa do fuso horário. Agora cada um sai uma vez,

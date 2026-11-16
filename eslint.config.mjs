@@ -22,6 +22,8 @@ const eslintConfig = [
       ".ds-sync/**", // artefatos gerados do sync de design-system, não código-fonte
       "ds-bundle/**", // bundle vendorizado (React interno etc.), não código-fonte
       ".claude/worktrees/**", // checkouts temporários de agente: já são lintados na própria raiz
+      "docs/**", // documentação e scripts avulsos de extração de normas (.cjs), nenhum é código do produto
+      "prints-auditoria/**", // scripts de captura de tela das auditorias (pasta fora do git)
     ],
   },
 ];
