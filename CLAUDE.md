@@ -912,28 +912,21 @@ The five canonical roles, each label string equal to its name (`needs-triage`, `
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root — both exist since 2026-09-09. See `docs/agents/domain.md`. Note the two ADR series: `docs/adr/000N-slug.md` is the current convention; `docs/manual/decisions/ADR-00N-*.md` is the legacy one and still valid.
 
-## Parallel worktrees (one per IDE)
+## Worktrees
 
-Two agents work this repo at the same time, like two separate developers. Identify yours by the
-**folder you are in** — never by the environment: the Claude Code extension in Antigravity reports
-itself as "VSCode".
+Since 2026-11-16 there is ONE main worktree: `SENAHub-remake` (port 3000, dev DB `senahub_remake` on 5433), working on
+branch `dev` (integration branch; `feat/*` branches merge into it; `master` is deploy only — never work on it). The old
+VS Code worktree (`SENAHub-remake-vscode`, `dev-vscode`, `senahub_remake_vscode`) was removed. Extra worktrees
+(`SENAHub-remake-<feature>`) exist only for a short-lived feature branch; each has its own `.env`, real `node_modules`
+and `src/generated`.
 
-| IDE | Folder | Branch | Port | Dev DB (5433) |
-|---|---|---|---|---|
-| Antigravity | `SENAHub-remake` (main) | `dev-antigravity` | 3000 | `senahub_remake` |
-| VS Code | `SENAHub-remake-vscode` (worktree) | `dev-vscode` | 3001 | `senahub_remake_vscode` |
-
-- Work only in your own folder, branch and database; never touch the other agent's.
 - `.env` is untracked and differs per worktree (`DATABASE_URL`, `PORT`, `APP_URL`, `BETTER_AUTH_URL`,
-  `STORAGE_BASE_PATH`) — never copy one over the other. Wrong `BETTER_AUTH_URL` breaks login (CSRF). Give each a distinct
-  `AUTH_COOKIE_PREFIX` (e.g. `senahub-vscode`): `localhost` cookies ignore the port, so without it the two
-  dev servers overwrite each other's session cookie (logging in on one logs the other out).
-- Plain `npm run dev` ignores `PORT` from `.env`: in the VS Code worktree use `npm run dev -- -p 3001`
-  (`dev:server` reads it).
-- Each worktree has its own real `node_modules` and `src/generated` — never replace them with a
-  junction to the main folder (Turbopack refuses the symlink, and removal can wipe the target).
+  `STORAGE_BASE_PATH`) — never copy one over another. Wrong `BETTER_AUTH_URL` breaks login (CSRF). Give each worktree
+  a distinct `AUTH_COOKIE_PREFIX`: `localhost` cookies ignore the port, so two dev servers overwrite each other's session.
+- Plain `npm run dev` ignores `PORT` from `.env`: in a secondary worktree use `npm run dev -- -p <port>` (`dev:server` reads it).
+- Never replace `node_modules`/`src/generated` with a junction to another folder (Turbopack refuses the symlink, and removal
+  can wipe the target).
 - Stage specific files (never `git add -A`/`.`) and check `git show --stat` after committing.
-- First push: `git push -u origin dev-<ide>`. Both branches merge into `dev`; `master` is deploy only.
-- A new migration runs `db:migrate` against your own DB; the other worktree applies it with
-  `npx prisma migrate deploy` after the merge.
+- A new migration runs `db:migrate` against your own DB; another worktree applies it with `npx prisma migrate deploy`
+  after the merge.
 - `git log dev` is ambiguous (there is a `dev/` folder) — use `refs/heads/dev`.
