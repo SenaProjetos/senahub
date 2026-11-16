@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, CopyPlus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, CopyPlus, Download, Trash2, Upload } from "lucide-react";
 
 import type { AcaoItem } from "@/components/ui/acoes";
 
@@ -56,6 +56,27 @@ export function itensDeCarga(ctx: { indice: number; total: number; totalGeral?: 
         rotuloConfirmar: "Remover",
       },
     },
+  ];
+}
+
+export const ACAO_ARQUIVO_EXPORTAR = "exportar-arquivo";
+export const ACAO_ARQUIVO_IMPORTAR = "importar-arquivo";
+export const MOTIVO_SEM_RESULTADO = "Complete as cargas marcadas para exportar.";
+
+/**
+ * O `...` do cabeçalho da calculadora: o arquivo `.shcalc.json` do cálculo. Exportar só com resultado
+ * (o mesmo critério do antigo botão Exportar); importar sempre.
+ */
+export function itensDoArquivo(ctx: { calculado: boolean }): AcaoItem[] {
+  return [
+    {
+      tipo: "acao",
+      id: ACAO_ARQUIVO_EXPORTAR,
+      rotulo: "Exportar arquivo (.shcalc.json)",
+      icone: Download,
+      desabilitado: ctx.calculado ? undefined : MOTIVO_SEM_RESULTADO,
+    },
+    { tipo: "acao", id: ACAO_ARQUIVO_IMPORTAR, rotulo: "Importar arquivo (.shcalc.json)", icone: Upload },
   ];
 }
 

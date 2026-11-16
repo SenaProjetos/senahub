@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  ACAO_ARQUIVO_EXPORTAR,
+  ACAO_ARQUIVO_IMPORTAR,
+  MOTIVO_SEM_RESULTADO,
+  itensDoArquivo,
   ACAO_CARGA_DESCER,
   ACAO_CARGA_DUPLICAR,
   ACAO_CARGA_REMOVER,
@@ -55,6 +59,19 @@ describe("itensDeCarga", () => {
     const remover = acao(itensDeCarga({ indice: 0, total: 2 }), ACAO_CARGA_REMOVER);
     expect(remover.variant).toBe("destructive");
     expect(remover.confirmar).toBeDefined();
+  });
+});
+
+describe("itensDoArquivo", () => {
+  it("sem resultado, exportar fica desabilitado com o motivo; importar sempre vale", () => {
+    const itens = itensDoArquivo({ calculado: false });
+    expect(acao(itens, ACAO_ARQUIVO_EXPORTAR).desabilitado).toBe(MOTIVO_SEM_RESULTADO);
+    expect(acao(itens, ACAO_ARQUIVO_IMPORTAR).desabilitado).toBeUndefined();
+  });
+
+  it("com resultado, as duas valem", () => {
+    const itens = itensDoArquivo({ calculado: true });
+    expect(acao(itens, ACAO_ARQUIVO_EXPORTAR).desabilitado).toBeUndefined();
   });
 });
 

@@ -75,7 +75,8 @@ export function LinhaCarga({
         </div>
         <BotaoAcoes itens={itens} onSelect={onSelect} rotulo={contexto ? `Ações da carga ${numero} (${contexto})` : `Ações da carga ${numero}`} />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+      {/* items-end: rótulo que quebra em duas linhas não desce o campo dele (os campos ficam alinhados). */}
+      <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4 lg:grid-cols-8">
         {campo("quantidade", "Qtd")}
         {campo("potenciaW", "P unit. (W)")}
         {campo("tensaoV", "Tensão (V)")}

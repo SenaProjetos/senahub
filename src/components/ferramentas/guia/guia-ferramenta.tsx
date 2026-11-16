@@ -15,7 +15,7 @@ import { getGuia, type GuiaGrupoMeta } from "@/modules/ferramentas/guia-meta";
 
 const GruposCtx = createContext<GuiaGrupoMeta[]>([]);
 
-function NumBadge({ n }: { n: number }) {
+export function NumBadge({ n }: { n: number }) {
   return (
     <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
       {n}
@@ -80,6 +80,22 @@ export function GuiaFerramenta({ slug, desenho, children }: Props) {
           </aside>
         </div>
       </GruposCtx.Provider>
+    </div>
+  );
+}
+
+/**
+ * O conteúdo do guia (grupos, unidades, dica) sem o formulário — para a tela larga, que o mostra numa
+ * gaveta ("Como preencher") em vez da coluna fixa ao lado dos campos.
+ */
+export function GuiaPainel({ slug }: { slug: string }) {
+  const guia = getGuia(slug);
+  if (!guia) return null;
+  return (
+    <div className="space-y-4">
+      <Legenda grupos={guia.grupos} />
+      <Unidades unidades={guia.unidades} />
+      <Dica texto={guia.dica} />
     </div>
   );
 }

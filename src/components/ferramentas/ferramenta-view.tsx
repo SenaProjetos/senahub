@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import { getFerramenta, situacaoValidacao } from "@/modules/ferramentas/registry";
 import { getGuia } from "@/modules/ferramentas/guia-meta";
 import type { RecenteCalculo } from "@/modules/ferramentas/types";
@@ -28,7 +29,8 @@ import { PunchingForm } from "./punching-form";
 import { FootingForm } from "./footing-form";
 import { EccentricFootingForm } from "./eccentric-footing-form";
 import { ReservoirForm } from "./reservoir-form";
-import { ElectricalDemandForm } from "./electrical-demand-form";
+import { CorrenteDemandaView } from "./corrente-demanda-view";
+import { AvisoValidacao } from "./aviso-validacao";
 import { PumpRecalqueForm } from "./pump-recalque-form";
 import { PoolPumpForm } from "./pool-pump-form";
 import { SoilInfiltrationForm } from "./soil-infiltration-form";
@@ -80,8 +82,6 @@ function renderForm(key: string, initialEntradas: Record<string, unknown> | unde
       return <EccentricFootingForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "reservatorios":
       return <ReservoirForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
-    case "corrente-demanda":
-      return <ElectricalDemandForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "bomba-recalque":
       return <PumpRecalqueForm initialEntradas={initialEntradas} onSalvo={onSalvo} />;
     case "bomba-piscina":
@@ -114,11 +114,29 @@ export function FerramentaView({ ferramentaKey, recentes }: Props) {
     if (r.ok) {
       setInitialEntradas(r.data.entradasJson);
       setFormKey((k) => k + 1);
+    } else {
+      // Antes falhava em silêncio: o clique em "Abrir" não fazia nada.
+      toast.error(r.error);
     }
   }, []);
 
   if (!meta) {
     return <div className="p-6 text-sm text-muted-foreground">Ferramenta não encontrada.</div>;
+  }
+
+  // Tela larga: a calculadora desenha a página inteira (cabeçalho com as ações, resultado no topo,
+  // recentes no fim), sem a coluna de 1024 px. As demais seguem no formato abaixo.
+  if (meta.key === "corrente-demanda") {
+    return (
+      <CorrenteDemandaView
+        key={formKey}
+        initialEntradas={initialEntradas}
+        onSalvo={handleSalvo}
+        recentes={recentes}
+        onAbrir={handleAbrir}
+        exportaveis={meta.exportaveis}
+      />
+    );
   }
 
   const Icon = meta.icon;
@@ -157,12 +175,7 @@ export function FerramentaView({ ferramentaKey, recentes }: Props) {
         </div>
       )}
 
-      {situacaoValidacao(meta) === "em_validacao" && (
-        <div role="note" className="rounded-lg border border-warning/50 bg-warning/10 px-4 py-3 text-sm">
-          <strong className="font-semibold">Em validação.</strong> Um engenheiro da casa ainda não conferiu as fórmulas e
-          tabelas desta calculadora. Só quem gere as ferramentas a vê, e a memória sai marcada como &quot;não usar em projeto&quot;.
-        </div>
-      )}
+      {situacaoValidacao(meta) === "em_validacao" && <AvisoValidacao />}
 
       {/* Formulário da ferramenta — key muda ao abrir recente, reinicializando os campos */}
       <div key={formKey} className="rounded-lg border bg-card p-6">
