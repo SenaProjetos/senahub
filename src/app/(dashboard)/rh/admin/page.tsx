@@ -73,7 +73,9 @@ export default async function RhAdminPage() {
         ferias={ferias}
         alteracoesFerias={alteracoesFerias}
         feriasVigentes={feriasVigentes}
-        colaboradoresFerias={colaboradoresFerias}
+        colaboradoresFerias={colaboradoresFerias.filter((c) => c.id !== user.id)}
+        colaboradoresAbono={colaboradores.filter((c) => c.id !== user.id)}
+        quem={{ id: user.id, superUsuario: user.superUsuario }}
         ultimoMesFechadoBanco={ultimoFechado}
         clima={clima}
         climaSerie={climaSerie}

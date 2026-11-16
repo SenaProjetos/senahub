@@ -12,6 +12,12 @@ import { formatarData } from "@/lib/utils";
 import { validarInicioFeriasClt } from "@/lib/ferias-clt";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
 import { avisarImpactoDaAusencia } from "@/modules/planejamento/impacto-ausencia-service";
+import { MOTIVO_ABONO_JA_DECIDIDO, motivoParaNaoDecidirAbono, tratamentoPadrao } from "@/modules/rh/abono-entrada";
+import {
+  MOTIVO_FERIAS_JA_DECIDIDAS,
+  motivoParaNaoDecidirFerias,
+  motivoParaNaoLancarFeriasPara,
+} from "@/modules/rh/ferias-decisao";
 
 /**
  * `roles` é obrigatório aqui: sem `roles` E sem `recurso`, `defineAction` pula o gate inteiro
@@ -101,13 +107,30 @@ const validarAbonoSchema = validarSchema.extend({
 });
 
 export const validarAbono = defineAction(
-  { ...adminBase, acao: "validar-abono", entidade: "AbonoFalta", schema: validarAbonoSchema },
+  {
+    ...adminBase,
+    acao: "validar-abono",
+    entidade: "AbonoFalta",
+    schema: validarAbonoSchema,
+    // O RH decide a linha de OUTRA pessoa — a trilha aponta qual abono e como ele estava.
+    entidadeId: (d) => (d as { id: string }).id,
+    capturarAntes: async (i) =>
+      prisma.abonoFalta.findUnique({
+        where: { id: i.id },
+        select: { userId: true, status: true, tratamento: true, motivoTipo: true },
+      }),
+  },
   async (i, { user }) => {
     const abono = await prisma.abonoFalta.findUnique({ where: { id: i.id } });
     if (!abono) throw new ActionError("Abono não encontrado.");
-    const tratamento = i.tratamento ?? (abono.motivoTipo === "atestado" ? "abonar" : "banco_horas");
-    await prisma.abonoFalta.update({
-      where: { id: i.id },
+    // Já decidido, ou a própria ausência (exceto superusuário) — a fila mostra a mesma frase.
+    const recusa = motivoParaNaoDecidirAbono(abono, { id: user.id, superUsuario: user.superUsuario === true });
+    if (recusa) throw new ActionError(recusa);
+    const tratamento = i.tratamento ?? tratamentoPadrao(abono.motivoTipo);
+    // Condicionado a `pendente`: dois cliques (ou dois gestores) ao mesmo tempo decidem uma vez
+    // só — o segundo não sobrescreve a decisão nem notifica a pessoa de novo.
+    const { count } = await prisma.abonoFalta.updateMany({
+      where: { id: i.id, status: "pendente" },
       data: {
         status: i.aprovar ? "aprovado" : "rejeitado",
         ...(i.aprovar ? { tratamento } : {}),
@@ -115,6 +138,7 @@ export const validarAbono = defineAction(
         validadoEm: new Date(),
       },
     });
+    if (count !== 1) throw new ActionError(MOTIVO_ABONO_JA_DECIDIDO);
     await notificar(abono.userId, {
       titulo: i.aprovar ? "Ausência aprovada" : "Ausência rejeitada",
       corpo: !i.aprovar
@@ -139,14 +163,32 @@ export const validarAbono = defineAction(
 );
 
 export const validarFerias = defineAction(
-  { ...adminBase, acao: "validar-ferias", entidade: "Ferias", schema: validarSchema },
+  {
+    ...adminBase,
+    acao: "validar-ferias",
+    entidade: "Ferias",
+    schema: validarSchema,
+    // O RH decide a linha de OUTRA pessoa — a trilha aponta quais férias e como estavam.
+    entidadeId: (d) => (d as { id: string }).id,
+    capturarAntes: async (i) =>
+      prisma.ferias.findUnique({
+        where: { id: i.id },
+        select: { userId: true, status: true, inicio: true, fim: true },
+      }),
+  },
   async (i, { user }) => {
     const f = await prisma.ferias.findUnique({ where: { id: i.id } });
     if (!f) throw new ActionError("Solicitação não encontrada.");
-    await prisma.ferias.update({
-      where: { id: i.id },
+    // Já decididas, ou as próprias férias (exceto superusuário) — a fila mostra a mesma frase.
+    const recusa = motivoParaNaoDecidirFerias(f, { id: user.id, superUsuario: user.superUsuario === true });
+    if (recusa) throw new ActionError(recusa);
+    // Condicionado a `pendente`: dois cliques (ou dois gestores) ao mesmo tempo decidem uma vez
+    // só — o segundo não sobrescreve a decisão nem notifica a pessoa de novo.
+    const { count } = await prisma.ferias.updateMany({
+      where: { id: i.id, status: "pendente" },
       data: { status: i.aprovar ? "aprovado" : "rejeitado", validadoPorId: user.id },
     });
+    if (count !== 1) throw new ActionError(MOTIVO_FERIAS_JA_DECIDIDAS);
     await notificar(f.userId, {
       titulo: i.aprovar ? "Férias aprovadas" : "Férias rejeitadas",
       corpo: "Sua solicitação de férias foi avaliada.",
@@ -198,6 +240,9 @@ export const lancarFeriasColaborador = defineAction(
       select: { id: true, tipo: true, ativo: true, contratacao: true },
     });
     if (!achado || !achado.ativo) throw new ActionError("Colaborador não encontrado.");
+    // Férias lançadas nascem aprovadas: as próprias passam pela solicitação (outra pessoa decide).
+    const proprias = motivoParaNaoLancarFeriasPara(achado.id, user.id);
+    if (proprias) throw new ActionError(proprias);
     const alvo: SujeitoJornada & { id: string } = {
       id: achado.id,
       tipo: achado.tipo,

@@ -21,6 +21,7 @@ import { escalaUsuarioGrade, escalaPadraoDoUsuario } from "@/modules/rh/escalas/
 import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
+import { LancarAbonoDialog } from "@/components/rh/lancar-abono-dialog";
 import { PedidoDadosFicha } from "@/components/rh/pedido-dados";
 import { pedidoDaPessoa } from "@/modules/rh/cadastro/queries";
 import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
@@ -151,6 +152,12 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       overrides={overrides}
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
+      lancarAbonoSlot={
+        // Só o RH, só pessoa ativa, e nunca na própria ficha: o abono lançado nasce aprovado.
+        ehRh && ausencias && pessoa.ativo && id !== user.id ? (
+          <LancarAbonoDialog pessoa={{ id, name: pessoa.name }} ultimoMesFechado={mesFechadoBanco} />
+        ) : undefined
+      }
       pedidoDadosSlot={pedidoDados ? <PedidoDadosFicha key="pedido-dados" userId={id} pedido={pedidoDados} /> : undefined}
       desenvolvimentoSlot={
         desenvolvimento ? (

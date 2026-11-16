@@ -20,7 +20,9 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
 ## O que você pode fazer
 
 - **Abonos / atestados:** solicitar abono de ausência, anexando atestado quando houver;
-  acompanhar o **status** (pendente/aprovado/recusado).
+  acompanhar o **status** (pendente/aprovado/recusado). Se você entregou o atestado direto ao
+  RH, ele pode lançar a ausência por você: ela aparece já aprovada, marcada como **Lançado pelo
+  RH**, e você recebe uma notificação.
 - **Férias:** solicitar período de férias e acompanhar o status.
   - Enquanto a solicitação está **pendente**, você pode **editar** as datas livremente.
   - Depois de **aprovada**, use **Propor alteração**: a nova data só passa a valer quando o

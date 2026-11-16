@@ -111,7 +111,8 @@ export function LancarFeriasDialog({
                 </Select>
                 {colaboradores.length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Nenhum colaborador CLT ou estagiário ativo — férias são instituto celetista.
+                    Nenhum outro colaborador CLT ou estagiário ativo — férias são instituto celetista. As suas
+                    próprias férias vão pela solicitação em RH.
                   </p>
                 )}
               </div>

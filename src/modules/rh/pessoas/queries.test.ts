@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   userFindUnique: vi.fn(),
   sessaoCount: vi.fn(),
   abonoCount: vi.fn(),
+  abonoFindMany: vi.fn(),
+  feriasFindMany: vi.fn(),
   feriasCount: vi.fn(),
   documentoCount: vi.fn(),
   contaBancariaCount: vi.fn(),
@@ -20,8 +22,14 @@ vi.mock("@/lib/prisma", () => ({
       findUnique: (...args: unknown[]) => mocks.userFindUnique(...args),
     },
     sessaoTrabalho: { count: (...args: unknown[]) => mocks.sessaoCount(...args) },
-    abonoFalta: { count: (...args: unknown[]) => mocks.abonoCount(...args) },
-    ferias: { count: (...args: unknown[]) => mocks.feriasCount(...args) },
+    abonoFalta: {
+      count: (...args: unknown[]) => mocks.abonoCount(...args),
+      findMany: (...args: unknown[]) => mocks.abonoFindMany(...args),
+    },
+    ferias: {
+      count: (...args: unknown[]) => mocks.feriasCount(...args),
+      findMany: (...args: unknown[]) => mocks.feriasFindMany(...args),
+    },
     funcionarioDocumento: { count: (...args: unknown[]) => mocks.documentoCount(...args) },
     contaBancariaColaborador: { count: (...args: unknown[]) => mocks.contaBancariaCount(...args) },
     projeto: { findMany: (...args: unknown[]) => mocks.projetoFindMany(...args) },
@@ -33,7 +41,7 @@ vi.mock("@/lib/socket", () => ({
 }));
 vi.mock("@/modules/ponto/queries", () => ({ espelhoMes: vi.fn() }));
 
-import { fichaPessoa, holeritesDaPessoa, listarPessoas } from "./queries";
+import { fichaPessoa, holeritesDaPessoa, listarPessoas, solicitacoesDoUsuario } from "./queries";
 
 function usuarioBase() {
   return {
@@ -285,5 +293,42 @@ describe("Pessoa 360 — consultas de resumo", () => {
         },
       }),
     );
+  });
+});
+
+describe("Pessoa 360 — aba Ausências", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  const abono = (extra: Record<string, unknown>) => ({
+    id: "a1",
+    dataInicio: new Date("2026-11-19T00:00:00Z"),
+    dataFim: new Date("2026-11-20T00:00:00Z"),
+    motivo: null,
+    motivoTipo: "atestado",
+    tratamento: "abonar",
+    horaInicio: null,
+    horaFim: null,
+    atestadoPath: null,
+    atestadoNome: null,
+    status: "aprovado",
+    validadoEm: null,
+    lancadoPorId: null,
+    // Criado antes do início: seria "aviso antecipado" se viesse da pessoa.
+    createdAt: new Date("2026-11-16T15:00:00Z"),
+    ...extra,
+  });
+
+  it("marca o abono lançado pelo RH e nunca o trata como aviso antecipado", async () => {
+    mocks.abonoFindMany.mockResolvedValue([abono({ id: "rh", lancadoPorId: "u-rh" }), abono({ id: "pessoa" })]);
+    mocks.feriasFindMany.mockResolvedValue([]);
+
+    const r = await solicitacoesDoUsuario("u1");
+
+    const porId = Object.fromEntries(r.abonos.map((a) => [a.id, a]));
+    expect(porId.rh).toMatchObject({ lancadoPeloRh: true, antecipado: false });
+    expect(porId.pessoa).toMatchObject({ lancadoPeloRh: false, antecipado: true });
+    expect(mocks.abonoFindMany.mock.calls[0][0].select).toMatchObject({ lancadoPorId: true });
   });
 });

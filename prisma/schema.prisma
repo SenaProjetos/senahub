@@ -2825,7 +2825,7 @@ enum StatusSolicitacao {
   rejeitado
 }
 
-/// Abono de faltas via atestado. Supervisor/RH valida.
+/// Abono de faltas via atestado. Supervisor/RH valida — ou o RH lança direto (ver `lancadoPorId`).
 model AbonoFalta {
   id            String             @id @default(cuid())
   userId        String
@@ -2847,6 +2847,9 @@ model AbonoFalta {
   validadoPorId String?
   validadoPor   User?              @relation("AbonoValidador", fields: [validadoPorId], references: [id])
   validadoEm    DateTime?
+  /// RH que lançou a ausência direto, sem solicitação do colaborador (nasce aprovada).
+  /// Não-nulo ⟺ lançamento pelo RH. Denormalizado, sem FK (mesmo padrão de `Ferias.lancadoPorId`).
+  lancadoPorId  String?
   createdAt     DateTime           @default(now())
 
   @@index([userId])

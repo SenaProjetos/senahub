@@ -315,7 +315,7 @@ export async function solicitacoesDoUsuario(userId: string) {
     prisma.abonoFalta.findMany({
       where: { userId },
       orderBy: { dataInicio: "desc" },
-      select: { id: true, dataInicio: true, dataFim: true, motivo: true, motivoTipo: true, tratamento: true, horaInicio: true, horaFim: true, atestadoPath: true, atestadoNome: true, status: true, validadoEm: true, createdAt: true },
+      select: { id: true, dataInicio: true, dataFim: true, motivo: true, motivoTipo: true, tratamento: true, horaInicio: true, horaFim: true, atestadoPath: true, atestadoNome: true, status: true, validadoEm: true, lancadoPorId: true, createdAt: true },
     }),
     prisma.ferias.findMany({
       where: { userId },
@@ -328,7 +328,9 @@ export async function solicitacoesDoUsuario(userId: string) {
       id: a.id, dataInicio: ymd(a.dataInicio)!, dataFim: ymd(a.dataFim)!, motivo: a.motivo,
       motivoTipo: a.motivoTipo, tratamento: a.tratamento, horaInicio: a.horaInicio, horaFim: a.horaFim,
       temAnexo: a.atestadoPath !== null, atestadoNome: a.atestadoNome,
-      antecipado: ehAvisoAntecipado(a.createdAt, a.dataInicio), status: a.status, validadoEm: a.validadoEm ? a.validadoEm.toISOString() : null,
+      // "Aviso antecipado" é da pessoa avisando antes; lançamento do RH nunca é aviso.
+      antecipado: a.lancadoPorId === null && ehAvisoAntecipado(a.createdAt, a.dataInicio), status: a.status, validadoEm: a.validadoEm ? a.validadoEm.toISOString() : null,
+      lancadoPeloRh: a.lancadoPorId !== null,
       criadoEm: a.createdAt.toISOString(),
     })),
     ferias: ferias.map((f) => ({

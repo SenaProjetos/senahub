@@ -1,9 +1,9 @@
 ---
 titulo: RH — administração
-descricao: Aprovação de abonos/férias, banco de horas, feedback, ponto manual, onboarding e validação de NFs.
+descricao: Aprovação e lançamento de abonos/atestados e férias, banco de horas, feedback, ponto manual, onboarding e validação de NFs.
 resumo: Central administrativa do RH — aprova solicitações, fecha banco de horas, acompanha clima/humor, dá feedback, lança ponto manual, gerencia onboarding e valida notas fiscais de PJ.
 tags: [rh admin, abonos, férias, banco de horas, clima, feedback, ponto manual, onboarding, nota fiscal]
-palavras-chave: [rh administração, aprovar abono, aprovar férias, banco de horas, fechamento, clima, feedback, ponto manual, onboarding, validar nf]
+palavras-chave: [rh administração, aprovar abono, lançar abono, lançar atestado, aprovar férias, banco de horas, fechamento, clima, feedback, ponto manual, onboarding, validar nf]
 sinonimos: [administração de rh, gestão de pessoas, dp]
 ---
 
@@ -20,7 +20,21 @@ Reunir as rotinas administrativas de RH em um só lugar.
 
 ## O que a tela oferece
 
-- **Aprovações:** abonos e férias **pendentes** (aprovar/recusar).
+- **Aprovações:** abonos e férias **pendentes** (aprovar/recusar). Um item decidido sai da
+  fila; se outra pessoa do RH já o decidiu, a tela avisa e não muda a decisão dela. A sua
+  própria ausência e as suas próprias férias aparecem na fila sem botões: outra pessoa do RH
+  decide (o superusuário é a exceção, para o escritório com uma pessoa só no RH). Pelo mesmo
+  motivo, **Lançar férias** e **Lançar abono** não oferecem você mesmo na lista.
+- **Lançar abono:** registra um atestado ou uma ausência de alguém **sem depender da
+  solicitação** do colaborador (por exemplo, o atestado entregue em mãos). Escolha a pessoa, as
+  datas (ou o horário, para um único dia), o motivo, o tratamento das horas — **abonar** (não
+  cobra) ou **banco de horas** (as horas continuam devidas) — e, se houver, anexe o atestado. A
+  ausência já entra **aprovada**, aparece como "Lançado pelo RH" e o colaborador é notificado. O
+  mesmo botão está na aba **Ausências** da ficha da pessoa. A sua própria ausência não pode ser
+  lançada assim: ela passa pela solicitação em **RH**, e outra pessoa do RH aprova. Se a pessoa
+  já tem uma ausência pendente ou aprovada no mesmo período, o lançamento é recusado — decida a
+  solicitação pendente em vez de lançar outra, para as horas não contarem duas vezes. O atestado
+  aceita PDF ou imagem (JPG, PNG, WEBP, GIF ou HEIC) de até 25 MB.
 - **Alterações de férias:** mudanças de data em férias **já aprovadas**. Valem por **dupla
   aprovação** — o card lista as propostas feitas pelos colaboradores, mostrando as datas
   originais riscadas e as novas ao lado; ao **Aprovar**, a nova data entra em vigor na hora.
@@ -62,3 +76,11 @@ acumulam falta. Quem foi admitido ou desligado no meio do mês aparece, mas só 
 **dentro do período do vínculo**.
 
 **Como corrijo um ponto esquecido?** Use **Ponto manual** nesta tela.
+
+**O colaborador me entregou o atestado em mãos. Preciso pedir para ele solicitar?** Não. Use
+**Lançar abono** e anexe o atestado. Não use o ponto manual para cobrir falta: ele cria batidas
+que não aconteceram e não guarda o atestado.
+
+**Lancei um abono num mês com o banco de horas já fechado. O saldo muda?** Não sozinho. Depois
+de lançar, use **Recalcular histórico** em Banco de horas — o diálogo avisa quando isso é
+preciso.
