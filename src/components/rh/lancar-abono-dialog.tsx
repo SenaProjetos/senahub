@@ -10,8 +10,11 @@ import {
   motivoParaRecusarAtestado,
   tratamentoPadrao,
   validarEntradaAbono,
+  type CampoAbono,
   type TratamentoAusenciaValor,
 } from "@/modules/rh/abono-entrada";
+import { useFieldErrors } from "@/lib/use-field-errors";
+import { FieldError, idDoErro } from "@/components/ui/field-error";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +40,9 @@ type Pessoa = { id: string; name: string };
  * Lançamento de abono / atestado pelo RH, sem solicitação do colaborador. O registro nasce
  * aprovado com o tratamento escolhido; quem valida de verdade é `/api/rh/abono/lancar` (mesma
  * regra de `validarEntradaAbono`) — aqui só evitamos o round-trip óbvio.
+ *
+ * Erro de um campo (daqui ou da rota, que devolve `campo`) aparece SOB o campo, que fica marcado
+ * (`aria-invalid`) e recebe o foco; o toast fica para o que não é de campo (permissão, rede).
  *
  * `pessoa` fixa o colaborador (ficha da pessoa); sem ela, `colaboradores` vira um seletor.
  */
@@ -66,6 +72,19 @@ export function LancarAbonoDialog({
   const [motivo, setMotivo] = useState("");
   const [arquivo, setArquivo] = useState<File | null>(null);
 
+  const ajudaHorario = `${id}-ajuda-horario`;
+  const fe = useFieldErrors<CampoAbono>({
+    userId: `${id}-colaborador`,
+    dataInicio: `${id}-inicio`,
+    dataFim: `${id}-fim`,
+    motivoTipo: `${id}-motivo`,
+    horaInicio: `${id}-das`,
+    horaFim: `${id}-as`,
+    tratamento: `${id}-tratamento`,
+    motivo: `${id}-detalhes`,
+    atestado: `${id}-atestado`,
+  });
+
   const tratamento = tratamentoEscolhido ?? tratamentoPadrao(motivoTipo);
 
   // `inicio` é "YYYY-MM-DD"; comparar como string ordena igual à data.
@@ -91,6 +110,7 @@ export function LancarAbonoDialog({
     setHoraFim("");
     setMotivo("");
     setArquivo(null);
+    fe.limpar();
   }
 
   function limparArquivo() {
@@ -101,23 +121,31 @@ export function LancarAbonoDialog({
   function escolherArquivo(f: File | null) {
     const recusa = f ? motivoParaRecusarAtestado(f.name, f.size) : null;
     if (recusa) {
-      toast.error(recusa);
+      fe.definir("atestado", recusa);
       limparArquivo();
       return;
     }
+    fe.limpar("atestado");
     setArquivo(f);
+  }
+
+  /** Ajuda do horário + erro do campo, quando houver, no `aria-describedby` dos horários. */
+  function descricaoDoHorario(chave: "horaInicio" | "horaFim") {
+    const erro = fe.campo(chave)["aria-describedby"];
+    return erro ? `${erro} ${ajudaHorario}` : ajudaHorario;
   }
 
   async function lancar() {
     if (!userId) {
-      toast.error("Selecione o colaborador.");
+      fe.definir("userId", "Selecione o colaborador.");
       return;
     }
     const v = validarEntradaAbono({ dataInicio: inicio, dataFim: fim, motivoTipo, horaInicio, horaFim, motivo });
     if (!v.ok) {
-      toast.error(v.erro);
+      fe.definir(v.campo, v.erro);
       return;
     }
+    fe.limpar();
     const fd = new FormData();
     fd.set("userId", userId);
     fd.set("dataInicio", inicio);
@@ -147,8 +175,11 @@ export function LancarAbonoDialog({
       router.refresh();
       return;
     }
-    const corpo = (await res.json().catch(() => null)) as { error?: string } | null;
-    toast.error(corpo?.error ?? `O servidor não conseguiu lançar a ausência (erro ${res.status}). Tente de novo.`);
+    const corpo = (await res.json().catch(() => null)) as { error?: string; campo?: CampoAbono } | null;
+    const msg = corpo?.error ?? `O servidor não conseguiu lançar a ausência (erro ${res.status}). Tente de novo.`;
+    // Com `pessoa` fixa não há seletor de colaborador para marcar: o erro dele vai para o toast.
+    if (corpo?.campo && !(corpo.campo === "userId" && pessoa)) fe.definir(corpo.campo, msg);
+    else toast.error(msg);
   }
 
   return (
@@ -172,8 +203,14 @@ export function LancarAbonoDialog({
                   <Label htmlFor={`${id}-colaborador`} className="text-xs">
                     Colaborador
                   </Label>
-                  <Select value={userId} onValueChange={(v) => setUserId(v ?? "")}>
-                    <SelectTrigger id={`${id}-colaborador`} className="w-full">
+                  <Select
+                    value={userId}
+                    onValueChange={(v) => {
+                      setUserId(v ?? "");
+                      fe.limpar("userId");
+                    }}
+                  >
+                    <SelectTrigger {...fe.campo("userId")} className="w-full">
                       <SelectValue placeholder="Selecione…">
                         {colaboradores.find((c) => c.id === userId)?.name}
                       </SelectValue>
@@ -186,9 +223,11 @@ export function LancarAbonoDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError campo={`${id}-colaborador`} mensagem={fe.erros.userId} />
                   {colaboradores.length === 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Nenhum outro colaborador interno ativo. A sua própria ausência vai pela solicitação em RH.
+                      Nenhum colaborador que você possa lançar. A sua própria ausência e a de quem é do RH
+                      vão pela solicitação em RH, que um administrador aprova.
                     </p>
                   )}
                 </div>
@@ -198,13 +237,31 @@ export function LancarAbonoDialog({
                   <Label htmlFor={`${id}-inicio`} className="text-xs">
                     Início
                   </Label>
-                  <Input id={`${id}-inicio`} type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} />
+                  <Input
+                    {...fe.campo("dataInicio")}
+                    type="date"
+                    value={inicio}
+                    onChange={(e) => {
+                      setInicio(e.target.value);
+                      fe.limpar("dataInicio");
+                    }}
+                  />
+                  <FieldError campo={`${id}-inicio`} mensagem={fe.erros.dataInicio} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`${id}-fim`} className="text-xs">
                     Fim
                   </Label>
-                  <Input id={`${id}-fim`} type="date" value={fim} onChange={(e) => setFim(e.target.value)} />
+                  <Input
+                    {...fe.campo("dataFim")}
+                    type="date"
+                    value={fim}
+                    onChange={(e) => {
+                      setFim(e.target.value);
+                      fe.limpar("dataFim");
+                    }}
+                  />
+                  <FieldError campo={`${id}-fim`} mensagem={fe.erros.dataFim} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -212,8 +269,14 @@ export function LancarAbonoDialog({
                   <Label htmlFor={`${id}-motivo`} className="text-xs">
                     Motivo
                   </Label>
-                  <Select value={motivoTipo} onValueChange={(v) => setMotivoTipo(v ?? "atestado")}>
-                    <SelectTrigger id={`${id}-motivo`} className="w-full">
+                  <Select
+                    value={motivoTipo}
+                    onValueChange={(v) => {
+                      setMotivoTipo(v ?? "atestado");
+                      fe.limpar("motivoTipo");
+                    }}
+                  >
+                    <SelectTrigger {...fe.campo("motivoTipo")} className="w-full">
                       <SelectValue>{rotuloMotivo(motivoTipo)}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -224,6 +287,7 @@ export function LancarAbonoDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError campo={`${id}-motivo`} mensagem={fe.erros.motivoTipo} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1.5">
@@ -231,12 +295,15 @@ export function LancarAbonoDialog({
                       Das
                     </Label>
                     <Input
-                      id={`${id}-das`}
+                      {...fe.campo("horaInicio")}
                       type="time"
-                      aria-label="Horário de início"
-                      aria-describedby={`${id}-ajuda-horario`}
+                      aria-label="Das (horário de início)"
+                      aria-describedby={descricaoDoHorario("horaInicio")}
                       value={horaInicio}
-                      onChange={(e) => setHoraInicio(e.target.value)}
+                      onChange={(e) => {
+                        setHoraInicio(e.target.value);
+                        fe.limpar("horaInicio");
+                      }}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -244,17 +311,23 @@ export function LancarAbonoDialog({
                       Às
                     </Label>
                     <Input
-                      id={`${id}-as`}
+                      {...fe.campo("horaFim")}
                       type="time"
-                      aria-label="Horário de término"
-                      aria-describedby={`${id}-ajuda-horario`}
+                      aria-label="Às (horário de término)"
+                      aria-describedby={descricaoDoHorario("horaFim")}
                       value={horaFim}
-                      onChange={(e) => setHoraFim(e.target.value)}
+                      onChange={(e) => {
+                        setHoraFim(e.target.value);
+                        fe.limpar("horaFim");
+                      }}
                     />
                   </div>
                 </div>
               </div>
-              <p id={`${id}-ajuda-horario`} className="text-xs text-muted-foreground">
+              {/* Os horários são estreitos: o erro deles fica numa linha só, logo abaixo. */}
+              <FieldError campo={`${id}-das`} mensagem={fe.erros.horaInicio} />
+              <FieldError campo={`${id}-as`} mensagem={fe.erros.horaFim} />
+              <p id={ajudaHorario} className="text-xs text-muted-foreground">
                 Deixe o horário em branco para o dia inteiro; com horário, vale só para um dia.
               </p>
               <div className="space-y-1.5">
@@ -263,9 +336,12 @@ export function LancarAbonoDialog({
                 </Label>
                 <Select
                   value={tratamento}
-                  onValueChange={(v) => v && setTratamentoEscolhido(v as TratamentoAusenciaValor)}
+                  onValueChange={(v) => {
+                    if (v) setTratamentoEscolhido(v as TratamentoAusenciaValor);
+                    fe.limpar("tratamento");
+                  }}
                 >
-                  <SelectTrigger id={`${id}-tratamento`} className="w-full">
+                  <SelectTrigger {...fe.campo("tratamento")} className="w-full">
                     <SelectValue>{TRATAMENTOS.find((t) => t.valor === tratamento)?.rotulo}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -276,18 +352,23 @@ export function LancarAbonoDialog({
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldError campo={`${id}-tratamento`} mensagem={fe.erros.tratamento} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor={`${id}-detalhes`} className="text-xs">
                   Detalhes (opcional)
                 </Label>
                 <Input
-                  id={`${id}-detalhes`}
+                  {...fe.campo("motivo")}
                   maxLength={MAX_DETALHES}
                   placeholder="Ex.: atestado de 2 dias entregue em mãos"
                   value={motivo}
-                  onChange={(e) => setMotivo(e.target.value)}
+                  onChange={(e) => {
+                    setMotivo(e.target.value);
+                    fe.limpar("motivo");
+                  }}
                 />
+                <FieldError campo={`${id}-detalhes`} mensagem={fe.erros.motivo} />
               </div>
               <div className="space-y-1.5">
                 <input
@@ -299,10 +380,18 @@ export function LancarAbonoDialog({
                   aria-hidden
                   onChange={(e) => escolherArquivo(e.target.files?.[0] ?? null)}
                 />
-                <Button type="button" variant="outline" className="w-full" onClick={() => inputRef.current?.click()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  id={`${id}-atestado`}
+                  aria-describedby={fe.erros.atestado ? idDoErro(`${id}-atestado`) : undefined}
+                  onClick={() => inputRef.current?.click()}
+                >
                   <Paperclip className="size-4" />
                   {arquivo ? "Trocar atestado" : "Anexar atestado (opcional)"}
                 </Button>
+                <FieldError campo={`${id}-atestado`} mensagem={fe.erros.atestado} />
                 {arquivo && (
                   <div className="flex items-center justify-between gap-2 rounded-sm border bg-muted/40 py-0.5 pr-0.5 pl-2.5 text-xs">
                     <span role="status" className="min-w-0 truncate text-muted-foreground" title={arquivo.name}>
@@ -326,8 +415,8 @@ export function LancarAbonoDialog({
                 <p role="status" className="flex items-start gap-2 rounded-sm border border-dashed p-2 text-xs text-muted-foreground">
                   <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                   <span>
-                    O banco de horas desse mês já foi fechado. Depois de lançar, use{" "}
-                    <strong>Recalcular histórico</strong> em Banco de horas para o saldo refletir a ausência.
+                    O banco de horas desse mês já foi fechado. Ao lançar, o saldo dessa pessoa nos meses
+                    fechados é refeito para contar a ausência.
                   </span>
                 </p>
               )}
@@ -340,7 +429,6 @@ export function LancarAbonoDialog({
                 onClick={lancar}
                 disabled={enviando || (!pessoa && colaboradores.length === 0)}
                 loading={enviando}
-                aria-busy={enviando}
               >
                 {enviando ? "Lançando…" : "Lançar"}
               </Button>

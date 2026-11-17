@@ -7,6 +7,7 @@
  */
 import { minutosHHMM, minutosJanela } from "@/modules/ponto/abono";
 import { MOTIVOS_AUSENCIA, type MotivoAusenciaValor } from "./ausencia";
+import { bloqueioDeDecisao } from "./quem-decide";
 
 export type TratamentoAusenciaValor = "abonar" | "banco_horas";
 
@@ -21,6 +22,20 @@ export type EntradaAbono = {
   motivo?: string;
 };
 
+/** Campo do formulário a que um erro se refere — a tela marca o campo e foca nele. */
+export type CampoAbono =
+  | "userId"
+  | "dataInicio"
+  | "dataFim"
+  | "motivoTipo"
+  | "horaInicio"
+  | "horaFim"
+  | "tratamento"
+  | "motivo"
+  | "atestado";
+
+export type ErroAbono = { ok: false; erro: string; campo: CampoAbono };
+
 export type AbonoValido = {
   dataInicio: string;
   dataFim: string;
@@ -32,8 +47,9 @@ export type AbonoValido = {
 
 /** Mesma frase na action e no toast: dois cliques (ou duas abas) decidindo o mesmo abono. */
 export const MOTIVO_ABONO_JA_DECIDIDO = "Este abono já foi decidido. Atualize a página.";
-/** Mesma frase na action e na fila do RH (no lugar dos botões). */
-export const MOTIVO_PROPRIA_AUSENCIA = "É a sua própria ausência: outra pessoa do RH decide.";
+/** Mesmas frases na action e na fila do RH (no lugar dos botões) — `quem-decide.ts`. */
+export const MOTIVO_PROPRIA_AUSENCIA = "É a sua própria ausência: um administrador decide.";
+export const MOTIVO_AUSENCIA_DE_RH = "Ausência de quem é do RH: só um administrador decide.";
 
 /** Teto do atestado — abaixo do limite de 100 MB do Cloudflare Tunnel. */
 export const MAX_ATESTADO = 25 * 1024 * 1024;
@@ -59,29 +75,30 @@ function diasEntre(inicioIso: string, fimIso: string): number {
   return Math.round((Date.parse(`${fimIso}T00:00:00Z`) - Date.parse(`${inicioIso}T00:00:00Z`)) / DIA_MS) + 1;
 }
 
-export function validarEntradaAbono(e: EntradaAbono): { ok: true; dados: AbonoValido } | { ok: false; erro: string } {
-  if (!e.dataInicio || !e.dataFim) return { ok: false, erro: "Datas obrigatórias." };
-  if (!dataValida(e.dataInicio) || !dataValida(e.dataFim)) return { ok: false, erro: "Data inválida." };
-  if (!MOTIVOS.has(e.motivoTipo)) return { ok: false, erro: "Motivo inválido." };
+const erro = (campo: CampoAbono, msg: string): ErroAbono => ({ ok: false, erro: msg, campo });
+
+export function validarEntradaAbono(e: EntradaAbono): { ok: true; dados: AbonoValido } | ErroAbono {
+  if (!e.dataInicio) return erro("dataInicio", "Datas obrigatórias.");
+  if (!e.dataFim) return erro("dataFim", "Datas obrigatórias.");
+  if (!dataValida(e.dataInicio)) return erro("dataInicio", "Data inválida.");
+  if (!dataValida(e.dataFim)) return erro("dataFim", "Data inválida.");
+  if (!MOTIVOS.has(e.motivoTipo)) return erro("motivoTipo", "Motivo inválido.");
   // `YYYY-MM-DD` ordena como texto igual à data.
-  if (e.dataFim < e.dataInicio) return { ok: false, erro: "A data de fim não pode ser anterior ao início." };
+  if (e.dataFim < e.dataInicio) return erro("dataFim", "A data de fim não pode ser anterior ao início.");
   if (diasEntre(e.dataInicio, e.dataFim) > MAX_DIAS_PERIODO) {
-    return { ok: false, erro: "O período não pode passar de um ano. Confira as datas." };
+    return erro("dataFim", "O período não pode passar de um ano. Confira as datas.");
   }
   if ((e.motivo ?? "").length > MAX_DETALHES) {
-    return { ok: false, erro: `Os detalhes passam de ${MAX_DETALHES} caracteres.` };
+    return erro("motivo", `Os detalhes passam de ${MAX_DETALHES} caracteres.`);
   }
 
   const horaInicio = e.horaInicio || null;
   const horaFim = e.horaFim || null;
   if (horaInicio || horaFim) {
-    if (!horaInicio || !horaFim || minutosHHMM(horaInicio) == null || minutosHHMM(horaFim) == null) {
-      return { ok: false, erro: "Informe o horário de início e de fim." };
-    }
-    if (minutosJanela(horaInicio, horaFim) === 0) {
-      return { ok: false, erro: "O horário de fim deve ser depois do início." };
-    }
-    if (e.dataInicio !== e.dataFim) return { ok: false, erro: "Ausência com horário vale para um único dia." };
+    if (!horaInicio || minutosHHMM(horaInicio) == null) return erro("horaInicio", "Informe o horário de início e de fim.");
+    if (!horaFim || minutosHHMM(horaFim) == null) return erro("horaFim", "Informe o horário de início e de fim.");
+    if (minutosJanela(horaInicio, horaFim) === 0) return erro("horaFim", "O horário de fim deve ser depois do início.");
+    if (e.dataInicio !== e.dataFim) return erro("dataFim", "Ausência com horário vale para um único dia.");
   }
 
   return {
@@ -112,33 +129,36 @@ export function tratamentoPadrao(motivoTipo: string): TratamentoAusenciaValor {
 }
 
 /**
- * Por que o RH NÃO pode lançar um abono para `alvo` (`null` = pode). O abono lançado nasce
- * aprovado, então a própria ausência fica de fora: ela passa pela solicitação, e outra pessoa
- * do RH aprova.
+ * Por que `autor` NÃO pode lançar um abono para `alvo` (`null` = pode). O abono lançado nasce
+ * aprovado, então vale a mesma regra de quem decide (`quem-decide.ts`): a própria ausência e a de
+ * quem é do RH só um administrador lança — o RH usa a solicitação, que um administrador aprova.
  */
 export function motivoParaNaoLancarAbono(
-  alvo: { id: string; ativo: boolean; tipo: string } | null,
-  autorId: string,
+  alvo: { id: string; ativo: boolean; tipo: string; ehRh: boolean } | null,
+  autor: { id: string; superUsuario: boolean },
 ): string | null {
   if (!alvo || !alvo.ativo) return "Colaborador não encontrado.";
   if (alvo.tipo !== "interno") return "Abono só pode ser lançado para colaborador interno.";
-  if (alvo.id === autorId) {
-    return "Para a sua própria ausência, use a solicitação em RH: outra pessoa do RH aprova.";
+  const bloqueio = bloqueioDeDecisao(alvo, autor);
+  if (bloqueio === "propria") {
+    return "Para a sua própria ausência, use a solicitação em RH: um administrador aprova.";
   }
+  if (bloqueio === "de_rh") return "Para quem é do RH, só um administrador lança a ausência.";
   return null;
 }
 
 /**
- * Por que `quem` NÃO pode decidir (aprovar ou rejeitar) este abono (`null` = pode). Ninguém
- * decide a própria ausência, exceto o superusuário — mesma regra da alçada do Financeiro, para
- * o escritório com uma pessoa só no RH não ficar sem quem decida.
+ * Por que `quem` NÃO pode decidir (aprovar ou rejeitar) este abono (`null` = pode): já decidido,
+ * ou a ausência é dele mesmo ou de alguém do RH sem `quem` ser administrador (`quem-decide.ts`).
  */
 export function motivoParaNaoDecidirAbono(
-  abono: { status: string; userId: string },
+  abono: { status: string; userId: string; donoEhRh: boolean },
   quem: { id: string; superUsuario: boolean },
 ): string | null {
   if (abono.status !== "pendente") return MOTIVO_ABONO_JA_DECIDIDO;
-  if (abono.userId === quem.id && !quem.superUsuario) return MOTIVO_PROPRIA_AUSENCIA;
+  const bloqueio = bloqueioDeDecisao({ id: abono.userId, ehRh: abono.donoEhRh }, quem);
+  if (bloqueio === "propria") return MOTIVO_PROPRIA_AUSENCIA;
+  if (bloqueio === "de_rh") return MOTIVO_AUSENCIA_DE_RH;
   return null;
 }
 
@@ -162,6 +182,10 @@ export function sobrepoeAusencia(a: PeriodoAusencia, b: PeriodoAusencia): boolea
   if (!parcialA || !parcialB) return true;
   return minutosHHMM(a.horaInicio!)! < minutosHHMM(b.horaFim!)! && minutosHHMM(b.horaInicio!)! < minutosHHMM(a.horaFim!)!;
 }
+
+/** Aprovar uma solicitação por cima de uma ausência já aprovada no mesmo tempo (horas em dobro). */
+export const MOTIVO_APROVAR_SOBREPOSTA =
+  "Já existe uma ausência aprovada desta pessoa nesse período. Rejeite esta solicitação para as horas não contarem duas vezes.";
 
 /** Frase da recusa do lançamento que bate numa ausência já registrada da pessoa. */
 export function motivoAusenciaSobreposta(status: string): string {

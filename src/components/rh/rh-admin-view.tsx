@@ -9,7 +9,7 @@ import { Check, X, Smile, MessageSquare, CalendarSync } from "lucide-react";
 import { AnexoAbono } from "@/components/rh/anexo-abono";
 import { ehAvisoAntecipado, rotuloJanela, rotuloMotivo } from "@/modules/rh/ausencia";
 import { motivoParaNaoDecidirAbono } from "@/modules/rh/abono-entrada";
-import { motivoParaNaoDecidirFerias } from "@/modules/rh/ferias-decisao";
+import { motivoParaNaoDecidirFerias, motivoParaNaoDecidirFeriasDe } from "@/modules/rh/ferias-decisao";
 import { validarAbono, validarFerias, responderAlteracaoFerias, proporAlteracaoFerias } from "@/modules/rh/actions";
 import type {
   AbonoPendente,
@@ -43,6 +43,7 @@ export function RhAdminView({
   colaboradoresFerias,
   colaboradoresAbono,
   quem,
+  idsRh,
   ultimoMesFechadoBanco,
   clima,
   climaSerie,
@@ -57,6 +58,8 @@ export function RhAdminView({
   colaboradoresAbono: { id: string; name: string }[];
   /** Quem está decidindo — a própria ausência/férias sai sem botões (`motivoParaNaoDecidir*`). */
   quem: { id: string; superUsuario: boolean };
+  /** Quem é do RH: ausência e férias deles só um administrador decide (`quem-decide.ts`). */
+  idsRh: string[];
   ultimoMesFechadoBanco: { ano: number; mes: number } | null;
   clima: {
     total: number;
@@ -105,7 +108,10 @@ export function RhAdminView({
       if (r.ok) {
         toast.success(aprovar ? "Nova data de férias aprovada." : "Alteração recusada.");
         router.refresh();
-      } else toast.error(r.error);
+      } else {
+        toast.error(r.error);
+        router.refresh();
+      }
     });
   }
 
@@ -263,8 +269,10 @@ export function RhAdminView({
                     {a.motivo && <p className="text-xs text-muted-foreground">{a.motivo}</p>}
                     <div className="flex flex-wrap items-center gap-2">
                       {a.atestadoPath && <AnexoAbono id={a.id} nome={a.atestadoNome} />}
-                      {motivoParaNaoDecidirAbono(a, quem) ? (
-                        <span className="text-xs text-muted-foreground">{motivoParaNaoDecidirAbono(a, quem)}</span>
+                      {motivoParaNaoDecidirAbono({ ...a, donoEhRh: idsRh.includes(a.userId) }, quem) ? (
+                        <span className="text-xs text-muted-foreground">
+                          {motivoParaNaoDecidirAbono({ ...a, donoEhRh: idsRh.includes(a.userId) }, quem)}
+                        </span>
                       ) : (
                         <>
                           <Button
@@ -326,8 +334,10 @@ export function RhAdminView({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {motivoParaNaoDecidirFerias(f, quem) ? (
-                        <span className="text-xs text-muted-foreground">{motivoParaNaoDecidirFerias(f, quem)}</span>
+                      {motivoParaNaoDecidirFerias({ ...f, donoEhRh: idsRh.includes(f.userId) }, quem) ? (
+                        <span className="text-xs text-muted-foreground">
+                          {motivoParaNaoDecidirFerias({ ...f, donoEhRh: idsRh.includes(f.userId) }, quem)}
+                        </span>
                       ) : (
                         <>
                           <Button size="sm" variant="outline" disabled={pending} onClick={() => decidirFerias(f.id, true)}>
@@ -372,12 +382,20 @@ export function RhAdminView({
                       </span>
                     </p>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" disabled={pending} onClick={() => decidirAlteracao(f.id, true)}>
-                        <Check className="size-3.5" /> Aprovar
-                      </Button>
-                      <Button size="sm" variant="ghost" disabled={pending} onClick={() => decidirAlteracao(f.id, false)}>
-                        <X className="size-3.5" /> Recusar
-                      </Button>
+                      {motivoParaNaoDecidirFeriasDe({ id: f.userId, ehRh: idsRh.includes(f.userId) }, quem) ? (
+                        <span className="text-xs text-muted-foreground">
+                          {motivoParaNaoDecidirFeriasDe({ id: f.userId, ehRh: idsRh.includes(f.userId) }, quem)}
+                        </span>
+                      ) : (
+                        <>
+                          <Button size="sm" variant="outline" disabled={pending} onClick={() => decidirAlteracao(f.id, true)}>
+                            <Check className="size-3.5" /> Aprovar
+                          </Button>
+                          <Button size="sm" variant="ghost" disabled={pending} onClick={() => decidirAlteracao(f.id, false)}>
+                            <X className="size-3.5" /> Recusar
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -414,6 +432,13 @@ export function RhAdminView({
                     </div>
                     {f.altInicio ? (
                       <span className="text-xs text-muted-foreground">Alteração em andamento</span>
+                    ) : f.userId !== quem.id &&
+                      motivoParaNaoDecidirFeriasDe({ id: f.userId, ehRh: idsRh.includes(f.userId) }, quem) ? (
+                      // As próprias férias o RH pode propor mudar (vai para um administrador); as de um
+                      // colega do RH, só um administrador mexe.
+                      <span className="text-xs text-muted-foreground">
+                        {motivoParaNaoDecidirFeriasDe({ id: f.userId, ehRh: true }, quem)}
+                      </span>
                     ) : (
                       <ProporAlteracaoBotao id={f.id} inicio={f.inicio} fim={f.fim} />
                     )}

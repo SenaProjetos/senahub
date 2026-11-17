@@ -4,20 +4,38 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
-import { notificar } from "@/lib/notificar";
 
 import { aplicaRegraInicioFeriasClt, controlaJornada, type SujeitoJornada } from "@/modules/ponto/jornada";
-import { whereAudiencia } from "@/lib/audiencias";
 import { formatarData } from "@/lib/utils";
 import { validarInicioFeriasClt } from "@/lib/ferias-clt";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
 import { avisarImpactoDaAusencia } from "@/modules/planejamento/impacto-ausencia-service";
-import { MOTIVO_ABONO_JA_DECIDIDO, motivoParaNaoDecidirAbono, tratamentoPadrao } from "@/modules/rh/abono-entrada";
+import {
+  MOTIVO_ABONO_JA_DECIDIDO,
+  MOTIVO_APROVAR_SOBREPOSTA,
+  motivoParaNaoDecidirAbono,
+  tratamentoPadrao,
+} from "@/modules/rh/abono-entrada";
 import {
   MOTIVO_FERIAS_JA_DECIDIDAS,
   motivoParaNaoDecidirFerias,
+  motivoParaNaoDecidirFeriasDe,
   motivoParaNaoLancarFeriasPara,
 } from "@/modules/rh/ferias-decisao";
+import {
+  MOTIVO_AUSENCIA_OCUPADA,
+  OPCOES_TX_AUSENCIA,
+  ausenciaSobreposta,
+  ehTempoEsgotado,
+  travarAusenciasDaPessoa,
+} from "@/modules/rh/abono-service";
+import { ehDoRh, notificarQuemDecide, notificarSemFalhar } from "@/modules/rh/gestores-rh";
+import { recalcularBancoDaPessoaSemFalhar } from "@/modules/rh/banco/service";
+
+const ymd = (d: Date) => d.toISOString().slice(0, 10);
+/** Mesma frase para qualquer corrida nas alterações de férias (dois cliques, duas abas). */
+const MOTIVO_ALTERACAO_MUDOU = "A alteração destas férias mudou enquanto você decidia. Atualize a página.";
+const menorData = (a: Date, b: Date) => (a < b ? a : b);
 
 /**
  * `roles` é obrigatório aqui: sem `roles` E sem `recurso`, `defineAction` pula o gate inteiro
@@ -51,7 +69,12 @@ export const solicitarFerias = defineAction(
     const f = await prisma.ferias.create({
       data: { userId: user.id, inicio: new Date(i.inicio), fim: new Date(i.fim), observacao: i.observacao || null },
     });
-    await notificarGestores("Solicitação de férias", `${user.name} solicitou férias.`, "/rh/admin");
+    // Quem é do RH tem as férias decididas por um administrador — o aviso vai para quem decide.
+    await notificarQuemDecide(user.id, {
+      titulo: "Solicitação de férias",
+      corpo: `${user.name} solicitou férias.`,
+      href: "/rh/admin",
+    });
     revalidatePath("/rh");
     return { id: f.id };
   },
@@ -123,23 +146,48 @@ export const validarAbono = defineAction(
   async (i, { user }) => {
     const abono = await prisma.abonoFalta.findUnique({ where: { id: i.id } });
     if (!abono) throw new ActionError("Abono não encontrado.");
-    // Já decidido, ou a própria ausência (exceto superusuário) — a fila mostra a mesma frase.
-    const recusa = motivoParaNaoDecidirAbono(abono, { id: user.id, superUsuario: user.superUsuario === true });
+    // Já decidido, a própria ausência ou a de quem é do RH sem ser administrador
+    // (`quem-decide.ts`) — a fila mostra a mesma frase no lugar dos botões.
+    const recusa = motivoParaNaoDecidirAbono(
+      { ...abono, donoEhRh: await ehDoRh(abono.userId) },
+      { id: user.id, superUsuario: user.superUsuario === true },
+    );
     if (recusa) throw new ActionError(recusa);
     const tratamento = i.tratamento ?? tratamentoPadrao(abono.motivoTipo);
-    // Condicionado a `pendente`: dois cliques (ou dois gestores) ao mesmo tempo decidem uma vez
-    // só — o segundo não sobrescreve a decisão nem notifica a pessoa de novo.
-    const { count } = await prisma.abonoFalta.updateMany({
-      where: { id: i.id, status: "pendente" },
-      data: {
-        status: i.aprovar ? "aprovado" : "rejeitado",
-        ...(i.aprovar ? { tratamento } : {}),
-        validadoPorId: user.id,
-        validadoEm: new Date(),
-      },
-    });
-    if (count !== 1) throw new ActionError(MOTIVO_ABONO_JA_DECIDIDO);
-    await notificar(abono.userId, {
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Sob a trava da pessoa, como o lançamento do RH: aprovar por cima de uma ausência já
+        // aprovada no mesmo tempo contaria as horas duas vezes.
+        await travarAusenciasDaPessoa(tx, abono.userId);
+        if (i.aprovar) {
+          const periodo = {
+            dataInicio: ymd(abono.dataInicio),
+            dataFim: ymd(abono.dataFim),
+            horaInicio: abono.horaInicio,
+            horaFim: abono.horaFim,
+          };
+          if (await ausenciaSobreposta(tx, abono.userId, periodo, ["aprovado"], abono.id)) {
+            throw new ActionError(MOTIVO_APROVAR_SOBREPOSTA);
+          }
+        }
+        // Condicionado a `pendente`: dois cliques (ou dois gestores) ao mesmo tempo decidem uma vez
+        // só — o segundo não sobrescreve a decisão nem notifica a pessoa de novo.
+        const { count } = await tx.abonoFalta.updateMany({
+          where: { id: i.id, status: "pendente" },
+          data: {
+            status: i.aprovar ? "aprovado" : "rejeitado",
+            ...(i.aprovar ? { tratamento } : {}),
+            validadoPorId: user.id,
+            validadoEm: new Date(),
+          },
+        });
+        if (count !== 1) throw new ActionError(MOTIVO_ABONO_JA_DECIDIDO);
+      }, OPCOES_TX_AUSENCIA);
+    } catch (e) {
+      if (ehTempoEsgotado(e)) throw new ActionError(MOTIVO_AUSENCIA_OCUPADA);
+      throw e;
+    }
+    await notificarSemFalhar(abono.userId, {
       titulo: i.aprovar ? "Ausência aprovada" : "Ausência rejeitada",
       corpo: !i.aprovar
         ? "Sua solicitação de abono foi avaliada."
@@ -156,6 +204,8 @@ export const validarAbono = defineAction(
         tipo: "ausencia",
         registroId: abono.id,
       });
+      // Mês de banco de horas já fechado: o saldo congelado passa a contar a ausência.
+      await recalcularBancoDaPessoaSemFalhar(abono.userId, abono.dataInicio);
     }
     revalidatePath("/rh/admin");
     return { id: i.id };
@@ -170,17 +220,24 @@ export const validarFerias = defineAction(
     schema: validarSchema,
     // O RH decide a linha de OUTRA pessoa — a trilha aponta quais férias e como estavam.
     entidadeId: (d) => (d as { id: string }).id,
-    capturarAntes: async (i) =>
-      prisma.ferias.findUnique({
+    // Datas em texto: a auditoria grava `Date` como objeto vazio.
+    capturarAntes: async (i) => {
+      const f = await prisma.ferias.findUnique({
         where: { id: i.id },
         select: { userId: true, status: true, inicio: true, fim: true },
-      }),
+      });
+      return f && { ...f, inicio: ymd(f.inicio), fim: ymd(f.fim) };
+    },
   },
   async (i, { user }) => {
     const f = await prisma.ferias.findUnique({ where: { id: i.id } });
     if (!f) throw new ActionError("Solicitação não encontrada.");
-    // Já decididas, ou as próprias férias (exceto superusuário) — a fila mostra a mesma frase.
-    const recusa = motivoParaNaoDecidirFerias(f, { id: user.id, superUsuario: user.superUsuario === true });
+    // Já decididas, as próprias férias ou as de quem é do RH sem ser administrador
+    // (`quem-decide.ts`) — a fila mostra a mesma frase no lugar dos botões.
+    const recusa = motivoParaNaoDecidirFerias(
+      { ...f, donoEhRh: await ehDoRh(f.userId) },
+      { id: user.id, superUsuario: user.superUsuario === true },
+    );
     if (recusa) throw new ActionError(recusa);
     // Condicionado a `pendente`: dois cliques (ou dois gestores) ao mesmo tempo decidem uma vez
     // só — o segundo não sobrescreve a decisão nem notifica a pessoa de novo.
@@ -189,13 +246,14 @@ export const validarFerias = defineAction(
       data: { status: i.aprovar ? "aprovado" : "rejeitado", validadoPorId: user.id },
     });
     if (count !== 1) throw new ActionError(MOTIVO_FERIAS_JA_DECIDIDAS);
-    await notificar(f.userId, {
+    await notificarSemFalhar(f.userId, {
       titulo: i.aprovar ? "Férias aprovadas" : "Férias rejeitadas",
       corpo: "Sua solicitação de férias foi avaliada.",
       href: "/rh",
     });
     if (i.aprovar) {
       await avisarImpactoDaAusencia({ userId: f.userId, inicio: f.inicio, fim: f.fim, tipo: "ferias", registroId: f.id });
+      await recalcularBancoDaPessoaSemFalhar(f.userId, f.inicio);
     }
     revalidatePath("/rh/admin");
     return { id: i.id };
@@ -240,9 +298,13 @@ export const lancarFeriasColaborador = defineAction(
       select: { id: true, tipo: true, ativo: true, contratacao: true },
     });
     if (!achado || !achado.ativo) throw new ActionError("Colaborador não encontrado.");
-    // Férias lançadas nascem aprovadas: as próprias passam pela solicitação (outra pessoa decide).
-    const proprias = motivoParaNaoLancarFeriasPara(achado.id, user.id);
-    if (proprias) throw new ActionError(proprias);
+    // Férias lançadas nascem aprovadas: as próprias e as de quem é do RH só um administrador
+    // lança (`quem-decide.ts`) — o RH usa a solicitação, que um administrador aprova.
+    const naoPode = motivoParaNaoLancarFeriasPara(
+      { id: achado.id, ehRh: await ehDoRh(achado.id) },
+      { id: user.id, superUsuario: user.superUsuario === true },
+    );
+    if (naoPode) throw new ActionError(naoPode);
     const alvo: SujeitoJornada & { id: string } = {
       id: achado.id,
       tipo: achado.tipo,
@@ -267,12 +329,13 @@ export const lancarFeriasColaborador = defineAction(
       },
     });
 
-    await notificar(alvo.id, {
+    await notificarSemFalhar(alvo.id, {
       titulo: "Férias lançadas pelo RH",
       corpo: `O RH registrou suas férias de ${formatarData(f.inicio)} a ${formatarData(f.fim)}.`,
       href: "/rh",
     });
     await avisarImpactoDaAusencia({ userId: alvo.id, inicio: f.inicio, fim: f.fim, tipo: "ferias", registroId: f.id });
+    await recalcularBancoDaPessoaSemFalhar(alvo.id, f.inicio);
     revalidatePath("/rh");
     revalidatePath("/rh/admin");
     return { id: f.id };
@@ -306,10 +369,12 @@ export const editarFeriasPendente = defineAction(
     if (f.status !== "pendente")
       throw new ActionError("Férias já avaliadas — proponha uma alteração para mudar as datas.");
     await garantirInicioFeriasClt(user, i.inicio);
-    await prisma.ferias.update({
-      where: { id: f.id },
+    // Condicionado a `pendente`: se o RH aprovou no meio, as datas aprovadas não mudam por aqui.
+    const { count } = await prisma.ferias.updateMany({
+      where: { id: f.id, status: "pendente" },
       data: { inicio: new Date(i.inicio), fim: new Date(i.fim), observacao: i.observacao || null },
     });
+    if (count !== 1) throw new ActionError("Férias já avaliadas — proponha uma alteração para mudar as datas.");
     revalidatePath("/rh");
     return { id: f.id };
   },
@@ -340,8 +405,16 @@ export const proporAlteracaoFerias = defineAction(
     if (f.status !== "aprovado")
       throw new ActionError("Só é possível propor alteração em férias já aprovadas.");
     const ehDono = f.userId === user.id;
-    const ehAdmin = user.gereRh;
-    if (!ehDono && !ehAdmin) throw new ActionError("Sem permissão.");
+    // O lado "empresa" da dupla aprovação só conta para quem pode decidir férias deste dono: as
+    // próprias e as de quem é do RH, só um administrador (`quem-decide.ts`).
+    const bloqueio = user.gereRh
+      ? motivoParaNaoDecidirFeriasDe(
+          { id: f.userId, ehRh: await ehDoRh(f.userId) },
+          { id: user.id, superUsuario: user.superUsuario === true },
+        )
+      : "Sem permissão.";
+    const ehAdmin = bloqueio === null;
+    if (!ehDono && !ehAdmin) throw new ActionError(bloqueio ?? "Sem permissão.");
     if (f.altInicio) throw new ActionError("Já existe uma alteração pendente para estas férias.");
 
     // Regra CLT de início vale para a NOVA data, conforme a contratação do DONO das férias (quem
@@ -361,12 +434,14 @@ export const proporAlteracaoFerias = defineAction(
     const okAdmin = ehAdmin;
     const okFunc = ehDono;
 
-    // Caso raro: dono que também é gestor de RH → dupla aprovação já satisfeita, aplica direto.
+    // Só o administrador, nas próprias férias, satisfaz os dois lados: aplica direto. O dono que é
+    // do RH sem ser administrador cai na proposta, que um administrador aprova.
     if (okAdmin && okFunc) {
-      await prisma.ferias.update({
-        where: { id: f.id },
+      const { count } = await prisma.ferias.updateMany({
+        where: { id: f.id, status: "aprovado", altInicio: null },
         data: { inicio: new Date(i.inicio), fim: new Date(i.fim) },
       });
+      if (count !== 1) throw new ActionError(MOTIVO_ALTERACAO_MUDOU);
       await avisarImpactoDaAusencia({
         userId: f.userId,
         inicio: new Date(i.inicio),
@@ -374,13 +449,15 @@ export const proporAlteracaoFerias = defineAction(
         tipo: "ferias",
         registroId: f.id,
       });
+      await recalcularBancoDaPessoaSemFalhar(f.userId, menorData(f.inicio, new Date(i.inicio)));
       revalidatePath("/rh");
       revalidatePath("/rh/admin");
       return { id: f.id, aplicado: true };
     }
 
-    await prisma.ferias.update({
-      where: { id: f.id },
+    // Condicionado a "sem proposta aberta": duas propostas ao mesmo tempo não se sobrescrevem.
+    const { count } = await prisma.ferias.updateMany({
+      where: { id: f.id, status: "aprovado", altInicio: null },
       data: {
         altInicio: new Date(i.inicio),
         altFim: new Date(i.fim),
@@ -389,15 +466,16 @@ export const proporAlteracaoFerias = defineAction(
         altOkFunc: okFunc,
       },
     });
+    if (count !== 1) throw new ActionError(MOTIVO_ALTERACAO_MUDOU);
 
     if (ehDono) {
-      await notificarGestores(
-        "Alteração de férias proposta",
-        `${dono?.name ?? "Colaborador"} propôs uma nova data de férias — precisa da sua aprovação.`,
-        "/rh/admin",
-      );
+      await notificarQuemDecide(f.userId, {
+        titulo: "Alteração de férias proposta",
+        corpo: `${dono?.name ?? "Colaborador"} propôs uma nova data de férias — precisa da sua aprovação.`,
+        href: "/rh/admin",
+      });
     } else {
-      await notificar(f.userId, {
+      await notificarSemFalhar(f.userId, {
         titulo: "Alteração de férias proposta",
         corpo: "O RH propôs uma nova data para suas férias. Aprove ou recuse em RH.",
         href: "/rh",
@@ -428,20 +506,40 @@ export const responderAlteracaoFerias = defineAction(
     const f = await prisma.ferias.findUnique({ where: { id: i.id } });
     if (!f || !f.altInicio || !f.altFim) throw new ActionError("Não há alteração pendente.");
     const ehDono = f.userId === user.id;
-    const ehAdmin = user.gereRh;
+    // O lado "empresa" só responde quem pode decidir férias deste dono (`quem-decide.ts`).
+    const bloqueio = user.gereRh
+      ? motivoParaNaoDecidirFeriasDe(
+          { id: f.userId, ehRh: await ehDoRh(f.userId) },
+          { id: user.id, superUsuario: user.superUsuario === true },
+        )
+      : null;
+    const ehAdmin = user.gereRh && bloqueio === null;
     // Só pode responder o lado que ainda NÃO aprovou (a contraparte de quem propôs).
     const respondeAdmin = ehAdmin && !f.altOkAdmin;
     const respondeFunc = ehDono && !f.altOkFunc;
-    if (!respondeAdmin && !respondeFunc)
-      throw new ActionError("Você não tem uma alteração de férias para aprovar aqui.");
+    if (!respondeAdmin && !respondeFunc) {
+      throw new ActionError(
+        bloqueio && !f.altOkAdmin ? bloqueio : "Você não tem uma alteração de férias para aprovar aqui.",
+      );
+    }
 
+    // A proposta que esta tela leu, e só ela: outra resposta ou outra proposta no meio → recusa.
+    const mesmaProposta = {
+      id: f.id,
+      altInicio: f.altInicio,
+      altFim: f.altFim,
+      altPorId: f.altPorId,
+      altOkAdmin: f.altOkAdmin,
+      altOkFunc: f.altOkFunc,
+    };
     if (!i.aprovar) {
-      await prisma.ferias.update({
-        where: { id: f.id },
+      const { count } = await prisma.ferias.updateMany({
+        where: mesmaProposta,
         data: { altInicio: null, altFim: null, altPorId: null, altOkAdmin: false, altOkFunc: false },
       });
+      if (count !== 1) throw new ActionError(MOTIVO_ALTERACAO_MUDOU);
       if (f.altPorId && f.altPorId !== user.id) {
-        await notificar(f.altPorId, {
+        await notificarSemFalhar(f.altPorId, {
           titulo: "Alteração de férias recusada",
           corpo: "A proposta de nova data de férias foi recusada; as datas originais foram mantidas.",
           href: "/rh",
@@ -453,8 +551,8 @@ export const responderAlteracaoFerias = defineAction(
     }
 
     // Aprovação da contraparte completa a dupla → aplica a nova data.
-    await prisma.ferias.update({
-      where: { id: f.id },
+    const { count } = await prisma.ferias.updateMany({
+      where: mesmaProposta,
       data: {
         inicio: f.altInicio,
         fim: f.altFim,
@@ -465,8 +563,9 @@ export const responderAlteracaoFerias = defineAction(
         altOkFunc: false,
       },
     });
+    if (count !== 1) throw new ActionError(MOTIVO_ALTERACAO_MUDOU);
     if (f.altPorId && f.altPorId !== user.id) {
-      await notificar(f.altPorId, {
+      await notificarSemFalhar(f.altPorId, {
         titulo: "Alteração de férias aprovada",
         corpo: "A nova data de férias foi aprovada e já está valendo.",
         href: "/rh",
@@ -474,6 +573,8 @@ export const responderAlteracaoFerias = defineAction(
     }
     // Nova data em vigor: a coordenação revê a alocação do novo período, não a do antigo.
     await avisarImpactoDaAusencia({ userId: f.userId, inicio: f.altInicio, fim: f.altFim, tipo: "ferias", registroId: f.id });
+    // O mês antigo e o novo podem estar fechados: refaz a partir do mais cedo dos dois.
+    await recalcularBancoDaPessoaSemFalhar(f.userId, menorData(f.inicio, f.altInicio));
     revalidatePath("/rh");
     revalidatePath("/rh/admin");
     return { id: f.id, aplicado: true };
@@ -498,12 +599,4 @@ async function garantirInicioFeriasClt(sujeito: SujeitoJornada, inicioISO: strin
   );
   const chk = validarInicioFeriasClt(inicioISO, feriados);
   if (!chk.valido) throw new ActionError(chk.motivo!);
-}
-
-async function notificarGestores(titulo: string, corpo: string, href: string) {
-  const gestores = await prisma.user.findMany({
-    where: whereAudiencia("rh_admin"),
-    select: { id: true },
-  });
-  await Promise.all(gestores.map((g) => notificar(g.id, { titulo, corpo, href })));
 }

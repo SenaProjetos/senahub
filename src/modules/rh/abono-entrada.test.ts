@@ -3,6 +3,7 @@ import {
   MAX_ATESTADO,
   MAX_DETALHES,
   MOTIVO_ABONO_JA_DECIDIDO,
+  MOTIVO_AUSENCIA_DE_RH,
   MOTIVO_PROPRIA_AUSENCIA,
   motivoAusenciaSobreposta,
   motivoParaNaoDecidirAbono,
@@ -36,38 +37,52 @@ describe("validarEntradaAbono", () => {
     });
   });
 
-  it("sem datas recusa", () => {
-    expect(validarEntradaAbono({ ...base, dataInicio: "" })).toEqual({ ok: false, erro: "Datas obrigatórias." });
-    expect(validarEntradaAbono({ ...base, dataFim: "" })).toEqual({ ok: false, erro: "Datas obrigatórias." });
+  // Cada recusa aponta o CAMPO: a tela marca e foca nele em vez de só mostrar um toast.
+  it("sem datas recusa no campo que falta", () => {
+    expect(validarEntradaAbono({ ...base, dataInicio: "" })).toEqual({ ok: false, erro: "Datas obrigatórias.", campo: "dataInicio" });
+    expect(validarEntradaAbono({ ...base, dataFim: "" })).toEqual({ ok: false, erro: "Datas obrigatórias.", campo: "dataFim" });
   });
 
   it("data fora do formato ou inexistente recusa", () => {
-    expect(validarEntradaAbono({ ...base, dataInicio: "10/11/2026" })).toEqual({ ok: false, erro: "Data inválida." });
+    expect(validarEntradaAbono({ ...base, dataInicio: "10/11/2026" })).toEqual({
+      ok: false,
+      erro: "Data inválida.",
+      campo: "dataInicio",
+    });
     expect(validarEntradaAbono({ ...base, dataInicio: "2026-02-30", dataFim: "2026-03-01" })).toEqual({
       ok: false,
       erro: "Data inválida.",
+      campo: "dataInicio",
     });
+    expect(validarEntradaAbono({ ...base, dataFim: "2026-13-01" })).toEqual({ ok: false, erro: "Data inválida.", campo: "dataFim" });
   });
 
   it("motivo fora da lista recusa", () => {
-    expect(validarEntradaAbono({ ...base, motivoTipo: "ferias" })).toEqual({ ok: false, erro: "Motivo inválido." });
+    expect(validarEntradaAbono({ ...base, motivoTipo: "ferias" })).toEqual({
+      ok: false,
+      erro: "Motivo inválido.",
+      campo: "motivoTipo",
+    });
   });
 
   it("fim antes do início recusa; mesmo dia aceita", () => {
     expect(validarEntradaAbono({ ...base, dataFim: "2026-11-09" })).toEqual({
       ok: false,
       erro: "A data de fim não pode ser anterior ao início.",
+      campo: "dataFim",
     });
   });
 
-  it("só um dos horários recusa", () => {
+  it("só um dos horários recusa no que falta", () => {
     expect(validarEntradaAbono({ ...base, horaInicio: "14:00" })).toEqual({
       ok: false,
       erro: "Informe o horário de início e de fim.",
+      campo: "horaFim",
     });
     expect(validarEntradaAbono({ ...base, horaFim: "16:00" })).toEqual({
       ok: false,
       erro: "Informe o horário de início e de fim.",
+      campo: "horaInicio",
     });
   });
 
@@ -75,11 +90,12 @@ describe("validarEntradaAbono", () => {
     expect(validarEntradaAbono({ ...base, horaInicio: "25:00", horaFim: "26:00" })).toEqual({
       ok: false,
       erro: "Informe o horário de início e de fim.",
+      campo: "horaInicio",
     });
   });
 
-  it("janela invertida ou vazia recusa", () => {
-    const erro = { ok: false, erro: "O horário de fim deve ser depois do início." };
+  it("janela invertida ou vazia recusa no término", () => {
+    const erro = { ok: false, erro: "O horário de fim deve ser depois do início.", campo: "horaFim" };
     expect(validarEntradaAbono({ ...base, horaInicio: "16:00", horaFim: "14:00" })).toEqual(erro);
     expect(validarEntradaAbono({ ...base, horaInicio: "14:00", horaFim: "14:00" })).toEqual(erro);
   });
@@ -88,6 +104,7 @@ describe("validarEntradaAbono", () => {
     expect(validarEntradaAbono({ ...base, dataFim: "2026-11-11", horaInicio: "14:00", horaFim: "16:00" })).toEqual({
       ok: false,
       erro: "Ausência com horário vale para um único dia.",
+      campo: "dataFim",
     });
   });
 });
@@ -103,25 +120,32 @@ describe("tratamentoPadrao", () => {
 });
 
 describe("motivoParaNaoLancarAbono", () => {
-  const alvo = { id: "u2", ativo: true, tipo: "interno" };
+  const alvo = { id: "u2", ativo: true, tipo: "interno", ehRh: false };
+  const rh = { id: "u1", superUsuario: false };
+  const admin = { id: "adm", superUsuario: true };
 
   it("colaborador interno ativo de outra pessoa pode", () => {
-    expect(motivoParaNaoLancarAbono(alvo, "u1")).toBeNull();
+    expect(motivoParaNaoLancarAbono(alvo, rh)).toBeNull();
   });
 
   it("inexistente ou inativo recusa", () => {
-    expect(motivoParaNaoLancarAbono(null, "u1")).toBe("Colaborador não encontrado.");
-    expect(motivoParaNaoLancarAbono({ ...alvo, ativo: false }, "u1")).toBe("Colaborador não encontrado.");
+    expect(motivoParaNaoLancarAbono(null, rh)).toBe("Colaborador não encontrado.");
+    expect(motivoParaNaoLancarAbono({ ...alvo, ativo: false }, rh)).toBe("Colaborador não encontrado.");
   });
 
   it("cliente do portal recusa", () => {
-    expect(motivoParaNaoLancarAbono({ ...alvo, tipo: "externo" }, "u1")).toBe(
+    expect(motivoParaNaoLancarAbono({ ...alvo, tipo: "externo" }, rh)).toBe(
       "Abono só pode ser lançado para colaborador interno.",
     );
   });
 
-  it("a própria ausência recusa: o RH não aprova o próprio abono", () => {
-    expect(motivoParaNaoLancarAbono({ ...alvo, id: "u1" }, "u1")).toMatch(/sua própria ausência/);
+  it("a própria ausência recusa: um administrador aprova a solicitação", () => {
+    expect(motivoParaNaoLancarAbono({ ...alvo, id: "u1", ehRh: true }, rh)).toMatch(/sua própria ausência.*administrador/);
+  });
+
+  it("ausência de quem é do RH só um administrador lança", () => {
+    expect(motivoParaNaoLancarAbono({ ...alvo, ehRh: true }, rh)).toBe("Para quem é do RH, só um administrador lança a ausência.");
+    expect(motivoParaNaoLancarAbono({ ...alvo, ehRh: true }, admin)).toBeNull();
   });
 });
 
@@ -131,6 +155,7 @@ describe("limites da entrada", () => {
     expect(validarEntradaAbono({ ...base, dataInicio: "2026-01-01", dataFim: "2062-01-01" })).toEqual({
       ok: false,
       erro: "O período não pode passar de um ano. Confira as datas.",
+      campo: "dataFim",
     });
   });
 
@@ -139,6 +164,7 @@ describe("limites da entrada", () => {
     expect(validarEntradaAbono({ ...base, motivo: "x".repeat(MAX_DETALHES + 1) })).toEqual({
       ok: false,
       erro: "Os detalhes passam de 1000 caracteres.",
+      campo: "motivo",
     });
   });
 });
@@ -166,19 +192,27 @@ describe("motivoParaRecusarAtestado", () => {
 
 describe("motivoParaNaoDecidirAbono", () => {
   const rh = { id: "rh1", superUsuario: false };
+  const pendente = { status: "pendente", userId: "u2", donoEhRh: false };
 
-  it("abono pendente de outra pessoa pode ser decidido", () => {
-    expect(motivoParaNaoDecidirAbono({ status: "pendente", userId: "u2" }, rh)).toBeNull();
+  it("abono pendente de quem não é do RH pode ser decidido pelo RH", () => {
+    expect(motivoParaNaoDecidirAbono(pendente, rh)).toBeNull();
   });
 
   it("abono já aprovado ou rejeitado recusa com a frase de já decidido", () => {
-    expect(motivoParaNaoDecidirAbono({ status: "aprovado", userId: "u2" }, rh)).toBe(MOTIVO_ABONO_JA_DECIDIDO);
-    expect(motivoParaNaoDecidirAbono({ status: "rejeitado", userId: "u2" }, rh)).toBe(MOTIVO_ABONO_JA_DECIDIDO);
+    expect(motivoParaNaoDecidirAbono({ ...pendente, status: "aprovado" }, rh)).toBe(MOTIVO_ABONO_JA_DECIDIDO);
+    expect(motivoParaNaoDecidirAbono({ ...pendente, status: "rejeitado" }, rh)).toBe(MOTIVO_ABONO_JA_DECIDIDO);
   });
 
   it("a própria ausência recusa, exceto para o superusuário", () => {
-    expect(motivoParaNaoDecidirAbono({ status: "pendente", userId: "rh1" }, rh)).toBe(MOTIVO_PROPRIA_AUSENCIA);
-    expect(motivoParaNaoDecidirAbono({ status: "pendente", userId: "rh1" }, { ...rh, superUsuario: true })).toBeNull();
+    const propria = { ...pendente, userId: "rh1", donoEhRh: true };
+    expect(motivoParaNaoDecidirAbono(propria, rh)).toBe(MOTIVO_PROPRIA_AUSENCIA);
+    expect(motivoParaNaoDecidirAbono(propria, { ...rh, superUsuario: true })).toBeNull();
+  });
+
+  it("a de um colega do RH só um administrador decide", () => {
+    const deRh = { ...pendente, donoEhRh: true };
+    expect(motivoParaNaoDecidirAbono(deRh, rh)).toBe(MOTIVO_AUSENCIA_DE_RH);
+    expect(motivoParaNaoDecidirAbono(deRh, { id: "adm", superUsuario: true })).toBeNull();
   });
 });
 
@@ -214,6 +248,7 @@ describe("motivoAusenciaSobreposta", () => {
 describe("frases", () => {
   it("são frases para o usuário", () => {
     expect(MOTIVO_ABONO_JA_DECIDIDO).toMatch(/já foi decidido/);
-    expect(MOTIVO_PROPRIA_AUSENCIA).toMatch(/outra pessoa do RH/);
+    expect(MOTIVO_PROPRIA_AUSENCIA).toMatch(/administrador/);
+    expect(MOTIVO_AUSENCIA_DE_RH).toMatch(/administrador/);
   });
 });

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   espelhoMes: vi.fn(),
   deleteMany: vi.fn(),
   upsert: vi.fn(),
+  findMany: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -13,6 +14,7 @@ vi.mock("@/lib/prisma", () => ({
     bancoHorasMensal: {
       deleteMany: (...a: unknown[]) => mocks.deleteMany(...a),
       upsert: (...a: unknown[]) => mocks.upsert(...a),
+      findMany: (...a: unknown[]) => mocks.findMany(...a),
     },
   },
 }));
@@ -24,7 +26,7 @@ vi.mock("@/modules/rh/banco/queries", () => ({
   acumuladoAte: (...a: unknown[]) => mocks.acumuladoAte(...a),
 }));
 
-import { fecharBancoDoMes } from "./service";
+import { fecharBancoDoMes, recalcularBancoDaPessoa } from "./service";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -73,5 +75,36 @@ describe("fecharBancoDoMes", () => {
       saldoMinutos: 140,
       acumuladoMinutos: 80,
     });
+  });
+});
+
+describe("recalcularBancoDaPessoa", () => {
+  it("refaz só os meses já fechados da pessoa, do mês da ausência em diante e em ordem", async () => {
+    mocks.findMany.mockResolvedValue([
+      { ano: 2026, mes: 10 },
+      { ano: 2026, mes: 11 },
+    ]);
+    mocks.espelhoMes.mockResolvedValue({ saldoMinutos: 30 });
+
+    const n = await recalcularBancoDaPessoa("u1", new Date("2026-10-20T00:00:00Z"));
+
+    expect(n).toBe(2);
+    expect(mocks.findMany.mock.calls[0][0].where).toEqual({
+      userId: "u1",
+      OR: [{ ano: { gt: 2026 } }, { ano: 2026, mes: { gte: 10 } }],
+    });
+    expect(mocks.findMany.mock.calls[0][0].orderBy).toEqual([{ ano: "asc" }, { mes: "asc" }]);
+    // Só a pessoa — nunca apaga linha de ninguém (isso é do fechamento da equipe).
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
+    expect(mocks.upsert.mock.calls.map((c) => c[0].where.userId_ano_mes)).toEqual([
+      { userId: "u1", ano: 2026, mes: 10 },
+      { userId: "u1", ano: 2026, mes: 11 },
+    ]);
+  });
+
+  it("nenhum mês fechado no período: não grava nada", async () => {
+    mocks.findMany.mockResolvedValue([]);
+    expect(await recalcularBancoDaPessoa("u1", new Date("2026-12-01T00:00:00Z"))).toBe(0);
+    expect(mocks.upsert).not.toHaveBeenCalled();
   });
 });

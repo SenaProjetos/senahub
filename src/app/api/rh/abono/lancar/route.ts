@@ -10,11 +10,20 @@ import { rotuloMotivo } from "@/modules/rh/ausencia";
 import {
   motivoAusenciaSobreposta,
   motivoParaNaoLancarAbono,
-  sobrepoeAusencia,
   tratamentoPadrao,
   validarEntradaAbono,
+  type CampoAbono,
   type TratamentoAusenciaValor,
 } from "@/modules/rh/abono-entrada";
+import {
+  MOTIVO_AUSENCIA_OCUPADA,
+  OPCOES_TX_AUSENCIA,
+  ausenciaSobreposta,
+  ehTempoEsgotado,
+  travarAusenciasDaPessoa,
+} from "@/modules/rh/abono-service";
+import { ehDoRh } from "@/modules/rh/gestores-rh";
+import { recalcularBancoDaPessoaSemFalhar } from "@/modules/rh/banco/service";
 import {
   camposDoFormAbono,
   corpoGrandeDemais,
@@ -24,7 +33,26 @@ import {
 } from "@/modules/rh/abono-arquivo";
 import { avisarImpactoDaAusencia } from "@/modules/planejamento/impacto-ausencia-service";
 
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
+/** Recusa com o campo do formulário a que ela se refere — a tela marca e foca nele. */
+function recusa(erro: string, status: number, campo?: CampoAbono) {
+  return NextResponse.json(campo ? { error: erro, campo } : { error: erro }, { status });
+}
+
+/** Sobreposição achada dentro da transação (depois da trava). */
+class ConflitoDeAusencia extends Error {}
+
+/** Recusa de regra na trilha de auditoria (`rejeitado`, com a frase e o alvo). */
+async function auditarRecusa(autorId: string, erro: string, alvoId: string | null) {
+  await logAudit({
+    userId: autorId,
+    modulo: "rh",
+    acao: "lancar-abono-colaborador",
+    resultado: "rejeitado",
+    entidade: "AbonoFalta",
+    detalhe: { erro, alvoId },
+    ip: await getClientIp(),
+  });
+}
 
 /**
  * Lançamento de abono / atestado PELO RH, sem solicitação do colaborador (espelho de
@@ -33,15 +61,19 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
  *
  * O registro nasce APROVADO com o tratamento escolhido pelo RH, e todo consumidor (espelho,
  * banco de horas, recursos) o lê como uma aprovação comum. `lancadoPorId` distingue de uma
- * solicitação aprovada. A própria ausência fica de fora (`motivoParaNaoLancarAbono`), e uma
- * ausência pendente ou aprovada no mesmo tempo também — senão as horas contariam duas vezes.
+ * solicitação aprovada. A própria ausência e a de quem é do RH só um administrador lança
+ * (`motivoParaNaoLancarAbono`, `quem-decide.ts`). Uma ausência pendente ou aprovada no mesmo
+ * tempo também barra — senão as horas contariam duas vezes —, conferida sob a trava da pessoa
+ * (`travarAusenciasDaPessoa`) para dois lançamentos simultâneos não passarem juntos. Cair num mês
+ * de banco de horas já fechado refaz o saldo da pessoa (`recalcularBancoDaPessoa`).
  */
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  // Mesmo gate de `validarAbono` (`gereRh: true` no defineAction), auditado como lá.
-  if (!user.gereRh) {
+  // Mesmo gate de `validarAbono` (`gereRh: true` no defineAction), auditado como lá. Só interno,
+  // como a solicitação própria (`/api/rh/abono`).
+  if (!user.gereRh || user.tipo !== "interno") {
     await logAudit({
       userId: user.id,
       modulo: "rh",
@@ -53,72 +85,81 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Você não tem permissão para lançar abono." }, { status: 403 });
   }
   if (corpoGrandeDemais(req)) {
-    return NextResponse.json({ error: "Atestado muito grande (máx. 25 MB)." }, { status: 413 });
+    return recusa("Atestado muito grande (máx. 25 MB).", 413, "atestado");
   }
 
   const form = await lerFormulario(req);
   if (!form) return NextResponse.json({ error: "Formulário inválido." }, { status: 400 });
   const userId = String(form.get("userId") ?? "");
-  const alvo = userId
+  const achado = userId
     ? await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, ativo: true, tipo: true } })
     : null;
-  const recusa = motivoParaNaoLancarAbono(alvo, user.id);
-  if (recusa || !alvo) return NextResponse.json({ error: recusa }, { status: 400 });
+  const alvo = achado ? { ...achado, ehRh: await ehDoRh(achado.id) } : null;
+  const naoPode = motivoParaNaoLancarAbono(alvo, { id: user.id, superUsuario: user.superUsuario === true });
+  if (naoPode || !alvo) {
+    // Recusa de regra (a própria ausência, a de quem é do RH): fica na trilha, como o
+    // `defineAction` faz com o `ActionError`.
+    await auditarRecusa(user.id, naoPode ?? "Colaborador não encontrado.", userId || null);
+    return recusa(naoPode ?? "Colaborador não encontrado.", 400, "userId");
+  }
 
   const campos = camposDoFormAbono(form);
   const v = validarEntradaAbono(campos);
-  if (!v.ok) return NextResponse.json({ error: v.erro }, { status: 400 });
+  if (!v.ok) return recusa(v.erro, 400, v.campo);
   const { dataInicio, dataFim, motivoTipo, horaInicio, horaFim } = v.dados;
 
   const tratamentoInformado = String(form.get("tratamento") ?? "");
   let tratamento: TratamentoAusenciaValor;
   if (tratamentoInformado === "") tratamento = tratamentoPadrao(motivoTipo);
   else if (tratamentoInformado === "abonar" || tratamentoInformado === "banco_horas") tratamento = tratamentoInformado;
-  else return NextResponse.json({ error: "Tratamento inválido." }, { status: 400 });
+  else return recusa("Tratamento inválido.", 400, "tratamento");
 
   const recusaArquivo = motivoParaRecusarAtestadoDoForm(form);
-  if (recusaArquivo) return NextResponse.json({ error: recusaArquivo }, { status: 400 });
+  if (recusaArquivo) return recusa(recusaArquivo, 400, "atestado");
 
   // Pendente ou aprovada no mesmo tempo: o caso comum é a pessoa ter pedido E entregado o
   // atestado em mãos. Decidir a solicitação é o caminho; duas linhas somariam as horas.
-  const candidatas = await prisma.abonoFalta.findMany({
-    where: {
-      userId: alvo.id,
-      status: { in: ["pendente", "aprovado"] },
-      dataInicio: { lte: new Date(dataFim) },
-      dataFim: { gte: new Date(dataInicio) },
-    },
-    select: { status: true, dataInicio: true, dataFim: true, horaInicio: true, horaFim: true },
-  });
+  // Conferida aqui (sem gravar arquivo à toa) e de novo dentro da transação, sob a trava.
   const novo = { dataInicio, dataFim, horaInicio, horaFim };
-  const conflito = candidatas.find((c) =>
-    sobrepoeAusencia(novo, { dataInicio: ymd(c.dataInicio), dataFim: ymd(c.dataFim), horaInicio: c.horaInicio, horaFim: c.horaFim }),
-  );
-  if (conflito) return NextResponse.json({ error: motivoAusenciaSobreposta(conflito.status) }, { status: 409 });
+  const conflitoAntes = await ausenciaSobreposta(prisma, alvo.id, novo, ["pendente", "aprovado"]);
+  if (conflitoAntes) {
+    await auditarRecusa(user.id, motivoAusenciaSobreposta(conflitoAntes.status), alvo.id);
+    return recusa(motivoAusenciaSobreposta(conflitoAntes.status), 409, "dataInicio");
+  }
 
   const arquivo = await salvarAtestadoDoForm(form, alvo.id);
   let abono;
   try {
-    abono = await prisma.abonoFalta.create({
-      data: {
-        userId: alvo.id,
-        dataInicio: new Date(dataInicio),
-        dataFim: new Date(dataFim),
-        motivo: campos.motivo || null,
-        motivoTipo,
-        horaInicio,
-        horaFim,
-        ...arquivo,
-        tratamento,
-        status: "aprovado",
-        validadoPorId: user.id,
-        validadoEm: new Date(),
-        lancadoPorId: user.id,
-      },
-    });
+    abono = await prisma.$transaction(async (tx) => {
+      await travarAusenciasDaPessoa(tx, alvo.id);
+      const conflito = await ausenciaSobreposta(tx, alvo.id, novo, ["pendente", "aprovado"]);
+      if (conflito) throw new ConflitoDeAusencia(motivoAusenciaSobreposta(conflito.status));
+      return tx.abonoFalta.create({
+        data: {
+          userId: alvo.id,
+          dataInicio: new Date(dataInicio),
+          dataFim: new Date(dataFim),
+          motivo: campos.motivo || null,
+          motivoTipo,
+          horaInicio,
+          horaFim,
+          ...arquivo,
+          tratamento,
+          status: "aprovado",
+          validadoPorId: user.id,
+          validadoEm: new Date(),
+          lancadoPorId: user.id,
+        },
+      });
+    }, OPCOES_TX_AUSENCIA);
   } catch (e) {
     // Sem a linha, o arquivo ficaria órfão em `rh/atestados/<userId>/`.
     if (arquivo.atestadoPath) await removerArquivo(arquivo.atestadoPath);
+    if (e instanceof ConflitoDeAusencia) {
+      await auditarRecusa(user.id, e.message, alvo.id);
+      return recusa(e.message, 409, "dataInicio");
+    }
+    if (ehTempoEsgotado(e)) return recusa(MOTIVO_AUSENCIA_OCUPADA, 503);
     throw e;
   }
 
@@ -169,6 +210,8 @@ export async function POST(req: Request) {
     tipo: "ausencia",
     registroId: abono.id,
   });
+  // Mês de banco de horas já fechado: o saldo congelado passa a contar a ausência.
+  await recalcularBancoDaPessoaSemFalhar(alvo.id, abono.dataInicio);
 
   revalidatePath("/rh");
   revalidatePath("/rh/admin");

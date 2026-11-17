@@ -22,6 +22,7 @@ import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
 import { LancarAbonoDialog } from "@/components/rh/lancar-abono-dialog";
+import { ehDoRh } from "@/modules/rh/gestores-rh";
 import { PedidoDadosFicha } from "@/components/rh/pedido-dados";
 import { pedidoDaPessoa } from "@/modules/rh/cadastro/queries";
 import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
@@ -127,6 +128,14 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       ])
     : [[], null, []];
 
+  // "Lançar abono" só quando o servidor aceitaria: RH, pessoa ativa, e nem a própria ficha nem a
+  // de alguém do RH sem ser administrador (`quem-decide.ts`).
+  const podeLancarAbono =
+    ehRh &&
+    !!ausencias &&
+    pessoa.ativo &&
+    (user.superUsuario || (id !== user.id && !(await ehDoRh(id))));
+
   const escala = escalaUsuario && escalaPadrao
     ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
     : null;
@@ -153,8 +162,7 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
       lancarAbonoSlot={
-        // Só o RH, só pessoa ativa, e nunca na própria ficha: o abono lançado nasce aprovado.
-        ehRh && ausencias && pessoa.ativo && id !== user.id ? (
+        podeLancarAbono ? (
           <LancarAbonoDialog pessoa={{ id, name: pessoa.name }} ultimoMesFechado={mesFechadoBanco} />
         ) : undefined
       }

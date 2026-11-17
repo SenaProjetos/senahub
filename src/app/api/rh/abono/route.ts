@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { notificar } from "@/lib/notificar";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { whereAudiencia } from "@/lib/audiencias";
 import { removerArquivo } from "@/lib/storage";
 import { formatarData } from "@/lib/utils";
 import { rotuloMotivo } from "@/modules/rh/ausencia";
 import { validarEntradaAbono } from "@/modules/rh/abono-entrada";
+import { notificarQuemDecide } from "@/modules/rh/gestores-rh";
 import {
   camposDoFormAbono,
   corpoGrandeDemais,
@@ -73,23 +72,16 @@ export async function POST(req: Request) {
   const quando = horaInicio ? `${formatarData(dataInicio)}, ${horaInicio}–${horaFim}` : formatarData(dataInicio);
 
   // Melhor esforço: a solicitação já existe; uma falha no aviso não pode virar erro na tela
-  // (a pessoa tentaria de novo e duplicaria o pedido).
+  // (a pessoa tentaria de novo e duplicaria o pedido). Quem é do RH tem o pedido decidido por um
+  // administrador, então o aviso vai para os administradores (`notificarQuemDecide`).
   try {
-    const gestores = await prisma.user.findMany({
-      where: whereAudiencia("rh_admin"),
-      select: { id: true },
+    await notificarQuemDecide(user.id, {
+      titulo: antecipado ? "Aviso antecipado de ausência" : "Abono de falta para validar",
+      corpo: antecipado
+        ? `${user.name} avisou uma ausência (${rotuloMotivo(motivoTipo).toLowerCase()}) em ${quando}.`
+        : `${user.name} solicitou abono.`,
+      href: "/rh/admin",
     });
-    await Promise.all(
-      gestores.map((g) =>
-        notificar(g.id, {
-          titulo: antecipado ? "Aviso antecipado de ausência" : "Abono de falta para validar",
-          corpo: antecipado
-            ? `${user.name} avisou uma ausência (${rotuloMotivo(motivoTipo).toLowerCase()}) em ${quando}.`
-            : `${user.name} solicitou abono.`,
-          href: "/rh/admin",
-        }),
-      ),
-    );
   } catch (e) {
     console.error("[abono] falha ao avisar o RH", e);
   }

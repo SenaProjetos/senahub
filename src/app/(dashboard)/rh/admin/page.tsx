@@ -16,6 +16,7 @@ import {
 import { fechamentosDoMes, saldoCorrenteEquipe, primeiroMesFechado, ultimoMesFechado } from "@/modules/rh/banco/queries";
 import { listarFeedbacks, colaboradoresInternos } from "@/modules/rh/feedback/queries";
 import { RhAdminView } from "@/components/rh/rh-admin-view";
+import { idsDoRh } from "@/modules/rh/gestores-rh";
 import { CiclosAdmin } from "@/components/rh/ciclos-admin";
 import { ModelosCicloAdmin } from "@/components/rh/modelos-ciclo-admin";
 import { CatalogoCompetencias } from "@/components/rh/catalogo-competencias";
@@ -66,6 +67,10 @@ export default async function RhAdminPage() {
     colaboradoresInternos(),
     Promise.all(anteriores.map(async (m) => ({ ...m, fechamentos: await fechamentosDoMes(m.ano, m.mes) }))),
   ]);
+  // Quem é do RH só um administrador decide/lança (`quem-decide.ts`): os seletores não oferecem
+  // quem o servidor recusaria, e a fila mostra o motivo no lugar dos botões.
+  const idsRh = await idsDoRh();
+  const podeLancarPara = (id: string) => id !== user.id && (user.superUsuario || !idsRh.includes(id));
   return (
     <div className="space-y-6">
       <RhAdminView
@@ -73,9 +78,10 @@ export default async function RhAdminPage() {
         ferias={ferias}
         alteracoesFerias={alteracoesFerias}
         feriasVigentes={feriasVigentes}
-        colaboradoresFerias={colaboradoresFerias.filter((c) => c.id !== user.id)}
-        colaboradoresAbono={colaboradores.filter((c) => c.id !== user.id)}
+        colaboradoresFerias={colaboradoresFerias.filter((c) => podeLancarPara(c.id))}
+        colaboradoresAbono={colaboradores.filter((c) => podeLancarPara(c.id))}
         quem={{ id: user.id, superUsuario: user.superUsuario }}
+        idsRh={idsRh}
         ultimoMesFechadoBanco={ultimoFechado}
         clima={clima}
         climaSerie={climaSerie}
