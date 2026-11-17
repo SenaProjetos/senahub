@@ -290,7 +290,8 @@ function AbonoCard() {
         limparArquivo();
         router.refresh();
       } else {
-        toast.error((await res.json()).error ?? "Falha.");
+        const corpo = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast.error(corpo?.error ?? "Não foi possível enviar a solicitação. Tente de novo.");
       }
     } finally {
       setEnviando(false);

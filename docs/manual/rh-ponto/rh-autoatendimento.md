@@ -24,8 +24,12 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
   RH, ele pode lançar a ausência por você: ela aparece já aprovada, marcada como **Lançado pelo
   RH**, e você recebe uma notificação. Se você é do RH, suas solicitações de abono e férias são
   decididas por um administrador.
+  - Uma solicitação no mesmo período de outra sua, pendente ou aprovada, é recusada na hora,
+    assim como uma ausência num período em que você está de férias aprovadas.
+  - Seu atestado só é aberto por você e por quem decide a sua ausência.
 - **Férias:** solicitar período de férias e acompanhar o status.
   - Enquanto a solicitação está **pendente**, você pode **editar** as datas livremente.
+  - Um pedido que cruza outras férias suas, pendentes ou aprovadas, é recusado.
   - Depois de **aprovada**, use **Propor alteração**: a nova data só passa a valer quando o
     **RH também aprovar** (dupla aprovação). Se o RH propuser a mudança, você recebe uma
     notificação e decide **Aprovar** ou **Recusar** — recusando, valem as datas originais.
@@ -92,6 +96,7 @@ sistema normalmente.
 
 ## FAQ
 
-**Anexei o atestado errado.** Abra uma nova solicitação ou contate a administração do RH.
+**Anexei o atestado errado.** Fale com o RH. Uma nova solicitação no mesmo período é recusada
+enquanto a errada estiver pendente ou aprovada: o RH rejeita a errada e você abre outra.
 
 **Minha NF foi rejeitada.** O motivo fica na observação da validação; reenvie corrigida.

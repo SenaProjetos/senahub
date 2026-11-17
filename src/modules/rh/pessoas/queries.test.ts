@@ -324,11 +324,26 @@ describe("Pessoa 360 — aba Ausências", () => {
     mocks.abonoFindMany.mockResolvedValue([abono({ id: "rh", lancadoPorId: "u-rh" }), abono({ id: "pessoa" })]);
     mocks.feriasFindMany.mockResolvedValue([]);
 
-    const r = await solicitacoesDoUsuario("u1");
+    const r = await solicitacoesDoUsuario("u1", { anexoFechado: null });
 
     const porId = Object.fromEntries(r.abonos.map((a) => [a.id, a]));
     expect(porId.rh).toMatchObject({ lancadoPeloRh: true, antecipado: false });
     expect(porId.pessoa).toMatchObject({ lancadoPeloRh: false, antecipado: true });
     expect(mocks.abonoFindMany.mock.calls[0][0].select).toMatchObject({ lancadoPorId: true });
+  });
+
+  it("atestado que quem lê não pode abrir: diz que há um, sem o nome do arquivo", async () => {
+    mocks.abonoFindMany.mockResolvedValue([abono({ atestadoPath: "rh/atestados/u1/x.pdf", atestadoNome: "cid-x.pdf" })]);
+    mocks.feriasFindMany.mockResolvedValue([]);
+
+    const fechado = await solicitacoesDoUsuario("u1", { anexoFechado: "Atestado anexado: só o RH abre." });
+    expect(fechado.abonos[0]).toMatchObject({
+      temAnexo: true,
+      anexoFechado: "Atestado anexado: só o RH abre.",
+      atestadoNome: null,
+    });
+
+    const aberto = await solicitacoesDoUsuario("u1", { anexoFechado: null });
+    expect(aberto.abonos[0]).toMatchObject({ temAnexo: true, anexoFechado: null, atestadoNome: "cid-x.pdf" });
   });
 });

@@ -197,9 +197,9 @@ export function statusAoDesbloquear(p: { inicioReal: Dia | null; fimReal: Dia | 
 }
 
 /**
- * O "antes" da auditoria de `registrarExecucao`, já legível: o `sanitize` da auditoria percorre
- * objeto por objeto, então um `Date` viraria `{}` e um `Decimal` os dígitos internos dele. Datas em
- * `YYYY-MM-DD` e o valor do terceiro em número (mesmo jeito de `financeiro/lancamentos`).
+ * O "antes" da auditoria de `registrarExecucao`, já legível: datas em `YYYY-MM-DD` (são colunas de
+ * dia; o ISO com hora não diz nada) e o valor do terceiro em número (mesmo jeito de
+ * `financeiro/lancamentos`).
  */
 export function fotoDaExecucao(l: {
   status: StatusEap;

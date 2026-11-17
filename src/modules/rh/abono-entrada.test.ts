@@ -3,9 +3,11 @@ import {
   MAX_ATESTADO,
   MAX_DETALHES,
   MOTIVO_ABONO_JA_DECIDIDO,
+  MOTIVO_APROVAR_SOBREPOSTA,
   MOTIVO_AUSENCIA_DE_RH,
+  MOTIVO_AUSENCIA_EM_FERIAS,
   MOTIVO_PROPRIA_AUSENCIA,
-  motivoAusenciaSobreposta,
+  motivoDoConflito,
   motivoParaNaoDecidirAbono,
   motivoParaNaoLancarAbono,
   motivoParaRecusarAtestado,
@@ -238,10 +240,26 @@ describe("sobrepoeAusencia", () => {
   });
 });
 
-describe("motivoAusenciaSobreposta", () => {
-  it("pendente aponta para a fila; aprovada só avisa", () => {
-    expect(motivoAusenciaSobreposta("pendente")).toMatch(/Abonos pendentes/);
-    expect(motivoAusenciaSobreposta("aprovado")).toMatch(/aprovada/);
+describe("motivoDoConflito", () => {
+  const pendente = { tipo: "ausencia", status: "pendente" } as const;
+  const aprovada = { tipo: "ausencia", status: "aprovado" } as const;
+  const ferias = { tipo: "ferias" } as const;
+
+  it("lançamento do RH: pendente aponta a fila, aprovada recusa, férias recusa", () => {
+    expect(motivoDoConflito(pendente, "lancar")).toMatch(/Abonos pendentes/);
+    expect(motivoDoConflito(aprovada, "lancar")).toMatch(/aprovada/);
+    expect(motivoDoConflito(ferias, "lancar")).toBe(MOTIVO_AUSENCIA_EM_FERIAS);
+  });
+
+  it("aprovação: manda rejeitar a solicitação", () => {
+    expect(motivoDoConflito(aprovada, "aprovar")).toBe(MOTIVO_APROVAR_SOBREPOSTA);
+    expect(motivoDoConflito(ferias, "aprovar")).toMatch(/férias aprovadas.*Rejeite/);
+  });
+
+  it("a própria pessoa: fala com ela, não do RH", () => {
+    expect(motivoDoConflito(pendente, "propria")).toMatch(/^Você já pediu/);
+    expect(motivoDoConflito(aprovada, "propria")).toMatch(/^Você já tem uma ausência aprovada/);
+    expect(motivoDoConflito(ferias, "propria")).toBe("Você tem férias aprovadas nesse período.");
   });
 });
 

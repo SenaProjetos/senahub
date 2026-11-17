@@ -3,6 +3,7 @@ import {
   MOTIVO_FERIAS_DE_RH,
   MOTIVO_FERIAS_JA_DECIDIDAS,
   MOTIVO_PROPRIAS_FERIAS,
+  motivoFeriasSobrepostas,
   motivoParaNaoDecidirFerias,
   motivoParaNaoDecidirFeriasDe,
   motivoParaNaoLancarFeriasPara,
@@ -55,5 +56,23 @@ describe("motivoParaNaoLancarFeriasPara", () => {
   it("lançar para um colega do RH só o administrador", () => {
     expect(motivoParaNaoLancarFeriasPara({ id: "rh2", ehRh: true }, rh)).toBe("Para quem é do RH, só um administrador lança férias.");
     expect(motivoParaNaoLancarFeriasPara({ id: "rh2", ehRh: true }, admin)).toBeNull();
+  });
+});
+
+describe("motivoFeriasSobrepostas", () => {
+  it("a própria pessoa: pendente e aprovada em frases dela", () => {
+    expect(motivoFeriasSobrepostas("pendente", "propria")).toMatch(/^Você já pediu férias/);
+    expect(motivoFeriasSobrepostas("aprovado", "propria")).toMatch(/^Você já tem férias aprovadas/);
+  });
+
+  it("RH lançando: pendente aponta a fila, aprovada recusa", () => {
+    expect(motivoFeriasSobrepostas("pendente", "lancar")).toMatch(/Férias pendentes/);
+    expect(motivoFeriasSobrepostas("aprovado", "lancar")).toMatch(/férias aprovadas/);
+  });
+
+  it("aprovação manda rejeitar; alteração fala da nova data", () => {
+    expect(motivoFeriasSobrepostas("aprovado", "aprovar")).toMatch(/Rejeite/);
+    expect(motivoFeriasSobrepostas("aprovado", "alterar")).toMatch(/^A nova data cruza outras férias aprovadas/);
+    expect(motivoFeriasSobrepostas("pendente", "alterar")).toMatch(/pendente.*Decida-a/);
   });
 });

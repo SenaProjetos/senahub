@@ -1,6 +1,7 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import { sobrepoeAusencia, type PeriodoAusencia } from "./abono-entrada";
+import { prisma } from "@/lib/prisma";
+import { sobrepoeAusencia, type ConflitoDeAusencia, type PeriodoAusencia } from "./abono-entrada";
 
 type Tx = Prisma.TransactionClient;
 
@@ -29,6 +30,19 @@ export function ehTempoEsgotado(e: unknown): boolean {
  */
 export async function travarAusenciasDaPessoa(tx: Tx, userId: string): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ausencia:${userId}`}))`;
+}
+
+/**
+ * Roda `fn` numa transação com as ausências e férias da pessoa travadas (`travarAusenciasDaPessoa`).
+ * Todo caminho que grava ausência ou férias APROVADA (ou que confere sobreposição antes de gravar)
+ * passa por aqui, para a conferência e a gravação não se intercalarem com outra da mesma pessoa.
+ * Tempo esgotado chega como P2028 (`ehTempoEsgotado`): cada chamador escolhe a resposta.
+ */
+export async function comAusenciasTravadas<T>(userId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    await travarAusenciasDaPessoa(tx, userId);
+    return fn(tx);
+  }, OPCOES_TX_AUSENCIA);
 }
 
 /**
@@ -63,4 +77,46 @@ export async function ausenciaSobreposta(
       }),
     ) ?? null
   );
+}
+
+/**
+ * Férias da pessoa, com um dos `status`, que cruzam os dias `inicio`–`fim` (`YYYY-MM-DD`, fim
+ * incluso). Com várias, a aprovada vem antes (é a que barra de vez). `excetoId` tira as próprias
+ * férias quando quem confere é a aprovação ou a alteração delas.
+ */
+export async function feriasSobrepostas(
+  db: Tx,
+  userId: string,
+  dias: { inicio: string; fim: string },
+  status: ("pendente" | "aprovado")[],
+  excetoId?: string,
+): Promise<{ id: string; status: string } | null> {
+  const achadas = await db.ferias.findMany({
+    where: {
+      userId,
+      status: { in: status },
+      inicio: { lte: new Date(`${dias.fim}T00:00:00Z`) },
+      fim: { gte: new Date(`${dias.inicio}T00:00:00Z`) },
+      ...(excetoId ? { id: { not: excetoId } } : {}),
+    },
+    select: { id: true, status: true },
+  });
+  return achadas.find((f) => f.status === "aprovado") ?? achadas[0] ?? null;
+}
+
+/**
+ * O que barra uma ausência no período: outra ausência com um dos `statusAusencia` (menos
+ * `excetoId`) ou férias APROVADAS da pessoa (`ConflitoDeAusencia`). `null` = livre.
+ */
+export async function conflitoDaAusencia(
+  db: Tx,
+  userId: string,
+  periodo: PeriodoAusencia,
+  statusAusencia: ("pendente" | "aprovado")[],
+  excetoId?: string,
+): Promise<ConflitoDeAusencia | null> {
+  const outra = await ausenciaSobreposta(db, userId, periodo, statusAusencia, excetoId);
+  if (outra) return { tipo: "ausencia", status: outra.status };
+  const ferias = await feriasSobrepostas(db, userId, { inicio: periodo.dataInicio, fim: periodo.dataFim }, ["aprovado"]);
+  return ferias ? { tipo: "ferias" } : null;
 }

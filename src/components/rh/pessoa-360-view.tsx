@@ -504,8 +504,13 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                           {a.lancadoPeloRh && <Badge variant="outline" className="ml-2 align-middle">Lançado pelo RH</Badge>}
                           {a.motivo ? <span className="text-muted-foreground"> · {a.motivo}</span> : null}
                         </span>
-                        <span className="flex items-center gap-2">
-                          {a.temAnexo && <AnexoAbono id={a.id} nome={a.atestadoNome} />}
+                        <span className="flex flex-wrap items-center gap-2">
+                          {a.temAnexo &&
+                            (a.anexoFechado ? (
+                              <span className="text-xs text-muted-foreground">{a.anexoFechado}</span>
+                            ) : (
+                              <AnexoAbono id={a.id} nome={a.atestadoNome} />
+                            ))}
                           {rotuloTratamento(a.status, a.tratamento) && (
                             <span className="text-xs text-muted-foreground">{rotuloTratamento(a.status, a.tratamento)}</span>
                           )}

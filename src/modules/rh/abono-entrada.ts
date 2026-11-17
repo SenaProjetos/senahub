@@ -62,8 +62,8 @@ const MAX_DIAS_PERIODO = 366;
 const MOTIVOS = new Set<string>(MOTIVOS_AUSENCIA.map((m) => m.valor));
 const DIA_MS = 86_400_000;
 
-/** `YYYY-MM-DD` de um dia que existe no calendário (2026-02-30 não passa). */
-function dataValida(iso: string): boolean {
+/** `YYYY-MM-DD` de um dia que existe no calendário (2026-02-30 não passa). Usado também nas férias. */
+export function dataValida(iso: string): boolean {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return false;
   const [ano, mes, dia] = [Number(m[1]), Number(m[2]), Number(m[3])];
@@ -183,13 +183,35 @@ export function sobrepoeAusencia(a: PeriodoAusencia, b: PeriodoAusencia): boolea
   return minutosHHMM(a.horaInicio!)! < minutosHHMM(b.horaFim!)! && minutosHHMM(b.horaInicio!)! < minutosHHMM(a.horaFim!)!;
 }
 
+/**
+ * O que já está registrado no tempo de uma ausência nova (ou a aprovar): outra ausência (com o
+ * status dela) ou férias APROVADAS. Ausência dentro das férias não existe — o dia já não é devido,
+ * e um atestado no meio das férias não as interrompe (CLT) —, então as duas nunca convivem.
+ */
+export type ConflitoDeAusencia = { tipo: "ausencia"; status: string } | { tipo: "ferias" };
+
+/** Quem esbarra no conflito: o RH lançando, quem aprova a fila, ou a pessoa pedindo a própria. */
+export type ContextoDoConflito = "lancar" | "aprovar" | "propria";
+
 /** Aprovar uma solicitação por cima de uma ausência já aprovada no mesmo tempo (horas em dobro). */
 export const MOTIVO_APROVAR_SOBREPOSTA =
   "Já existe uma ausência aprovada desta pessoa nesse período. Rejeite esta solicitação para as horas não contarem duas vezes.";
+export const MOTIVO_AUSENCIA_EM_FERIAS = "Esta pessoa tem férias aprovadas nesse período.";
+export const MOTIVO_APROVAR_EM_FERIAS = "Esta pessoa tem férias aprovadas nesse período. Rejeite esta solicitação.";
 
-/** Frase da recusa do lançamento que bate numa ausência já registrada da pessoa. */
-export function motivoAusenciaSobreposta(status: string): string {
-  return status === "pendente"
+/** A frase da recusa, a mesma na tela e na trilha de auditoria. */
+export function motivoDoConflito(c: ConflitoDeAusencia, contexto: ContextoDoConflito): string {
+  if (c.tipo === "ferias") {
+    if (contexto === "propria") return "Você tem férias aprovadas nesse período.";
+    return contexto === "aprovar" ? MOTIVO_APROVAR_EM_FERIAS : MOTIVO_AUSENCIA_EM_FERIAS;
+  }
+  if (contexto === "aprovar") return MOTIVO_APROVAR_SOBREPOSTA;
+  if (contexto === "propria") {
+    return c.status === "pendente"
+      ? "Você já pediu uma ausência nesse período, que aguarda o RH."
+      : "Você já tem uma ausência aprovada nesse período. Para mudar, fale com o RH.";
+  }
+  return c.status === "pendente"
     ? "Já existe uma solicitação pendente desta pessoa nesse período. Decida-a em Abonos pendentes."
     : "Já existe uma ausência aprovada desta pessoa nesse período.";
 }

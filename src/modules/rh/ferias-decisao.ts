@@ -42,3 +42,31 @@ export function motivoParaNaoLancarFeriasPara(alvo: { id: string; ehRh: boolean 
   if (bloqueio === "de_rh") return "Para quem é do RH, só um administrador lança férias.";
   return null;
 }
+
+/** Quem esbarra em férias já registradas no mesmo período. */
+export type ContextoFeriasSobrepostas = "propria" | "lancar" | "aprovar" | "alterar";
+
+/**
+ * Frase da recusa quando o período cruza outras férias da pessoa (com o status delas). Duas
+ * férias aprovadas nos mesmos dias gastariam o período aquisitivo duas vezes; a pendente é
+ * decidida antes, na fila. Férias por cima de uma ausência já aprovada passam: o dia não é
+ * devido de nenhum jeito e uma ausência aprovada não se desfaz.
+ */
+export function motivoFeriasSobrepostas(status: string, contexto: ContextoFeriasSobrepostas): string {
+  if (contexto === "propria") {
+    return status === "pendente"
+      ? "Você já pediu férias nesse período, que aguardam decisão."
+      : "Você já tem férias aprovadas nesse período.";
+  }
+  if (contexto === "aprovar") {
+    return "Já existem férias aprovadas desta pessoa nesse período. Rejeite esta solicitação para os dias não contarem duas vezes.";
+  }
+  if (contexto === "alterar") {
+    return status === "pendente"
+      ? "A nova data cruza uma solicitação de férias pendente desta pessoa. Decida-a antes."
+      : "A nova data cruza outras férias aprovadas desta pessoa.";
+  }
+  return status === "pendente"
+    ? "Já existe uma solicitação de férias pendente desta pessoa nesse período. Decida-a em Férias pendentes."
+    : "Já existem férias aprovadas desta pessoa nesse período.";
+}

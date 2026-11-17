@@ -30,6 +30,12 @@ Reunir as rotinas administrativas de RH em um só lugar.
     do RH na lista (a não ser para o administrador).
   - Aprovar um abono por cima de uma ausência **já aprovada** da mesma pessoa no mesmo período é
     recusado: as horas contariam duas vezes. Rejeite a solicitação repetida.
+  - Também é recusado aprovar um abono num período em que a pessoa está de **férias aprovadas**
+    (o dia já não é cobrado), e aprovar férias que cruzam **outras férias aprovadas** da mesma
+    pessoa (os dias sairiam duas vezes do período aquisitivo).
+  - **Atestado:** só abre quem pode decidir a ausência. O atestado de quem é do RH só um
+    administrador abre; para os demais, a fila e a ficha mostram "Atestado anexado: só um
+    administrador abre." no lugar de **Ver** e **Baixar**. A própria pessoa sempre abre o dela.
 - **Lançar abono:** registra um atestado ou uma ausência de alguém **sem depender da
   solicitação** do colaborador (por exemplo, o atestado entregue em mãos). Escolha a pessoa, as
   datas (ou o horário, para um único dia), o motivo, o tratamento das horas — **abonar** (não
@@ -40,13 +46,15 @@ Reunir as rotinas administrativas de RH em um só lugar.
   **RH**, que um administrador aprova. Um campo preenchido errado fica marcado em vermelho, com a
   explicação logo abaixo. Se a pessoa
   já tem uma ausência pendente ou aprovada no mesmo período, o lançamento é recusado — decida a
-  solicitação pendente em vez de lançar outra, para as horas não contarem duas vezes. O atestado
+  solicitação pendente em vez de lançar outra, para as horas não contarem duas vezes. Também é
+  recusado se a pessoa está de férias aprovadas nesse período. O atestado
   aceita PDF ou imagem (JPG, PNG, WEBP, GIF ou HEIC) de até 25 MB.
 - **Alterações de férias:** mudanças de data em férias **já aprovadas**. Valem por **dupla
   aprovação** — o card lista as propostas feitas pelos colaboradores, mostrando as datas
   originais riscadas e as novas ao lado; ao **Aprovar**, a nova data entra em vigor na hora.
   O RH também pode **propor** uma alteração pela ficha do colaborador; nesse caso quem
-  precisa aprovar é o **funcionário**. Recusar mantém as datas originais. Nas férias de quem é do
+  precisa aprovar é o **funcionário**. Recusar mantém as datas originais. A nova data não pode
+  cruzar outras férias aprovadas da mesma pessoa. Nas férias de quem é do
   RH, o lado da empresa é sempre de um administrador: o próprio RH pode propor mudar as dele, mas
   quem aprova é um administrador.
 - **Clima e humor:** resumo do clima e os feedbacks de humor dos colaboradores.

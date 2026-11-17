@@ -49,7 +49,11 @@ export function RhAdminView({
   climaSerie,
   feedbacksHumor,
 }: {
-  abonos: AbonoPendente[];
+  /**
+   * Sem o caminho do arquivo (fica no servidor). `atestadoFechado`: há atestado, mas quem lê não
+   * abre — a frase de `motivoParaNaoVerAtestado`, no lugar de Ver/Baixar.
+   */
+  abonos: (Omit<AbonoPendente, "atestadoPath"> & { temAtestado: boolean; atestadoFechado: string | null })[];
   ferias: FeriasPendente[];
   alteracoesFerias: AlteracaoFeriasPendente[];
   feriasVigentes: FeriasVigente[];
@@ -268,7 +272,12 @@ export function RhAdminView({
                     </p>
                     {a.motivo && <p className="text-xs text-muted-foreground">{a.motivo}</p>}
                     <div className="flex flex-wrap items-center gap-2">
-                      {a.atestadoPath && <AnexoAbono id={a.id} nome={a.atestadoNome} />}
+                      {a.temAtestado &&
+                        (a.atestadoFechado ? (
+                          <span className="text-xs text-muted-foreground">{a.atestadoFechado}</span>
+                        ) : (
+                          <AnexoAbono id={a.id} nome={a.atestadoNome} />
+                        ))}
                       {motivoParaNaoDecidirAbono({ ...a, donoEhRh: idsRh.includes(a.userId) }, quem) ? (
                         <span className="text-xs text-muted-foreground">
                           {motivoParaNaoDecidirAbono({ ...a, donoEhRh: idsRh.includes(a.userId) }, quem)}

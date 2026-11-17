@@ -8,7 +8,7 @@ import { removerArquivo } from "@/lib/storage";
 import { formatarData } from "@/lib/utils";
 import { rotuloMotivo } from "@/modules/rh/ausencia";
 import {
-  motivoAusenciaSobreposta,
+  motivoDoConflito,
   motivoParaNaoLancarAbono,
   tratamentoPadrao,
   validarEntradaAbono,
@@ -17,17 +17,15 @@ import {
 } from "@/modules/rh/abono-entrada";
 import {
   MOTIVO_AUSENCIA_OCUPADA,
-  OPCOES_TX_AUSENCIA,
-  ausenciaSobreposta,
+  comAusenciasTravadas,
+  conflitoDaAusencia,
   ehTempoEsgotado,
-  travarAusenciasDaPessoa,
 } from "@/modules/rh/abono-service";
 import { ehDoRh } from "@/modules/rh/gestores-rh";
 import { recalcularBancoDaPessoaSemFalhar } from "@/modules/rh/banco/service";
 import {
   camposDoFormAbono,
-  corpoGrandeDemais,
-  lerFormulario,
+  lerFormularioLimitado,
   motivoParaRecusarAtestadoDoForm,
   salvarAtestadoDoForm,
 } from "@/modules/rh/abono-arquivo";
@@ -39,7 +37,7 @@ function recusa(erro: string, status: number, campo?: CampoAbono) {
 }
 
 /** Sobreposição achada dentro da transação (depois da trava). */
-class ConflitoDeAusencia extends Error {}
+class RecusaPorConflito extends Error {}
 
 /** Recusa de regra na trilha de auditoria (`rejeitado`, com a frase e o alvo). */
 async function auditarRecusa(autorId: string, erro: string, alvoId: string | null) {
@@ -63,8 +61,9 @@ async function auditarRecusa(autorId: string, erro: string, alvoId: string | nul
  * banco de horas, recursos) o lê como uma aprovação comum. `lancadoPorId` distingue de uma
  * solicitação aprovada. A própria ausência e a de quem é do RH só um administrador lança
  * (`motivoParaNaoLancarAbono`, `quem-decide.ts`). Uma ausência pendente ou aprovada no mesmo
- * tempo também barra — senão as horas contariam duas vezes —, conferida sob a trava da pessoa
- * (`travarAusenciasDaPessoa`) para dois lançamentos simultâneos não passarem juntos. Cair num mês
+ * tempo também barra — senão as horas contariam duas vezes —, e férias aprovadas também, conferidas
+ * sob a trava da pessoa (`comAusenciasTravadas`) para dois lançamentos simultâneos não passarem
+ * juntos. Cair num mês
  * de banco de horas já fechado refaz o saldo da pessoa (`recalcularBancoDaPessoa`).
  */
 export async function POST(req: Request) {
@@ -84,12 +83,13 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ error: "Você não tem permissão para lançar abono." }, { status: 403 });
   }
-  if (corpoGrandeDemais(req)) {
-    return recusa("Atestado muito grande (máx. 25 MB).", 413, "atestado");
+  const leitura = await lerFormularioLimitado(req);
+  if (!leitura.ok) {
+    return leitura.motivo === "grande"
+      ? recusa("Atestado muito grande (máx. 25 MB).", 413, "atestado")
+      : recusa("Formulário inválido.", 400);
   }
-
-  const form = await lerFormulario(req);
-  if (!form) return NextResponse.json({ error: "Formulário inválido." }, { status: 400 });
+  const form = leitura.form;
   const userId = String(form.get("userId") ?? "");
   const achado = userId
     ? await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, ativo: true, tipo: true } })
@@ -118,22 +118,22 @@ export async function POST(req: Request) {
   if (recusaArquivo) return recusa(recusaArquivo, 400, "atestado");
 
   // Pendente ou aprovada no mesmo tempo: o caso comum é a pessoa ter pedido E entregado o
-  // atestado em mãos. Decidir a solicitação é o caminho; duas linhas somariam as horas.
-  // Conferida aqui (sem gravar arquivo à toa) e de novo dentro da transação, sob a trava.
+  // atestado em mãos. Decidir a solicitação é o caminho; duas linhas somariam as horas. Férias
+  // aprovadas também barram (`conflitoDaAusencia`). Conferido aqui (sem gravar arquivo à toa) e de
+  // novo dentro da transação, sob a trava.
   const novo = { dataInicio, dataFim, horaInicio, horaFim };
-  const conflitoAntes = await ausenciaSobreposta(prisma, alvo.id, novo, ["pendente", "aprovado"]);
+  const conflitoAntes = await conflitoDaAusencia(prisma, alvo.id, novo, ["pendente", "aprovado"]);
   if (conflitoAntes) {
-    await auditarRecusa(user.id, motivoAusenciaSobreposta(conflitoAntes.status), alvo.id);
-    return recusa(motivoAusenciaSobreposta(conflitoAntes.status), 409, "dataInicio");
+    await auditarRecusa(user.id, motivoDoConflito(conflitoAntes, "lancar"), alvo.id);
+    return recusa(motivoDoConflito(conflitoAntes, "lancar"), 409, "dataInicio");
   }
 
   const arquivo = await salvarAtestadoDoForm(form, alvo.id);
   let abono;
   try {
-    abono = await prisma.$transaction(async (tx) => {
-      await travarAusenciasDaPessoa(tx, alvo.id);
-      const conflito = await ausenciaSobreposta(tx, alvo.id, novo, ["pendente", "aprovado"]);
-      if (conflito) throw new ConflitoDeAusencia(motivoAusenciaSobreposta(conflito.status));
+    abono = await comAusenciasTravadas(alvo.id, async (tx) => {
+      const conflito = await conflitoDaAusencia(tx, alvo.id, novo, ["pendente", "aprovado"]);
+      if (conflito) throw new RecusaPorConflito(motivoDoConflito(conflito, "lancar"));
       return tx.abonoFalta.create({
         data: {
           userId: alvo.id,
@@ -151,11 +151,11 @@ export async function POST(req: Request) {
           lancadoPorId: user.id,
         },
       });
-    }, OPCOES_TX_AUSENCIA);
+    });
   } catch (e) {
     // Sem a linha, o arquivo ficaria órfão em `rh/atestados/<userId>/`.
     if (arquivo.atestadoPath) await removerArquivo(arquivo.atestadoPath);
-    if (e instanceof ConflitoDeAusencia) {
+    if (e instanceof RecusaPorConflito) {
       await auditarRecusa(user.id, e.message, alvo.id);
       return recusa(e.message, 409, "dataInicio");
     }

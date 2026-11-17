@@ -17,6 +17,7 @@ import { fechamentosDoMes, saldoCorrenteEquipe, primeiroMesFechado, ultimoMesFec
 import { listarFeedbacks, colaboradoresInternos } from "@/modules/rh/feedback/queries";
 import { RhAdminView } from "@/components/rh/rh-admin-view";
 import { idsDoRh } from "@/modules/rh/gestores-rh";
+import { motivoParaNaoVerAtestado } from "@/modules/rh/quem-decide";
 import { CiclosAdmin } from "@/components/rh/ciclos-admin";
 import { ModelosCicloAdmin } from "@/components/rh/modelos-ciclo-admin";
 import { CatalogoCompetencias } from "@/components/rh/catalogo-competencias";
@@ -71,10 +72,23 @@ export default async function RhAdminPage() {
   // quem o servidor recusaria, e a fila mostra o motivo no lugar dos botões.
   const idsRh = await idsDoRh();
   const podeLancarPara = (id: string) => id !== user.id && (user.superUsuario || !idsRh.includes(id));
+  // Atestado é dado de saúde: o de quem é do RH só um administrador abre (`motivoParaNaoVerAtestado`).
+  // O caminho no disco nunca sai do servidor (a tela só precisa saber se há um), e o nome do arquivo
+  // só vai para quem abre.
+  const quemVe = { id: user.id, superUsuario: user.superUsuario === true, gereRh: user.gereRh === true };
+  const abonosDaFila = abonos.map(({ atestadoPath, ...a }) => {
+    const fechado = motivoParaNaoVerAtestado({ id: a.userId, ehRh: idsRh.includes(a.userId) }, quemVe);
+    return {
+      ...a,
+      temAtestado: atestadoPath !== null,
+      atestadoNome: fechado === null ? a.atestadoNome : null,
+      atestadoFechado: atestadoPath !== null ? fechado : null,
+    };
+  });
   return (
     <div className="space-y-6">
       <RhAdminView
-        abonos={abonos}
+        abonos={abonosDaFila}
         ferias={ferias}
         alteracoesFerias={alteracoesFerias}
         feriasVigentes={feriasVigentes}

@@ -5,15 +5,23 @@ import { logAudit, getClientIp } from "@/lib/audit";
 import { removerArquivo } from "@/lib/storage";
 import { formatarData } from "@/lib/utils";
 import { rotuloMotivo } from "@/modules/rh/ausencia";
-import { validarEntradaAbono } from "@/modules/rh/abono-entrada";
+import { motivoDoConflito, validarEntradaAbono } from "@/modules/rh/abono-entrada";
 import { notificarQuemDecide } from "@/modules/rh/gestores-rh";
 import {
+  MOTIVO_AUSENCIA_OCUPADA,
+  comAusenciasTravadas,
+  conflitoDaAusencia,
+  ehTempoEsgotado,
+} from "@/modules/rh/abono-service";
+import {
   camposDoFormAbono,
-  corpoGrandeDemais,
-  lerFormulario,
+  lerFormularioLimitado,
   motivoParaRecusarAtestadoDoForm,
   salvarAtestadoDoForm,
 } from "@/modules/rh/abono-arquivo";
+
+/** Sobreposição achada dentro da transação (depois da trava). */
+class RecusaPorConflito extends Error {}
 
 /** Solicitação / aviso de ausência da PRÓPRIA pessoa — nasce pendente. O RH lança por `/api/rh/abono/lancar`. */
 export async function POST(req: Request) {
@@ -22,12 +30,13 @@ export async function POST(req: Request) {
   const user = session.user;
   // A tela `/rh` é só de interno (`requireInterno`); a rota segue o mesmo público.
   if (user.tipo !== "interno") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
-  if (corpoGrandeDemais(req)) {
-    return NextResponse.json({ error: "Atestado muito grande (máx. 25 MB)." }, { status: 413 });
+  const leitura = await lerFormularioLimitado(req);
+  if (!leitura.ok) {
+    return leitura.motivo === "grande"
+      ? NextResponse.json({ error: "Atestado muito grande (máx. 25 MB)." }, { status: 413 })
+      : NextResponse.json({ error: "Formulário inválido." }, { status: 400 });
   }
-
-  const form = await lerFormulario(req);
-  if (!form) return NextResponse.json({ error: "Formulário inválido." }, { status: 400 });
+  const form = leitura.form;
   const campos = camposDoFormAbono(form);
   const v = validarEntradaAbono(campos);
   if (!v.ok) return NextResponse.json({ error: v.erro }, { status: 400 });
@@ -35,24 +44,39 @@ export async function POST(req: Request) {
   if (recusaArquivo) return NextResponse.json({ error: recusaArquivo }, { status: 400 });
   const { dataInicio, dataFim, motivoTipo, horaInicio, horaFim } = v.dados;
 
+  // Já pediu (ou já tem aprovada) uma ausência no mesmo tempo, ou está de férias aprovadas: a
+  // recusa vem agora, não só quando o RH fosse aprovar. Conferido antes de gravar o arquivo e de
+  // novo sob a trava, como no lançamento do RH.
+  const novo = { dataInicio, dataFim, horaInicio, horaFim };
+  const conflitoAntes = await conflitoDaAusencia(prisma, user.id, novo, ["pendente", "aprovado"]);
+  if (conflitoAntes) {
+    return NextResponse.json({ error: motivoDoConflito(conflitoAntes, "propria") }, { status: 409 });
+  }
+
   const arquivo = await salvarAtestadoDoForm(form, user.id);
   let abono;
   try {
-    abono = await prisma.abonoFalta.create({
-      data: {
-        userId: user.id,
-        dataInicio: new Date(dataInicio),
-        dataFim: new Date(dataFim),
-        motivo: campos.motivo || null,
-        motivoTipo,
-        horaInicio,
-        horaFim,
-        ...arquivo,
-      },
+    abono = await comAusenciasTravadas(user.id, async (tx) => {
+      const conflito = await conflitoDaAusencia(tx, user.id, novo, ["pendente", "aprovado"]);
+      if (conflito) throw new RecusaPorConflito(motivoDoConflito(conflito, "propria"));
+      return tx.abonoFalta.create({
+        data: {
+          userId: user.id,
+          dataInicio: new Date(dataInicio),
+          dataFim: new Date(dataFim),
+          motivo: campos.motivo || null,
+          motivoTipo,
+          horaInicio,
+          horaFim,
+          ...arquivo,
+        },
+      });
     });
   } catch (e) {
     // Sem a linha, o arquivo ficaria órfão em `rh/atestados/<userId>/`.
     if (arquivo.atestadoPath) await removerArquivo(arquivo.atestadoPath);
+    if (e instanceof RecusaPorConflito) return NextResponse.json({ error: e.message }, { status: 409 });
+    if (ehTempoEsgotado(e)) return NextResponse.json({ error: MOTIVO_AUSENCIA_OCUPADA }, { status: 503 });
     throw e;
   }
 

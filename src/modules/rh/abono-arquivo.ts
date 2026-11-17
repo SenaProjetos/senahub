@@ -8,21 +8,68 @@ export type AtestadoSalvo = { atestadoPath: string | null; atestadoNome: string 
 /** Folga para os campos de texto e as bordas do multipart além do arquivo. */
 const FOLGA_FORMULARIO = 1024 * 1024;
 
+/** Teto do corpo do formulário de abono: o maior atestado aceito mais a folga. */
+export const MAX_CORPO_ABONO = MAX_ATESTADO + FOLGA_FORMULARIO;
+
+export type LeituraFormulario = { ok: true; form: FormData } | { ok: false; motivo: "grande" | "invalido" };
+
 /**
- * Corpo declarado maior que o atestado permitido: recusar ANTES de `req.formData()`, que lê o
- * corpo inteiro na memória. Sem `Content-Length` (chunked) segue e o teto do arquivo vale depois.
+ * Lê o corpo aos pedaços e para assim que passa de `max` (`"grande"`). Corpo vazio = 0 bytes.
+ * Envio interrompido no meio (o cliente desistiu) = `"interrompido"`, nunca uma exceção.
  */
-export function corpoGrandeDemais(req: Request): boolean {
-  const n = Number(req.headers.get("content-length") ?? "");
-  return Number.isFinite(n) && n > MAX_ATESTADO + FOLGA_FORMULARIO;
+export async function lerAteOLimite(
+  corpo: ReadableStream<Uint8Array> | null,
+  max: number,
+): Promise<Uint8Array<ArrayBuffer> | "grande" | "interrompido"> {
+  if (!corpo) return new Uint8Array(0);
+  const leitor = corpo.getReader();
+  const partes: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    let pedaco: ReadableStreamReadResult<Uint8Array>;
+    try {
+      pedaco = await leitor.read();
+    } catch {
+      return "interrompido";
+    }
+    const { done, value } = pedaco;
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await leitor.cancel().catch(() => {});
+      return "grande";
+    }
+    partes.push(value);
+  }
+  const tudo = new Uint8Array(total);
+  let pos = 0;
+  for (const p of partes) {
+    tudo.set(p, pos);
+    pos += p.byteLength;
+  }
+  partes.length = 0; // solta os pedaços antes do parse, que faz outra cópia
+  return tudo;
 }
 
-/** `req.formData()` sem estourar 500 quando o corpo não é multipart. */
-export async function lerFormulario(req: Request): Promise<FormData | null> {
+/**
+ * Lê o multipart do abono sem passar do teto. O `Content-Length` declarado recusa antes de ler
+ * qualquer coisa; sem ele (envio em partes) o corpo é lido aos pedaços e a leitura para no teto.
+ * Antes, `req.formData()` lia o corpo inteiro na memória e só então o tamanho era conferido.
+ * Corpo que não é multipart = `"invalido"` (nunca um 500).
+ */
+export async function lerFormularioLimitado(req: Request, max = MAX_CORPO_ABONO): Promise<LeituraFormulario> {
+  const declarado = Number(req.headers.get("content-length") ?? "");
+  if (Number.isFinite(declarado) && declarado > max) return { ok: false, motivo: "grande" };
+  const corpo = await lerAteOLimite(req.body, max);
+  if (corpo === "grande") return { ok: false, motivo: "grande" };
+  if (corpo === "interrompido") return { ok: false, motivo: "invalido" };
   try {
-    return await req.formData();
+    const form = await new Response(corpo, {
+      headers: { "content-type": req.headers.get("content-type") ?? "" },
+    }).formData();
+    return { ok: true, form };
   } catch {
-    return null;
+    return { ok: false, motivo: "invalido" };
   }
 }
 
