@@ -67,7 +67,7 @@ function BaixarPasta({
 
 function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublicoView }) {
   return (
-    <li className="flex items-center gap-2 rounded-sm py-1.5 pl-14 pr-1 text-sm hover:bg-muted/40">
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm py-1.5 pl-14 pr-1 text-sm hover:bg-muted/40">
       {arquivo.ehPdf ? (
         <FileText className="size-4 shrink-0 text-destructive" />
       ) : (
@@ -97,11 +97,6 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
             </span>
           )}
         </span>
-        {arquivo.descricaoRevisao && (
-          <span className="line-clamp-2 max-w-full text-xs text-muted-foreground" title={arquivo.descricaoRevisao}>
-            {arquivo.descricaoRevisao}
-          </span>
-        )}
         {arquivo.emRevisao && (
           <span className="max-w-full truncate text-xs text-muted-foreground" title={`Em revisão: ${arquivo.emRevisao}`}>
             Em revisão: {arquivo.emRevisao}
@@ -133,6 +128,13 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
         >
           <Download className="size-4" />
         </a>
+      )}
+      {/* O que mudou na revisão, numa linha própria com a largura toda: ao lado do nome, no celular,
+          sobrariam poucos caracteres. Duas linhas visíveis, o texto inteiro na dica. */}
+      {arquivo.descricaoRevisao && (
+        <span className="line-clamp-2 basis-full pl-6 text-xs text-muted-foreground" title={arquivo.descricaoRevisao}>
+          {arquivo.descricaoRevisao}
+        </span>
       )}
     </li>
   );
