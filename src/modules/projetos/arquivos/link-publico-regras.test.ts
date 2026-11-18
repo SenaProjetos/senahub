@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  alcanceDoPortal,
   ehBackupDoModelo,
   faseLiberada,
   filtrarPorFases,
@@ -224,5 +225,23 @@ describe("situacoesDoUpload (link com as pastas do cliente)", () => {
     expect(situacoesDoUpload({ revisaoId: "r1", pacote: "A", documento: { ...doc, substituidoPorId: "X" } })).toEqual([]);
     expect(situacoesDoUpload({ revisaoId: null, pacote: "A", documento: doc })).toEqual([]);
     expect(situacoesDoUpload({ revisaoId: "r1", pacote: "A", documento: null })).toEqual([]);
+  });
+});
+
+describe("alcanceDoPortal", () => {
+  it("alcance do portal = link de projeto todo por situação, todas as fases", () => {
+    expect(alcanceDoPortal({ id: "p1", codigo: "2026-001", nome: "Ed. X" })).toEqual({
+      projetoId: "p1",
+      projeto: { codigo: "2026-001", nome: "Ed. X" },
+      escopo: "projeto_todo",
+      disciplinaIds: [],
+      uploadIds: [],
+      porSituacao: true,
+      faseIds: [],
+      incluirSemFase: false,
+      agruparPorFase: true,
+      titulo: null,
+      linkId: null,
+    });
   });
 });

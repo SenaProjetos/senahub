@@ -7,6 +7,7 @@ import {
   filtrarPorFases,
   recortarParaLinkPublico,
   situacoesDoUpload,
+  type AlcanceArquivos,
   type UploadParaSituacao,
 } from "./link-publico-regras";
 import { ROTULO_SITUACAO, SITUACOES, situacaoValida, type Situacao } from "@/modules/uploads/revisao-marcada";
@@ -387,18 +388,46 @@ function emPastas(
  * (a página pública trata como "link indisponível").
  */
 export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPublico | null> {
+  const alcance = await alcanceDoToken(token);
+  return alcance ? conteudoDoAlcance(alcance) : null;
+}
+
+/**
+ * Link do token, já vigente, no formato que o núcleo lê. `null` = token inexistente, revogado ou
+ * expirado — a mesma resposta para os três, para não revelar se o link já existiu.
+ */
+async function alcanceDoToken(token: string): Promise<AlcanceArquivos | null> {
   const link = await prisma.linkPublicoArquivos.findUnique({
     where: { token },
     include: { projeto: { select: { codigo: true, nome: true } } },
   });
   if (!link || !linkVigente(link)) return null;
+  return {
+    projetoId: link.projetoId,
+    projeto: { codigo: link.projeto.codigo, nome: link.projeto.nome },
+    escopo: link.escopo,
+    disciplinaIds: link.disciplinaIds,
+    uploadIds: link.uploadIds,
+    porSituacao: link.porSituacao,
+    faseIds: link.faseIds,
+    incluirSemFase: link.incluirSemFase,
+    agruparPorFase: link.agruparPorFase,
+    titulo: link.nome ?? null,
+    linkId: link.id,
+  };
+}
 
-  const projeto = { codigo: link.projeto.codigo, nome: link.projeto.nome };
+/**
+ * Conteúdo visível de um alcance (link vigente ou portal do cliente). Núcleo único da página do
+ * link e da seção de entregas do portal.
+ */
+export async function conteudoDoAlcance(link: AlcanceArquivos): Promise<ConteudoPublico | null> {
+  const projeto = link.projeto;
 
   if (link.escopo === "selecao") {
     const disciplinas = await conteudoDaSelecao(link.uploadIds, link.agruparPorFase);
     if (disciplinas.length === 0) return null;
-    return { projeto, titulo: link.nome, disciplinas, situacoes: [], arts: [] };
+    return { projeto, titulo: link.titulo, disciplinas, situacoes: [], arts: [] };
   }
 
   const disciplinaIds = await disciplinasDoLink(link);
@@ -438,7 +467,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
         .filter((d) => d.total > 0);
       return { id: situacao, rotulo: ROTULO_SITUACAO[situacao], total: naPasta.reduce((n, d) => n + d.total, 0), disciplinas: naPasta };
     });
-    return { projeto, titulo: link.nome, disciplinas: [], situacoes, arts };
+    return { projeto, titulo: link.titulo, disciplinas: [], situacoes, arts };
   }
 
   const [disciplinas, extensoes] = await Promise.all([
@@ -468,7 +497,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
 
   return {
     projeto,
-    titulo: link.nome,
+    titulo: link.titulo,
     arts,
     situacoes: [],
     disciplinas: disciplinas
@@ -523,8 +552,12 @@ async function sobreviveAoRecorte(upload: LinhaRegras): Promise<boolean> {
  * `token`. Retorna o upload servível (caminho/nome/mime) ou `null`.
  */
 export async function uploadLiberadoNoLink(token: string, uploadId: string) {
-  const link = await prisma.linkPublicoArquivos.findUnique({ where: { token } });
-  if (!link || !linkVigente(link)) return null;
+  const alcance = await alcanceDoToken(token);
+  return alcance ? uploadLiberadoNoAlcance(alcance, uploadId) : null;
+}
+
+/** O `uploadId` está liberado neste alcance? Mesma regra da página — ver `uploadLiberadoNoLink`. */
+export async function uploadLiberadoNoAlcance(link: AlcanceArquivos, uploadId: string) {
 
   const servivel = { id: true, nomeArquivo: true, caminho: true, mimeType: true } as const;
 
@@ -573,8 +606,13 @@ export async function uploadLiberadoNoLink(token: string, uploadId: string) {
  * Link de seleção não expõe ART: o conteúdo dele é só o que foi escolhido a dedo.
  */
 export async function artLiberadaNoLink(token: string, id: string) {
-  const link = await prisma.linkPublicoArquivos.findUnique({ where: { token } });
-  if (!link || !linkVigente(link) || link.escopo === "selecao") return null;
+  const alcance = await alcanceDoToken(token);
+  return alcance ? artLiberadaNoAlcance(alcance, id) : null;
+}
+
+/** A ART (ou versão) `id` está liberada neste alcance? Ver `artLiberadaNoLink`. */
+export async function artLiberadaNoAlcance(link: AlcanceArquivos, id: string) {
+  if (link.escopo === "selecao") return null;
 
   const disciplinaIds = await disciplinasDoLink(link);
   if (!disciplinaIds) return null;
@@ -617,12 +655,13 @@ export type RecorteZip = {
 };
 
 export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = {}) {
+  const alcance = await alcanceDoToken(token);
+  return alcance ? uploadsDoAlcanceParaZip(alcance, recorte) : null;
+}
+
+/** Uploads servíveis do alcance para o .zip, já nas pastas. Ver `uploadsDoLinkParaZip`. */
+export async function uploadsDoAlcanceParaZip(link: AlcanceArquivos, recorte: RecorteZip = {}) {
   const { disciplinaId, fase: faseAlvo, ext: extAlvo } = recorte;
-  const link = await prisma.linkPublicoArquivos.findUnique({
-    where: { token },
-    include: { projeto: { select: { codigo: true } } },
-  });
-  if (!link || !linkVigente(link)) return null;
 
   const extensoes = await carregarExtensoesNomenclatura();
 
@@ -658,7 +697,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
       { fase: faseAlvo, ext: extAlvo, agruparPorFase: link.agruparPorFase },
     );
     if (entradas.length === 0) return null;
-    return { linkId: link.id, codigo: link.projeto.codigo, entradas };
+    return { linkId: link.linkId, codigo: link.projeto.codigo, entradas };
   }
 
   const alcance = await disciplinasDoLink(link);
@@ -706,7 +745,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
       ),
     );
     if (entradas.length === 0) return null;
-    return { linkId: link.id, codigo: link.projeto.codigo, entradas };
+    return { linkId: link.linkId, codigo: link.projeto.codigo, entradas };
   }
 
   const disciplinas = await prisma.disciplina.findMany({
@@ -749,7 +788,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
     ),
   );
   if (entradas.length === 0) return null;
-  return { linkId: link.id, codigo: link.projeto.codigo, entradas };
+  return { linkId: link.linkId, codigo: link.projeto.codigo, entradas };
 }
 
 /**
