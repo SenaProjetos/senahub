@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { abreNoNavegador } from "@/modules/projetos/arquivos/link-publico-regras";
 import { uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import { acessoAoProjetoDoPortal } from "@/modules/portal/acesso";
 import { motivoBloqueioDosUploads } from "@/modules/uploads/ciclo/service";
@@ -43,7 +44,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
     ip: await getClientIp(),
   });
 
-  const inline = new URL(req.url).searchParams.get("disposition") === "inline";
+  // Só PDF abre no navegador: outro tipo inline (HTML, SVG) rodaria na origem do sistema.
+  const inline = abreNoNavegador(upload.nomeArquivo, new URL(req.url).searchParams.get("disposition") === "inline");
   await registrarAcessoUploads({
     uploadIds: [upload.id],
     tipo: inline ? "visualizacao" : "download",
@@ -56,6 +58,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
     headers: {
       "Content-Type": upload.mimeType || "application/octet-stream",
       "Content-Disposition": `${disposition}; filename="${encodeURIComponent(upload.nomeArquivo)}"`,
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

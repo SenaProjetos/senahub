@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  abreNoNavegador,
   alcanceDoPortal,
+  conteudoTemZip,
   ehBackupDoModelo,
   faseLiberada,
   filtrarPorFases,
   recortarParaLinkPublico,
   somenteUltimaRevisao,
+  temArquivoBaixavel,
   type UploadParaLink,
   situacoesDoUpload,
 } from "./link-publico-regras";
@@ -243,5 +246,38 @@ describe("alcanceDoPortal", () => {
       titulo: null,
       linkId: null,
     });
+  });
+});
+
+describe("temArquivoBaixavel", () => {
+  it("pasta só com revisão bloqueada não oferece .zip", () => {
+    expect(temArquivoBaixavel([{ bloqueado: true }, { bloqueado: true }])).toBe(false);
+    expect(temArquivoBaixavel([])).toBe(false);
+  });
+  it("basta um arquivo liberado", () => {
+    expect(temArquivoBaixavel([{ bloqueado: true }, { bloqueado: false }])).toBe(true);
+  });
+});
+
+describe("abreNoNavegador", () => {
+  it("só PDF abre inline, e só quando pedido", () => {
+    expect(abreNoNavegador("planta.PDF", true)).toBe(true);
+    expect(abreNoNavegador("planta.pdf", false)).toBe(false);
+  });
+  it("HTML e SVG nunca abrem inline (rodariam na origem do sistema, com a sessão)", () => {
+    expect(abreNoNavegador("pagina.html", true)).toBe(false);
+    expect(abreNoNavegador("icone.svg", true)).toBe(false);
+  });
+});
+
+describe("conteudoTemZip", () => {
+  const disc = (...bloqueados: boolean[]) => ({ pastas: [{ extensoes: [{ arquivos: bloqueados.map((bloqueado) => ({ bloqueado })) }] }] });
+  it("só ART ou só bloqueada: sem 'Baixar tudo'", () => {
+    expect(conteudoTemZip({ situacoes: [], disciplinas: [] })).toBe(false);
+    expect(conteudoTemZip({ situacoes: [{ disciplinas: [disc(true)] }], disciplinas: [] })).toBe(false);
+  });
+  it("um arquivo liberado em qualquer pasta basta", () => {
+    expect(conteudoTemZip({ situacoes: [{ disciplinas: [disc(true)] }, { disciplinas: [disc(false)] }], disciplinas: [] })).toBe(true);
+    expect(conteudoTemZip({ situacoes: [], disciplinas: [disc(false)] })).toBe(true);
   });
 });

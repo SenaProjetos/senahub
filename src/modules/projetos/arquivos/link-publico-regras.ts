@@ -186,3 +186,36 @@ export function alcanceDoPortal(projeto: { id: string; codigo: string; nome: str
     linkId: null,
   };
 }
+
+/**
+ * A pasta tem algo que o .zip entregaria? Revisão com bloqueio de download fica fora do pacote, então
+ * uma pasta só com bloqueadas daria um .zip vazio (404) — o botão não aparece.
+ */
+export function temArquivoBaixavel(arquivos: readonly { bloqueado: boolean }[]): boolean {
+  return arquivos.some((a) => !a.bloqueado);
+}
+
+/**
+ * Abrir no navegador (`Content-Disposition: inline`) só vale para PDF. Qualquer outro tipo sai como
+ * download: HTML ou SVG abertos inline rodariam na origem do sistema, com a sessão de quem está logado.
+ */
+export function abreNoNavegador(nomeArquivo: string, pediuInline: boolean): boolean {
+  return pediuInline && nomeArquivo.toLowerCase().endsWith(".pdf");
+}
+
+type DisciplinaComArquivos = { pastas: { extensoes: { arquivos: { bloqueado: boolean }[] }[] }[] };
+
+/**
+ * O conteúdo tem algum arquivo que o .zip "Baixar tudo" entregaria? ART não entra no pacote e revisão
+ * bloqueada fica fora dele — sem nada baixável, o botão não aparece (o clique daria 404).
+ */
+export function conteudoTemZip(c: {
+  situacoes: { disciplinas: DisciplinaComArquivos[] }[];
+  disciplinas: DisciplinaComArquivos[];
+}): boolean {
+  return temArquivoBaixavel(
+    [...c.situacoes.flatMap((s) => s.disciplinas), ...c.disciplinas].flatMap((d) =>
+      d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos)),
+    ),
+  );
+}

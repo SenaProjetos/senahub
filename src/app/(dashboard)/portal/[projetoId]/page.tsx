@@ -10,7 +10,7 @@ import { PortalDocumentos } from "@/components/portal/portal-documentos";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { ArvoreEntregas } from "@/components/arquivos/arquivos-publico-view";
 import { conteudoDoAlcance } from "@/modules/projetos/arquivos/link-publico";
-import { alcanceDoPortal } from "@/modules/projetos/arquivos/link-publico-regras";
+import { alcanceDoPortal, conteudoTemZip } from "@/modules/projetos/arquivos/link-publico-regras";
 import { Button } from "@/components/ui/button";
 import { SITUACAO_PROJETO_LABEL, STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -94,7 +94,7 @@ export default async function PortalProjetoPage({
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
           <CardTitle className="text-base">Entregas</CardTitle>
-          {totalEntregas > 0 && (
+          {entregas && conteudoTemZip(entregas) && (
             <Button size="sm" variant="outline" render={<a href={`${base}/zip`} rel="noopener" />}>
               <Download className="size-4" /> Baixar tudo (.zip)
             </Button>

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { abreNoNavegador } from "@/modules/projetos/arquivos/link-publico-regras";
 import { uploadLiberadoNoLink } from "@/modules/projetos/arquivos/link-publico";
 import { motivoBloqueioDosUploads } from "@/modules/uploads/ciclo/service";
 import { lerArquivo } from "@/lib/storage";
@@ -38,7 +39,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string; 
     ip: await getClientIp(),
   });
 
-  const inline = new URL(req.url).searchParams.get("disposition") === "inline";
+  // Só PDF abre no navegador: outro tipo inline (HTML, SVG) rodaria na origem do sistema.
+  const inline = abreNoNavegador(upload.nomeArquivo, new URL(req.url).searchParams.get("disposition") === "inline");
   // Guarda o id do link, nunca o token: o histórico é lido por colaboradores e o token é a chave
   // de acesso do cliente. O link já foi validado acima — aqui só se resolve quem ele é.
   const link = await prisma.linkPublicoArquivos.findUnique({ where: { token }, select: { id: true } });
@@ -54,6 +56,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string; 
     headers: {
       "Content-Type": upload.mimeType || "application/octet-stream",
       "Content-Disposition": `${disposition}; filename="${encodeURIComponent(upload.nomeArquivo)}"`,
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

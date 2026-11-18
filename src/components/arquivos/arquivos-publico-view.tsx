@@ -18,6 +18,7 @@ import { FASE_TODAS } from "@/modules/uploads/arvore-navegacao";
 import { cn, rotuloRevisao } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { COR_CONTROLE } from "@/modules/uploads/ciclo/estados";
+import { conteudoTemZip, temArquivoBaixavel } from "@/modules/projetos/arquivos/link-publico-regras";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
@@ -30,8 +31,26 @@ function fmtBytes(n: number): string {
 
 type ArquivoPublicoView = ConteudoPublico["disciplinas"][number]["pastas"][number]["extensoes"][number]["arquivos"][number];
 
-/** Botão de .zip de uma pasta (disciplina, fase ou formato) — o recorte vai na URL. */
-function BaixarPasta({ base, rotulo, params }: { base: string; rotulo: string; params: Record<string, string> }) {
+type FasePublica = ConteudoPublico["disciplinas"][number]["pastas"][number];
+const arquivosDaFase = (f: FasePublica) => f.extensoes.flatMap((e) => e.arquivos);
+const arquivosDaDisciplina = (d: ConteudoPublico["disciplinas"][number]) => d.pastas.flatMap(arquivosDaFase);
+
+/**
+ * Botão de .zip de uma pasta (disciplina, fase ou formato) — o recorte vai na URL. Some quando a pasta só
+ * tem revisão bloqueada: o pacote viria vazio e o clique cairia numa página de erro.
+ */
+function BaixarPasta({
+  base,
+  rotulo,
+  params,
+  arquivos,
+}: {
+  base: string;
+  rotulo: string;
+  params: Record<string, string>;
+  arquivos: readonly { bloqueado: boolean }[];
+}) {
+  if (!temArquivoBaixavel(arquivos)) return null;
   return (
     <Button
       size="icon"
@@ -79,7 +98,7 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
           )}
         </span>
         {arquivo.descricaoRevisao && (
-          <span className="max-w-full truncate text-xs text-muted-foreground" title={arquivo.descricaoRevisao}>
+          <span className="line-clamp-2 max-w-full text-xs text-muted-foreground" title={arquivo.descricaoRevisao}>
             {arquivo.descricaoRevisao}
           </span>
         )}
@@ -148,6 +167,7 @@ function PastasDeFormato({
             </span>
             <BaixarPasta
               base={base}
+              arquivos={pasta.arquivos}
               rotulo={`${prefixoRotulo} / ${pasta.rotulo}`}
               params={
                 fase.chave === FASE_TODAS
@@ -212,7 +232,7 @@ function Disciplina({
             {disciplina.total} arquivo{disciplina.total === 1 ? "" : "s"}
           </span>
         </button>
-        <BaixarPasta base={base} rotulo={`"${disciplina.nome}"`} params={{ ...recorteBase, disciplinaId: disciplina.id }} />
+        <BaixarPasta base={base} arquivos={arquivosDaDisciplina(disciplina)} rotulo={`"${disciplina.nome}"`} params={{ ...recorteBase, disciplinaId: disciplina.id }} />
       </div>
 
       {aberto && (
@@ -257,6 +277,7 @@ function Disciplina({
                   </button>
                   <BaixarPasta
                     base={base}
+                    arquivos={arquivosDaFase(fase)}
                     rotulo={`${disciplina.nome} / ${fase.rotulo}`}
                     params={{ ...recorteBase, disciplinaId: disciplina.id, fase: fase.chave }}
                   />
@@ -311,7 +332,7 @@ function PastaSituacao({ base, situacao }: { base: string; situacao: ConteudoPub
             {situacao.total} arquivo{situacao.total === 1 ? "" : "s"}
           </span>
         </button>
-        {situacao.total > 0 && <BaixarPasta base={base} rotulo={`"${situacao.rotulo}"`} params={{ situacao: situacao.id }} />}
+        {situacao.total > 0 && <BaixarPasta base={base} arquivos={situacao.disciplinas.flatMap(arquivosDaDisciplina)} rotulo={`"${situacao.rotulo}"`} params={{ situacao: situacao.id }} />}
       </div>
       {aberto &&
         (situacao.disciplinas.length === 0 ? (
@@ -429,9 +450,11 @@ export function ArquivosPublicoView({ token, conteudo }: { token: string; conteu
         titulo={conteudo.projeto.nome}
         descricao={`${total} arquivo${total === 1 ? "" : "s"} dispon${total === 1 ? "ível" : "íveis"} para visualização e download.`}
         acoes={
-          <Button render={<a href={`${base}/zip`} rel="noopener" />}>
-            <Download className="size-4" /> Baixar tudo (.zip)
-          </Button>
+          conteudoTemZip(conteudo) ? (
+            <Button render={<a href={`${base}/zip`} rel="noopener" />}>
+              <Download className="size-4" /> Baixar tudo (.zip)
+            </Button>
+          ) : undefined
         }
       />
 
