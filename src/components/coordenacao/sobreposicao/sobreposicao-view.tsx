@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Crosshair, Layers, Loader2, Maximize } from "lucide-react";
+import { Crosshair, Layers, Loader2, MapPin, Maximize } from "lucide-react";
 import {
   atualizarCamada,
   confirmarAlinhamento,
@@ -20,7 +20,17 @@ import {
   MOTIVO_SEM_DESENHO,
   itensDaCamada,
 } from "@/modules/coordenacao/sobreposicao/acoes";
+import {
+  RECORTE_CONTEXTO,
+  hrefDoPino,
+  motivoParaNaoApontar,
+  pinoDoApontamento,
+  pinoMaisProximo,
+  pinosNoMundo,
+  rascunhosPorPrancha,
+} from "@/modules/coordenacao/sobreposicao/apontar";
 import type { CamadaDaCena, CenaSobreposicao } from "@/modules/coordenacao/sobreposicao/queries";
+import { criarPendencia } from "@/modules/projetos/pendencias/actions";
 import { COR_ARQUITETURA_ALINHANDO, alinhamentoEfetivo, type Formato } from "@/modules/coordenacao/sobreposicao/regras";
 import {
   clicar,
@@ -44,11 +54,15 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAlturaRestante } from "@/lib/use-altura-restante";
 import { AdicionarCamadaDialog, type DocumentoParaCamada } from "./adicionar-camada-dialog";
+import { ApontarDialog, type DadosApontamento } from "./apontar-dialog";
+import { RAIO_CLIQUE_PINO, desenharMira, desenharPinos } from "./desenhar-pinos";
 import { FerramentaAlinhar, desenharMarcadores } from "./ferramenta-alinhar";
 import { PainelCamadas, type AjusteCamada, type ModoGravar } from "./painel-camadas";
 import { Palco, type CamadaNoPalco, type PalcoHandle, type VistaPalco } from "./palco";
-import { colorir } from "./render-pdf";
+import { RascunhosPainel } from "./rascunhos-painel";
+import { colorir, tamanhoDaPagina } from "./render-pdf";
 import { useCamadasRenderizadas } from "./use-camadas-renderizadas";
+import { useTamanhosPdf } from "./use-tamanhos-pdf";
 
 export type SobreposicaoViewProps = {
   cena: CenaSobreposicao;
@@ -75,6 +89,8 @@ function teclaDeCampo(alvo: EventTarget | null): boolean {
 }
 
 const chaveAlinhamento = (camadaId: string, formato: Formato) => `${camadaId}:${formato}`;
+
+const MENSAGEM_SEM_IMAGEM = "Apontamento criado, mas a imagem da sobreposição não foi anexada.";
 
 /** Ajustes locais que o servidor já tem deixam de valer (o dado novo da cena manda). */
 function semOQueJaGravou(ajustes: Record<string, AjusteCamada>, camadas: CamadaDaCena[]): Record<string, AjusteCamada> {
@@ -108,6 +124,9 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
   const [sessao, setSessao] = useState<SessaoAlinhamento | null>(null);
   // O que acabou de ser salvo vale até a cena nova chegar (sem a camada piscar no lugar antigo).
   const [recemSalvos, setRecemSalvos] = useState<Record<string, Alinhamento>>({});
+  // "Apontar interferência": ligado, o clique no desenho escolhe o ponto e abre o diálogo.
+  const [apontando, setApontando] = useState(false);
+  const [pontoApontar, setPontoApontar] = useState<Ponto | null>(null);
   useEffect(() => setRecemSalvos({}), [cena.camadas]);
 
   const camadas = useMemo(
@@ -123,6 +142,9 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
     [cena.camadas, ajustes, sessao?.camadaId],
   );
   const estados = useCamadasRenderizadas(camadas, sessao?.camadaId ?? null);
+  const tamanhos = useTamanhosPdf(camadas);
+  const pinos = useMemo(() => pinosNoMundo(camadas, tamanhos), [camadas, tamanhos]);
+  const rascunhos = useMemo(() => rascunhosPorPrancha(camadas), [camadas]);
 
   // A camada sumiu ou trocou de formato no meio do alinhamento: a sessão não vale mais.
   useEffect(() => {
@@ -342,25 +364,97 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
   const corAlinhando = camadaAlinhando?.cor ?? "";
   const desenharPorCima = useCallback(
     (ctx: CanvasRenderingContext2D, vista: VistaPalco) => {
+      desenharPinos(ctx, vista, pinos);
+      if (pontoApontar) desenharMira(ctx, vista, pontoApontar);
       if (sessao && sessao.cliques.length > 0) desenharMarcadores(ctx, vista, sessao, corAlinhando);
     },
-    [sessao, corAlinhando],
+    [pinos, pontoApontar, sessao, corAlinhando],
   );
 
+  // Clique no desenho: alinhando = ponto do par; apontando = ponto da interferência; senão, abre o pino clicado.
   const aoPontoMundo = useMemo(() => {
-    if (!sessao || sessao.modo === "ajuste") return undefined;
+    if (sessao) {
+      if (sessao.modo === "ajuste") return undefined;
+      return (p: Ponto) => {
+        const r = clicar(sessao, p);
+        setSessao(r.sessao);
+        if (r.erro) toast.error(r.erro);
+      };
+    }
+    if (apontando) return (p: Ponto) => setPontoApontar(p);
+    if (pinos.length === 0) return undefined;
     return (p: Ponto) => {
-      const r = clicar(sessao, p);
-      setSessao(r.sessao);
-      if (r.erro) toast.error(r.erro);
+      const escala = palcoRef.current?.escalaVista() ?? 1;
+      const alvo = pinoMaisProximo(pinos, p, RAIO_CLIQUE_PINO / escala);
+      if (alvo) router.push(hrefDoPino(cena.projetoId, alvo));
     };
-  }, [sessao]);
+  }, [sessao, apontando, pinos, router, cena.projetoId]);
+
+  async function apontar(dados: DadosApontamento): Promise<string | null> {
+    const ponto = pontoApontar;
+    const c = camadas.find((x) => x.id === dados.camadaId);
+    if (!ponto || !c) return "Escolha a disciplina que deve alterar.";
+    const motivo = motivoParaNaoApontar(c);
+    if (motivo) return motivo.erro;
+    const pdf = c.pdf!;
+    const alinhamentoPdf = c.alinhamentos.pdf!.alinhamento;
+    let tamanho;
+    try {
+      tamanho = await tamanhoDaPagina(pdf.uploadId, c.pagina);
+    } catch {
+      return "Não foi possível abrir o PDF desta prancha.";
+    }
+    const destino = pinoDoApontamento(c, alinhamentoPdf, ponto, tamanho);
+    if (!destino.ok) return destino.erro;
+
+    const r = await criarPendencia({
+      uploadId: destino.uploadId,
+      pagina: destino.pagina,
+      x: destino.x,
+      y: destino.y,
+      texto: dados.texto,
+      severidade: dados.severidade,
+      tipo: dados.tipo,
+    });
+    if (!r.ok) return r.error;
+
+    // A imagem de contexto é um extra: falhar nela não desfaz o apontamento.
+    let anexou = false;
+    try {
+      const imagem = await palcoRef.current?.paraImagem(ponto, RECORTE_CONTEXTO.largura, RECORTE_CONTEXTO.altura);
+      if (imagem) {
+        const form = new FormData();
+        form.set("pendenciaId", r.data.id);
+        form.set("file", new File([imagem], `sobreposicao-${r.data.numero}.png`, { type: "image/png" }));
+        const res = await fetch("/api/pendencias/anexo", { method: "POST", body: form });
+        anexou = res.ok;
+      }
+    } catch (erro) {
+      console.error("[sobreposicao] falha ao anexar a imagem do apontamento:", erro);
+    }
+    if (anexou) toast.success(`Apontamento #${r.data.numero} criado em ${c.disciplina}, como rascunho.`);
+    else toast.error(MENSAGEM_SEM_IMAGEM);
+
+    setPontoApontar(null);
+    setApontando(false);
+    router.refresh();
+    return null;
+  }
 
   const modoSessao = sessao?.modo;
   const aoArrastarCamada = useMemo(() => {
     if (modoSessao !== "ajuste") return undefined;
     return (d: Ponto, inicio: boolean) => setSessao((s) => s && deslocar(s, d, inicio));
   }, [modoSessao]);
+
+  useEffect(() => {
+    if (!apontando || pontoApontar) return;
+    function aoTeclar(ev: KeyboardEvent) {
+      if (ev.key === "Escape" && !teclaDeCampo(ev.target)) setApontando(false);
+    }
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  }, [apontando, pontoApontar]);
 
   const disponiveis = useMemo(() => {
     const usados = new Set(cena.camadas.map((c) => c.documentoId));
@@ -420,7 +514,19 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
           </TabsList>
         </Tabs>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {cena.podeGerir && !sessao && (
+          {cena.podeApontar && !sessao && (
+            <Button
+              type="button"
+              size="sm"
+              variant={apontando ? "default" : "outline"}
+              aria-pressed={apontando}
+              onClick={() => setApontando((a) => !a)}
+            >
+              <MapPin className="size-4" />
+              Apontar interferência
+            </Button>
+          )}
+          {cena.podeGerir && !sessao && !apontando && (
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -457,6 +563,18 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
         </div>
       </div>
 
+      {apontando && !sessao && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2 text-sm">
+          <MapPin className="size-4 shrink-0 text-primary" aria-hidden />
+          <span className="min-w-0 flex-1">Clique no ponto da interferência no desenho.</span>
+          <Button type="button" size="sm" variant="outline" onClick={() => setApontando(false)}>
+            Cancelar
+          </Button>
+        </div>
+      )}
+
+      {!sessao && <RascunhosPainel grupos={rascunhos} />}
+
       {sessao && camadaAlinhando && (
         <FerramentaAlinhar
           sessao={sessao}
@@ -492,7 +610,9 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
             onPontoMundo={aoPontoMundo}
             arrastarCamada={aoArrastarCamada}
             sobreposto={desenharPorCima}
-            className={sessao ? (sessao.modo === "ajuste" ? "cursor-move" : "cursor-crosshair") : undefined}
+            className={
+              sessao ? (sessao.modo === "ajuste" ? "cursor-move" : "cursor-crosshair") : apontando ? "cursor-crosshair" : undefined
+            }
           />
           {carregando && (
             <div className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-muted-foreground">
@@ -504,6 +624,14 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
           )}
         </div>
       </div>
+
+      <ApontarDialog
+        aberto={pontoApontar !== null}
+        onOpenChange={(aberto) => !aberto && setPontoApontar(null)}
+        camadas={camadas.filter((c) => c.visivel)}
+        onUsarPdf={(id) => rodar(() => atualizarCamada({ camadaId: id, formato: "pdf" }), "Camada em PDF.")}
+        onConfirmar={apontar}
+      />
 
       <Sheet open={gaveta} onOpenChange={setGaveta}>
         <SheetContent side="bottom" className="max-h-[75svh] gap-0 overflow-y-auto rounded-t-2xl p-0 pt-9 pb-4">

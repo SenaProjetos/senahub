@@ -62,6 +62,8 @@ export type CenaSobreposicao = {
   nome: string;
   projetoId: string;
   podeGerir: boolean;
+  /** Gerir a sobreposição E o gate de `criarPendencia` (`uploads:validar`): quem não aponta no PDF não aponta aqui. */
+  podeApontar: boolean;
   camadas: CamadaDaCena[];
 };
 
@@ -182,6 +184,7 @@ export async function cenaDaSobreposicao(sobreposicaoId: string, user: SessionUs
   if (!s) return null;
   if (!(await projetoVisivel(user, s.projetoId))) return null;
   const podeGerir = user.tipo === "interno" && (await can(user, "coordenacao", "gerir"));
+  const podeApontar = podeGerir && (await can(user, "uploads", "validar"));
 
   const documentoIds = [...new Set(s.camadas.map((c) => c.documentoId))];
   const pendencias = documentoIds.length
@@ -257,5 +260,5 @@ export async function cenaDaSobreposicao(sobreposicaoId: string, user: SessionUs
     };
   });
 
-  return { id: s.id, nome: s.nome, projetoId: s.projetoId, podeGerir, camadas };
+  return { id: s.id, nome: s.nome, projetoId: s.projetoId, podeGerir, podeApontar, camadas };
 }

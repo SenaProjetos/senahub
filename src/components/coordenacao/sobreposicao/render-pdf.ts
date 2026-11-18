@@ -110,6 +110,14 @@ async function rasterizar(uploadId: string, pagina: number, esconderArquitetura:
   };
 }
 
+/** Tamanho da página em pontos PDF (o espaço de `Pendencia.x/y`), sem rasterizar. */
+export async function tamanhoDaPagina(uploadId: string, pagina: number): Promise<{ largura: number; altura: number }> {
+  const pdf = await documento(uploadId);
+  const page = await pdf.getPage(Math.min(Math.max(1, pagina), pdf.numPages));
+  const v = page.getViewport({ scale: 1, rotation: 0 });
+  return { largura: v.width, altura: v.height };
+}
+
 /** A folha tingida da página; reaproveita a do cache (só troca a cor, se mudou). */
 export async function renderPdf(opts: {
   uploadId: string;
