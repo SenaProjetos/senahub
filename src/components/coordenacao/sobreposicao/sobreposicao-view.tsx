@@ -29,6 +29,8 @@ import {
   pinosNoMundo,
   rascunhosPorPrancha,
 } from "@/modules/coordenacao/sobreposicao/apontar";
+import { cruzamentos, regiaoParaMundo } from "@/modules/coordenacao/sobreposicao/cruzamentos";
+import { mascaraDeTinta } from "@/modules/coordenacao/sobreposicao/pixels";
 import type { CamadaDaCena, CenaSobreposicao } from "@/modules/coordenacao/sobreposicao/queries";
 import { criarPendencia } from "@/modules/projetos/pendencias/actions";
 import { COR_ARQUITETURA_ALINHANDO, alinhamentoEfetivo, type Formato } from "@/modules/coordenacao/sobreposicao/regras";
@@ -44,21 +46,23 @@ import {
   trocarModo,
   type SessaoAlinhamento,
 } from "@/modules/coordenacao/sobreposicao/sessao-alinhamento";
-import { caixaAplicada, type Alinhamento, type Caixa, type Ponto } from "@/modules/coordenacao/sobreposicao/transformacao";
+import { aplicar, caixaAplicada, type Alinhamento, type Caixa, type Ponto } from "@/modules/coordenacao/sobreposicao/transformacao";
 import { limparSeparadores, type AcaoItemAcao } from "@/components/ui/acoes";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAlturaRestante } from "@/lib/use-altura-restante";
 import { AdicionarCamadaDialog, type DocumentoParaCamada } from "./adicionar-camada-dialog";
 import { ApontarDialog, type DadosApontamento } from "./apontar-dialog";
+import { CortinaDivisor } from "./cortina-divisor";
 import { RAIO_CLIQUE_PINO, desenharMira, desenharPinos } from "./desenhar-pinos";
 import { FerramentaAlinhar, desenharMarcadores } from "./ferramenta-alinhar";
 import { PainelCamadas, type AjusteCamada, type ModoGravar } from "./painel-camadas";
-import { Palco, type CamadaNoPalco, type PalcoHandle, type VistaPalco } from "./palco";
+import { Palco, type CamadaNoPalco, type CortinaPalco, type PalcoHandle, type VistaPalco } from "./palco";
 import { RascunhosPainel } from "./rascunhos-painel";
 import { colorir, tamanhoDaPagina } from "./render-pdf";
 import { useCamadasRenderizadas } from "./use-camadas-renderizadas";
@@ -91,6 +95,54 @@ function teclaDeCampo(alvo: EventTarget | null): boolean {
 const chaveAlinhamento = (camadaId: string, formato: Formato) => `${camadaId}:${formato}`;
 
 const MENSAGEM_SEM_IMAGEM = "Apontamento criado, mas a imagem da sobreposição não foi anexada.";
+
+type Modo = "sobrepor" | "cortina" | "cruzamentos";
+
+/** Vermelho dos retângulos de cruzamento (tailwind red-600). */
+const COR_CRUZAMENTO = "#dc2626";
+
+function desenharCruzamentos(ctx: CanvasRenderingContext2D, vista: VistaPalco, caixas: readonly Caixa[]) {
+  if (caixas.length === 0) return;
+  ctx.save();
+  ctx.strokeStyle = COR_CRUZAMENTO;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 3]);
+  for (const k of caixas) {
+    const a = aplicar(vista, { x: k.minX, y: k.minY });
+    const b = aplicar(vista, { x: k.maxX, y: k.maxY });
+    ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y);
+  }
+  ctx.restore();
+}
+
+/** Seletor de camada dos modos Cortina e Cruzamentos. */
+function SeletorCamada({
+  rotulo,
+  valor,
+  camadas,
+  onValor,
+}: {
+  rotulo: string;
+  valor: string | null;
+  camadas: CamadaDaCena[];
+  onValor: (id: string) => void;
+}) {
+  return (
+    <Select value={valor ?? ""} onValueChange={(v) => v && onValor(v)}>
+      <SelectTrigger size="sm" className="w-44" aria-label={rotulo}>
+        <SelectValue placeholder={rotulo} />
+      </SelectTrigger>
+      <SelectContent>
+        {camadas.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            {c.disciplina}
+            {c.base ? " (base)" : ""}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
 
 /** Ajustes locais que o servidor já tem deixam de valer (o dado novo da cena manda). */
 function semOQueJaGravou(ajustes: Record<string, AjusteCamada>, camadas: CamadaDaCena[]): Record<string, AjusteCamada> {
@@ -127,6 +179,13 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
   // "Apontar interferência": ligado, o clique no desenho escolhe o ponto e abre o diálogo.
   const [apontando, setApontando] = useState(false);
   const [pontoApontar, setPontoApontar] = useState<Ponto | null>(null);
+  // Modos de ver: Sobrepor (todas), Cortina (base × uma camada) e Cruzamentos (tinta de duas no mesmo lugar).
+  const [modo, setModo] = useState<Modo>("sobrepor");
+  const [cortinaId, setCortinaId] = useState<string | null>(null);
+  const [corte, setCorte] = useState(0.5);
+  const [parCruzamento, setParCruzamento] = useState<[string | null, string | null]>([null, null]);
+  const [caixasCruzamento, setCaixasCruzamento] = useState<Caixa[]>([]);
+  const [vistaAssentou, setVistaAssentou] = useState(0);
   useEffect(() => setRecemSalvos({}), [cena.camadas]);
 
   const camadas = useMemo(
@@ -279,6 +338,36 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
 
   const camadaAlinhando = sessao ? (camadas.find((c) => c.id === sessao.camadaId) ?? null) : null;
 
+  // Padrões dos modos: a base de um lado e a primeira outra camada do outro.
+  const baseId = camadas.find((c) => c.base)?.id ?? null;
+  const primeiraOutra = camadas.find((c) => !c.base)?.id ?? null;
+  const existe = (id: string | null) => id !== null && camadas.some((c) => c.id === id);
+  const camadaCortina = existe(cortinaId) ? cortinaId : primeiraOutra;
+  const cruzA = existe(parCruzamento[0]) ? parCruzamento[0] : baseId;
+  const cruzB = existe(parCruzamento[1]) ? parCruzamento[1] : primeiraOutra;
+  const nome = (id: string | null) => camadas.find((c) => c.id === id)?.disciplina ?? "";
+
+  const cortinaNoPalco = useMemo<CortinaPalco | null>(
+    () => (modo === "cortina" && baseId && camadaCortina ? { baseId, camadaId: camadaCortina, corte } : null),
+    [modo, baseId, camadaCortina, corte],
+  );
+
+  // Cruzamentos: recalcula ao trocar o par, quando as camadas chegam e quando a vista assenta (não a cada quadro).
+  useEffect(() => {
+    if (modo !== "cruzamentos" || !cruzA || !cruzB || cruzA === cruzB) {
+      setCaixasCruzamento([]);
+      return;
+    }
+    const a = palcoRef.current?.rasterizarCamada(cruzA);
+    const b = palcoRef.current?.rasterizarCamada(cruzB);
+    if (!a || !b) {
+      setCaixasCruzamento([]);
+      return;
+    }
+    const regioes = cruzamentos(mascaraDeTinta(a.dados), mascaraDeTinta(b.dados), a.largura, a.altura);
+    setCaixasCruzamento(regioes.map((r) => regiaoParaMundo(r, a.vista, a.densidade)));
+  }, [modo, cruzA, cruzB, noPalco, vistaAssentou]);
+
   function aoAlinhar(camadaId: string) {
     const c = camadas.find((x) => x.id === camadaId);
     const noP = noPalco.find((x) => x.id === camadaId);
@@ -287,6 +376,8 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
       return;
     }
     setGaveta(false);
+    setModo("sobrepor");
+    setApontando(false);
     setSessao(
       iniciarSessao({
         camadaId,
@@ -364,11 +455,12 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
   const corAlinhando = camadaAlinhando?.cor ?? "";
   const desenharPorCima = useCallback(
     (ctx: CanvasRenderingContext2D, vista: VistaPalco) => {
+      if (modo === "cruzamentos") desenharCruzamentos(ctx, vista, caixasCruzamento);
       desenharPinos(ctx, vista, pinos);
       if (pontoApontar) desenharMira(ctx, vista, pontoApontar);
       if (sessao && sessao.cliques.length > 0) desenharMarcadores(ctx, vista, sessao, corAlinhando);
     },
-    [pinos, pontoApontar, sessao, corAlinhando],
+    [modo, caixasCruzamento, pinos, pontoApontar, sessao, corAlinhando],
   );
 
   // Clique no desenho: alinhando = ponto do par; apontando = ponto da interferência; senão, abre o pino clicado.
@@ -507,12 +599,50 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
           <Layers className="size-4" />
           Camadas
         </Button>
-        {/* Cortina e Cruzamentos entram na Task 9. */}
-        <Tabs value="sobrepor">
+        <Tabs value={modo} onValueChange={(v) => v && setModo(v as Modo)}>
           <TabsList>
             <TabsTrigger value="sobrepor">Sobrepor</TabsTrigger>
+            <TabsTrigger value="cortina" disabled={sessao !== null || !baseId || !primeiraOutra}>
+              Cortina
+            </TabsTrigger>
+            <TabsTrigger value="cruzamentos" disabled={sessao !== null || camadas.length < 2}>
+              Cruzamentos
+            </TabsTrigger>
           </TabsList>
         </Tabs>
+        {modo === "cortina" && (
+          <SeletorCamada
+            rotulo="Camada da cortina"
+            valor={camadaCortina}
+            camadas={camadas.filter((c) => !c.base)}
+            onValor={setCortinaId}
+          />
+        )}
+        {modo === "cruzamentos" && (
+          <>
+            <SeletorCamada
+              rotulo="Primeira camada"
+              valor={cruzA}
+              camadas={camadas}
+              onValor={(id) => setParCruzamento([id, cruzB])}
+            />
+            <SeletorCamada
+              rotulo="Segunda camada"
+              valor={cruzB}
+              camadas={camadas}
+              onValor={(id) => setParCruzamento([cruzA, id])}
+            />
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              {cruzA === cruzB
+                ? "Escolha duas camadas diferentes."
+                : caixasCruzamento.length === 0
+                  ? "Nenhum cruzamento"
+                  : caixasCruzamento.length === 1
+                    ? "1 cruzamento"
+                    : `${caixasCruzamento.length} cruzamentos`}
+            </span>
+          </>
+        )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {cena.podeApontar && !sessao && (
             <Button
@@ -608,12 +738,22 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
             caixaMundo={caixaMundo}
             onZoom={setZoom}
             onPontoMundo={aoPontoMundo}
+            cortina={cortinaNoPalco}
+            onVistaAssentou={modo === "cruzamentos" ? () => setVistaAssentou((n) => n + 1) : undefined}
             arrastarCamada={aoArrastarCamada}
             sobreposto={desenharPorCima}
             className={
               sessao ? (sessao.modo === "ajuste" ? "cursor-move" : "cursor-crosshair") : apontando ? "cursor-crosshair" : undefined
             }
           />
+          {cortinaNoPalco && (
+            <CortinaDivisor
+              corte={corte}
+              onCorte={setCorte}
+              rotuloEsquerda={nome(cortinaNoPalco.baseId)}
+              rotuloDireita={nome(cortinaNoPalco.camadaId)}
+            />
+          )}
           {carregando && (
             <div className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
