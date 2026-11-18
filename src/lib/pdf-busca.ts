@@ -126,6 +126,16 @@ export function localizarOcorrencias(paginas: readonly PaginaTexto[], termo: str
   return ocorrencias;
 }
 
+/**
+ * Assinatura do que uma página pinta para um conjunto de ocorrências: quais são, QUE trecho de cada item cobrem e
+ * qual é a atual. O `id` sozinho não basta — é `página:posição` e não muda quando o termo cresce ("Lista m" →
+ * "Lista mestra" começa no mesmo ponto), então o cache de marcas devolveria o trecho curto da digitação anterior.
+ */
+export function chaveDeMarcas(ocorrencias: readonly Ocorrencia[], atualId: string | null): string {
+  const trechos = ocorrencias.map((o) => `${o.id}=${o.partes.map((p) => `${p.itemIndex}.${p.inicio}-${p.fim}`).join("+")}`);
+  return `${atualId ?? ""}|${trechos.join(",")}`;
+}
+
 /** false quando nenhuma página tem texto extraível — sinal de PDF escaneado (sem OCR). */
 export function paginaTemTextoPesquisavel(paginas: readonly PaginaTexto[]): boolean {
   return paginas.some((p) => p.itens.some((i) => i.texto.trim().length > 0));

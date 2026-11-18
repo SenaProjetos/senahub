@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { localizarOcorrencias, paginaTemTextoPesquisavel, type ItemPagina, type Ocorrencia, type PaginaTexto } from "@/lib/pdf-busca";
+import { chaveDeMarcas, localizarOcorrencias, paginaTemTextoPesquisavel, type ItemPagina, type Ocorrencia, type PaginaTexto } from "@/lib/pdf-busca";
 import type { MarcaTexto } from "./pdf-pagina";
 
 /**
@@ -64,7 +64,7 @@ export function usePdfBusca(numPages: number) {
     (pagina: number): MarcaTexto[] => {
       const atualId = ocorrenciaAtual?.id ?? null;
       const daPagina = ocorrencias.filter((o) => o.pagina === pagina);
-      const chave = `${atualId ?? ""}|${daPagina.map((o) => o.id).join(",")}`;
+      const chave = chaveDeMarcas(daPagina, atualId);
       const cache = cacheRef.current.get(pagina);
       if (cache && cache.chave === chave) return cache.marcas;
       const marcas: MarcaTexto[] = [];
