@@ -467,9 +467,10 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
  * `pdfjs-dist/web/pdf_viewer.css` oficial (não importado inteiro: aquele arquivo também traz
  * o editor de marcação nativo do pdf.js — que não usamos, temos nosso próprio <mark> — e
  * `color-scheme:only light`, que quebraria o dark mode do resto do app). Os custom
- * properties (--font-height, --scale-x, --total-scale-factor, ...) são setados pela própria
- * classe `TextLayer` do pdf.js via JS a cada span; esta folha só consome esses valores —
- * não são inventados aqui, então não simplificar a fórmula sem checar contra a lib.
+ * properties --font-height/--scale-x/--rotate são setados pela própria classe `TextLayer` do
+ * pdf.js a cada span; já `--total-scale-factor` (px por ponto do PDF) é de quem monta a camada
+ * (`PdfPagina`) — sem ele o `font-size` fica inválido. Esta folha só consome esses valores;
+ * não simplificar a fórmula sem checar contra a lib.
  */
 .textLayer {
   position: absolute;
@@ -485,6 +486,9 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   transform-origin: 0 0;
   z-index: 0;
   --min-font-size: 1;
+  /* Arredondamento da caixa que o pdf.js calcula (`setLayerDimensions`); `--total-scale-factor` vem de `PdfPagina`. */
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
 }
@@ -510,12 +514,7 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
 }
 /* Página girada (`/Rotate` do PDF + giro de leitura): o pdf.js posiciona o texto na página SEM rotação e marca a
    rotação em `data-main-rotation`; quem gira a camada é esta regra, igual à do `pdf_viewer.css` oficial. A caixa é a
-   da página sem rotação (transposta em 90°/270°), vinda de `PdfPagina` por variável. O `!important` vence o
-   `width`/`height` que o próprio pdf.js escreve na camada ao montá-la — sem ele, quem escreve por último decide. */
-.textLayer {
-  width: var(--largura-sem-giro, 100%) !important;
-  height: var(--altura-sem-giro, 100%) !important;
-}
+   da página sem rotação (transposta em 90°/270°), e é o pdf.js quem a dimensiona a partir de `--total-scale-factor`. */
 .textLayer[data-main-rotation="90"] {
   transform: rotate(90deg) translateY(-100%);
 }

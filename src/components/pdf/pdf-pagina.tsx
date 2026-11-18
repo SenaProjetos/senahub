@@ -114,11 +114,11 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
   /** altura/largura da página (com giro). Conhecida, a caixa acompanha `largura` sem esperar o desenho. */
   const [proporcao, setProporcao] = useState<number | null>(null);
   /**
-   * Giro total (`/Rotate` + leitura) da `proporcao` atual — os dois mudam juntos. A camada de texto do pdf.js é
-   * montada na página SEM rotação e girada por CSS (`.textLayer[data-main-rotation]` em `globals.css`): em 90°/270°
-   * a caixa dela é a transposta da caixa da página.
+   * Largura da página em pontos do PDF, com o giro aplicado (`/Rotate` + leitura) — muda junto com `proporcao`.
+   * `largura / larguraPagina` é a escala em px por ponto, que a camada de texto do pdf.js lê em
+   * `--total-scale-factor`: é dela que sai o `font-size` de cada trecho e o tamanho da caixa da camada.
    */
-  const [giroDaCaixa, setGiroDaCaixa] = useState(0);
+  const [larguraPagina, setLarguraPagina] = useState<number | null>(null);
   /** Sobe a cada página inteira desenhada; o trecho em detalhe é refeito em seguida. */
   const [versaoBase, setVersaoBase] = useState(0);
   const [comDetalhe, setComDetalhe] = useState(false);
@@ -198,7 +198,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         const canvas = canvasRef.current;
         if (!canvas || cancelado) return;
         setProporcao(viewport.height / viewport.width);
-        setGiroDaCaixa(giro);
+        setLarguraPagina(base.width);
         // Girou: o detalhe desenhado com o giro antigo está no lugar errado até ser refeito.
         if (giroDetalheRef.current !== rotacao && detalheRef.current) detalheRef.current.style.display = "none";
         const dpr = dprDaTela();
@@ -448,15 +448,10 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
   }, [comDetalhe, versaoBase]);
 
   const alturaCaixa = proporcao ? Math.round(largura * proporcao) : null;
-  // Caixa da camada de texto = a da página SEM rotação: a da tela, transposta em 90°/270° (ver `giroDaCaixa`).
-  const transposta = giroDaCaixa === 90 || giroDaCaixa === 270;
-  const caixaTexto =
-    alturaCaixa === null
-      ? undefined
-      : ({
-          "--largura-sem-giro": `${transposta ? alturaCaixa : largura}px`,
-          "--altura-sem-giro": `${transposta ? largura : alturaCaixa}px`,
-        } as CSSProperties);
+  // Escala que o pdf.js espera nos seus próprios estilos (no visualizador oficial: `--scale-factor` × `--user-unit`).
+  // Sem ela o `font-size` de cada trecho fica inválido e herda o da página — a marca da busca não cobre a palavra.
+  const escalaTexto = larguraPagina ? largura / larguraPagina : undefined;
+  const estiloTexto = escalaTexto === undefined ? undefined : ({ "--total-scale-factor": escalaTexto } as CSSProperties);
 
   return (
     <div
@@ -472,9 +467,9 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
           (e estica o desenho anterior durante um zoom, até o novo ficar pronto). */}
       <canvas ref={canvasRef} className={proporcao ? "block size-full bg-white" : "block bg-white"} />
       <canvas ref={detalheRef} className="pointer-events-none absolute hidden" aria-hidden />
-      {/* Tamanho por variável, não por `width`/`height`: o pdf.js escreve o `width`/`height` da camada ao montá-la
-          (com variáveis que este app não define) e, quando escreve depois do React, a caixa perdia a transposta. */}
-      <div ref={textLayerRef} className="textLayer" style={caixaTexto} />
+      {/* O pdf.js escreve o `width`/`height` da camada (página sem rotação, em múltiplos de `--total-scale-factor`);
+          a rotação de 90°/270° é do CSS (`data-main-rotation`, em `globals.css`). */}
+      <div ref={textLayerRef} className="textLayer" style={estiloTexto} />
       {/* Overlay do chamador (pinos/formas/clique) — ele mesmo é responsável pelo próprio
           `absolute inset-0`, igual já fazia antes desta extração. A forma de função só é
           chamada depois de a página medir, senão o SVG nasceria com viewBox 0x0. */}
