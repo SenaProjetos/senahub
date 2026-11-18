@@ -196,6 +196,10 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     let cancelado = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let renderTask: any;
+    /** Canvas fora da tela em uso — liberado também na falha (o Safari não solta memória de canvas pelo coletor). */
+    let foraEmUso: HTMLCanvasElement | null = null;
+    // Outra página/PDF/largura: o aviso da anterior não vale mais (o `Skeleton` e o desenho voltam a valer).
+    setFalhaPagina(false);
     (async () => {
       try {
         const page = await pdf.getPage(pagina);
@@ -228,10 +232,17 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
           // Desenha fora da tela e só então troca: o desenho anterior (esticado) fica à vista
           // enquanto o novo não termina, em vez de a página piscar em branco a cada zoom.
           const fora = document.createElement("canvas");
+          foraEmUso = fora;
           fora.width = alvoW;
           fora.height = alvoH;
           const ctx = fora.getContext("2d");
-          if (!ctx) return;
+          if (!ctx) {
+            // Sem contexto (memória de canvas esgotada): a página ficaria em branco sem aviso.
+            fora.width = 0;
+            fora.height = 0;
+            if (!cancelado) setFalhaPagina(true);
+            return;
+          }
           renderTask = page.render({
             canvasContext: ctx,
             viewport,
@@ -261,6 +272,10 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         });
       } catch (e) {
         // Cancelar o desenho (trocou largura/giro/página) é o fluxo normal; o resto deixa a página em branco, então avisa.
+        if (foraEmUso) {
+          foraEmUso.width = 0;
+          foraEmUso.height = 0;
+        }
         if (!cancelado && !ehCancelamentoDoPdf(e)) {
           console.error("[pdf-pagina] falha ao desenhar a página", pagina, e);
           setFalhaPagina(true);
@@ -288,6 +303,9 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     let cancelado = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let textLayer: any;
+    /** `onTexto` já foi chamado — se a camada falhar depois, o índice da busca segue valendo. */
+    let textoReportado = false;
+    setFalhaTexto(false);
     (async () => {
       try {
         const pdfjs = await import("pdfjs-dist");
@@ -320,6 +338,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
           });
         if (cancelado) return;
         onTexto?.(pagina, itensTexto);
+        textoReportado = true;
 
         const container = textLayerRef.current;
         if (!container) return;
@@ -341,6 +360,8 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         if (!cancelado && !ehCancelamentoDoPdf(e)) {
           console.error("[pdf-pagina] falha na camada de texto da página", pagina, e);
           setFalhaTexto(true);
+          // Sem isto a página nunca "reporta" e a busca fica esperando por ela para sempre (`pronto` nunca fecha).
+          if (!textoReportado) onTexto?.(pagina, []);
         }
       }
     })();
