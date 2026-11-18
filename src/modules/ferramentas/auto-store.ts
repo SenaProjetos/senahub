@@ -14,7 +14,7 @@ import { Packer } from "docx";
 import { prisma } from "@/lib/prisma";
 import { salvarArquivo, slug } from "@/lib/storage";
 import { baseDirDisciplina, nomeFisico } from "@/modules/uploads/caminho";
-import { reservarCaminhoLivre } from "@/modules/uploads/arquivo-fisico";
+import { removerArquivoDeUploadSemDono, reservarCaminhoLivre } from "@/modules/uploads/arquivo-fisico";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { serializar } from "./savefile";
 import { getFerramenta } from "./registry";
@@ -70,7 +70,14 @@ async function salvarUpload(opts: {
     versao,
   );
 
-  const salvo = await salvarArquivo(relativo, buffer);
+  let salvo;
+  try {
+    salvo = await salvarArquivo(relativo, buffer);
+  } catch (erro) {
+    // O arquivo vazio que reservou o nome (sem linha no banco) não fica para trás.
+    await removerArquivoDeUploadSemDono(relativo).catch(() => {});
+    throw erro;
+  }
 
   await prisma.upload.create({
     data: {

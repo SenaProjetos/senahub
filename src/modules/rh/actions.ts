@@ -21,6 +21,7 @@ import {
 import {
   MOTIVO_FERIAS_JA_DECIDIDAS,
   motivoFeriasSobrepostas,
+  motivoPeriodoFerias,
   motivoParaNaoDecidirFerias,
   motivoParaNaoDecidirFeriasDe,
   motivoParaNaoLancarFeriasPara,
@@ -63,8 +64,17 @@ const diaIso = z.string().refine(dataValida, "Data inválida.");
 const observacaoFerias = z.string().max(1000, "Observação muito longa (máx. 1000 caracteres).").optional();
 /** A trilha aponta as férias gravadas: toda ação de férias devolve `{ id }`. */
 const idDasFerias = (d: unknown) => (d as { id: string }).id;
-/** Mesma frase do diálogo de datas e do lançamento do RH. */
-const FIM_DEPOIS_DO_INICIO = { message: "A data de fim não pode ser anterior ao início.", path: ["fim"] };
+/**
+ * Período de férias válido (`motivoPeriodoFerias`): fim depois do início e no máximo 30 dias corridos.
+ * Mesma frase dos diálogos, que conferem antes de enviar. Fica no topo do módulo, fora da chamada do
+ * `defineAction` (o compilador de Server Actions recusa a função escrita lá dentro).
+ */
+function periodoDeFeriasValido(v: { inicio: string; fim: string }, ctx: z.RefinementCtx) {
+  // Data ilegível já tem o próprio erro ("Data inválida."); comparar texto inválido só somaria outro.
+  if (!dataValida(v.inicio) || !dataValida(v.fim)) return;
+  const motivo = motivoPeriodoFerias(v.inicio, v.fim);
+  if (motivo) ctx.addIssue({ code: "custom", message: motivo, path: ["fim"] });
+}
 
 /**
  * `roles` é obrigatório aqui: sem `roles` E sem `recurso`, `defineAction` pula o gate inteiro
@@ -83,7 +93,7 @@ const solicitarFeriasSchema = z
     fim: diaIso,
     observacao: observacaoFerias,
   })
-  .refine((v) => v.fim >= v.inicio, FIM_DEPOIS_DO_INICIO);
+  .superRefine(periodoDeFeriasValido);
 
 /**
  * Restrito a quem tem jornada controlada (`controlaJornada`, pela CONTRATAÇÃO — não pelo papel):
@@ -279,9 +289,12 @@ export const validarFerias = defineAction(
     const decididas = await sobTravaDaPessoa(f.userId, async (tx) => {
       const atual = await tx.ferias.findUnique({ where: { id: i.id }, select: { inicio: true, fim: true } });
       if (!atual) throw new ActionError("Solicitação não encontrada.");
-      // Outras férias aprovadas nos mesmos dias gastariam o período aquisitivo duas vezes.
+      // Outras férias aprovadas nos mesmos dias gastariam o período aquisitivo duas vezes. Um pedido
+      // antigo, anterior ao teto de 30 dias, também não é aprovado acima dele.
       if (i.aprovar) {
         const dias = { inicio: ymd(atual.inicio), fim: ymd(atual.fim) };
+        const motivoPeriodo = motivoPeriodoFerias(dias.inicio, dias.fim, "decide");
+        if (motivoPeriodo) throw new ActionError(motivoPeriodo);
         const outra = await feriasSobrepostas(tx, f.userId, dias, ["aprovado"], f.id);
         if (outra) throw new ActionError(motivoFeriasSobrepostas(outra.status, "aprovar"));
       }
@@ -322,7 +335,7 @@ const lancarFeriasSchema = z
     fim: diaIso,
     observacao: observacaoFerias,
   })
-  .refine((v) => v.fim >= v.inicio, FIM_DEPOIS_DO_INICIO);
+  .superRefine(periodoDeFeriasValido);
 
 /**
  * RH/admin registra férias de um colaborador SEM solicitação prévia dele (CLT art. 136:
@@ -407,7 +420,7 @@ const editarPendenteSchema = z
     fim: diaIso,
     observacao: observacaoFerias,
   })
-  .refine((v) => v.fim >= v.inicio, FIM_DEPOIS_DO_INICIO);
+  .superRefine(periodoDeFeriasValido);
 
 /**
  * Edição livre de férias AINDA PENDENTES pelo próprio funcionário (antes de qualquer
@@ -451,7 +464,7 @@ const proporSchema = z
     inicio: diaIso,
     fim: diaIso,
   })
-  .refine((v) => v.fim >= v.inicio, FIM_DEPOIS_DO_INICIO);
+  .superRefine(periodoDeFeriasValido);
 
 /**
  * Propõe nova data para férias JÁ APROVADAS. Pode ser iniciada pelo funcionário (dono)
@@ -629,6 +642,9 @@ export const responderAlteracaoFerias = defineAction(
     // férias da pessoa (conferido sob a trava, como a aprovação e o lançamento).
     const altInicio = f.altInicio;
     const altFim = f.altFim;
+    // Proposta gravada antes do teto de 30 dias também não entra em vigor acima dele.
+    const motivoPeriodo = motivoPeriodoFerias(ymd(altInicio), ymd(altFim), "decide");
+    if (motivoPeriodo) throw new ActionError(motivoPeriodo);
     await sobTravaDaPessoa(f.userId, async (tx) => {
       await exigirNovaDataLivre(tx, f.userId, f.id, { inicio: ymd(altInicio), fim: ymd(altFim) });
       const { count } = await tx.ferias.updateMany({

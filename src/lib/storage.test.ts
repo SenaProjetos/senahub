@@ -1,11 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { promises as fsp } from "node:fs";
+import { afterAll, describe, it, expect, vi } from "vitest";
 
 // O módulo captura STORAGE_BASE_PATH no load — precisa estar setado ANTES do import.
 process.env.STORAGE_BASE_PATH =
   process.platform === "win32" ? "C:\\tmp\\senahub" : "/tmp/senahub";
 
-const { resolverCaminho, slug, nomeArquivoLimpo, salvarArquivo, copiarArquivo, lerArquivo, removerArquivo } =
-  await import("@/lib/storage");
+const {
+  resolverCaminho,
+  slug,
+  nomeArquivoLimpo,
+  salvarArquivo,
+  copiarArquivo,
+  lerArquivo,
+  removerArquivo,
+  SUFIXO_GRAVACAO_PARCIAL,
+} = await import("@/lib/storage");
 
 describe("storage — copiarArquivo (stream, sem carregar o arquivo na memória)", () => {
   it("copia o conteúdo e devolve o mesmo hash e tamanho de quem gravou", async () => {
@@ -30,6 +39,112 @@ describe("storage — copiarArquivo (stream, sem carregar o arquivo na memória)
 
   it("recusa destino fora do base", async () => {
     await expect(copiarArquivo("teste-copia/x.bin", "../../fora.bin")).rejects.toThrow();
+  });
+});
+
+describe("storage — salvarArquivo (temporário + rename: o nome final nunca fica pela metade)", () => {
+  const PASTA = "teste-salvar";
+  const escreverDeVerdade = fsp.writeFile.bind(fsp);
+  /** Disco cheio depois de gravar parte do conteúdo (a falha vem DEPOIS de abrir o arquivo). */
+  const discoCheioNoMeio = async (alvo: unknown, dados: unknown) => {
+    await escreverDeVerdade(alvo as string, (dados as Buffer).subarray(0, 10));
+    throw Object.assign(new Error("ENOSPC simulado"), { code: "ENOSPC" });
+  };
+  const sobrasNaPasta = async () =>
+    (await fsp.readdir(resolverCaminho(PASTA)).catch(() => [] as string[])).filter((n) =>
+      n.endsWith(SUFIXO_GRAVACAO_PARCIAL),
+    );
+
+  afterAll(async () => {
+    await fsp.rm(resolverCaminho(PASTA), { recursive: true, force: true });
+  });
+
+  it("grava e devolve hash e tamanho, sem deixar temporário", async () => {
+    const rel = `${PASTA}/${Date.now()}-ok.bin`;
+    const salvo = await salvarArquivo(rel, Buffer.from("conteudo"));
+    expect(salvo).toMatchObject({ caminho: rel, tamanho: 8 });
+    expect((await lerArquivo(rel)).toString()).toBe("conteudo");
+    expect(await sobrasNaPasta()).toEqual([]);
+  });
+
+  it("arquivo novo que falha no meio: nem o nome final nem o temporário ficam no disco", async () => {
+    const rel = `${PASTA}/${Date.now()}-novo.bin`;
+    const espiao = vi.spyOn(fsp, "writeFile").mockImplementationOnce(discoCheioNoMeio);
+    try {
+      await expect(salvarArquivo(rel, Buffer.alloc(1000, 1))).rejects.toThrow("ENOSPC simulado");
+      await expect(lerArquivo(rel)).rejects.toThrow();
+      expect(await sobrasNaPasta()).toEqual([]);
+    } finally {
+      espiao.mockRestore();
+    }
+  });
+
+  it("regravar um caminho que já existia e falhar no meio mantém o conteúdo anterior inteiro", async () => {
+    const rel = `${PASTA}/${Date.now()}-existente.bin`;
+    await salvarArquivo(rel, Buffer.from("conteudo-antigo"));
+    const espiao = vi.spyOn(fsp, "writeFile").mockImplementationOnce(discoCheioNoMeio);
+    try {
+      await expect(salvarArquivo(rel, Buffer.alloc(1000, 2))).rejects.toThrow("ENOSPC simulado");
+      expect((await lerArquivo(rel)).toString()).toBe("conteudo-antigo");
+      expect(await sobrasNaPasta()).toEqual([]);
+    } finally {
+      espiao.mockRestore();
+    }
+  });
+
+  it("caminho reservado vazio (reservarCaminhoLivre) fica vazio se a gravação falhar — quem reservou o apaga", async () => {
+    const rel = `${PASTA}/${Date.now()}-reservado.bin`;
+    await fsp.mkdir(resolverCaminho(PASTA), { recursive: true });
+    await (await fsp.open(resolverCaminho(rel), "wx")).close();
+    const espiao = vi.spyOn(fsp, "writeFile").mockImplementationOnce(discoCheioNoMeio);
+    try {
+      await expect(salvarArquivo(rel, Buffer.alloc(1000, 3))).rejects.toThrow("ENOSPC simulado");
+      expect((await lerArquivo(rel)).length).toBe(0);
+      expect(await sobrasNaPasta()).toEqual([]);
+    } finally {
+      espiao.mockRestore();
+    }
+  });
+
+  it("destino segurado por outro programa um instante (EBUSY no rename): espera e grava", async () => {
+    const rel = `${PASTA}/${Date.now()}-travado.bin`;
+    await salvarArquivo(rel, Buffer.from("antigo"));
+    const espiao = vi
+      .spyOn(fsp, "rename")
+      .mockRejectedValueOnce(Object.assign(new Error("EBUSY simulado"), { code: "EBUSY" }));
+    try {
+      await salvarArquivo(rel, Buffer.from("novo"));
+      expect((await lerArquivo(rel)).toString()).toBe("novo");
+      expect(espiao).toHaveBeenCalledTimes(2);
+    } finally {
+      espiao.mockRestore();
+    }
+  });
+
+  it("destino travado de vez: desiste, apaga o temporário e mantém o conteúdo anterior", async () => {
+    const rel = `${PASTA}/${Date.now()}-travado-de-vez.bin`;
+    await salvarArquivo(rel, Buffer.from("antigo"));
+    const espiao = vi
+      .spyOn(fsp, "rename")
+      .mockRejectedValue(Object.assign(new Error("EPERM simulado"), { code: "EPERM" }));
+    try {
+      await expect(salvarArquivo(rel, Buffer.from("novo"))).rejects.toThrow("EPERM simulado");
+      expect(espiao).toHaveBeenCalledTimes(4);
+    } finally {
+      espiao.mockRestore();
+    }
+    expect((await lerArquivo(rel)).toString()).toBe("antigo");
+    expect(await sobrasNaPasta()).toEqual([]);
+  });
+
+  it("duas gravações do mesmo caminho ao mesmo tempo terminam com um conteúdo inteiro, nunca misturado", async () => {
+    const rel = `${PASTA}/${Date.now()}-corrida.bin`;
+    const a = Buffer.alloc(200_000, 0x61);
+    const b = Buffer.alloc(200_000, 0x62);
+    await Promise.all([salvarArquivo(rel, a), salvarArquivo(rel, b)]);
+    const final = await lerArquivo(rel);
+    expect(final.equals(a) || final.equals(b)).toBe(true);
+    expect(await sobrasNaPasta()).toEqual([]);
   });
 });
 

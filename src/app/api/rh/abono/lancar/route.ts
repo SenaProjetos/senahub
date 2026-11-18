@@ -16,6 +16,7 @@ import {
   type TratamentoAusenciaValor,
 } from "@/modules/rh/abono-entrada";
 import {
+  MOTIVO_AUSENCIA_NAO_REGISTRADA,
   MOTIVO_AUSENCIA_OCUPADA,
   comAusenciasTravadas,
   conflitoDaAusencia,
@@ -25,6 +26,7 @@ import { ehDoRh } from "@/modules/rh/gestores-rh";
 import { recalcularBancoDaPessoaSemFalhar } from "@/modules/rh/banco/service";
 import {
   camposDoFormAbono,
+  MOTIVO_ATESTADO_NAO_GRAVADO,
   lerFormularioLimitado,
   motivoParaRecusarAtestadoDoForm,
   salvarAtestadoDoForm,
@@ -128,7 +130,14 @@ export async function POST(req: Request) {
     return recusa(motivoDoConflito(conflitoAntes, "lancar"), 409, "dataInicio");
   }
 
-  const arquivo = await salvarAtestadoDoForm(form, alvo.id);
+  // `salvarArquivo` já apaga o que ficou pela metade; aqui a falha só vira resposta legível.
+  let arquivo;
+  try {
+    arquivo = await salvarAtestadoDoForm(form, alvo.id);
+  } catch (e) {
+    console.error("[abono] falha ao gravar o atestado", e);
+    return recusa(MOTIVO_ATESTADO_NAO_GRAVADO, 500, "atestado");
+  }
   let abono;
   try {
     abono = await comAusenciasTravadas(alvo.id, async (tx) => {
@@ -160,7 +169,8 @@ export async function POST(req: Request) {
       return recusa(e.message, 409, "dataInicio");
     }
     if (ehTempoEsgotado(e)) return recusa(MOTIVO_AUSENCIA_OCUPADA, 503);
-    throw e;
+    console.error("[abono] falha ao lançar a ausência", e);
+    return recusa(MOTIVO_AUSENCIA_NAO_REGISTRADA, 500);
   }
 
   // Auditoria logo depois de gravar, como o `defineAction` faz — antes dos avisos.

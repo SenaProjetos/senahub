@@ -13,6 +13,7 @@ import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { motivoPeriodoFerias } from "@/modules/rh/ferias-decisao";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -157,8 +158,9 @@ export function FeriasDatasDialog({
       toast.error("Informe as datas.");
       return;
     }
-    if (fim < inicio) {
-      toast.error("A data de fim não pode ser anterior ao início.");
+    const motivoPeriodo = motivoPeriodoFerias(inicio, fim);
+    if (motivoPeriodo) {
+      toast.error(motivoPeriodo);
       return;
     }
     start(async () => {

@@ -30,6 +30,8 @@ Centralizar as solicitações e acompanhamentos pessoais de RH de cada colaborad
 - **Férias:** solicitar período de férias e acompanhar o status.
   - Enquanto a solicitação está **pendente**, você pode **editar** as datas livremente.
   - Um pedido que cruza outras férias suas, pendentes ou aprovadas, é recusado.
+  - Cada período tem no máximo **30 dias corridos**. Para tirar mais dias seguidos (períodos
+    acumulados), peça um período e, em seguida, outro que comece no dia seguinte.
   - Depois de **aprovada**, use **Propor alteração**: a nova data só passa a valer quando o
     **RH também aprovar** (dupla aprovação). Se o RH propuser a mudança, você recebe uma
     notificação e decide **Aprovar** ou **Recusar** — recusando, valem as datas originais.

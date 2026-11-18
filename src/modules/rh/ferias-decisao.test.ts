@@ -3,7 +3,11 @@ import {
   MOTIVO_FERIAS_DE_RH,
   MOTIVO_FERIAS_JA_DECIDIDAS,
   MOTIVO_PROPRIAS_FERIAS,
+  MAX_DIAS_FERIAS,
+  MOTIVO_FIM_ANTES_DO_INICIO,
+  diasCorridosFerias,
   motivoFeriasSobrepostas,
+  motivoPeriodoFerias,
   motivoParaNaoDecidirFerias,
   motivoParaNaoDecidirFeriasDe,
   motivoParaNaoLancarFeriasPara,
@@ -74,5 +78,37 @@ describe("motivoFeriasSobrepostas", () => {
     expect(motivoFeriasSobrepostas("aprovado", "aprovar")).toMatch(/Rejeite/);
     expect(motivoFeriasSobrepostas("aprovado", "alterar")).toMatch(/^A nova data cruza outras férias aprovadas/);
     expect(motivoFeriasSobrepostas("pendente", "alterar")).toMatch(/pendente.*Decida-a/);
+  });
+});
+
+describe("motivoPeriodoFerias", () => {
+  it("conta os dias corridos com o início e o fim inclusos", () => {
+    expect(diasCorridosFerias("2026-12-01", "2026-12-01")).toBe(1);
+    expect(diasCorridosFerias("2026-12-01", "2026-12-30")).toBe(30);
+    expect(diasCorridosFerias("2026-02-15", "2026-03-16")).toBe(30);
+  });
+
+  it("aceita até 30 dias corridos, inclusive atravessando o ano", () => {
+    expect(motivoPeriodoFerias("2026-12-01", "2026-12-30")).toBeNull();
+    expect(motivoPeriodoFerias("2026-12-20", "2027-01-18")).toBeNull();
+    expect(motivoPeriodoFerias("2026-12-01", "2026-12-01")).toBeNull();
+  });
+
+  it("recusa o 31º dia e diz quantos dias o período tem", () => {
+    expect(motivoPeriodoFerias("2026-12-01", "2026-12-31")).toBe(
+      `Um período de férias tem no máximo ${MAX_DIAS_FERIAS} dias corridos (este tem 31). Para mais dias, lance outro período em seguida.`,
+    );
+    expect(motivoPeriodoFerias("2026-01-01", "2026-12-31")).toMatch(/este tem 365/);
+  });
+
+  it("recusa fim antes do início com a frase de sempre", () => {
+    expect(motivoPeriodoFerias("2026-12-10", "2026-12-09")).toBe(MOTIVO_FIM_ANTES_DO_INICIO);
+  });
+
+  it("para quem só decide um pedido antigo, manda recusar", () => {
+    expect(motivoPeriodoFerias("2026-12-01", "2026-12-31", "decide")).toBe(
+      "Este período tem 31 dias corridos, acima do máximo de 30. Recuse e peça um período de até 30 dias.",
+    );
+    expect(motivoPeriodoFerias("2026-12-01", "2026-12-30", "decide")).toBeNull();
   });
 });

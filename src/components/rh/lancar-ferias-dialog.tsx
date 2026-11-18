@@ -9,6 +9,7 @@ import type { ColaboradorComDireitoFerias } from "@/modules/rh/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { motivoPeriodoFerias } from "@/modules/rh/ferias-decisao";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -65,8 +66,9 @@ export function LancarFeriasDialog({
       toast.error("Informe as datas.");
       return;
     }
-    if (fim < inicio) {
-      toast.error("A data de fim não pode ser anterior ao início.");
+    const motivoPeriodo = motivoPeriodoFerias(inicio, fim);
+    if (motivoPeriodo) {
+      toast.error(motivoPeriodo);
       return;
     }
     start(async () => {
