@@ -11,11 +11,15 @@
  * Uso: npm run smoke:portal-entregas
  */
 import "dotenv/config";
+import { randomBytes } from "node:crypto";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { alcanceDoPortal } from "../src/modules/projetos/arquivos/link-publico-regras";
 import {
+  artLiberadaNoAlcance,
   conteudoDoAlcance,
+  conteudoPublicoPorToken,
+  uploadLiberadoNoAlcance,
   uploadsDoAlcanceParaZip,
   type ConteudoPublico,
 } from "../src/modules/projetos/arquivos/link-publico";
@@ -121,6 +125,40 @@ async function main() {
     const zip = await uploadsDoAlcanceParaZip(alcance);
     const bloqueados = await uploadsComBloqueioDeDownload(prisma, zip?.entradas.map((e) => e.uploadId) ?? []);
     check("bloqueada fora do .zip", bloqueados.has(b.up.id) && !bloqueados.has(a.up.id));
+
+    // ── portal = link "projeto todo por situação" do mesmo projeto ──
+    const link = await prisma.linkPublicoArquivos.create({
+      data: { projetoId: p1.id, token: randomBytes(18).toString("hex"), escopo: "projeto_todo", porSituacao: true, nome: "smoke" },
+    });
+    const pelaLink = await conteudoPublicoPorToken(link.token);
+    const semTitulo = (c: ConteudoPublico | null) => (c ? JSON.stringify({ ...c, titulo: null }) : null);
+    check("portal = link projeto todo por situação", semTitulo(conteudo) !== null && semTitulo(conteudo) === semTitulo(pelaLink));
+
+    // ── o que nunca sai pela URL direta do portal ──
+    const p2 = await novoProjeto(cliente.id, "p2");
+    const deP2 = await entrega(p2.disciplinaId, "p2");
+    check("upload de outro projeto do mesmo cliente não sai", (await uploadLiberadoNoAlcance(alcance, deP2.up.id)) === null);
+    const outroCliente = await novoCliente("outro");
+    const p3 = await novoProjeto(outroCliente.id, "p3");
+    const deP3 = await entrega(p3.disciplinaId, "p3");
+    check("upload de outro cliente não sai", (await uploadLiberadoNoAlcance(alcance, deP3.up.id)) === null);
+
+    const c = await entrega(p1.disciplinaId, "c", { marcar: false });
+    const depois = arquivosDe(await conteudoDoAlcance(alcance));
+    check(
+      "revisão em andamento não aparece",
+      !depois.some((x) => x.id === c.up.id) && (await uploadLiberadoNoAlcance(alcance, c.up.id)) === null,
+    );
+    check("arquivo da pasta do cliente abre", (await uploadLiberadoNoAlcance(alcance, a.up.id)) !== null);
+
+    const art = await prisma.art.create({
+      data: { projetoId: p1.id, numero: `${tag}-1`, arquivoPath: `smoke/${tag}-art.pdf`, arquivoNome: "art.pdf", autorId: usuario.id },
+    });
+    const comArt = await conteudoDoAlcance(alcance);
+    check(
+      "ART do projeto aparece",
+      (comArt?.arts.some((x) => x.id === art.id) ?? false) && (await artLiberadaNoAlcance(alcance, art.id)) !== null,
+    );
   } finally {
     for (const id of projetos) await prisma.projeto.delete({ where: { id } });
     for (const id of clientes) await prisma.cliente.delete({ where: { id } });
