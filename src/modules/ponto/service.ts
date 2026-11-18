@@ -177,6 +177,7 @@ export async function aplicarBatida(params: {
       : { tarefaId: null, disciplinaId: null };
     const tarefaId = destino.tarefaId;
     if (abreSessao) {
+      // inicio-pelo-ponto: `registrarBatida` chama `depoisDoPontoNaTarefa` depois desta transação.
       await tx.sessaoTrabalho.create({
         data: {
           userId,
@@ -315,6 +316,8 @@ export async function reconciliarSessoesDoDia(
       : null;
     // Sem tarefa válida (ou tarefa sem disciplina): a disciplina vem da pessoa naquele dia.
     const semTarefa = tarefa?.disciplinaId ? null : await resolver(null);
+    // inicio-pelo-ponto: não se aplica — a correção só HERDA a tarefa de uma sessão que já existia (a primeira hora
+    // dela já preencheu o início real); a batida digitada no editor não traz tarefa nova.
     await tx.sessaoTrabalho.create({
       data: {
         userId,

@@ -24,6 +24,7 @@ import { percentualDaCapacidade } from "@/modules/planejamento/heatmap-recursos"
 import { projetosSemCronogramaPorPessoa } from "@/modules/planejamento/recursos-filtros";
 import { semDatasDaLinha } from "@/modules/planejamento/visao-sem-datas";
 import { contextoDeArquivos, sugerirProgresso } from "@/modules/planejamento/progresso-sugerido";
+import { terminosPendentes, type PontoDaLinha, type TerminoPendente } from "@/modules/planejamento/termino-pendente";
 import { minutosSessao } from "@/modules/ponto/format";
 import { custosDoProjeto } from "@/modules/planejamento/custo-service";
 import type { CustoLinha } from "@/modules/planejamento/custo";
@@ -75,6 +76,8 @@ type ApoioDaLinha = {
   cardConcluidoEm: Map<string, string>;
   /** DOCUMENTOS por disciplina (unidade de contagem do sistema: PDF + DWG = 1). */
   arquivosPorDisciplina: Map<string, number>;
+  /** Primeiro e último dia (São Paulo) com hora apontada na linha — o "falta o término real" (`termino-pendente.ts`). */
+  ponto: Map<string, PontoDaLinha>;
 };
 
 const SEM_APOIO: ApoioDaLinha = {
@@ -83,6 +86,7 @@ const SEM_APOIO: ApoioDaLinha = {
   checklist: new Map(),
   cardConcluidoEm: new Map(),
   arquivosPorDisciplina: new Map(),
+  ponto: new Map(),
 };
 
 async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaId: string | null }[]): Promise<ApoioDaLinha> {
@@ -119,6 +123,7 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
     checklist: new Map(),
     cardConcluidoEm: new Map(),
     arquivosPorDisciplina: new Map(),
+    ponto: new Map(),
   };
   const abertos = new Set<string>();
   for (const c of cards) {
@@ -139,6 +144,14 @@ async function carregarApoioDasLinhas(linhas: readonly { id: string; disciplinaI
     const porPessoa = apoio.apontadoPorPessoa.get(id) ?? new Map<string, number>();
     porPessoa.set(ss.userId, (porPessoa.get(ss.userId) ?? 0) + minutos);
     apoio.apontadoPorPessoa.set(id, porPessoa);
+    // Sessão aberta conta até hoje: a pessoa está nela agora.
+    const primeiro = diaLocal(ss.inicio);
+    const ultimo = diaLocal(ss.fim ?? agora);
+    const visto = apoio.ponto.get(id);
+    apoio.ponto.set(id, {
+      primeiro: visto && visto.primeiro < primeiro ? visto.primeiro : primeiro,
+      ultimo: visto && visto.ultimo > ultimo ? visto.ultimo : ultimo,
+    });
   }
   for (const a of arquivos) apoio.arquivosPorDisciplina.set(a.disciplinaId, a._count._all);
   return apoio;
@@ -257,6 +270,8 @@ function mapearTarefaDTO(
   custo?: CustoLinha,
   /** Lote 7: ausente (Painel Mestre) = tudo do realizado sai nulo. */
   real?: RealizadoDaLinha,
+  /** A sucessora começou e esta segue sem término real; ausente (Painel Mestre) = nulo. */
+  terminoPendente?: TerminoPendente,
 ) {
   const agendada = plano?.resultado.linhas.get(t.id);
   const apontadoMin = apoio.apontadoMin.get(t.id) ?? 0;
@@ -367,6 +382,11 @@ function mapearTarefaDTO(
     custoRealParcial: real?.custo?.parcial ?? false,
     /** O valor digitado da tarefa de terceiro; `null` para quem não vê financeiro. */
     custoRealTerceiro: real?.terceiro ?? null,
+    /**
+     * A sucessora (término → início) já começou e esta segue sem término real: a célula Térm. real fica amarela, com o
+     * último dia de ponto como sugestão (`termino-pendente.ts`). Nada é gravado — quem acompanha confirma.
+     */
+    terminoPendente: terminoPendente ?? null,
   };
 }
 
@@ -463,9 +483,22 @@ export async function eapDoProjeto(
   const [plano, apoio] = await Promise.all([planoDoProjeto(projetoId), carregarApoioDasLinhas(tarefas)]);
   const custos = opcoes.verCusto ? await custosDoProjeto(plano, tarefas) : null;
   const realizado = await realizadoDasLinhas(tarefas, plano, apoio, opcoes.verCusto ?? false);
+  const terminos = terminosPendentes(
+    tarefas.map((t) => ({
+      id: t.id,
+      parentId: t.parentId,
+      nome: t.nome,
+      tipoEap: t.tipoEap,
+      status: t.status,
+      inicioReal: t.inicioReal ? iso(t.inicioReal) : null,
+      fimReal: t.fimReal ? iso(t.fimReal) : null,
+      predecessoras: t.predecessoras,
+    })),
+    apoio.ponto,
+  );
   return {
     tarefas: tarefas.map((t) => {
-      const dto = mapearTarefaDTO(t, plano, apoio, custos?.porLinha.get(t.id), realizado.get(t.id));
+      const dto = mapearTarefaDTO(t, plano, apoio, custos?.porLinha.get(t.id), realizado.get(t.id), terminos.get(t.id));
       return opcoes.verDatas ? dto : semDatasDaLinha(dto);
     }),
     /** `null` = o viewer não vê custo (a coluna nem aparece). */

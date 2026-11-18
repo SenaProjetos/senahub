@@ -25,6 +25,7 @@ const linha = {
   reprogramada: true,
   duracaoReal: 4,
   duracaoRestante: 6,
+  terminoPendente: { sucessoraId: "l2", sucessoraNome: "Detalhamento", sucessoraDesde: "2026-10-14", sugestao: "2026-10-13" },
 };
 
 describe("semDatasDaLinha (decisão #3)", () => {
@@ -50,6 +51,10 @@ describe("semDatasDaLinha (decisão #3)", () => {
     const r = semDatasDaLinha(linha);
     expect(r.duracaoReal).toBeNull();
     expect(r.duracaoRestante).toBeNull();
+  });
+
+  it("tira o \"falta o término real\" (traz o dia em que a sucessora começou e a data sugerida)", () => {
+    expect(semDatasDaLinha(linha).terminoPendente).toBeNull();
   });
 
   it("mantém a estrutura: nome, duração, avanço, situação, pessoas", () => {

@@ -88,7 +88,9 @@
         "aba extras",
         "plano de mitigação",
         "composição de preço",
-        "solicitação de revisão"
+        "solicitação de revisão",
+        "início real pelo ponto",
+        "término real sugerido"
       ],
       "palavrasChave": [
         "novidades",
@@ -675,14 +677,26 @@
         "revisar planejamento",
         "reagendar",
         "ms project",
-        "gantt de controle", "variação", "execução real", "custo real", "trabalho real", "duração restante", "% concluído", "tarefa de terceiro",
+        "gantt de controle",
+        "variação",
+        "execução real",
+        "custo real",
+        "trabalho real",
+        "duração restante",
+        "% concluído",
+        "tarefa de terceiro",
         "tabela do cronograma",
         "escala",
         "editar na célula",
         "menu da linha",
         "recuar",
         "avançar",
-        "predecessoras"
+        "predecessoras",
+        "início real pelo ponto",
+        "término real",
+        "sucessora começou",
+        "célula amarela",
+        "término sugerido"
       ],
       "palavrasChave": [
         "planejamento",

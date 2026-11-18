@@ -58,6 +58,8 @@ npm run smoke:eap-lote  # EAP em lote: recuar/avançar/mover/excluir várias lin
 npm run smoke:disciplina-eap  # disciplina da linha da EAP: inserir acima herda do AGRUPAMENTO (não da vizinha), responsável só com disciplina, achado "disciplina diferente do agrupamento" e correção, fase no título do card
 npm run smoke:eap-integracao  # ponta a ponta: etapas padrão → modelo de EAP → aprovar → ponto sugere → bater → concluir card → verde/aviso → validar → enviar etapa (multifamiliar e unifamiliar)
 npm run smoke:execucao-real   # realizado por linha da EAP: Trab./Custo real (parcial sem custo/hora, terceiro digitado, soma no agrupamento), Dur. real/rest., quem não vê financeiro/datas
+npm run smoke:inicio-pelo-ponto  # início real pela 1ª hora do ponto (só o vazio, uma vez, reagenda) + "falta o término real" (sucessora término→início começou; sugestão = último dia de ponto)
+npm run eap:inicio-pelo-ponto [-- --gravar]  # carga (deploy): início real das linhas pelas horas apontadas antes da regra; só grava com --gravar
 npm run smoke:conclusao-eap  # aviso ao gestor quando alguém conclui o card de uma atividade da EAP: coordenação (ou gestores), sem o autor, nunca card manual nem linha em 100%
 npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
 npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma
@@ -663,6 +665,13 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
   `/ponto`). `projetosDoUsuario` inclui projeto onde a pessoa só tem card aberto. "Meu trabalho" lista a mesma regra.
 - **Sinais da linha** (`planejamento/sinais-linha.ts`): verde = card concluído pelo responsável e linha < 100% (sugere 100%,
   nunca grava o %); vermelho = término ATUAL do motor passou e < 100% (o filtro Atrasadas e a Saúde seguem pela linha de base).
+- **Início real pelo ponto** (2026-11-17, `inicio-pelo-ponto*.ts` + `pos-ponto.ts`): a 1ª hora apontada pelo card da linha GRAVA o
+  início real (só se vazio; marco/agrupamento/con/sus/can/arq fora; `nin`→`and`; % intocado; AuditLog na transação) e reagenda.
+  Toda action que abre sessão chama `depoisDoPontoNaTarefa` DEPOIS de gravá-la, sem nunca derrubar o ponto; toda
+  `sessaoTrabalho.create` em `src/` leva o comentário `inicio-pelo-ponto:` (guarda `inicio-pelo-ponto-guarda.test.ts`).
+  **Falta o término real** (`termino-pendente.ts`, puro, só leitura): sucessora por vínculo `fs` começou (início real ou 1º
+  ponto) e a atividade segue sem término → `EapTarefaDTO.terminoPendente` (sugestão = último dia de ponto) → célula Térm.
+  real amarela, só para `cronograma:executado` e nunca na linha verde; Enter grava, Tab/clicar fora não (`sugerido`).
 - **Avisos**: `etapa-proxima*` (job `aviso-etapa-proxima` 07:00, 2 dias úteis antes do início, uma vez por etapa+data via
   `AvisoEtapaEnviado`; lê a EAP, não o card) e `conclusao-aviso*` (card da EAP concluído → coordenação, ou admin/supervisor sem
   coordenador, sem o autor; só linha < 100%). `/recursos` mostra a carga de cronograma em RASCUNHO à parte (`rascunho`), sem somar.

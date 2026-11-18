@@ -13,6 +13,7 @@ import { aplicarBatida, editarDia } from "@/modules/ponto/service";
 import { apontamentoAtual } from "@/modules/ponto/apontamento";
 import { sugestaoParaPonto, tarefasParaPonto, type TarefaDoPonto } from "@/modules/ponto/tarefa-ponto-service";
 import { resolverDestinoDaSessao } from "@/modules/ponto/destino-sessao";
+import { depoisDoPontoNaTarefa } from "@/modules/planejamento/pos-ponto";
 import {
   alocacoesRecentes,
   espelhoDetalhado,
@@ -194,6 +195,10 @@ export const registrarBatida = defineAction(
       geo: (i.geo ?? undefined) as Prisma.InputJsonValue | undefined,
       origem,
     });
+    // Entrada e volta do descanso abrem sessão: a primeira hora na tarefa é o início real da linha da EAP.
+    if (!("idempotente" in r) && (i.tipo === "entrada" || i.tipo === "fim_descanso")) {
+      await depoisDoPontoNaTarefa(i.tarefaId, user.id);
+    }
     rev();
     return r;
   },
@@ -220,10 +225,12 @@ export const trocarProjeto = defineAction(
     const destino = await resolverDestinoDaSessao(prisma, { userId: user.id, alocacao, tarefaId: i.tarefaId, quando: agora, aoVivo: true, checarAcesso: true });
     await prisma.$transaction([
       prisma.sessaoTrabalho.update({ where: { id: aberta.id }, data: { fim: agora } }),
+      // inicio-pelo-ponto: `depoisDoPontoNaTarefa` logo abaixo.
       prisma.sessaoTrabalho.create({
         data: { userId: user.id, ...alocacao, ...destino, inicio: agora },
       }),
     ]);
+    await depoisDoPontoNaTarefa(destino.tarefaId, user.id);
     rev();
     return { ok: true };
   },

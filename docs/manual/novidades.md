@@ -20,6 +20,17 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Início real pelo ponto e "falta o término real" (novembro/2026)
+
+- **Início real automático:** ao bater o ponto (ou abrir o apontamento) escolhendo o card de uma atividade do
+  cronograma, o dia da **primeira hora apontada** vira o **início real** dela. Só preenche quando está vazio: a data
+  que a coordenação digitou continua valendo e pode ser corrigida a qualquer momento.
+- **Célula amarela no Gantt de Controle:** quando a atividade seguinte (vínculo término → início) já começou e a
+  anterior está sem **término real**, a célula **Térm. real** da anterior fica amarela, com uma **data sugerida** — o
+  último dia com hora apontada nela. Clique e tecle **Enter** para confirmar, ou digite outra data. Nada é concluído
+  sem confirmação.
+- Quem só consulta o cronograma não vê o amarelo: ele aparece para quem registra o executado.
+
 ## Datas reais direto no Gantt de Controle (novembro/2026)
 
 - No **Gantt de Controle**, o **início real** e o **término real** agora se digitam na própria tabela, sem

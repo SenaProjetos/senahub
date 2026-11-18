@@ -5,6 +5,7 @@ import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { CONTRATACOES_APONTAMENTO } from "@/lib/contratacao";
 import { abrirApontamento, fecharApontamento, trocarApontamento } from "@/modules/ponto/apontamento";
+import { depoisDoPontoNaTarefa } from "@/modules/planejamento/pos-ponto";
 
 /**
  * Restrito a `PJ_ROLES`: quem controla jornada usa `registrarBatida` (modules/ponto/actions.ts),
@@ -24,6 +25,8 @@ export const abrirApontamentoAction = defineAction(
   { ...base, acao: "abrir-apontamento", entidade: "SessaoTrabalho", schema: projetoSchema },
   async (i, { user }) => {
     const s = await abrirApontamento(user.id, i.projetoId || null, i.tarefaId || null);
+    // A primeira hora na tarefa é o início real da linha da EAP.
+    await depoisDoPontoNaTarefa(s.tarefaId, user.id);
     rev();
     return { id: s.id };
   },
@@ -33,6 +36,7 @@ export const trocarApontamentoAction = defineAction(
   { ...base, acao: "trocar-apontamento", entidade: "SessaoTrabalho", schema: projetoSchema },
   async (i, { user }) => {
     await trocarApontamento(user.id, i.projetoId || null, i.tarefaId || null);
+    await depoisDoPontoNaTarefa(i.tarefaId || null, user.id);
     rev();
     return { ok: true };
   },
