@@ -10,11 +10,16 @@ export function AnexoAbono({ id, nome }: { id: string; nome: string | null }) {
   return (
     <span className="inline-flex items-center gap-1">
       {podeVer && (
-        <Button size="sm" variant="ghost" render={<a href={`${url}?ver=1`} target="_blank" rel="noopener noreferrer" />}>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label="Ver atestado (abre em nova aba)"
+          render={<a href={`${url}?ver=1`} target="_blank" rel="noopener noreferrer" />}
+        >
           <Eye className="size-3.5" /> Ver
         </Button>
       )}
-      <Button size="sm" variant="ghost" render={<a href={url} download />}>
+      <Button size="sm" variant="ghost" aria-label="Baixar atestado" render={<a href={url} download />}>
         <Download className="size-3.5" /> Baixar
       </Button>
     </span>

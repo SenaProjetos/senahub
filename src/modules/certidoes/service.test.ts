@@ -14,6 +14,8 @@ import {
 } from "./service";
 
 const HOJE = "2026-08-05";
+/** A janela padrão (`PRAZOS_CERTIDOES_PADRAO.diasEmBreve`). */
+const JANELA = 30;
 
 describe("diasParaVencimento", () => {
   it("positivo quando a validade está no futuro", () => {
@@ -29,44 +31,53 @@ describe("diasParaVencimento", () => {
 
 describe("statusCertidao", () => {
   it("vencida quando dias < 0", () => {
-    expect(statusCertidao("2026-08-01", HOJE)).toBe("vencida");
+    expect(statusCertidao("2026-08-01", JANELA, HOJE)).toBe("vencida");
   });
   it("vence_em_breve até 30 dias", () => {
-    expect(statusCertidao("2026-09-04", HOJE)).toBe("vence_em_breve");
+    expect(statusCertidao("2026-09-04", JANELA, HOJE)).toBe("vence_em_breve");
   });
   it("ok acima de 30 dias", () => {
-    expect(statusCertidao("2026-09-06", HOJE)).toBe("ok");
+    expect(statusCertidao("2026-09-06", JANELA, HOJE)).toBe("ok");
+  });
+  it("a janela é a configurada, não fixa em 30", () => {
+    // 2026-08-20 = 15 dias
+    expect(statusCertidao("2026-08-20", 15, HOJE)).toBe("vence_em_breve");
+    expect(statusCertidao("2026-08-21", 15, HOJE)).toBe("ok");
+    expect(statusCertidao("2026-10-04", 60, HOJE)).toBe("vence_em_breve");
+    expect(textoValidade("2026-08-21", 15, HOJE).tom).toBe("neutral");
+    expect(prioridadeCertidao({ validade: "2026-08-21", obrigatoria: true, arquivoNome: "a.pdf" }, 15, HOJE)).toBe(5);
+    expect(prioridadeCertidao({ validade: "2026-08-21", obrigatoria: true, arquivoNome: "a.pdf" }, 30, HOJE)).toBe(2);
   });
   it("no dia exato da validade ainda é vence_em_breve (não vencida)", () => {
-    expect(statusCertidao(HOJE, HOJE)).toBe("vence_em_breve");
+    expect(statusCertidao(HOJE, JANELA, HOJE)).toBe("vence_em_breve");
   });
 });
 
 describe("textoValidade", () => {
   it("vencida mostra o atraso em dias", () => {
-    expect(textoValidade("2026-07-12", HOJE)).toEqual({ texto: "Vencida há 24 dias", tom: "danger" });
+    expect(textoValidade("2026-07-12", JANELA, HOJE)).toEqual({ texto: "Vencida há 24 dias", tom: "danger" });
   });
   it("singular quando é 1 dia", () => {
-    expect(textoValidade("2026-08-04", HOJE).texto).toBe("Vencida há 1 dia");
-    expect(textoValidade("2026-08-06", HOJE).texto).toBe("Vence em 1 dia");
+    expect(textoValidade("2026-08-04", JANELA, HOJE).texto).toBe("Vencida há 1 dia");
+    expect(textoValidade("2026-08-06", JANELA, HOJE).texto).toBe("Vence em 1 dia");
   });
   it("no próprio dia é 'Vence hoje', não 'em 0 dias'", () => {
-    expect(textoValidade(HOJE, HOJE)).toEqual({ texto: "Vence hoje", tom: "warning" });
+    expect(textoValidade(HOJE, JANELA, HOJE)).toEqual({ texto: "Vence hoje", tom: "warning" });
   });
   it("dentro da janela de alerta é warning", () => {
-    expect(textoValidade("2026-09-04", HOJE)).toEqual({ texto: "Vence em 30 dias", tom: "warning" });
+    expect(textoValidade("2026-09-04", JANELA, HOJE)).toEqual({ texto: "Vence em 30 dias", tom: "warning" });
   });
   it("regular é neutro (não pinta a tabela inteira de alarme)", () => {
-    expect(textoValidade("2026-09-05", HOJE)).toEqual({ texto: "Válida por 31 dias", tom: "neutral" });
+    expect(textoValidade("2026-09-05", JANELA, HOJE)).toEqual({ texto: "Válida por 31 dias", tom: "neutral" });
   });
   // O texto e o badge saem da MESMA contagem de dias — não podem discordar em nenhum dia.
   it("o tom acompanha o statusCertidao em toda a faixa", () => {
     for (let offset = -10; offset <= 45; offset++) {
       const d = new Date(Date.UTC(2026, 7, 5) + offset * 86_400_000).toISOString().slice(0, 10);
       const esperado = { vencida: "danger", vence_em_breve: "warning", ok: "neutral" } as const;
-      expect({ offset, tom: textoValidade(d, HOJE).tom }).toEqual({
+      expect({ offset, tom: textoValidade(d, JANELA, HOJE).tom }).toEqual({
         offset,
-        tom: esperado[statusCertidao(d, HOJE)],
+        tom: esperado[statusCertidao(d, JANELA, HOJE)],
       });
     }
   });
@@ -80,18 +91,18 @@ describe("prioridadeCertidao / ordenarPorPrioridade", () => {
   });
 
   it("segue os 6 níveis do §8", () => {
-    expect(prioridadeCertidao(linha("2026-08-01", true, true), HOJE)).toBe(0); // obrigatória vencida
-    expect(prioridadeCertidao(linha("2026-08-01", false, true), HOJE)).toBe(1); // vencida
-    expect(prioridadeCertidao(linha("2026-08-10", true, true), HOJE)).toBe(2); // obrigatória em breve
-    expect(prioridadeCertidao(linha("2026-08-10", false, true), HOJE)).toBe(3); // em breve
-    expect(prioridadeCertidao(linha("2026-12-01", false, false), HOJE)).toBe(4); // ok sem documento
-    expect(prioridadeCertidao(linha("2026-12-01", false, true), HOJE)).toBe(5); // ok com documento
+    expect(prioridadeCertidao(linha("2026-08-01", true, true), JANELA, HOJE)).toBe(0); // obrigatória vencida
+    expect(prioridadeCertidao(linha("2026-08-01", false, true), JANELA, HOJE)).toBe(1); // vencida
+    expect(prioridadeCertidao(linha("2026-08-10", true, true), JANELA, HOJE)).toBe(2); // obrigatória em breve
+    expect(prioridadeCertidao(linha("2026-08-10", false, true), JANELA, HOJE)).toBe(3); // em breve
+    expect(prioridadeCertidao(linha("2026-12-01", false, false), JANELA, HOJE)).toBe(4); // ok sem documento
+    expect(prioridadeCertidao(linha("2026-12-01", false, true), JANELA, HOJE)).toBe(5); // ok com documento
   });
 
   it("obrigatória vencida vem antes mesmo sem documento na concorrente", () => {
     // Documento só desempata no grupo OK — uma obrigatória vencida não é rebaixada por ter PDF.
-    expect(prioridadeCertidao(linha("2026-08-01", true, true), HOJE)).toBeLessThan(
-      prioridadeCertidao(linha("2026-08-01", false, false), HOJE),
+    expect(prioridadeCertidao(linha("2026-08-01", true, true), JANELA, HOJE)).toBeLessThan(
+      prioridadeCertidao(linha("2026-08-01", false, false), JANELA, HOJE),
     );
   });
 
@@ -103,6 +114,7 @@ describe("prioridadeCertidao / ordenarPorPrioridade", () => {
         linha("2026-08-01", true, true), // obrigatória vencida
         linha("2026-08-02", false, true), // vencida
       ],
+      JANELA,
       HOJE,
     );
     expect(ordenadas.map((c) => c.validade)).toEqual([
@@ -116,7 +128,7 @@ describe("prioridadeCertidao / ordenarPorPrioridade", () => {
   it("não muta o array recebido", () => {
     const entrada = [linha("2026-12-01", false, true), linha("2026-07-01", false, true)];
     const copia = [...entrada];
-    ordenarPorPrioridade(entrada, HOJE);
+    ordenarPorPrioridade(entrada, JANELA, HOJE);
     expect(entrada).toEqual(copia);
   });
 });
@@ -135,7 +147,7 @@ describe("janelaAtencaoUtc", () => {
 
   for (const agora of INSTANTES) {
     it(`o recorte SQL casa com statusCertidao às ${agora.getHours()}h`, () => {
-      const { hojeUtc, limiteUtc } = janelaAtencaoUtc(agora);
+      const { hojeUtc, limiteUtc } = janelaAtencaoUtc(JANELA, agora);
       const hojeISO = "2026-08-05";
 
       for (let offset = -5; offset <= 40; offset++) {
@@ -143,7 +155,7 @@ describe("janelaAtencaoUtc", () => {
         const validade = new Date(hojeUtc.getTime() + offset * 86_400_000);
         const validadeISO = validade.toISOString().slice(0, 10);
 
-        const status = statusCertidao(validadeISO, hojeISO);
+        const status = statusCertidao(validadeISO, JANELA, hojeISO);
         const contadaComoVencida = validade < hojeUtc;
         const contadaComoEmBreve = validade >= hojeUtc && validade <= limiteUtc;
 
@@ -156,9 +168,24 @@ describe("janelaAtencaoUtc", () => {
     });
   }
 
-  it("a janela cobre exatamente 30 dias", () => {
-    const { hojeUtc, limiteUtc } = janelaAtencaoUtc(new Date(2026, 7, 5, 12));
-    expect((limiteUtc.getTime() - hojeUtc.getTime()) / 86_400_000).toBe(30);
+  it("a janela cobre exatamente os dias configurados", () => {
+    for (const dias of [1, 15, 30, 90]) {
+      const { hojeUtc, limiteUtc } = janelaAtencaoUtc(dias, new Date(2026, 7, 5, 12));
+      expect((limiteUtc.getTime() - hojeUtc.getTime()) / 86_400_000).toBe(dias);
+    }
+  });
+
+  it("com outra janela, o recorte SQL continua casando com statusCertidao", () => {
+    const dias = 12;
+    const { hojeUtc, limiteUtc } = janelaAtencaoUtc(dias, new Date(2026, 7, 5, 21));
+    for (let offset = -3; offset <= 20; offset++) {
+      const validade = new Date(hojeUtc.getTime() + offset * 86_400_000);
+      const status = statusCertidao(validade.toISOString().slice(0, 10), dias, "2026-08-05");
+      expect({ offset, emBreve: validade >= hojeUtc && validade <= limiteUtc }).toEqual({
+        offset,
+        emBreve: status === "vence_em_breve",
+      });
+    }
   });
 });
 
@@ -170,7 +197,7 @@ describe("panoramaCompliance", () => {
       { id: "3", tipoId: "t2", validade: "2027-01-01", arquivoPath: "c.pdf" }, // ok
       { id: "4", tipoId: "t2", validade: "2026-08-01", arquivoPath: null }, // vencida, sem arquivo
     ];
-    expect(panoramaCompliance(certidoes, HOJE)).toEqual({
+    expect(panoramaCompliance(certidoes, JANELA, HOJE)).toEqual({
       vencidas: 2,
       venceEmBreve: 1,
       ok: 1,

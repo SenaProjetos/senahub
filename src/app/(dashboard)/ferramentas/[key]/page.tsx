@@ -19,7 +19,7 @@ export default async function FerramentaPage({ params }: Props) {
   const { key } = await params;
   const user = await requirePermission("ferramentas", "usar");
   const meta = getFerramenta(key);
-  if (!meta) notFound();
+  if (!meta || meta.soEstudo) notFound();
   // Em validação: some para quem não gere as ferramentas (mesma regra da galeria).
   if (!ferramentaVisivel(meta, await can(user, "ferramentas", "gerir"))) notFound();
 

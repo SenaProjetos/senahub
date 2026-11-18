@@ -64,6 +64,7 @@ import {
   etapaDisciplina,
   rotuloEtapaDisciplina,
 } from "@/modules/projetos/status";
+import { DICA_STATUS_DAS_FASES, statusVemDasFases } from "@/modules/projetos/status-pelas-fases";
 import { diasDeAtraso } from "@/modules/projetos/atraso";
 import type { StatusDisciplina } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";
@@ -337,10 +338,13 @@ export function DisciplinaCard({
     status: disciplina.status,
     aprovacaoSolicitadaEm: disciplina.aprovacaoSolicitadaEm,
   });
+  // Spec 2026-11-13: com fase (e fora do fluxo de pastas) o status é calculado pelas fases — sem troca manual.
+  const statusDasFases = statusVemDasFases({ qtdFases: disciplina.etapas.length, usaPastas: disciplina.usaPastas });
   const itens = itensDeDisciplina(
     {
       status: disciplina.status,
       usaPastas: disciplina.usaPastas,
+      statusDasFases,
       qtdArquivos,
       qtdRevisoes,
       aguardandoConfirmacao: disciplina.aprovacaoSolicitadaEm != null,
@@ -359,7 +363,7 @@ export function DisciplinaCard({
       hrefChat: canalChatId ? `/chat?c=${canalChatId}` : null,
     },
   );
-  const podeTrocarStatus = podeMexerStatus && disciplina.status !== "aprovado";
+  const podeTrocarStatus = podeMexerStatus && disciplina.status !== "aprovado" && !statusDasFases;
 
   function mudarStatus(status: StatusDisciplina) {
     start(async () => {
@@ -533,8 +537,10 @@ export function DisciplinaCard({
             ) : (
               <span
                 className={cn("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-semibold", visual.pilula)}
+                title={statusDasFases ? DICA_STATUS_DAS_FASES : undefined}
               >
                 {pilula}
+                {statusDasFases && <span className="sr-only">. {DICA_STATUS_DAS_FASES}</span>}
               </span>
             )}
             </div>

@@ -43,6 +43,7 @@ export const TIPOS_EVENTO = {
   pendencia_dispensa_desfeita: { categoria: "alteracao", rotulo: "Desfez a dispensa de uma pendência" },
   arquivo_substituido: { categoria: "alteracao", rotulo: "Enviou nova versão" },
   envio_sem_carimbo: { categoria: "alteracao", rotulo: "Enviou para análise sem conferência de carimbo" },
+  envio_com_excecao: { categoria: "alteracao", rotulo: "Enviou para análise com exceção de administrador" },
   publicacao_sem_dwg: { categoria: "alteracao", rotulo: "Publicou sem DWG" },
   download: { categoria: "acesso", rotulo: "Baixou" },
   visualizacao: { categoria: "acesso", rotulo: "Visualizou" },
@@ -217,6 +218,10 @@ export function complementoEvento(tipo: TipoEvento, detalhe: unknown): string | 
     case "envio_sem_carimbo":
     case "publicacao_sem_dwg":
       return texto("motivo");
+    case "envio_com_excecao": {
+      const dispensados = Array.isArray(d.dispensados) ? (d.dispensados as unknown[]).filter((x) => typeof x === "string").join(" ") : null;
+      return [texto("motivo"), dispensados ? `Dispensado: ${dispensados}` : null].filter(Boolean).join(" · ") || null;
+    }
     case "envio": {
       // Só o que ESTE envio classificou (o motor de nomenclatura não sobrescreve o que já
       // existia, então a ausência aqui significa "não mexeu", não "não tem").

@@ -9,6 +9,7 @@ describe("registro de audiências", () => {
     expect(whereAudiencia("clt")).toEqual(whereControlaJornada());
     expect(whereAudiencia("pj")).toEqual({ ativo: true, contratacao: { in: ["pj", "autonomo_rpa"] } });
     expect(whereAudiencia("projeto_membro")).toEqual({ ativo: true, tipo: "interno", setor: "engenharia" });
+    expect(whereAudiencia("administradores")).toEqual({ ativo: true, superUsuario: true });
     // Freelancer = prestador SEM CNPJ (regra do dono, 2026-10-10).
     expect(whereAudiencia("planejamento_recurso")).toEqual({
       ativo: true,

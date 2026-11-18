@@ -415,6 +415,19 @@ de montar a EAP, e funciona com o plano aprovado e travado.
 
 - **Atividade:** informe o **início real** e, ao terminar, o **término real**. O término conclui a
   atividade (100%); apagá-lo a reabre, sem inventar o percentual de volta.
+- **Início real pelo ponto:** quando alguém bate o ponto (ou abre o apontamento) escolhendo o card da atividade, o
+  dia da **primeira hora apontada** vira o início real dela, sozinho — e a atividade passa a "em andamento". O ponto
+  só **preenche o vazio**: um início real que você já digitou nunca é trocado, e você pode corrigir a data a qualquer
+  momento. Marco, agrupamento e tarefa suspensa, cancelada, arquivada ou concluída ficam de fora. Hora apontada
+  **sem escolher o card** não conta. Como toda data real, o início muda a previsão das tarefas que dependem dela.
+- **Falta o término real (célula amarela):** no **Gantt de Controle**, quando a **sucessora** de uma atividade
+  (vínculo **término → início**) já começou — pelo ponto ou pelo início real digitado — e a atividade ainda não tem
+  término real, a célula **Térm. real** fica **amarela**. Ela mostra uma **data sugerida com "?"**: o último dia
+  com hora apontada na atividade. Clique na célula e tecle **Enter** para confirmar a sugestão, ou digite outra
+  data. **Tab** ou clicar fora passam **sem gravar** — nada é concluído sem você confirmar. Sem hora apontada na
+  atividade, a célula mostra "informar" (sem sugestão). Só vê o amarelo quem registra o executado; a linha que já
+  está **verde** (card concluído) segue pelo verde. Vínculos início → início, término → término e início →
+  término não acendem o amarelo — neles as tarefas andam juntas de propósito.
 - **% concluído:** registra o avanço **sem concluir** — serve para a tarefa geral ou de terceiro, que não tem
   horas no ponto, e para o projeto antigo que você está pondo em dia. Vai de 0 a 99: **100% só pelo término
   real**, porque "terminou" é uma data, não um número. Com o término real preenchido o campo fica travado em 100.
@@ -445,7 +458,7 @@ No **Controle**, depois do **% concl.**, ficam as colunas do que **já aconteceu
 
 | Coluna | O que mostra |
 | --- | --- |
-| **Iníc. real** / **Térm. real** | As datas informadas em **Atualizar tarefa**. |
+| **Iníc. real** / **Térm. real** | As datas informadas em **Atualizar tarefa** ou digitadas na célula. O início real também vem da **primeira hora apontada no ponto**; o término real **amarelo** pede a data porque a sucessora já começou (veja acima). |
 | **Dur. real** | Dias úteis do início real até o término real — ou até hoje, se não terminou. |
 | **Dur. rest.** | Dias úteis de hoje até o término previsto. **0 em vermelho** = o término previsto já passou e a tarefa não foi concluída. |
 | **Trab. real** | Horas apontadas no **ponto** nos cards da tarefa. Tarefa de terceiro mostra "—" (não se mede pelo ponto). |

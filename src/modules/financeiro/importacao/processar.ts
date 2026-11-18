@@ -6,6 +6,7 @@
  */
 import { createHash } from "node:crypto";
 import type { CampoSenaHub } from "@/lib/import/mapeamento";
+import type { ResolucaoLinha } from "@/modules/financeiro/importacao/cadastros";
 import {
   parseValorBr,
   parseDataBr,
@@ -40,11 +41,23 @@ export type LinhaNorm = {
   contatoDoc: string;
   observacao: string;
   tags: string[];
+  /** Código do projeto (`Projeto.codigo`) digitado na planilha; vazio = deixar as regras preencherem. */
+  projetoCodigo: string;
+  /** Nome do sócio ou e-mail do usuário dele; vazio = sem sócio. */
+  socioRef: string;
+  numeroDocumento: string;
+  /**
+   * Chave anti-duplicata: `md:<ID único>` ou `x:<sha256(tipo|conta|data|centavos|descrição|nº do documento|n)>`
+   * — sem a categoria, e com `n` = ordem da linha entre as idênticas do mesmo arquivo. Mudar qualquer parte
+   * (a descrição, por exemplo) muda a chave: linha já importada se corrige na tela, nunca no arquivo.
+   */
   hash: string;
+  /** A chave no formato antigo (`h:` + tipo|data|valor|descrição|categoria), só para reconhecer lotes já gravados. */
+  hashLegado: string | null;
   erros: string[];
 };
 
-export type SaldoInicial = { contaNome: string; valor: number };
+export type SaldoInicial = { contaNome: string; valor: number; data: Date | null };
 
 export type ResultadoNorm = {
   linhas: LinhaNorm[];
@@ -82,9 +95,31 @@ function soDigitos(s: string): string {
   return s.replace(/\D/g, "");
 }
 
-function hashLinha(idUnico: string, partes: (string | number)[]): string {
+function sha(partes: (string | number)[]): string {
+  return createHash("sha256").update(partes.join("|")).digest("hex").slice(0, 32);
+}
+
+/** Fórmula antiga da chave (até 2026-11): depende da categoria e não separa linhas idênticas. */
+function hashLegadoLinha(idUnico: string, partes: (string | number)[]): string | null {
+  if (idUnico) return null;
+  return "h:" + sha(partes);
+}
+
+/**
+ * Chave nova. `ocorrencias` conta, por arquivo, quantas linhas com a mesma base já apareceram — duas
+ * linhas idênticas (mesma conta, dia, valor, descrição e nº do documento) viram `…|0` e `…|1`, e o mesmo arquivo
+ * reimportado gera as mesmas chaves.
+ */
+function hashNovo(idUnico: string, base: (string | number)[], ocorrencias: Map<string, number>): string {
   if (idUnico) return `md:${idUnico}`;
-  return "h:" + createHash("sha256").update(partes.join("|")).digest("hex").slice(0, 32);
+  const k = base.join("|");
+  const n = ocorrencias.get(k) ?? 0;
+  ocorrencias.set(k, n + 1);
+  return "x:" + sha([...base, n]);
+}
+
+function centavos(v: number): number {
+  return isFinite(v) ? Math.round(v * 100) : NaN;
 }
 
 /** Constrói uma linha normalizada de lançamento (perna única ou de transferência). */
@@ -107,7 +142,11 @@ function montarLinha(opts: {
   contatoDoc: string;
   observacao: string;
   tags: string[];
+  projetoCodigo: string;
+  socioRef: string;
+  numeroDocumento: string;
   hash: string;
+  hashLegado: string | null;
 }): LinhaNorm {
   const erros: string[] = [];
   if (!opts.data) erros.push("Data inválida ou ausente.");
@@ -132,7 +171,11 @@ function montarLinha(opts: {
     contatoDoc: opts.contatoDoc,
     observacao: opts.observacao,
     tags: opts.tags,
+    projetoCodigo: opts.projetoCodigo,
+    socioRef: opts.socioRef,
+    numeroDocumento: opts.numeroDocumento,
     hash: opts.hash,
+    hashLegado: opts.hashLegado,
     erros,
   };
 }
@@ -144,6 +187,7 @@ function montarLinha(opts: {
 export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm {
   const linhas: LinhaNorm[] = [];
   const saldosIniciais: SaldoInicial[] = [];
+  const ocorrencias = new Map<string, number>();
 
   rows.forEach((row, i) => {
     const idx = i + 1;
@@ -174,6 +218,9 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
     const centroNome = valorOuVazio(celula(row, m, "centro"));
     const contatoNome = valorOuVazio(celula(row, m, "contato"));
     const contatoDoc = soDigitos(celula(row, m, "documento"));
+    const projetoCodigo = valorOuVazio(celula(row, m, "projeto"));
+    const socioRef = valorOuVazio(celula(row, m, "socio"));
+    const numeroDocumento = valorOuVazio(celula(row, m, "numeroDocumento"));
 
     // Categoria + subcategoria (hierarquia em 2 colunas).
     const categoriaNome = valorOuVazio(celula(row, m, "categoria"));
@@ -181,7 +228,7 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
 
     if (classe === "saldo_inicial") {
       if (contaNome && valorNum != null) {
-        saldosIniciais.push({ contaNome, valor: valorNum });
+        saldosIniciais.push({ contaNome, valor: valorNum, data });
       }
       return;
     }
@@ -191,7 +238,13 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
       // Sinal define a origem: negativo sai de `conta`; positivo entra em `conta`.
       const saiDe = (valorNum ?? 0) < 0 ? contaNome : contaDestino;
       const entraEm = (valorNum ?? 0) < 0 ? contaDestino : contaNome;
-      const baseHash = hashLinha(idUnico, ["transf", data?.toISOString() ?? "", valorAbs, descricao]);
+      const dataIso = data?.toISOString() ?? "";
+      const baseHash = hashNovo(
+        idUnico,
+        ["transf", chaveMatch(contaNome), dataIso, centavos(valorAbs), chaveMatch(descricao), chaveMatch(numeroDocumento)],
+        ocorrencias,
+      );
+      const baseLegado = hashLegadoLinha(idUnico, ["transf", dataIso, valorAbs, descricao]);
       const comum = {
         idx,
         descricao,
@@ -209,12 +262,15 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
         contatoDoc: "",
         observacao,
         tags,
+        projetoCodigo,
+        socioRef,
+        numeroDocumento,
       };
       // Saída (despesa) na conta de origem.
-      linhas.push(montarLinha({ ...comum, tipo: "despesa", contaNome: saiDe, hash: baseHash + ":out" }));
+      linhas.push(montarLinha({ ...comum, tipo: "despesa", contaNome: saiDe, hash: baseHash + ":out", hashLegado: baseLegado && baseLegado + ":out" }));
       // Entrada (receita) na conta de destino (só se houver destino).
       if (entraEm) {
-        linhas.push(montarLinha({ ...comum, tipo: "receita", contaNome: entraEm, hash: baseHash + ":in" }));
+        linhas.push(montarLinha({ ...comum, tipo: "receita", contaNome: entraEm, hash: baseHash + ":in", hashLegado: baseLegado && baseLegado + ":in" }));
       }
       return;
     }
@@ -222,7 +278,13 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
     // Lançamento comum.
     const tipo = inferirTipo({ tipoTexto, valor: valorNum ?? 0 });
     const valorAbs = Math.abs(valorNum ?? NaN);
-    const hash = hashLinha(idUnico, [tipo, data?.toISOString() ?? "", valorAbs, chaveMatch(descricao), chaveMatch(categoriaNome)]);
+    const dataIso = data?.toISOString() ?? "";
+    const hash = hashNovo(
+      idUnico,
+      [tipo, chaveMatch(contaNome), dataIso, centavos(valorAbs), chaveMatch(descricao), chaveMatch(numeroDocumento)],
+      ocorrencias,
+    );
+    const hashLegado = hashLegadoLinha(idUnico, [tipo, dataIso, valorAbs, chaveMatch(descricao), chaveMatch(categoriaNome)]);
     linhas.push(
       montarLinha({
         idx,
@@ -243,7 +305,11 @@ export function normalizarLinhas(rows: string[][], m: Mapeamento): ResultadoNorm
         contatoDoc,
         observacao,
         tags,
+        projetoCodigo,
+        socioRef,
+        numeroDocumento,
         hash,
+        hashLegado,
       }),
     );
   });
@@ -293,8 +359,17 @@ export function chaveCatFilha(tipo: string, paiNome: string, nome: string): stri
 /**
  * Conta o que seria criado, simulando a resolução com Sets clonados (dedup dentro do lote).
  * Não escreve nada.
+ *
+ * `opts.resolucoes` (paralelo a `res.linhas`, de `resolverLinhas`) soma os erros do cadastro às linhas e
+ * diz o que a linha já achou (categoria por código, contato a criar). Com `criarCadastros: false` nada de
+ * categoria, conta, forma ou centro é criado — o que faltaria já é erro na linha.
  */
-export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: Contagens; erros: ErroLinha[] } {
+export function contarDryRun(
+  res: ResultadoNorm,
+  ex: Existentes,
+  opts: { resolucoes?: ResolucaoLinha[]; criarCadastros?: boolean } = {},
+): { contagens: Contagens; erros: ErroLinha[] } {
+  const criar = opts.criarCadastros !== false;
   const cat = new Set(ex.categorias);
   const contas = new Set(ex.contas);
   const formas = new Set(ex.formas);
@@ -319,7 +394,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
   const erros: ErroLinha[] = [];
 
   // saldos iniciais podem criar contas
-  for (const s of res.saldosIniciais) {
+  for (const s of criar ? res.saldosIniciais : []) {
     const k = chaveMatch(s.contaNome);
     if (k && !contas.has(k)) {
       contas.add(k);
@@ -327,20 +402,23 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
     }
   }
 
-  for (const l of res.linhas) {
-    if (l.erros.length > 0) {
+  res.linhas.forEach((l, i) => {
+    const r = opts.resolucoes?.[i];
+    const errosDaLinha = r ? [...l.erros, ...r.erros] : l.erros;
+    if (errosDaLinha.length > 0) {
       c.linhasComErro++;
-      erros.push({ idx: l.idx, erros: l.erros });
-      continue;
+      erros.push({ idx: l.idx, erros: errosDaLinha });
+      return;
     }
-    if (ex.hashes.has(l.hash)) {
+    if (ex.hashes.has(l.hash) || (l.hashLegado != null && ex.hashes.has(l.hashLegado))) {
       c.duplicados++;
-      continue;
+      return;
     }
     c.novosLancamentos++;
 
-    // categoria (pai sempre; filha quando há subcategoria)
-    if (l.categoriaNome) {
+    // categoria (pai sempre; filha quando há subcategoria) — só a que a resolução não achou
+    const categoriaAchada = r?.categoriaId != null || (!criar && l.categoriaNome === CATEGORIA_TRANSFERENCIA);
+    if (criar && l.categoriaNome && !categoriaAchada) {
       const kPai = chaveCatPai(l.tipo, l.categoriaNome);
       if (!cat.has(kPai)) {
         cat.add(kPai);
@@ -354,8 +432,8 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
         }
       }
     }
-    // conta
-    if (l.contaNome) {
+    // conta, forma e centro só se criam com `criarCadastros` (no estrito o desconhecido já é erro)
+    if (criar && l.contaNome) {
       const k = chaveMatch(l.contaNome);
       if (!contas.has(k)) {
         contas.add(k);
@@ -363,7 +441,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
       }
     }
     // forma
-    if (l.formaNome) {
+    if (criar && l.formaNome) {
       const k = chaveMatch(l.formaNome);
       if (!formas.has(k)) {
         formas.add(k);
@@ -371,7 +449,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
       }
     }
     // centro
-    if (l.centroNome) {
+    if (criar && l.centroNome) {
       const k = chaveMatch(l.centroNome);
       if (!centros.has(k)) {
         centros.add(k);
@@ -379,7 +457,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
       }
     }
     // contato (despesa→fornecedor, receita→cliente)
-    if (l.contatoNome || l.contatoDoc) {
+    if ((l.contatoNome || l.contatoDoc) && (r == null || r.criaContato)) {
       const isForn = l.tipo === "despesa";
       const setDoc = isForn ? fornDoc : cliDoc;
       const setNome = isForn ? fornNome : cliNome;
@@ -393,7 +471,7 @@ export function contarDryRun(res: ResultadoNorm, ex: Existentes): { contagens: C
         else c.clientesACriar++;
       }
     }
-  }
+  });
 
   return { contagens: c, erros };
 }

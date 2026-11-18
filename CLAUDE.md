@@ -46,6 +46,8 @@ npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um 
 npm run smoke:pedido-dados   # "Atualize seus dados" + reconfirmação anual: faixa, um aberto por pessoa, CPF/RG ao RH, fechamento (restaura a pessoa)
 npm run smoke:desenvolvimento  # liderança única ativa, 1:1 compartilhado × privado (o privado não sai do servidor), lembrete sem conteúdo
 npm run smoke:documentos-validade  # documento com validade: aviso 60/30/7/vencido uma vez por faixa, renovar rearma
+npm run smoke:prazos-certidoes     # prazos das certidões (ConfigSistema certidoes.prazos): sem config = 30 dias e 30/15/7, janela no badge/card, dias do job, aviso no dia certo, lista vazia desliga
+npm run smoke:avisos-dia-certo     # dia-alvo dos jobs (faixaDoDiaUtc): disciplina, inadimplência D+1, licitação, cotação (D-N e sem resposta), contrato, acesso — avisa hoje+N, nunca hoje+N+1
 npm run smoke:ponto-tarefa    # ponto com tarefa: lista curta (atrasada não some), sugestão da atividade de hoje, validação, edição do dia, apontado × previsto
 npm run ensaio:eap [-- --refazer]  # (só banco de dev) projeto de ensaio estilo Arapiraca: etapas, EAP com gente, cronograma aprovado, cards e 1 usuário por perfil (senha Demo@2026); `ensaio:conferir` lê o que cada perfil enxerga
 npm run smoke:desfazer-eap  # Ctrl+Z da EAP: foto do plano, passo só se o plano mudou, mesmos ids e idCorporativo ao restaurar (linha, vínculo, pessoa, parcela de contrato), recusa se outra pessoa editou, pilha de 20, plano aprovado
@@ -56,15 +58,20 @@ npm run smoke:eap-lote  # EAP em lote: recuar/avançar/mover/excluir várias lin
 npm run smoke:disciplina-eap  # disciplina da linha da EAP: inserir acima herda do AGRUPAMENTO (não da vizinha), responsável só com disciplina, achado "disciplina diferente do agrupamento" e correção, fase no título do card
 npm run smoke:eap-integracao  # ponta a ponta: etapas padrão → modelo de EAP → aprovar → ponto sugere → bater → concluir card → verde/aviso → validar → enviar etapa (multifamiliar e unifamiliar)
 npm run smoke:execucao-real   # realizado por linha da EAP: Trab./Custo real (parcial sem custo/hora, terceiro digitado, soma no agrupamento), Dur. real/rest., quem não vê financeiro/datas
+npm run smoke:inicio-pelo-ponto  # início real pela 1ª hora do ponto (só o vazio, uma vez, reagenda) + "falta o término real" (sucessora término→início começou; sugestão = último dia de ponto)
+npm run eap:inicio-pelo-ponto [-- --gravar]  # carga (deploy): início real das linhas pelas horas apontadas antes da regra; só grava com --gravar
 npm run smoke:conclusao-eap  # aviso ao gestor quando alguém conclui o card de uma atividade da EAP: coordenação (ou gestores), sem o autor, nunca card manual nem linha em 100%
 npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
 npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
+npm run smoke:status-pelas-fases  # status da disciplina pelas fases: envio/desfazer, aprovação global PJ e CLT, reabrir/reaprovar sem pagamento novo, apontamentos, paga inteira, corrida, prévia da migração
+npm run disciplinas:recalcular-status [-- --gravar]  # migração (deploy): lista as disciplinas cujo status mudaria; só grava com --gravar
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas
 npm run smoke:apagar-eap            # apagar a EAP inteira (rascunho): o que impede, o que vai junto, o que fica
 npm run smoke:retencoes             # retenções na nota (C4): pagar líquido + contas dos impostos, parcial/desconto recusados, estorno, conciliação, cobrança, contabilidade
+npm run smoke:importacao-extrato    # importação de extrato categorizado: projeto/sócio/nº doc, modo estrito sem cadastro novo, reimportar sem duplicar (chave nova e antiga), saldo inicial com data
 npm run smoke:financeiro-core       # núcleo do financeiro: N0 (parcelas do projeto, projetista pago no Financeiro, recebido pelo pago) e N1 (estorno, reabrir, caminhos impossíveis, desfazer importação)
 npm run smoke:planejador            # planejador de caixa: S0 = caixa da Visão geral, só pendente vira evento, transferência, parcial, leitura não grava; aplicar cenário tudo-ou-nada (obsoleto, regra no 3º, corrida); caixinhas, distribuição, recorrência, fora do resultado, lucros de sócio e folha quitando o previsto
 npm run smoke:contabil              # integração contábil (M5): plano do contador, partidas (reconhecimento+baixa, parcial, cartão, transferência, folha fora), invariante do extrato, exportação só de mês fechado
@@ -543,7 +550,8 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
 
 **Document lifecycle (ISO 19650)** (`modules/uploads/ciclo/`, spec `docs/superpowers/specs/2026-10-08-ciclo-documental-iso19650.md`):
 each `DocumentoRevisao` has ONE `estado` (`em_andamento → compartilhado → publicado → arquivado`; the screen calls
-`compartilhado` "Em análise"), `ControleRevisao` rows coexist with it (`liberado_obra`, `enviado_cliente`, `bloqueio`,
+`compartilhado` "Em análise"; sending a round of apontamentos (`enviarApontamentos`) on a revision in análise
+returns it to `em_andamento` inside the round's transaction — `devolverPelosApontamentosNoTx`, A10), `ControleRevisao` rows coexist with it (`liberado_obra`, `enviado_cliente`, `bloqueio`,
 `restricao` — removal fills `removidoEm`, never deletes) and every change is a `DocumentoEvento` with `revisaoId` written
 INSIDE the transaction (`gravarEventoNoTx`). Only `ciclo/service.ts` changes state or controls (`updateMany` conditioned
 on the state read; pure table in `transicoes.ts`); the partial index `documento_revisao_um_publicado` enforces one
@@ -646,6 +654,12 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
   pagamento por fase espera a soma dos % fechar 100%. Disciplinas anteriores à mudança não ganham etapa. Aplicar um modelo de EAP
   PREENCHE esses % com os do modelo (`modelos/preencher-percentuais.ts`) só se a disciplina inteira está a 0%, sem fase liberada,
   e o modelo traz % de TODA etapa dela somando 100% (unifamiliar: o modelo precisa ser só BS/EX); senão segue a 0%.
+- **Status da disciplina vem das fases** (spec `docs/superpowers/specs/2026-11-13-status-disciplina-pelas-fases.md`): disciplina
+  com fase e fora do fluxo de pastas (`statusVemDasFases`) tem o status calculado (`status-pelas-fases.ts`, puro) e gravado SÓ por
+  `recalcularStatusDisciplina(tx, …)` (`status-pelas-fases-service.ts`: trava a linha da disciplina, lê as fases, grava + AuditLog),
+  chamado na MESMA transação de toda escrita de `DisciplinaEtapa` — guarda `status-pelas-fases-guarda.test.ts` (escrita sem efeito
+  em status leva `// recalculo-ok:`). Troca manual e em massa recusam (`MOTIVO_STATUS_DAS_FASES`). Reabrir e apontamentos põem a
+  fase em `em_revisao` (exceção sancionada, pagamento intacto); reaprovar não paga de novo (`aprovarFasesSemPagamento`).
 - **"Enviei os documentos"** (`projetos/envio-etapa*.ts`): só responsável da disciplina; etapa → `entregue`; desfaz até
   aprovar; avisa coordenação + responsáveis (`aprovacao_disciplina`). Escrita é `updateMany` condicionada ao status lido.
 - **Ponto** (`ponto/tarefa-ponto.ts`, puro): janela ±7 dias, atrasada ABERTA nunca some (topo), "outras da etapa" recolhidas
@@ -653,6 +667,13 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
   `/ponto`). `projetosDoUsuario` inclui projeto onde a pessoa só tem card aberto. "Meu trabalho" lista a mesma regra.
 - **Sinais da linha** (`planejamento/sinais-linha.ts`): verde = card concluído pelo responsável e linha < 100% (sugere 100%,
   nunca grava o %); vermelho = término ATUAL do motor passou e < 100% (o filtro Atrasadas e a Saúde seguem pela linha de base).
+- **Início real pelo ponto** (2026-11-17, `inicio-pelo-ponto*.ts` + `pos-ponto.ts`): a 1ª hora apontada pelo card da linha GRAVA o
+  início real (só se vazio; marco/agrupamento/con/sus/can/arq fora; `nin`→`and`; % intocado; AuditLog na transação) e reagenda.
+  Toda action que abre sessão chama `depoisDoPontoNaTarefa` DEPOIS de gravá-la, sem nunca derrubar o ponto; toda
+  `sessaoTrabalho.create` em `src/` leva o comentário `inicio-pelo-ponto:` (guarda `inicio-pelo-ponto-guarda.test.ts`).
+  **Falta o término real** (`termino-pendente.ts`, puro, só leitura): sucessora por vínculo `fs` começou (início real ou 1º
+  ponto) e a atividade segue sem término → `EapTarefaDTO.terminoPendente` (sugestão = último dia de ponto) → célula Térm.
+  real amarela, só para `cronograma:executado` e nunca na linha verde; Enter grava, Tab/clicar fora não (`sugerido`).
 - **Avisos**: `etapa-proxima*` (job `aviso-etapa-proxima` 07:00, 2 dias úteis antes do início, uma vez por etapa+data via
   `AvisoEtapaEnviado`; lê a EAP, não o card) e `conclusao-aviso*` (card da EAP concluído → coordenação, ou admin/supervisor sem
   coordenador, sem o autor; só linha < 100%). `/recursos` mostra a carga de cronograma em RASCUNHO à parte (`rascunho`), sem somar.
@@ -753,6 +774,25 @@ forma). Condição de seção por disciplina = `SecaoBriefing.disciplinas` (term
 trava otimista por `versao`. Um modelo arquiva (não exclui) e há um só padrão (índice parcial `modelo_briefing_um_padrao`, fora do
 schema.prisma). Trocar o modelo do projeto zera `secoesOcultas/camposOcultos` e recalcula o status; as respostas ficam. As perguntas
 extras por disciplina (`InputTemplate`/`InputProjeto`) são outra coisa e não mudaram. Verificação: `npm run smoke:modelos-briefing`.
+
+**Financial import: strict mode and the retroactive cut** (spec `docs/superpowers/specs/2026-11-10-lancamento-retroativo-extrato-design.md`):
+`importacao/cadastros.ts` (pure) is the ONE rule of what the preview shows and what the commit writes — `resolverLinhas` over
+`carregarIndice` (`commit-core.ts`), re-run by `executarCommit` inside the transaction. `criarCadastros: false` (strict, the
+screen default) never creates categoria/conta/forma/centro (unknown = line error) and a new contato only with a valid CPF/CNPJ;
+`true` is the old Meu Dinheiro behaviour. Both modes: wrong-tipo categoria, unknown projeto (`Projeto.codigo`) and sócio are
+errors; categoria accepts the plan `codigo` first; a transfer enters with both legs or none. Strict only: an inactive
+categoria/conta/forma/centro, a paid row without conta, a paid row dated after today (`OpcoesCadastro.hoje`, São Paulo day)
+and a transfer without two legs in two different contas are line errors. The dedup key is `x:` + sha256 of
+`tipo|conta|data|centavos|descrição|nº documento|n` (`n` = order among identical rows of the file), no categoria — changing
+any part makes a new row, so an imported row is fixed on screen, never in the file; `hashLegado` (old `h:` formula, no conta)
+is checked too, so old lots never come back — any new "already imported" check must use `chavesDasLinhas`/`jaImportada`.
+There is no unique index on `importHash`: `executarCommit` takes `pg_advisory_xact_lock(TRAVA_IMPORTACAO)` first, so imports
+queue and the second one re-reads the keys. A "Saldo inicial" row with a date also writes `saldoInicialEm` (undoing the lot
+does not revert it). Folha: `rh/folha/corte.ts` + `ConfigSistema`
+`rh.folha.fechaNoFinanceiroDesde` (`"2026-10"`, migration) — `fecharFolhaNoBanco` refuses an earlier competência (it went in
+through the bank statement), `reabrirFolhaNoBanco` refuses to reopen one (it could never close again), and the screen
+disables each button with the same sentence. The Claude-side runbook and the
+read-only Postgres role live in `docs/financeiro/retroativo/`.
 
 **Proposta composta** (`modules/comercial/proposta-composta/`, ADR-0006, plano em
 `docs/superpowers/specs/2026-09-19-proposta-composta.md`) — a proposta montada NO sistema: modelo +
@@ -883,28 +923,21 @@ The five canonical roles, each label string equal to its name (`needs-triage`, `
 
 Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root — both exist since 2026-09-09. See `docs/agents/domain.md`. Note the two ADR series: `docs/adr/000N-slug.md` is the current convention; `docs/manual/decisions/ADR-00N-*.md` is the legacy one and still valid.
 
-## Parallel worktrees (one per IDE)
+## Worktrees
 
-Two agents work this repo at the same time, like two separate developers. Identify yours by the
-**folder you are in** — never by the environment: the Claude Code extension in Antigravity reports
-itself as "VSCode".
+Since 2026-11-16 there is ONE main worktree: `SENAHub-remake` (port 3000, dev DB `senahub_remake` on 5433), working on
+branch `dev` (integration branch; `feat/*` branches merge into it; `master` is deploy only — never work on it). The old
+VS Code worktree (`SENAHub-remake-vscode`, `dev-vscode`, `senahub_remake_vscode`) was removed. Extra worktrees
+(`SENAHub-remake-<feature>`) exist only for a short-lived feature branch; each has its own `.env`, real `node_modules`
+and `src/generated`.
 
-| IDE | Folder | Branch | Port | Dev DB (5433) |
-|---|---|---|---|---|
-| Antigravity | `SENAHub-remake` (main) | `dev-antigravity` | 3000 | `senahub_remake` |
-| VS Code | `SENAHub-remake-vscode` (worktree) | `dev-vscode` | 3001 | `senahub_remake_vscode` |
-
-- Work only in your own folder, branch and database; never touch the other agent's.
 - `.env` is untracked and differs per worktree (`DATABASE_URL`, `PORT`, `APP_URL`, `BETTER_AUTH_URL`,
-  `STORAGE_BASE_PATH`) — never copy one over the other. Wrong `BETTER_AUTH_URL` breaks login (CSRF). Give each a distinct
-  `AUTH_COOKIE_PREFIX` (e.g. `senahub-vscode`): `localhost` cookies ignore the port, so without it the two
-  dev servers overwrite each other's session cookie (logging in on one logs the other out).
-- Plain `npm run dev` ignores `PORT` from `.env`: in the VS Code worktree use `npm run dev -- -p 3001`
-  (`dev:server` reads it).
-- Each worktree has its own real `node_modules` and `src/generated` — never replace them with a
-  junction to the main folder (Turbopack refuses the symlink, and removal can wipe the target).
+  `STORAGE_BASE_PATH`) — never copy one over another. Wrong `BETTER_AUTH_URL` breaks login (CSRF). Give each worktree
+  a distinct `AUTH_COOKIE_PREFIX`: `localhost` cookies ignore the port, so two dev servers overwrite each other's session.
+- Plain `npm run dev` ignores `PORT` from `.env`: in a secondary worktree use `npm run dev -- -p <port>` (`dev:server` reads it).
+- Never replace `node_modules`/`src/generated` with a junction to another folder (Turbopack refuses the symlink, and removal
+  can wipe the target).
 - Stage specific files (never `git add -A`/`.`) and check `git show --stat` after committing.
-- First push: `git push -u origin dev-<ide>`. Both branches merge into `dev`; `master` is deploy only.
-- A new migration runs `db:migrate` against your own DB; the other worktree applies it with
-  `npx prisma migrate deploy` after the merge.
+- A new migration runs `db:migrate` against your own DB; another worktree applies it with `npx prisma migrate deploy`
+  after the merge.
 - `git log dev` is ambiguous (there is a `dev/` folder) — use `refs/heads/dev`.

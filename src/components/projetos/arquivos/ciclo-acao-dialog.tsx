@@ -46,9 +46,16 @@ import { AVISO_MOTIVO_EM_REVISAO_PUBLICO, AVISO_PUBLICAR_ENVIA_AO_CLIENTE } from
  */
 const EnvioAoClienteDoProjeto = createContext(false);
 
-export function EnvioAoClienteProvider({ ativo, children }: { ativo: boolean; children: ReactNode }) {
-  return <EnvioAoClienteDoProjeto.Provider value={ativo}>{children}</EnvioAoClienteDoProjeto.Provider>;
+export function EnvioAoClienteProvider({ ativo, ehAdmin = false, children }: { ativo: boolean; ehAdmin?: boolean; children: ReactNode }) {
+  return (
+    <EnvioAoClienteDoProjeto.Provider value={ativo}>
+      <AdminDoCiclo.Provider value={ehAdmin}>{children}</AdminDoCiclo.Provider>
+    </EnvioAoClienteDoProjeto.Provider>
+  );
 }
+
+/** Só administrador vê a "exceção" do envio para análise. A trava de verdade é do servidor (`excecaoAdmin`). */
+const AdminDoCiclo = createContext(false);
 
 /** O que a linha manda abrir: a escolha do menu e o ciclo da revisão. */
 export type PedidoCiclo = { escolha: EscolhaCiclo; ciclo: CicloDaLinha; nome: string };
@@ -216,7 +223,11 @@ function ehControleDePasta(tipo: TipoControle | undefined): boolean {
 export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | null; onFechar: () => void }) {
   const router = useRouter();
   const envioAutomaticoAoCliente = useContext(EnvioAoClienteDoProjeto);
+  const ehAdmin = useContext(AdminDoCiclo);
   const [pendente, start] = useTransition();
+  // Exceção de administrador no envio para análise: pula nome, descrição e carimbo, com motivo.
+  const [excecao, setExcecao] = useState(false);
+  const [motivoExcecao, setMotivoExcecao] = useState("");
   const [texto, setTexto] = useState("");
   const [escopos, setEscopos] = useState<EscopoBloqueio[]>(["download"]);
   const [erro, setErro] = useState<string | null>(null);
@@ -258,6 +269,8 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
     setConfirmou(false);
     setContestar(false);
     setPrevia(null);
+    setExcecao(false);
+    setMotivoExcecao("");
   }
 
   const cfgBase = pedido ? configDe(pedido, envioAutomaticoAoCliente) : null;
@@ -275,6 +288,9 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
   const faltaTexto = !!cfg?.campo?.obrigatorio && texto.trim() === "";
   const faltaEscopo = !!cfg?.escopos && escopos.length === 0;
   const faltaConfirmar = pede !== null && !confirmou;
+  const ehEnvioParaAnalise = pedido?.escolha.tipo === "transicao" && pedido.escolha.acao === "enviar_analise";
+  const excecaoAtiva = ehAdmin && ehEnvioParaAnalise && excecao;
+  const faltaMotivoExcecao = excecaoAtiva && motivoExcecao.trim() === "";
 
   function executar() {
     if (!pedido || !cfg) return;
@@ -290,6 +306,7 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
                 descricao: cfg.campo ? valor || undefined : undefined,
                 confirmarSemCarimbo: pede === "carimbo" && confirmou,
                 contestarCarimbo: doCarimbo !== null && contestar,
+                excecaoAdmin: excecaoAtiva ? motivoExcecao.trim() : undefined,
               })
             : e.acao === "publicar"
               ? await publicarRevisao({ revisaoId, justificativa: valor || undefined, confirmarSemDwg: pede === "dwg" && confirmou })
@@ -375,7 +392,32 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
                   ))}
                 </fieldset>
               )}
-              {pede && (
+              {ehAdmin && ehEnvioParaAnalise && (
+                <div className="space-y-2 rounded-md border border-dashed px-3 py-2 text-sm">
+                  <label className="flex items-start gap-2">
+                    <Checkbox checked={excecao} disabled={pendente} onCheckedChange={(v) => setExcecao(v === true)} />
+                    <span>
+                      Exceção de administrador: enviar sem as conferências de nome, descrição e carimbo. Fica registrado no
+                      histórico. PDF do desenho e arquivo idêntico ao anterior continuam sendo conferidos.
+                    </span>
+                  </label>
+                  {excecao && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="ciclo-excecao-motivo">Motivo da exceção</Label>
+                      <textarea
+                        id="ciclo-excecao-motivo"
+                        value={motivoExcecao}
+                        maxLength={500}
+                        disabled={pendente}
+                        onChange={(ev) => setMotivoExcecao(ev.target.value)}
+                        placeholder="Ex.: carimbo com Ç no lugar de C; corrigir na próxima revisão"
+                        className="min-h-16 w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              {pede && !excecaoAtiva && (
                 <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
                   <p role="alert">{CONFIRMACOES_DO_CICLO[pede].motivo}</p>
                   <label className="flex items-start gap-2">
@@ -392,7 +434,7 @@ export function CicloAcaoDialog({ pedido, onFechar }: { pedido: PedidoCiclo | nu
             </DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={onFechar} disabled={pendente}>{cfg.fechar ?? "Cancelar"}</Button>
-              <Button variant={cfg.destrutivo ? "destructive" : "default"} onClick={executar} disabled={pendente || faltaTexto || faltaEscopo || faltaConfirmar || lendoCarimbo || carimboBloqueia}>
+              <Button variant={cfg.destrutivo ? "destructive" : "default"} onClick={executar} disabled={pendente || faltaEscopo || faltaMotivoExcecao || lendoCarimbo || (!excecaoAtiva && (faltaTexto || faltaConfirmar || carimboBloqueia))}>
                 {pendente ? "Aguarde…" : cfg.botao}
               </Button>
             </DialogFooter>

@@ -28,13 +28,22 @@ import {
   TIPOS_MARCACAO,
 } from "@/modules/projetos/pendencias/marcacao";
 import { papeisSobre } from "@/modules/projetos/pendencias/papeis-pendencia";
+import { podeAcessarPrancha } from "@/modules/projetos/pendencias/acesso-prancha";
 import { MOTIVO_NAO_PARTICIPA, podeParticiparDaConversa } from "@/modules/projetos/pendencias/problemas";
 import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
 import { extrairMencoes } from "@/modules/chat/mencoes";
 import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
 import { registrarEventoUploads } from "@/modules/uploads/historico/service";
 import { statusAposDesvalidacao } from "@/modules/uploads/status-automatico";
-import { liberarRestricaoDePendencias } from "@/modules/uploads/ciclo/service";
+import { devolverPelosApontamentosNoTx, liberarRestricaoDePendencias } from "@/modules/uploads/ciclo/service";
+import { avisoDevolucaoBloqueada } from "@/modules/uploads/ciclo/regras";
+import { rotuloRevisao } from "@/lib/utils";
+import {
+  devolverFaseEntregueParaRevisao,
+  marcarFaseEmRevisao,
+  recalcularStatusDisciplina,
+  travarDisciplina,
+} from "@/modules/projetos/status-pelas-fases-service";
 
 /**
  * A3, volta: a revisão publicada com pendências ganhou uma restrição automática; quando o último
@@ -241,6 +250,10 @@ async function carregarUploadParaApontar(uploadId: string) {
       versao: true,
       autorId: true,
       documentoId: true,
+      /** Revisão do ciclo documental — a rodada enviada a devolve para ajustes se estiver em análise (A10). */
+      revisaoId: true,
+      /** Fase do documento — leva a revisão para a fase certa (spec 2026-11-13). */
+      documento: { select: { faseId: true } },
       disciplinaId: true,
       disciplina: {
         select: {
@@ -593,6 +606,8 @@ export const enviarApontamentos = defineAction(
   { ...baseValidador, acao: "enviar-apontamentos", entidade: "Upload", schema: enviarSchema, entidadeId: (_d, i) => i.uploadId },
   async (input, { user }) => {
     const upload = await carregarUploadParaApontar(input.uploadId);
+    // A rodada muda o estado da revisão no ciclo (A10): só quem enxerga a prancha (mesma regra do visualizador).
+    if (!(await podeAcessarPrancha(user, upload.disciplina))) throw new ActionError("Arquivo não encontrado.");
     // Escopo do DOCUMENTO, não da versão: um apontamento aberto na R01 e ainda sem tarefa
     // precisa entrar na rodada de envio feita a partir da R02 (carry-over) — senão ficaria
     // visível no viewer mas impossível de acionar.
@@ -634,7 +649,9 @@ export const enviarApontamentos = defineAction(
     // financeira (pagamentos ficam intactos) e registra a revisão (RVxx).
     const eraAprovada = disciplina.status === "aprovado";
 
-    const { tarefaId, revisaoNumero } = await prisma.$transaction(async (tx) => {
+    const { tarefaId, revisaoNumero, devolucao } = await prisma.$transaction(async (tx) => {
+      // Disciplina antes da fase (ordem única de travas, status-pelas-fases-service).
+      await travarDisciplina(tx, upload.disciplinaId);
       const tarefa = await tx.tarefa.create({
         data: {
           titulo,
@@ -673,6 +690,13 @@ export const enviarApontamentos = defineAction(
         where: { id: upload.id },
         data: { validado: false, validadoPorId: null, validadoEm: null, revisaoObs: resumo, revisaoEm: new Date(), revisaoPorId: user.id },
       });
+      // Ciclo documental (A10): prancha em análise volta para ajustes, senão o projetista não consegue
+      // mandar a correção (envio em análise é recusado). Bloqueada fica como está e a tela avisa.
+      const devolucao = await devolverPelosApontamentosNoTx(tx, upload.revisaoId, {
+        quem: { userId: user.id },
+        total: pendencias.length,
+        tarefaId: tarefa.id,
+      });
       // Registra a solicitação de revisão no card da disciplina (2026-09-29): a rodada enviada
       // É o pedido de revisão. A situação sai dos apontamentos desta tarefa, não é gravada.
       await tx.solicitacaoRevisao.create({
@@ -680,6 +704,12 @@ export const enviarApontamentos = defineAction(
       });
 
       let revisaoNumero: number | null = null;
+      // Status da disciplina vem das fases (spec 2026-11-13): os apontamentos levam a fase do documento a
+      // revisão — na aprovada, qualquer que seja o status dela (pagamento intacto); na não aprovada, só a
+      // fase já entregue (a análise devolveu ajustes; quem ainda está trabalhando segue como está).
+      const faseDoDocumento = upload.documento?.faseId ?? null;
+      if (eraAprovada) await marcarFaseEmRevisao(tx, upload.disciplinaId, faseDoDocumento);
+      else await devolverFaseEntregueParaRevisao(tx, upload.disciplinaId, faseDoDocumento);
       if (eraAprovada) {
         // Abre revisão SEM tocar nos pagamentos (validação financeira preservada).
         await tx.disciplina.update({ where: { id: upload.disciplinaId }, data: { status: "em_revisao" } });
@@ -693,7 +723,11 @@ export const enviarApontamentos = defineAction(
           data: { disciplinaId: upload.disciplinaId, numero: revisaoNumero, motivo: resumo, autorId: user.id },
         });
       }
-      return { tarefaId: tarefa.id, revisaoNumero };
+      await recalcularStatusDisciplina(tx, upload.disciplinaId, {
+        autorId: user.id,
+        motivo: `apontamentos enviados em ${upload.nomeArquivo}`,
+      });
+      return { tarefaId: tarefa.id, revisaoNumero, devolucao };
     });
 
     const destinatarios = [...new Set([...responsaveisIds, upload.autorId])].filter((id) => id !== user.id);
@@ -702,7 +736,11 @@ export const enviarApontamentos = defineAction(
         titulo: eraAprovada ? "Revisão aberta na prancha" : "Ajustes solicitados na prancha",
         corpo:
           `${upload.nomeArquivo} (${disciplina.disciplinaTextoLegado} · ${codigo}): ${pendencias.length} apontamento(s)` +
-          (revisaoNumero != null ? ` — revisão R${revisaoNumero} aberta.` : "."),
+          (revisaoNumero != null ? ` — revisão R${revisaoNumero} aberta.` : ".") +
+          // A devolução do ciclo vai neste mesmo aviso (sem um segundo "Revisão devolvida").
+          (devolucao?.tipo === "devolvida"
+            ? ` A revisão ${rotuloRevisao(devolucao.numero)} do documento voltou para ajustes: envie a correção.`
+            : ""),
         href: "/tarefas",
         tag: `pendencias-${upload.id}`,
       });
@@ -719,7 +757,16 @@ export const enviarApontamentos = defineAction(
     revalidarViewer(disciplina.projetoId, upload.id);
     revalidatePath("/tarefas");
     revalidatePath(`/projetos/${disciplina.projetoId}`);
-    return { tarefaId, uploadId: upload.id, total: pendencias.length, revisaoAberta: revisaoNumero };
+    return {
+      tarefaId,
+      uploadId: upload.id,
+      total: pendencias.length,
+      revisaoAberta: revisaoNumero,
+      /** Revisão do ciclo que voltou para ajustes (rótulo "R01"), ou `null`. */
+      revisaoDevolvida: devolucao?.tipo === "devolvida" ? rotuloRevisao(devolucao.numero) : null,
+      /** Revisão bloqueada que ficou em análise: a frase para a tela avisar, ou `null`. */
+      avisoDevolucao: devolucao?.tipo === "bloqueada" ? avisoDevolucaoBloqueada(devolucao.numero) : null,
+    };
   },
 );
 

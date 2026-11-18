@@ -81,7 +81,7 @@ describe("normalizarLinhas", () => {
       MAP,
     );
     expect(linhas).toHaveLength(0);
-    expect(saldosIniciais).toEqual([{ contaNome: "Itaú", valor: 1000 }]);
+    expect(saldosIniciais).toEqual([{ contaNome: "Itaú", valor: 1000, data: new Date(Date.UTC(2026, 0, 1)) }]);
   });
 
   it("sentinelas 'Sem ...' viram vazio", () => {
@@ -156,5 +156,163 @@ describe("transferência importada para o planejador (ADR-0008)", () => {
     const [a, b] = res.linhas;
     expect(transferenciaIdDoHash(a.hash)).not.toBeNull();
     expect(transferenciaIdDoHash(a.hash)).toBe(transferenciaIdDoHash(b.hash));
+  });
+});
+
+describe("extrato do banco: colunas novas e chave anti-duplicata", () => {
+  // data, descrição, valor, categoria, conta, projeto, sócio, nº documento, tipo
+  const MAP_EXTRATO: Mapeamento = {
+    data: 0,
+    descricao: 1,
+    valor: 2,
+    categoria: 3,
+    conta: 4,
+    projeto: 5,
+    socio: 6,
+    numeroDocumento: 7,
+    tipo: 8,
+    contaTransferencia: 9,
+  };
+
+  it("lê projeto, sócio e nº do documento", () => {
+    const { linhas } = normalizarLinhas(
+      [row("05/01/2026", "PIX ENVIADO LUCIO", "-1500,00", "2.08", "Santander", " 260031 ", "Lucio", "15342466", "", "")],
+      MAP_EXTRATO,
+    );
+    expect(linhas[0].projetoCodigo).toBe("260031");
+    expect(linhas[0].socioRef).toBe("Lucio");
+    expect(linhas[0].numeroDocumento).toBe("15342466");
+  });
+
+  it("linhas idênticas no mesmo arquivo têm hashes diferentes e estáveis", () => {
+    const linhaIgual = row("05/01/2026", "Tarifa pacote", "-9,90", "2.01", "Santander", "", "", "", "", "");
+    const a = normalizarLinhas([linhaIgual, [...linhaIgual]], MAP_EXTRATO).linhas;
+    const b = normalizarLinhas([linhaIgual, [...linhaIgual]], MAP_EXTRATO).linhas;
+    expect(a[0].hash).not.toBe(a[1].hash);
+    expect(b.map((l) => l.hash)).toEqual(a.map((l) => l.hash));
+    expect(a[0].hash.startsWith("x:")).toBe(true);
+  });
+
+  it("hash não depende da categoria", () => {
+    const [a] = normalizarLinhas([row("05/01/2026", "Tarifa", "-9,90", "Cat A", "Santander", "", "", "", "", "")], MAP_EXTRATO).linhas;
+    const [b] = normalizarLinhas([row("05/01/2026", "Tarifa", "-9,90", "Cat B", "Santander", "", "", "", "", "")], MAP_EXTRATO).linhas;
+    expect(a.hash).toBe(b.hash);
+    expect(a.hashLegado).not.toBe(b.hashLegado);
+  });
+
+  it("hashLegado reproduz a fórmula antiga", () => {
+    const { linhas } = normalizarLinhas(
+      [
+        row("Despesa", "Confirmado", "2026-01-05", "", "-10", "", "Tarifa X", "Cat", "", "Itaú", "", "", "", ""),
+        row("Transferência", "Confirmado", "2026-01-02", "2026-01-02", "-15000", "-15000", "Adiantamento", "Transferência", "", "SANTANDER", "Conta Sócios", "", "", ""),
+      ],
+      MAP,
+    );
+    // Valor fixado rodando a fórmula antiga (h: + sha256 de tipo|data|valor|descrição|categoria) antes da mudança.
+    expect(linhas[0].hashLegado).toBe("h:62d0e4e41ab1a334beff29afbc866b37");
+    const [saida, entrada] = [linhas[1], linhas[2]];
+    expect(saida.hashLegado).toBe("h:98490808fab0170670f4a6d189703d10:out");
+    expect(entrada.hashLegado).toBe("h:98490808fab0170670f4a6d189703d10:in");
+    // Pernas da chave nova continuam pareadas.
+    expect(transferenciaIdDoHash(saida.hash)).toBe(transferenciaIdDoHash(entrada.hash));
+  });
+
+  it("com ID único o hash é md:<id> e não há hashLegado", () => {
+    const { linhas } = normalizarLinhas(
+      [row("Despesa", "Confirmado", "2026-01-05", "", "-10", "", "X", "Cat", "", "Itaú", "", "", "", "77")],
+      MAP,
+    );
+    expect(linhas[0].hash).toBe("md:77");
+    expect(linhas[0].hashLegado).toBeNull();
+  });
+
+  it("receita e despesa de mesmo valor, dia e descrição não colidem", () => {
+    const { linhas } = normalizarLinhas(
+      [
+        row("05/01/2026", "Estorno", "-100", "Cat", "Santander", "", "", "", "", ""),
+        row("05/01/2026", "Estorno", "100", "Cat", "Santander", "", "", "", "", ""),
+      ],
+      MAP_EXTRATO,
+    );
+    expect(linhas[0].tipo).toBe("despesa");
+    expect(linhas[1].tipo).toBe("receita");
+    expect(linhas[0].hash).not.toBe(linhas[1].hash);
+  });
+
+  it("nº do documento entra na chave: linhas iguais com documentos diferentes não dependem da ordem", () => {
+    const a = row("05/01/2026", "PIX ENVIADO JOAO", "-100", "2.01", "Santander", "260031", "", "111", "", "");
+    const b = row("05/01/2026", "PIX ENVIADO JOAO", "-100", "2.01", "Santander", "260032", "", "222", "", "");
+    const ab = normalizarLinhas([a, b], MAP_EXTRATO).linhas;
+    const ba = normalizarLinhas([b, a], MAP_EXTRATO).linhas;
+    expect(ab[0].hash).not.toBe(ab[1].hash);
+    expect(ba[1].hash).toBe(ab[0].hash);
+    expect(ba[0].hash).toBe(ab[1].hash);
+  });
+
+  it("contrato da chave: mudar a descrição muda a chave (linha importada se corrige na tela, não no arquivo)", () => {
+    const um = (d: string) => normalizarLinhas([row("05/01/2026", d, "-100", "2.01", "Santander", "", "", "", "", "")], MAP_EXTRATO).linhas[0];
+    const a = um("PIX ENVIADO GUSTAVO");
+    expect(um("PIX ENVIADO GUSTAVO - projetista").hash).not.toBe(a.hash);
+    // Caixa e espaço não mudam a chave.
+    expect(um("  pix enviado  gustavo ").hash).toBe(a.hash);
+  });
+
+  it("nº do documento entra também na chave da transferência", () => {
+    const t = (doc: string) =>
+      normalizarLinhas([row("05/01/2026", "TED", "-100", "", "Santander", "", "", doc, "Transferência", "Caixa")], MAP_EXTRATO).linhas[0];
+    expect(t("111").hash).not.toBe(t("222").hash);
+  });
+
+  it("saldo inicial guarda a data", () => {
+    const { saldosIniciais } = normalizarLinhas(
+      [row("01/01/2026", "Saldo", "1000", "", "Santander", "", "", "", "Saldo inicial", "")],
+      MAP_EXTRATO,
+    );
+    expect(saldosIniciais).toHaveLength(1);
+    expect(saldosIniciais[0].data?.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("contarDryRun trata como duplicada a linha cujo hash antigo já existe", () => {
+    const res = normalizarLinhas(
+      [row("Despesa", "Confirmado", "2026-01-05", "", "-10", "", "Tarifa X", "Cat", "", "Itaú", "", "", "", "")],
+      MAP,
+    );
+    const ex = exVazio();
+    ex.hashes = new Set(["h:62d0e4e41ab1a334beff29afbc866b37"]);
+    const { contagens } = contarDryRun(res, ex);
+    expect(contagens.duplicados).toBe(1);
+    expect(contagens.novosLancamentos).toBe(0);
+  });
+});
+
+describe("contarDryRun com a resolução dos cadastros", () => {
+  const MAP_EXTRATO: Mapeamento = { data: 0, descricao: 1, valor: 2, categoria: 3, conta: 4, contato: 5, documento: 6 };
+
+  it("modo estrito não conta categoria, conta, forma e centro a criar; soma os erros do cadastro", () => {
+    const res = normalizarLinhas(
+      [
+        row("05/01/2026", "Tarifa", "-9,90", "2.08", "Santander", "", ""),
+        row("05/01/2026", "Software", "-50", "Software", "Santander", "", ""),
+      ],
+      MAP_EXTRATO,
+    );
+    const resolucoes = [
+      { erros: [], categoriaId: "cat-1", projetoId: null, socioId: null, criaContato: false },
+      { erros: ["Categoria «Software» não existe no plano de contas."], categoriaId: null, projetoId: null, socioId: null, criaContato: false },
+    ];
+    const { contagens, erros } = contarDryRun(res, exVazio(), { resolucoes, criarCadastros: false });
+    expect(contagens.novosLancamentos).toBe(1);
+    expect(contagens.linhasComErro).toBe(1);
+    expect(contagens.categoriasACriar).toBe(0);
+    expect(contagens.contasACriar).toBe(0);
+    expect(erros).toEqual([{ idx: 2, erros: ["Categoria «Software» não existe no plano de contas."] }]);
+  });
+
+  it("contato a criar segue a resolução (com documento válido)", () => {
+    const res = normalizarLinhas([row("05/01/2026", "Compra", "-9,90", "2.08", "Santander", "Fornecedor novo", "33445566000186")], MAP_EXTRATO);
+    const resolucoes = [{ erros: [], categoriaId: "cat-1", projetoId: null, socioId: null, criaContato: true }];
+    const { contagens } = contarDryRun(res, exVazio(), { resolucoes, criarCadastros: false });
+    expect(contagens.fornecedoresACriar).toBe(1);
+    expect(contagens.categoriasACriar).toBe(0);
   });
 });

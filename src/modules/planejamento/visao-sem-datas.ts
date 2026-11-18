@@ -25,6 +25,8 @@ type LinhaComDatas = {
   /** Lote 7: as datas reais ditas em dias. */
   duracaoReal: number | null;
   duracaoRestante: number | null;
+  /** O "falta o término real" traz o dia em que a sucessora começou e a data sugerida. */
+  terminoPendente: unknown;
 };
 
 /**
@@ -50,5 +52,6 @@ export function semDatasDaLinha<T extends LinhaComDatas>(linha: T): T {
     reprogramada: false,
     duracaoReal: null,
     duracaoRestante: null,
+    terminoPendente: null,
   };
 }

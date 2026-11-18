@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { lerArquivo } from "@/lib/storage";
+import { diaDeSaoPaulo } from "@/lib/data";
 import { lerPlanilha } from "@/lib/import/planilha";
 import {
   validarImportSchema,
@@ -11,8 +12,9 @@ import {
   desfazerImportSchema,
 } from "@/modules/financeiro/importacao/schemas";
 import { normalizarLinhas, contarDryRun, type Mapeamento } from "@/modules/financeiro/importacao/processar";
-import { carregarExistentes, hashesExistentes } from "@/modules/financeiro/importacao/queries";
-import { executarCommit, executarDesfazer } from "@/modules/financeiro/importacao/commit-core";
+import { carregarExistentes, carregarIndice, hashesExistentes } from "@/modules/financeiro/importacao/queries";
+import { chavesDasLinhas, executarCommit, executarDesfazer } from "@/modules/financeiro/importacao/commit-core";
+import { errosDoSaldoInicial, linhasDaPrevia, resolverLinhas } from "@/modules/financeiro/importacao/cadastros";
 
 // Recorte fino da F4 (2026-09-02): era `permissao: "gerir"`, o mesmo interruptor de lançar
 // boleto. Semeado para quem tinha `gerir`, então ninguém perdeu nada — passa a poder ser
@@ -45,24 +47,22 @@ export const validarImportacao = defineAction(
   { ...base, acao: "validar-importacao", entidade: "ImportacaoFinanceira", schema: validarImportSchema, audit: false },
   async (i) => {
     const res = await lerENormalizar(i.caminho, i.nomeArquivo, i.mapeamento as Mapeamento);
+    const opcoes = { criarCadastros: i.criarCadastros, hoje: diaDeSaoPaulo() };
+    // Mesma regra do commit: `resolverLinhas` sobre o índice dos cadastros + as duas chaves de cada linha.
+    const idx = await carregarIndice();
+    const existentes = await hashesExistentes(chavesDasLinhas(res.linhas));
     const ex = await carregarExistentes();
-    ex.hashes = await hashesExistentes(res.linhas.map((l) => l.hash));
-    const { contagens, erros } = contarDryRun(res, ex);
+    ex.hashes = existentes;
+    const { contagens, erros } = contarDryRun(res, ex, { resolucoes: resolverLinhas(res.linhas, idx, opcoes), criarCadastros: i.criarCadastros });
 
-    const amostra = res.linhas.slice(0, 15).map((l) => ({
-      idx: l.idx,
-      tipo: l.tipo,
-      descricao: l.descricao,
-      valor: l.valor,
-      data: l.data ? l.data.toISOString().slice(0, 10) : null,
-      status: l.status,
-      categoria: l.subcategoriaNome ? `${l.categoriaNome} › ${l.subcategoriaNome}` : l.categoriaNome,
-      conta: l.contaNome,
-      contato: l.contatoNome,
-      erros: l.erros,
+    const saldosIniciais = res.saldosIniciais.map((s) => ({
+      conta: s.contaNome,
+      valor: s.valor,
+      data: s.data ? s.data.toISOString().slice(0, 10) : null,
+      erros: errosDoSaldoInicial(s, idx, opcoes),
     }));
 
-    return { contagens, erros: erros.slice(0, 100), amostra };
+    return { contagens, erros: erros.slice(0, 100), linhas: linhasDaPrevia(res.linhas, idx, existentes, opcoes), saldosIniciais };
   },
 );
 
@@ -77,18 +77,16 @@ export const commitImportacao = defineAction(
   },
   async (i, { user }) => {
     const res = await lerENormalizar(i.caminho, i.nomeArquivo, i.mapeamento as Mapeamento);
-    try {
-      const out = await executarCommit(prisma, {
-        nomeArquivo: i.nomeArquivo,
-        mapeamento: i.mapeamento,
-        res,
-        autorId: user.id,
-      });
-      revalida();
-      return out;
-    } catch (e) {
-      throw new ActionError(e instanceof Error ? e.message : "Falha ao importar.");
-    }
+    // Erro de negócio já sai como ActionError (nada a importar, mês fechado); o resto o defineAction mascara.
+    const out = await executarCommit(prisma, {
+      nomeArquivo: i.nomeArquivo,
+      mapeamento: i.mapeamento,
+      res,
+      autorId: user.id,
+      criarCadastros: i.criarCadastros,
+    });
+    revalida();
+    return out;
   },
 );
 

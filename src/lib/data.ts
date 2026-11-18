@@ -143,6 +143,21 @@ export function hojeParaBanco(agora: Date = new Date()): Date {
 }
 
 /**
+ * Faixa de `where` do dia-calendário de São Paulo daqui a `dias` dias (negativo = passado), em UTC:
+ * `{ gte: 00:00Z do dia, lt: 00:00Z do dia seguinte }`. Serve para coluna `@db.Date` e para
+ * `DateTime` gravado em meia-noite UTC (prazo de disciplina) — é o "vence daqui a N dias" dos jobs.
+ *
+ * Substitui o antigo `diaAlvo` dos jobs, que montava o dia em meia-noite LOCAL até 23:59:59 local
+ * (03:00Z → 02:59:59Z do dia seguinte). No timestamp isso pegava o registro do dia SEGUINTE; no
+ * `@db.Date` o Prisma corta a hora do filtro e a faixa virava "dia N até dia N+1", os dois inclusos.
+ * Soma em milissegundos, não `addDays` (que anda pelo calendário local).
+ */
+export function faixaDoDiaUtc(dias: number, agora: Date = new Date()): { gte: Date; lt: Date } {
+  const inicio = new Date(hojeParaBanco(agora).getTime() + dias * 86_400_000)
+  return { gte: inicio, lt: new Date(inicio.getTime() + 86_400_000) }
+}
+
+/**
  * Fronteiras de período para colunas de data (`@db.Date`): meia-noite UTC do dia / fim do dia em UTC.
  * `new Date(ano, mes, 1)` é meia-noite LOCAL (03:00Z em São Paulo) — ficava depois do dia 1 gravado
  * (00:00Z) e o lançamento do primeiro dia caía fora do mês, enquanto o fim `23:59:59` local invadia

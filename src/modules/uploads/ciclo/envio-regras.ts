@@ -42,6 +42,11 @@ export type EntradaEnvio = {
   carimbo: DescricaoDoCarimbo | null;
   /** O projetista marcou "O carimbo foi lido errado": vale a descrição digitada. */
   contestada: boolean;
+  /**
+   * Exceção de administrador: o nome (padrão, siglas, código, revisão) e a descrição não bloqueiam. Continuam
+   * valendo as travas de arquivo — sem arquivo, desenho sem PDF e arquivo idêntico ao da revisão anterior.
+   */
+  pularConferencias?: boolean;
 };
 
 /** A descrição desta revisão no quadro de revisão do carimbo do PDF. */
@@ -162,7 +167,7 @@ function problemasDoNome(e: EntradaEnvio): string[] {
 export function problemasDoEnvio(e: EntradaEnvio): string[] {
   const problemas: string[] = [];
 
-  if (!e.nomenclaturaLivre) problemas.push(...problemasDoNome(e));
+  if (!e.nomenclaturaLivre && !e.pularConferencias) problemas.push(...problemasDoNome(e));
 
   // O PDF é a cópia de leitura do DESENHO: só é exigido quando a revisão tem um (decisão do dono,
   // 2026-10-21). Planilha de quantitativos, memorial em Word e afins seguem sem PDF. Documento de
@@ -178,7 +183,7 @@ export function problemasDoEnvio(e: EntradaEnvio): string[] {
     }
   }
 
-  problemas.push(...problemasDaDescricao(e));
+  if (!e.pularConferencias) problemas.push(...problemasDaDescricao(e));
   return problemas;
 }
 

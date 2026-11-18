@@ -73,6 +73,7 @@ export async function abrirApontamento(userId: string, projetoId: string | null,
   const alocacao = normalizarAlocacaoPonto(projetoId);
   const agora = new Date();
   const destino = await resolverDestinoDaSessao(prisma, { userId, alocacao, tarefaId, quando: agora, aoVivo: true, checarAcesso: true });
+  // inicio-pelo-ponto: `abrirApontamentoAction` chama `depoisDoPontoNaTarefa` com a sessão devolvida.
   return prisma.sessaoTrabalho.create({
     data: { userId, ...alocacao, ...destino, inicio: agora },
   });
@@ -88,6 +89,7 @@ export async function trocarApontamento(userId: string, projetoId: string | null
   const destino = await resolverDestinoDaSessao(prisma, { userId, alocacao, tarefaId, quando: agora, aoVivo: true, checarAcesso: true });
   await prisma.$transaction([
     prisma.sessaoTrabalho.update({ where: { id: aberto.id }, data: { fim: agora } }),
+    // inicio-pelo-ponto: `trocarApontamentoAction` chama `depoisDoPontoNaTarefa` depois.
     prisma.sessaoTrabalho.create({ data: { userId, ...alocacao, ...destino, inicio: agora } }),
   ]);
 }

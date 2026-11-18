@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,19 @@ type Props = {
   disabled?: boolean;
 };
 
-export function SavefileButtons({ ferramenta, versaoCalc, titulo, norma, entradas, onImport, disabled }: Props) {
+/**
+ * Exportar/importar o arquivo `.shcalc.json` de um cálculo, sem a forma dos botões: a tela larga
+ * chama `exportar`/`importar` pelo `...` do cabeçalho; `SavefileButtons` os desenha como botões.
+ * `campoArquivo` precisa estar na árvore (é o `<input type="file">` escondido do importar).
+ */
+export function useSavefile({ ferramenta, versaoCalc, titulo, norma, entradas, onImport }: Omit<Props, "disabled">): {
+  exportar: () => void;
+  importar: () => void;
+  campoArquivo: ReactNode;
+} {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleExport() {
+  function exportar() {
     const json = serializar({ ferramenta, versaoCalc, titulo, norma, entradas });
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -50,13 +59,33 @@ export function SavefileButtons({ ferramenta, versaoCalc, titulo, norma, entrada
     e.target.value = "";
   }
 
+  return {
+    exportar,
+    importar: () => inputRef.current?.click(),
+    campoArquivo: (
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".json,.shcalc.json"
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+        onChange={handleImport}
+      />
+    ),
+  };
+}
+
+export function SavefileButtons({ disabled, ...props }: Props) {
+  const { exportar, importar, campoArquivo } = useSavefile(props);
+
   return (
     <div className="flex items-center gap-2">
       <Button
         type="button"
         variant="outline"
         size="sm"
-        onClick={handleExport}
+        onClick={exportar}
         disabled={disabled}
         title="Exportar .shcalc.json"
       >
@@ -67,19 +96,13 @@ export function SavefileButtons({ ferramenta, versaoCalc, titulo, norma, entrada
         type="button"
         variant="outline"
         size="sm"
-        onClick={() => inputRef.current?.click()}
+        onClick={importar}
         title="Importar .shcalc.json"
       >
         <Upload className="h-3.5 w-3.5 mr-1.5" />
         Importar
       </Button>
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".json,.shcalc.json"
-        className="hidden"
-        onChange={handleImport}
-      />
+      {campoArquivo}
     </div>
   );
 }

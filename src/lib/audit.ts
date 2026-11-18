@@ -16,9 +16,15 @@ const SENSITIVE_KEYS = ["password", "senha", "token", "secret", "hash", "salario
  */
 const SENSITIVE_EXACT = new Set(["banco", "agencia", "agência", "conta", "cpf", "rg", "pis", "ctpsnumero", "ctpsserie", "tituloeleitor", "cnh"]);
 
-/** Remove campos sensíveis do detalhe antes de persistir. Recursivo: cobre `{ antes, novo }`. */
+/**
+ * Remove campos sensíveis do detalhe antes de persistir. Recursivo: cobre `{ antes, novo }`.
+ * Objeto com `toJSON` (`Date`, `Decimal` do Prisma) vira o que o JSON gravaria: sem isso, um
+ * `Date` do `capturarAntes` era percorrido como objeto comum e saía `{}` na trilha.
+ */
 export function sanitize(detail: unknown): unknown {
   if (!detail || typeof detail !== "object") return detail;
+  const comJson = detail as { toJSON?: unknown };
+  if (typeof comJson.toJSON === "function") return sanitize((comJson.toJSON as () => unknown).call(detail));
   if (Array.isArray(detail)) return detail.map(sanitize);
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(detail as Record<string, unknown>)) {

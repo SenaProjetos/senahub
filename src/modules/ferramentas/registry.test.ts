@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Square } from "lucide-react";
-import { FERRAMENTAS, ferramentaVisivel, situacaoValidacao, type FerramentaMeta } from "./registry";
+import { FERRAMENTAS, ferramentaVisivel, porDisciplina, situacaoValidacao, type FerramentaMeta } from "./registry";
 
 const base: FerramentaMeta = {
   key: "x",
@@ -49,6 +49,13 @@ describe("catálogo", () => {
   it("chaves são únicas", () => {
     const chaves = FERRAMENTAS.map((f) => f.key);
     expect(new Set(chaves).size).toBe(chaves.length);
+  });
+
+  it("o motor só-estudo exige validação, existe no registro e fica fora da galeria", () => {
+    const f = FERRAMENTAS.find((x) => x.key === "cargas-demanda");
+    expect(f?.exigeValidacao).toBe(true);
+    expect(f?.soEstudo).toBe(true);
+    expect(Object.values(porDisciplina()).flat().some((x) => x.key === "cargas-demanda")).toBe(false);
   });
 
   it("as calculadoras de instalações exigem validação do engenheiro", () => {

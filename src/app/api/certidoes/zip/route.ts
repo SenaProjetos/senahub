@@ -5,7 +5,7 @@ import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { resolverCaminho } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { statusCertidao } from "@/modules/certidoes/service";
+import { diasParaVencimento } from "@/modules/certidoes/service";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -33,7 +33,7 @@ export async function GET(req: Request) {
 
   const certidoes = await prisma.certidao.findMany({ where, include: { tipo: true } });
   const filtradas = somenteVencidas
-    ? certidoes.filter((c) => statusCertidao(c.validade.toISOString().slice(0, 10)) === "vencida")
+    ? certidoes.filter((c) => diasParaVencimento(c.validade.toISOString().slice(0, 10)) < 0) // vencida
     : certidoes;
 
   if (filtradas.length === 0) {

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { statusCertidao } from "@/modules/certidoes/service";
+import { prazosCertidoes } from "@/modules/certidoes/queries";
 
 // exceljs é CommonJS — evita problema de default export no Turbopack.
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -21,6 +22,7 @@ export async function GET() {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
+  const { diasEmBreve } = await prazosCertidoes();
   const certidoes = await prisma.certidao.findMany({
     orderBy: { validade: "asc" },
     include: { tipo: true, responsavel: { select: { name: true } }, _count: { select: { versoes: true } } },
@@ -44,7 +46,7 @@ export async function GET() {
       tipo: c.tipo.nome,
       descricao: c.descricao ?? "",
       validade: validadeISO,
-      status: STATUS_LABEL[statusCertidao(validadeISO)],
+      status: STATUS_LABEL[statusCertidao(validadeISO, diasEmBreve)],
       responsavel: c.responsavel?.name ?? "",
       arquivo: c.arquivoPath ? "Sim" : "Não",
       versoes: c._count.versoes,

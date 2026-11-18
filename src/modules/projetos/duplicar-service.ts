@@ -147,6 +147,7 @@ export async function duplicarProjetoNoBanco(
         .filter((e) => e.etapa.projetoId == null)
         .map((e) => ({ disciplinaId, etapaId: e.etapaId, percentual: e.percentual, ordem: e.ordem }));
     });
+    // recalculo-ok: disciplina nova do projeto duplicado; as fases nascem sem situação (aguardando).
     if (etapasNovas.length > 0) await tx.disciplinaEtapa.createMany({ data: etapasNovas });
     const fasesDaDisciplina = new Map<string, Set<string>>();
     for (const e of etapasNovas) {

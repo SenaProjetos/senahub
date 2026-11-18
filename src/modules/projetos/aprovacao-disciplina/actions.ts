@@ -13,6 +13,11 @@ import { bloqueioValorDisciplina } from "@/modules/uploads/rateio";
 import { podeSolicitarAprovacao } from "@/modules/projetos/aprovacao-disciplina/regras";
 import { STATUS_LABEL } from "@/modules/projetos/status";
 import {
+  aprovarFasesSemPagamento,
+  recalcularStatusDisciplina,
+  travarDisciplina,
+} from "@/modules/projetos/status-pelas-fases-service";
+import {
   solicitarAprovacaoDisciplinaSchema,
   confirmarAprovacaoDisciplinaSchema,
   recusarAprovacaoDisciplinaSchema,
@@ -180,6 +185,11 @@ export const confirmarAprovacaoDisciplina = defineAction(
       if (bloqueio) throw new ActionError(bloqueio);
     }
     const { pagaveis, salariados } = await prisma.$transaction(async (tx) => {
+      await travarDisciplina(tx, disciplina.id);
+      // Relido sob a trava: o ramo de reaprovação aprova as fases sem pagamento; fase nova no meio mudaria isso.
+      if (jaTemPagamento && !(await situacaoPagamento(tx, disciplina.id)).jaLiberouTudo) {
+        throw new ActionError("A disciplina mudou enquanto a tela estava aberta — atualize e tente de novo.");
+      }
       // Condicionado: duas confirmações ao mesmo tempo liberavam o pagamento em dobro (A5). A 2ª
       // espera o lock da linha, relê "aprovado" e não acha nada para atualizar.
       const r = await tx.disciplina.updateMany({
@@ -193,8 +203,13 @@ export const confirmarAprovacaoDisciplina = defineAction(
         },
       });
       if (r.count !== 1) throw new ActionError("Esta disciplina já foi aprovada.");
-      // Reaprovação pós-revisão já tem pagamento liberado — não gera de novo.
-      if (jaTemPagamento) return { pagaveis: [], salariados: [] };
+      // Reaprovação pós-revisão já tem pagamento liberado — não gera de novo. As fases pendentes vão a
+      // aprovado sem pagamento (spec 2026-11-13), para o card não mostrar disciplina aprovada com fase aberta.
+      if (jaTemPagamento) {
+        await aprovarFasesSemPagamento(tx, disciplina.id, agora);
+        await recalcularStatusDisciplina(tx, disciplina.id, { autorId: user.id, motivo: "aprovação reconfirmada", agora });
+        return { pagaveis: [], salariados: [] };
+      }
       return liberarPagamentosProjetista(
         tx,
         { disciplina: { ...disciplina, valor: valorFinal }, autorId: user.id, agora },

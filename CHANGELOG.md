@@ -2,6 +2,57 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.33.0](https://github.com/SenaProjetos/senahub/compare/v1.32.0...v1.33.0) (2026-11-16)
+
+
+### ✨ Funcionalidades
+
+* **cargas-demanda:** aplica as respostas do engenheiro (Q1 a Q50) ([2c3333e](https://github.com/SenaProjetos/senahub/commit/2c3333ee9eff56dd356a3ffcd10f33d7212ee692))
+* **cargas-demanda:** atendimento da Enel e da Energisa, Q34 e sistema de tensão ([9ee0b5a](https://github.com/SenaProjetos/senahub/commit/9ee0b5a5cd8d9651533f752807034debc9d5ca35))
+* **cargas-demanda:** biblioteca da NBR 5410, Equatorial, Cemig, Copel e trechos ([f147c08](https://github.com/SenaProjetos/senahub/commit/f147c08a6592897d3173f99d9cc6176b2c966e8d))
+* **cargas-demanda:** biblioteca de normas e motor inicial (WIP Fase 1) ([b8e4522](https://github.com/SenaProjetos/senahub/commit/b8e452209cbeb15063ed23a5112a283c7937ff59))
+* **cargas-demanda:** composição por nível, atendimento e FD sugerido por tipo de carga ([0927935](https://github.com/SenaProjetos/senahub/commit/09279357eae9fac8e2b1bff39f82103ef4b36808))
+* **cargas-demanda:** entrada (cabo e proteção) e métodos de área útil ([53d127f](https://github.com/SenaProjetos/senahub/commit/53d127f4ccc111bfbce236bf6300c69fa3cc89d1))
+* **cargas-demanda:** entrada do flat individual, FD por tabela de aparelhos e ajustes de celular ([59b6038](https://github.com/SenaProjetos/senahub/commit/59b6038face8b0e47a93393d19d6cd75b7b0aa5b))
+* **cargas-demanda:** FD de iluminação e tomadas por uso em degraus de carga ([597b2b3](https://github.com/SenaProjetos/senahub/commit/597b2b35aaea924a0a5a7dc71657fcad83b75f1c))
+* **cargas-demanda:** módulos puros do estudo (levantamento, cálculos, centros e entrada) ([ec63ed8](https://github.com/SenaProjetos/senahub/commit/ec63ed808e48f70e4b24833733d8dbd3f65b097d))
+* **cargas-demanda:** relatório em PDF, Word e Excel com o timbrado da empresa ([b21a601](https://github.com/SenaProjetos/senahub/commit/b21a60130dec08c27d31538a6f9f5d5aeafda6a7))
+* **certidoes:** prazos de "Vence em breve" e dos avisos configuráveis ([7d2b9a0](https://github.com/SenaProjetos/senahub/commit/7d2b9a0316de7124d5597aba925c452ab7da9cc9))
+* **ciclo:** exceção de administrador no envio para análise ([e98fd3c](https://github.com/SenaProjetos/senahub/commit/e98fd3c729df5667ac1bac4d1a3be059ad4c8d4b))
+* **ciclo:** exceção de administrador no envio para análise ([d639c6a](https://github.com/SenaProjetos/senahub/commit/d639c6a4fdeb67fc9c7d7e434e92a028126b0966))
+* **estudos:** esquema do estudo de cargas e demanda e vínculo com o levantamento ([243f400](https://github.com/SenaProjetos/senahub/commit/243f4000c78021d67396feb0b5171c2ac6659ffa))
+* **estudos:** estudo de cargas e demanda por concessionária (telas e despacho por tipo) ([a9b0453](https://github.com/SenaProjetos/senahub/commit/a9b0453ae8187547ff6e9882246ab006afa0f191))
+* **financeiro:** importação em modo estrito com projeto, sócio e saldo inicial datado ([5bc2931](https://github.com/SenaProjetos/senahub/commit/5bc2931c61394aed618e338d53866a710ba28466))
+* **financeiro:** importador lê projeto, sócio e nº do documento; chave anti-duplicata sem categoria ([f556256](https://github.com/SenaProjetos/senahub/commit/f55625662c4e8a1e78092335ec2315000d992eb4))
+* **financeiro:** prévia completa e opção de criar cadastros no importador ([34d2ccd](https://github.com/SenaProjetos/senahub/commit/34d2ccd518d3bcf8a23cd3c5987c951d13358122))
+* **financeiro:** validação de cadastros da importação (modo estrito) ([148e6c1](https://github.com/SenaProjetos/senahub/commit/148e6c144d615c583ba1143cc857a37850339f62))
+* **planejamento:** datas reais digitadas direto no Gantt de Controle ([cca7845](https://github.com/SenaProjetos/senahub/commit/cca78459542d5009724eebdd57d083435dfea2a4))
+* **projetos:** status da disciplina calculado pelas fases ([bd4c784](https://github.com/SenaProjetos/senahub/commit/bd4c7840ddeefe40f5596c65c51925854d948729))
+* **rh:** folha anterior ao corte não fecha no Financeiro ([8d410e6](https://github.com/SenaProjetos/senahub/commit/8d410e648c0a4d54fc66eb1d5a358f661b906f3b))
+
+
+### 🐛 Correções
+
+* **cargas-demanda:** Cemig Tabela 12 com rótulo "228" repetido ([b8b5388](https://github.com/SenaProjetos/senahub/commit/b8b53888c7320deb4c3b740d79e7fec6cbfb7840))
+* **cargas-demanda:** conferência da Fase 4 — casos da planilha pelo documento e relatório por concessionária ([71b384b](https://github.com/SenaProjetos/senahub/commit/71b384bbca2979f6595e61cd0bf31bf42d53e48b))
+* **financeiro:** correções da revisão final do importador ([83c12a7](https://github.com/SenaProjetos/senahub/commit/83c12a795d9948a62974a5ddb027a6c07fd32fd9))
+* **financeiro:** importador estrito fecha os buracos da revisão ([43acc6a](https://github.com/SenaProjetos/senahub/commit/43acc6a12763cfe299c91f2f5970010413cfaec9))
+* **jobs:** avisos diários com dia-alvo em UTC, no dia certo ([767df03](https://github.com/SenaProjetos/senahub/commit/767df0310f1c5a84d067bac886ad8ceb9b416326))
+* **rh:** folha anterior ao corte que esteja fechada não reabre ([2d9b919](https://github.com/SenaProjetos/senahub/commit/2d9b9197573a4ff3f7b6c7e6f0207d58f6cc115e))
+
+## [1.32.0](https://github.com/SenaProjetos/senahub/compare/v1.31.0...v1.32.0) (2026-11-06)
+
+
+### ✨ Funcionalidades
+
+* **projetos:** diário da coordenação na aba Diário ([4b19573](https://github.com/SenaProjetos/senahub/commit/4b195731521edcfbcac804d405faee5ff846928f))
+
+
+### 🐛 Correções
+
+* **arquivos:** revisão em análise sem arquivo não trava mais o reenvio ([7c7df17](https://github.com/SenaProjetos/senahub/commit/7c7df1718561a4cea9a0ecd71f15349a83f597cf))
+* **projetos:** projeto novo nasce no padrão de nomenclatura mais atual ([d2abb5d](https://github.com/SenaProjetos/senahub/commit/d2abb5d5468dc19255e2dbd48641ba30e44174de))
+
 ## [1.31.0](https://github.com/SenaProjetos/senahub/compare/v1.30.0...v1.31.0) (2026-11-03)
 
 

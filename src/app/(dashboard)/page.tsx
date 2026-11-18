@@ -107,7 +107,7 @@ export default async function HomePage() {
     // `projetoIds`), então roda só para quem pode agir — mesmo gate do card de aprovações.
     // Os demais perfis recebem o mesmo sinal no badge da lista e no card da disciplina.
     podeAprovar ? disciplinasProntasParaAprovar(user, veTodasDisc) : Promise.resolve([]),
-    verCertidoes ? contarCertidoesAtencao() : Promise.resolve({ vencidas: 0, venceEmBreve: 0 }),
+    verCertidoes ? contarCertidoesAtencao() : Promise.resolve({ vencidas: 0, venceEmBreve: 0, diasEmBreve: 0 }),
     mostraMinhasHoras
       ? horasProjetistas(intervaloDoAtalho("14d", diaLocal(new Date())), { userIds: [user.id] })
       : Promise.resolve(null),
@@ -180,8 +180,8 @@ export default async function HomePage() {
             value: String(certidoes.vencidas + certidoes.venceEmBreve),
             delta:
               certidoes.vencidas > 0
-                ? `${certidoes.vencidas} vencida(s) · ${certidoes.venceEmBreve} vence(m) em 30 dias`
-                : `${certidoes.venceEmBreve} vence(m) nos próximos 30 dias`,
+                ? `${certidoes.vencidas} vencida(s) · ${certidoes.venceEmBreve} vence(m) em ${certidoes.diasEmBreve} dias`
+                : `${certidoes.venceEmBreve} vence(m) nos próximos ${certidoes.diasEmBreve} dias`,
             href: "/certidoes",
           },
         ]

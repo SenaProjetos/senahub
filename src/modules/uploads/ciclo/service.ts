@@ -8,10 +8,12 @@ import { participaDoCiclo } from "./escopo";
 import { CONTROLES_DE_PASTA, type EscopoBloqueio, type EstadoRevisao, type TipoControle } from "./estados";
 import { normalizarFormatosExigidos } from "./formatos-exigidos";
 import {
+  decidirDevolucaoPelosApontamentos,
   decidirEnvioAoCliente,
   decidirLiberacaoAutomatica,
   decidirPublicacao,
   documentosSemPublicacao,
+  motivoDevolucaoPelosApontamentos,
   restricaoDePendenciasPodeSair,
   type ArquivoDaRevisao,
 } from "./regras";
@@ -323,6 +325,37 @@ export async function devolverNoBanco(p: { revisaoId: string; quem: { userId: st
     const para = await transicionarNoTx(tx, r, "devolver", { quem: p.quem, motivo: p.motivo });
     return resultado(r, para);
   });
+}
+
+/** O que a rodada de apontamentos fez com a revisão da prancha (A10). `null` = nada (fora de análise ou do ciclo). */
+export type DevolucaoPelosApontamentos = { tipo: "devolvida" | "bloqueada"; numero: number } | null;
+
+/**
+ * A10: a rodada de apontamentos enviada numa prancha em análise devolve a revisão para ajustes — DENTRO
+ * da transação da rodada (`enviarApontamentos`), para não existir rodada enviada com a revisão ainda em
+ * análise. Quem envia é o autor do evento (detalhe `origem: "apontamentos"`; `automatico` fica falso, porque
+ * no ciclo ele quer dizer "feito pelo sistema"); a permissão de devolver à mão (`arquivos:publicar`) não é
+ * exigida, porque a devolução é efeito do envio — o escopo da prancha, sim (`enviarApontamentos`). Sem
+ * notificação daqui: o aviso da rodada já vai aos responsáveis e ao autor do arquivo.
+ * Bloqueada (I7) fica como está e volta `bloqueada` para a tela avisar. Corrida com quem publicou ou
+ * devolveu agora: `MOTIVO_MUDOU`, e a rodada inteira desfaz.
+ */
+export async function devolverPelosApontamentosNoTx(
+  tx: Tx,
+  revisaoId: string | null,
+  p: { quem: { userId: string }; total: number; tarefaId: string },
+): Promise<DevolucaoPelosApontamentos> {
+  if (!revisaoId) return null;
+  const r = await carregarRevisao(tx, revisaoId);
+  const decisao = decidirDevolucaoPelosApontamentos(estadoParaTransicao(r));
+  if (decisao === "nada") return null;
+  if (decisao === "bloqueada") return { tipo: "bloqueada", numero: r.numero };
+  await transicionarNoTx(tx, r, "devolver", {
+    quem: p.quem,
+    motivo: motivoDevolucaoPelosApontamentos(p.total),
+    detalhe: { origem: "apontamentos", tarefaId: p.tarefaId },
+  });
+  return { tipo: "devolvida", numero: r.numero };
 }
 
 /**

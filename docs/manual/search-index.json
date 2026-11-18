@@ -88,7 +88,10 @@
         "aba extras",
         "plano de mitigação",
         "composição de preço",
-        "solicitação de revisão"
+        "solicitação de revisão",
+        "início real pelo ponto",
+        "término real sugerido",
+        "devolver para ajustes"
       ],
       "palavrasChave": [
         "novidades",
@@ -354,6 +357,7 @@
         "responsáveis",
         "membros",
         "revisões",
+        "devolver para ajustes",
         "duplicar",
         "cancelar",
         "arquivar",
@@ -675,14 +679,26 @@
         "revisar planejamento",
         "reagendar",
         "ms project",
-        "gantt de controle", "variação", "execução real", "custo real", "trabalho real", "duração restante", "% concluído", "tarefa de terceiro",
+        "gantt de controle",
+        "variação",
+        "execução real",
+        "custo real",
+        "trabalho real",
+        "duração restante",
+        "% concluído",
+        "tarefa de terceiro",
         "tabela do cronograma",
         "escala",
         "editar na célula",
         "menu da linha",
         "recuar",
         "avançar",
-        "predecessoras"
+        "predecessoras",
+        "início real pelo ponto",
+        "término real",
+        "sucessora começou",
+        "célula amarela",
+        "término sugerido"
       ],
       "palavrasChave": [
         "planejamento",
@@ -2128,7 +2144,7 @@
     {
       "titulo": "RH — administração",
       "path": "rh-ponto/rh-admin.md",
-      "descricao": "Aprovação de abonos/férias, banco de horas, feedback, ponto manual, onboarding e validação de NFs.",
+      "descricao": "Aprovação e lançamento de abonos/atestados e férias, banco de horas, feedback, ponto manual, onboarding e validação de NFs.",
       "resumo": "Central administrativa do RH — aprova solicitações, fecha e recalcula o banco de horas (saldo fechado + saldo corrente), dá feedback, lança ponto manual, gerencia onboarding e valida NFs de PJ.",
       "tags": [
         "rh admin",
@@ -2145,6 +2161,8 @@
       "palavrasChave": [
         "rh administração",
         "aprovar abono",
+        "lançar abono",
+        "lançar atestado",
         "aprovar férias",
         "banco de horas",
         "saldo de horas",
@@ -3132,6 +3150,50 @@
         "federação de modelos",
         "coordenação bim",
         "juntar ifcs"
+      ]
+    },
+    {
+      "titulo": "Estudo de cargas e demanda por concessionária",
+      "path": "projetos/estudo-cargas-e-demanda.md",
+      "descricao": "Estudo preliminar de demanda de edificações de múltiplas unidades, pelo método da concessionária, na aba Estudos do projeto.",
+      "resumo": "Levantamento de iluminação e tomadas por ambiente, cálculos de demanda (carga instalada ou área útil), CMDs, CPG e entrada, e o relatório em PDF, Word e Excel para o memorial.",
+      "tags": [
+        "estudos",
+        "cargas",
+        "demanda",
+        "concessionária",
+        "cmd",
+        "cpg",
+        "entrada",
+        "relatório",
+        "elétrico"
+      ],
+      "palavrasChave": [
+        "levantamento de cargas",
+        "demanda",
+        "carga instalada",
+        "área útil",
+        "neoenergia",
+        "equatorial",
+        "cemig",
+        "celesc",
+        "copel",
+        "enel",
+        "energisa",
+        "centro de medição",
+        "cmd",
+        "cpg",
+        "disjuntor",
+        "seção do cabo",
+        "lux",
+        "habitação",
+        "nbr 5410"
+      ],
+      "sinonimos": [
+        "calculadora de cargas e demanda",
+        "cálculo de demanda",
+        "demanda provável",
+        "memorial de cálculo elétrico"
       ]
     }
   ]

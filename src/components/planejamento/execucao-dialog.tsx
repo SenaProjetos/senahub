@@ -23,7 +23,35 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type FaseOferecida = { id: string; sigla: string; nome: string; disciplina: string; marcadaEntregue: boolean };
+export type FaseOferecida = { id: string; sigla: string; nome: string; disciplina: string; marcadaEntregue: boolean };
+
+/**
+ * Marco de fase concluído (D31): oferece aprovar a fase, pela mesma action do diálogo de Etapas. Compartilhado pelo
+ * "Atualizar tarefa" e pela célula do término real no Gantt de Controle. Chame FORA de `startTransition` (tem `confirm`).
+ */
+export function useOferecerFase(podeAprovarFase: boolean) {
+  const router = useRouter();
+  const confirm = useConfirm();
+  return async function oferecerFase(fase: FaseOferecida) {
+    const rotulo = `${fase.sigla} de ${fase.disciplina}`;
+    const entregue = fase.marcadaEntregue ? `A fase ${rotulo} foi marcada como Entregue. ` : "";
+    if (!podeAprovarFase) {
+      toast.info(`Marco concluído. ${entregue}Quem aprova disciplinas foi avisado para aprovar a fase ${rotulo}.`);
+      return;
+    }
+    const ok = await confirm({
+      title: `Aprovar a fase ${rotulo}?`,
+      description:
+        `O marco foi concluído${fase.marcadaEntregue ? " e a fase foi marcada como Entregue" : ""}. Aprovar a fase libera o pagamento dela para os projetistas PJ/freelancer — é a mesma aprovação do diálogo Etapas da disciplina. Depois disso o percentual da fase fica fixo.`,
+      confirmLabel: "Aprovar fase",
+    });
+    if (!ok) return;
+    const r = await aprovarEtapaDisciplina({ id: fase.id });
+    if (!r.ok) toast.error(r.error);
+    else toast.success(r.data.pagamentos > 0 ? `Fase ${fase.sigla} aprovada — pagamento liberado.` : `Fase ${fase.sigla} aprovada.`);
+    router.refresh();
+  };
+}
 
 /**
  * "Atualizar tarefa" do MS Project (F7.0): início e término reais da linha; no marco, a data em que
@@ -52,7 +80,7 @@ export function ExecucaoDialog({
   podeVerCusto: boolean;
 }) {
   const router = useRouter();
-  const confirm = useConfirm();
+  const oferecerFase = useOferecerFase(podeAprovarFase);
   const hoje = new Date().toLocaleDateString("en-CA");
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
@@ -82,26 +110,6 @@ export function ExecucaoDialog({
   function valorParaEnviar(): number | null | undefined {
     if (!linha || !comValorTerceiro) return undefined;
     return valorTerceiro === (linha.custoRealTerceiro ?? null) ? undefined : valorTerceiro;
-  }
-
-  async function oferecerFase(fase: FaseOferecida) {
-    const rotulo = `${fase.sigla} de ${fase.disciplina}`;
-    const entregue = fase.marcadaEntregue ? `A fase ${rotulo} foi marcada como Entregue. ` : "";
-    if (!podeAprovarFase) {
-      toast.info(`Marco concluído. ${entregue}Quem aprova disciplinas foi avisado para aprovar a fase ${rotulo}.`);
-      return;
-    }
-    const ok = await confirm({
-      title: `Aprovar a fase ${rotulo}?`,
-      description:
-        `O marco foi concluído${fase.marcadaEntregue ? " e a fase foi marcada como Entregue" : ""}. Aprovar a fase libera o pagamento dela para os projetistas PJ/freelancer — é a mesma aprovação do diálogo Etapas da disciplina. Depois disso o percentual da fase fica fixo.`,
-      confirmLabel: "Aprovar fase",
-    });
-    if (!ok) return;
-    const r = await aprovarEtapaDisciplina({ id: fase.id });
-    if (!r.ok) toast.error(r.error);
-    else toast.success(r.data.pagamentos > 0 ? `Fase ${fase.sigla} aprovada — pagamento liberado.` : `Fase ${fase.sigla} aprovada.`);
-    router.refresh();
   }
 
   async function gravar(inicioReal: string | null, fimReal: string | null, opcoes: { reabrir?: boolean } = {}) {

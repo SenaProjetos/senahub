@@ -45,3 +45,46 @@ describe("autoMapear (export Meu Dinheiro)", () => {
     expect(m2.data).toBeUndefined();
   });
 });
+
+describe("autoMapear (extrato do banco com colunas do SenaHub)", () => {
+  it("nº do documento, projeto e sócio não roubam o CPF/CNPJ", () => {
+    const h = ["Data", "Histórico", "Nº Documento", "Valor", "Projeto", "Sócio", "CPF/CNPJ"];
+    const m = autoMapear(h);
+    expect(m.numeroDocumento).toBe(2);
+    expect(m.projeto).toBe(4);
+    expect(m.socio).toBe(5);
+    expect(m.documento).toBe(6);
+  });
+});
+
+describe("autoMapear (modelo-saida.csv do lançamento retroativo)", () => {
+  it("cada cabeçalho do modelo cai no campo certo", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const texto = readFileSync(resolve(__dirname, "../../../docs/financeiro/retroativo/modelo-saida.csv"), "utf8");
+    const h = texto.replace(/^\uFEFF/, "").split(/\r?\n/)[0].split(";");
+    const m = autoMapear(h);
+    const esperado = {
+      data: "Data",
+      descricao: "Descrição",
+      valor: "Valor",
+      tipo: "Tipo",
+      status: "Status",
+      dataConfirmacao: "Data efetiva",
+      categoria: "Categoria",
+      subcategoria: "Subcategoria",
+      conta: "Conta",
+      contaTransferencia: "Conta destino",
+      contato: "Contato",
+      documento: "CPF/CNPJ",
+      projeto: "Projeto",
+      socio: "Sócio",
+      numeroDocumento: "Nº documento",
+      observacao: "Observação",
+    } as const;
+    for (const [campo, cabecalho] of Object.entries(esperado)) {
+      expect([campo, h[m[campo as keyof typeof m]!]]).toEqual([campo, cabecalho]);
+    }
+    expect(Object.keys(m).sort()).toEqual(Object.keys(esperado).sort());
+  });
+});

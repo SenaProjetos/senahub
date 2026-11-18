@@ -70,6 +70,20 @@ Cada disciplina passa por um ciclo de status:
 | Aprovado | Validada (status final) | 100% |
 
 - O **progresso do projeto** é a média desses pesos entre suas disciplinas.
+- **Disciplina com etapas (fases): o status vem das fases** e não se escolhe à mão. O card mostra o
+  status calculado, sem o seletor. A regra:
+  - alguma fase **Em revisão** → a disciplina fica **Em revisão**;
+  - todas as fases **Aprovadas** → **Aprovado** (disciplina aprovada só sai de Aprovado se uma fase
+    voltar a revisão);
+  - todas **Entregues** ou **Aprovadas** → **Entregue**;
+  - alguma fase andando (em andamento, entregue ou aprovada) → **Em andamento**;
+  - todas **Aguardando** → **Aguardando**.
+
+  Para mudar o status, mude a **situação da fase** (diálogo de etapas, **Enviei os documentos** ou
+  **Aprovar**). Reabrir a disciplina e enviar apontamentos levam a fase do documento a **Em revisão**
+  (o pagamento já liberado não muda). Ver [Etapas da disciplina e pagamento por fase](etapas-e-pagamento-por-fase.md).
+- **Disciplina sem etapa** (e as do fluxo de aprovação em 2 etapas) continua com o status manual,
+  como descrito abaixo.
 - **Quem altera o status:** gestores (admin/supervisor) **ou** os **responsáveis** pela
   disciplina.
 - **Transições para não-gestores** são limitadas: Aguardando→Em andamento; Em
@@ -621,7 +635,8 @@ O estado aparece na coluna **Status** da tabela. A coluna **Revisão** mostra ta
 (v1, v2, v3…), um ajuste interno. Se você reenviar o PDF, o anterior sai da lista e fica no **Histórico de
 revisões**, com download. A **revisão** é a etapa que vai para análise e para o cliente: a R02 só nasce
 depois que a R01 foi publicada. Com a revisão **em análise**, o envio de arquivo é recusado até a
-coordenação devolver ou publicar.
+coordenação devolver ou publicar. **Enviar os apontamentos** de uma prancha em análise já a devolve para
+ajustes (veja abaixo), e o projetista pode mandar a correção.
 
 **Os passos (botão direito ou ⋯ da linha):**
 
@@ -636,7 +651,13 @@ coordenação devolver ou publicar.
   algo falhar, a mensagem lista o que corrigir.
 - **Pagamento do projetista** — sai quando a gestão **aprova a disciplina** (ou a fase), e isso só é
   possível com todos os documentos **publicados**.
-- **Devolver para ajustes** — com motivo; o projetista é avisado.
+- **Devolver para ajustes** — com motivo; o projetista é avisado. **Acontece sozinho ao enviar os
+  apontamentos** da prancha em análise (botão **Enviar** do visualizador): a revisão volta para **em
+  andamento** no mesmo gesto, o histórico registra quem enviou e quantos apontamentos foram, e o aviso dos
+  apontamentos já diz ao projetista que a revisão voltou para ajustes. Apontamento ainda em rascunho não devolve
+  nada. Se a revisão estiver **bloqueada**, os apontamentos são enviados mas ela continua em análise: o sistema
+  avisa, e você devolve à mão depois de remover o bloqueio. Para publicar **com** apontamentos em aberto (quando
+  o projeto permite), publique antes de enviá-los.
 - **Publicar** — só com todos os arquivos **validados** e com os **arquivos que o tipo do documento exige**
   (Configurações → Nomenclatura → Tipos → ⋯ → *Arquivos exigidos para publicar*): por padrão o PDF; planta
   costuma exigir DWG e PDF; memorial, Word ou Excel e PDF; lista de quantitativo, só o Excel. Faltando algum, a
@@ -700,8 +721,9 @@ Quando o cliente pede mudança numa prancha que já está com ele, a coordenaç�
 5. A etiqueta **sai sozinha** quando a próxima revisão é publicada. Se o pedido foi cancelado, use **Cancelar
    revisão…** na própria linha e informe o motivo; a etiqueta sai e o histórico do documento guarda quem fez.
 
-Marcar e cancelar ficam registrados no **Histórico** do documento. Criar um apontamento não marca a revisão
-nem devolve o documento: "Devolver para ajustes" continua manual.
+Marcar e cancelar ficam registrados no **Histórico** do documento. Criar um apontamento não marca a revisão.
+Na revisão publicada, enviar apontamentos também não muda nada nela: o próximo envio do projetista já abre a
+revisão seguinte, e os apontamentos seguem para ela.
 
 ### Descrição lida do carimbo
 

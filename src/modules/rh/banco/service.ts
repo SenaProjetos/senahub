@@ -32,17 +32,55 @@ export async function fecharBancoDoMes(ano: number, mes: number): Promise<number
 
   let fechados = 0;
   for (const { id: userId } of usuarios) {
-    const esp = await espelhoMes(userId, ano, mes);
-    const anterior = await acumuladoAte(userId, ano, mes);
-    const acumulado = (anterior?.acumuladoMinutos ?? 0) + esp.saldoMinutos;
-    await prisma.bancoHorasMensal.upsert({
-      where: { userId_ano_mes: { userId, ano, mes } },
-      create: { userId, ano, mes, saldoMinutos: esp.saldoMinutos, acumuladoMinutos: acumulado },
-      update: { saldoMinutos: esp.saldoMinutos, acumuladoMinutos: acumulado, fechadoEm: new Date() },
-    });
+    await fecharMesDaPessoa(userId, ano, mes);
     fechados++;
   }
   return fechados;
+}
+
+/** Fecha (upsert) UM mês de UMA pessoa a partir do espelho e do acumulado anterior. */
+async function fecharMesDaPessoa(userId: string, ano: number, mes: number): Promise<void> {
+  const esp = await espelhoMes(userId, ano, mes);
+  const anterior = await acumuladoAte(userId, ano, mes);
+  const acumulado = (anterior?.acumuladoMinutos ?? 0) + esp.saldoMinutos;
+  await prisma.bancoHorasMensal.upsert({
+    where: { userId_ano_mes: { userId, ano, mes } },
+    create: { userId, ano, mes, saldoMinutos: esp.saldoMinutos, acumuladoMinutos: acumulado },
+    update: { saldoMinutos: esp.saldoMinutos, acumuladoMinutos: acumulado, fechadoEm: new Date() },
+  });
+}
+
+/**
+ * Refaz os meses JÁ FECHADOS de UMA pessoa, do mês de `desde` em diante, em ordem (o acumulado de
+ * cada mês parte do anterior). Chamado quando uma ausência aprovada — abono ou férias, aprovada,
+ * lançada ou com data alterada — cai num mês já fechado: sem isso o saldo congelado ignorava a
+ * ausência até alguém lembrar de "Recalcular histórico". Mês não fechado não é tocado (o saldo
+ * corrente já lê o espelho ao vivo). Por pessoa, então não precisa da janela de `MAX_MESES_RECALCULO`.
+ *
+ * `desde` é uma data `@db.Date` (meia-noite UTC): o mês sai em UTC.
+ */
+export async function recalcularBancoDaPessoa(userId: string, desde: Date): Promise<number> {
+  const ano = desde.getUTCFullYear();
+  const mes = desde.getUTCMonth() + 1;
+  const meses = await prisma.bancoHorasMensal.findMany({
+    where: { userId, OR: [{ ano: { gt: ano } }, { ano, mes: { gte: mes } }] },
+    orderBy: [{ ano: "asc" }, { mes: "asc" }],
+    select: { ano: true, mes: true },
+  });
+  for (const m of meses) await fecharMesDaPessoa(userId, m.ano, m.mes);
+  return meses.length;
+}
+
+/**
+ * Melhor esforço para quem acabou de aprovar uma ausência: a aprovação já está gravada e um erro
+ * aqui não pode desfazê-la nem virar falha na tela. Se falhar, "Recalcular histórico" resolve.
+ */
+export async function recalcularBancoDaPessoaSemFalhar(userId: string, desde: Date): Promise<void> {
+  try {
+    await recalcularBancoDaPessoa(userId, desde);
+  } catch (e) {
+    console.error("[banco] falha ao recalcular o banco da pessoa após a ausência", e);
+  }
 }
 
 /**

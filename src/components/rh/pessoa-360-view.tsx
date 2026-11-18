@@ -96,6 +96,8 @@ export type Pessoa360Props = {
   competenciasSlot?: React.ReactNode;
   /** Aba "Desenvolvimento" (F3) — `DesenvolvimentoPessoa`, já recortado pelo papel de quem vê. */
   desenvolvimentoSlot?: React.ReactNode;
+  /** Aba "Ausências": "Lançar abono" (RH) — `LancarAbonoDialog`, montado pela página. */
+  lancarAbonoSlot?: React.ReactNode;
 };
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -138,7 +140,7 @@ function Secao({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
-export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null, ciclosSlot, pedidoDadosSlot, competenciasSlot, desenvolvimentoSlot }: Pessoa360Props) {
+export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, banco, temPonto, controlaJornada = false, holerites, nf, self = false, podeEditarCadastro = false, pessoasJuridicas = [], cargos = [], departamentos = [], contas = null, contaPendente = null, preferenciasSlot, historicoSlot, overrides = [], podeGerirAcesso = false, ultimoMesFechadoBanco = null, ciclosSlot, pedidoDadosSlot, competenciasSlot, desenvolvimentoSlot, lancarAbonoSlot }: Pessoa360Props) {
   // Cadastro no formato do EditarCadastroDialog (junta os escalares + o vínculo PJ do cabeçalho).
   const cadastroDialog: Cadastro | null = cadastro
     ? {
@@ -484,7 +486,10 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                 )}
               </div>
               <div className="space-y-2">
-                <h4 className="text-sm font-semibold">Abonos de falta ({ausencias.abonos.length})</h4>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold">Abonos de falta ({ausencias.abonos.length})</h4>
+                  {lancarAbonoSlot}
+                </div>
                 {ausencias.abonos.length === 0 ? (
                   <EmptyState title="Sem abonos" description="Esta pessoa não possui abonos de falta registrados." />
                 ) : (
@@ -496,10 +501,16 @@ export function Pessoa360View({ pessoa, podeFolha, cadastro, ausencias, escala, 
                           {rotuloJanela(a.horaInicio, a.horaFim) ? ` · ${rotuloJanela(a.horaInicio, a.horaFim)}` : ""}
                           <span className="text-muted-foreground"> · {rotuloMotivo(a.motivoTipo)}</span>
                           {a.antecipado && <Badge variant="outline" className="ml-2 align-middle">Aviso antecipado</Badge>}
+                          {a.lancadoPeloRh && <Badge variant="outline" className="ml-2 align-middle">Lançado pelo RH</Badge>}
                           {a.motivo ? <span className="text-muted-foreground"> · {a.motivo}</span> : null}
                         </span>
-                        <span className="flex items-center gap-2">
-                          {a.temAnexo && <AnexoAbono id={a.id} nome={a.atestadoNome} />}
+                        <span className="flex flex-wrap items-center gap-2">
+                          {a.temAnexo &&
+                            (a.anexoFechado ? (
+                              <span className="text-xs text-muted-foreground">{a.anexoFechado}</span>
+                            ) : (
+                              <AnexoAbono id={a.id} nome={a.atestadoNome} />
+                            ))}
                           {rotuloTratamento(a.status, a.tratamento) && (
                             <span className="text-xs text-muted-foreground">{rotuloTratamento(a.status, a.tratamento)}</span>
                           )}

@@ -40,6 +40,13 @@ disciplina** abre o diálogo **Etapas — {disciplina}**. Exige `projetos:gerir`
 - **Valor** — só para quem vê o financeiro: o valor calculado de cada fase (veja abaixo).
 - **Remover** a etapa (lixeira, com confirmação).
 
+**O status da disciplina passa a vir das situações das etapas** (novembro/2026): todas aguardando →
+Aguardando; alguma andando → Em andamento; todas entregues ou aprovadas → Entregue; todas aprovadas →
+Aprovado; alguma em revisão → Em revisão. A disciplina perde o seletor de status. **Reabrir** a
+disciplina põe em revisão a etapa que define o prazo; **apontamentos** enviados põem em revisão a etapa
+do documento (numa disciplina ainda não aprovada, só se a etapa já estava entregue). Reaprovar uma fase
+que voltou a revisão **não gera pagamento novo**.
+
 **O prazo da disciplina passa a ser o maior prazo entre as etapas.** O campo de prazo da disciplina
 fica travado no editor. Sem nenhuma etapa com prazo, o prazo atual é mantido; remover a última etapa
 devolve a disciplina à edição direta do prazo. Ao **reabrir** uma disciplina com etapas, o novo prazo

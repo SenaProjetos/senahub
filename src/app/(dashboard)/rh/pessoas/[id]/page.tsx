@@ -21,6 +21,9 @@ import { escalaUsuarioGrade, escalaPadraoDoUsuario } from "@/modules/rh/escalas/
 import { overridesDeUsuario } from "@/modules/perfis/queries";
 import { Pessoa360View } from "@/components/rh/pessoa-360-view";
 import { CiclosPessoa } from "@/components/rh/ciclos-pessoa";
+import { LancarAbonoDialog } from "@/components/rh/lancar-abono-dialog";
+import { ehDoRh } from "@/modules/rh/gestores-rh";
+import { motivoParaNaoVerAtestado } from "@/modules/rh/quem-decide";
 import { PedidoDadosFicha } from "@/components/rh/pedido-dados";
 import { pedidoDaPessoa } from "@/modules/rh/cadastro/queries";
 import { CompetenciasPessoa } from "@/components/rh/competencias-pessoa";
@@ -89,9 +92,17 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
 
   // Ponto (espelhoMes) é a leitura mais cara → carregada sob demanda pela aba (lazy client).
 
+  // Quem é do RH só um administrador decide (`quem-decide.ts`): vale para lançar abono e para abrir
+  // os atestados dela. A ficha também abre para quem tem só o cadastro (sem a Gestão de RH).
+  const pessoaEhRh = id !== user.id && (await ehDoRh(id));
+  const anexoFechado = motivoParaNaoVerAtestado(
+    { id, ehRh: pessoaEhRh },
+    { id: user.id, superUsuario: user.superUsuario === true, gereRh: user.gereRh === true },
+  );
+
   const [cadastro, ausencias, banco, escalaUsuario, escalaPadrao, holerites, nf, opcoes, overrides, contas, historico, mesFechadoBanco] = await Promise.all([
     isCadastro ? cadastroDaPessoa(id) : Promise.resolve(null),
-    controlaJornada ? solicitacoesDoUsuario(id) : Promise.resolve(null),
+    controlaJornada ? solicitacoesDoUsuario(id, { anexoFechado }) : Promise.resolve(null),
     controlaJornada && podeVerPonto ? bancoHorasDe(id) : Promise.resolve(null),
     temEscala ? escalaUsuarioGrade(id) : Promise.resolve(null),
     temEscala ? escalaPadraoDoUsuario(id) : Promise.resolve(null),
@@ -126,6 +137,14 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       ])
     : [[], null, []];
 
+  // "Lançar abono" só quando o servidor aceitaria: RH, pessoa ativa, e nem a própria ficha nem a
+  // de alguém do RH sem ser administrador (`quem-decide.ts`).
+  const podeLancarAbono =
+    ehRh &&
+    !!ausencias &&
+    pessoa.ativo &&
+    (user.superUsuario || (id !== user.id && !pessoaEhRh));
+
   const escala = escalaUsuario && escalaPadrao
     ? { temOverride: escalaUsuario.temOverride, dias: escalaUsuario.dias, padraoDias: escalaPadrao }
     : null;
@@ -151,6 +170,11 @@ export default async function PessoaFichaPage({ params }: { params: Promise<{ id
       overrides={overrides}
       podeGerirAcesso={podeGerirAcesso}
       ultimoMesFechadoBanco={mesFechadoBanco}
+      lancarAbonoSlot={
+        podeLancarAbono ? (
+          <LancarAbonoDialog pessoa={{ id, name: pessoa.name }} ultimoMesFechado={mesFechadoBanco} />
+        ) : undefined
+      }
       pedidoDadosSlot={pedidoDados ? <PedidoDadosFicha key="pedido-dados" userId={id} pedido={pedidoDados} /> : undefined}
       desenvolvimentoSlot={
         desenvolvimento ? (

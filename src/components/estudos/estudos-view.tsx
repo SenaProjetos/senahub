@@ -16,16 +16,17 @@ import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { formatarDataHora } from "@/lib/utils";
-import { AVISO_EM_VALIDACAO, MOTIVO_SEM_EDICAO } from "@/modules/estudos/acesso";
+import { AVISO_EM_VALIDACAO, MOTIVO_SEM_EDICAO, TIPO_ESTUDO_CARGAS, TIPO_ESTUDO_CARGAS_DEMANDA, type TipoDeEstudo } from "@/modules/estudos/acesso";
 import { ACAO_ESTUDO_DUPLICAR, ACAO_ESTUDO_EXCLUIR, MOTIVO_LIMITE_ESTUDOS, hrefDoEstudo, itensDeEstudo } from "@/modules/estudos/acoes";
 import { MAX_ESTUDOS_POR_PROJETO } from "@/modules/estudos/conteudo";
 import { criarEstudoAction, duplicarEstudoAction, excluirEstudoAction } from "@/modules/estudos/actions";
 import { fmtNum } from "@/modules/ferramentas/memoria";
 import type { EstudoResumo } from "@/modules/estudos/queries";
+import { TIPO_ESTUDO_DESCRICAO, TIPO_ESTUDO_ROTULO } from "@/modules/estudos/tipos";
 
-type Props = { projetoId: string; estudos: EstudoResumo[]; podeEditar: boolean; emValidacao: boolean };
+type Props = { projetoId: string; estudos: EstudoResumo[]; podeEditar: boolean; emValidacao: boolean; tiposLiberados: TipoDeEstudo[] };
 
-export function EstudosView({ projetoId, estudos, podeEditar, emValidacao }: Props) {
+export function EstudosView({ projetoId, estudos, podeEditar, emValidacao, tiposLiberados }: Props) {
   const router = useRouter();
   const confirm = useConfirm();
   const [, startTransition] = useTransition();
@@ -63,7 +64,7 @@ export function EstudosView({ projetoId, estudos, podeEditar, emValidacao }: Pro
         <div className="min-w-0">
           <h2 className="text-xl font-bold tracking-tight">Estudos</h2>
           <p className="text-sm text-muted-foreground">
-            Levantamento de cargas elétricas do projeto, por ambiente, calculado pelo mesmo motor da calculadora Corrente e demanda.
+            Levantamento de cargas elétricas do projeto: por ambiente, ou a demanda de edificações de múltiplas unidades pelo método de cada concessionária.
           </p>
         </div>
         {podeEditar && (
@@ -100,14 +101,20 @@ export function EstudosView({ projetoId, estudos, podeEditar, emValidacao }: Pro
       ) : (
         <ul className="space-y-2" aria-label="Estudos do projeto">
           {estudos.map((e) => (
-            <LinhaEstudo key={e.id} projetoId={projetoId} estudo={e} podeEditar={podeEditar} total={estudos.length} onExecutar={(item) => void executar(e, item)} />
+            <LinhaEstudo key={e.id} projetoId={projetoId} estudo={e} podeEditar={podeEditar} total={estudos.length} tipos={tiposLiberados} onExecutar={(item) => void executar(e, item)} />
           ))}
         </ul>
       )}
 
-      <NovoEstudoDialog projetoId={projetoId} aberto={novoAberto} onOpenChange={setNovoAberto} />
+      <NovoEstudoDialog projetoId={projetoId} aberto={novoAberto} onOpenChange={setNovoAberto} tipos={tiposLiberados} />
     </div>
   );
+}
+
+function resumoDoEstudo(e: EstudoResumo): string {
+  if (e.cargas == null) return "Conteúdo ilegível — abra para ver";
+  if (e.tipo === TIPO_ESTUDO_CARGAS_DEMANDA) return `${e.levantamentos} levantamento(s) · ${e.calculos} cálculo(s) de demanda`;
+  return `${e.ambientes} ambiente(s) · ${e.cargas} carga(s)${e.demandaKw != null ? ` · demanda ${fmtNum(e.demandaKw, 2)} kW` : ""}`;
 }
 
 function LinhaEstudo({
@@ -115,24 +122,25 @@ function LinhaEstudo({
   estudo,
   podeEditar,
   total,
+  tipos,
   onExecutar,
 }: {
   projetoId: string;
   estudo: EstudoResumo;
   podeEditar: boolean;
   total: number;
+  tipos: TipoDeEstudo[];
   onExecutar: (item: AcaoItemAcao) => void;
 }) {
-  const itens = itensDeEstudo({ projetoId, estudoId: estudo.id, podeEditar, totalEstudos: total });
+  const itens = itensDeEstudo({ projetoId, estudoId: estudo.id, podeEditar, totalEstudos: total, tipo: estudo.tipo });
   return (
     <LinhaComMenu itens={itens} onSelect={onExecutar} render={<li className="group flex items-center gap-2 rounded-lg border bg-card p-3" />}>
       <Link href={hrefDoEstudo(projetoId, estudo.id)} className="min-w-0 flex-1 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <span className="block truncate text-sm font-medium">{estudo.nome}</span>
-        <span className="block text-xs text-muted-foreground">
-          {estudo.cargas == null
-            ? "Conteúdo ilegível — abra para ver"
-            : `${estudo.ambientes} ambiente(s) · ${estudo.cargas} carga(s)${estudo.demandaKw != null ? ` · demanda ${fmtNum(estudo.demandaKw, 2)} kW` : ""}`}
+        <span className="block truncate text-sm font-medium">
+          {estudo.nome}
+          {tipos.length > 1 && <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">{TIPO_ESTUDO_ROTULO[estudo.tipo]}</span>}
         </span>
+        <span className="block text-xs text-muted-foreground">{resumoDoEstudo(estudo)}</span>
         <span className="block text-xs text-muted-foreground">
           Alterado por {estudo.atualizadoPor} em {formatarDataHora(estudo.atualizadoEm)}
         </span>
@@ -142,15 +150,28 @@ function LinhaEstudo({
   );
 }
 
-function NovoEstudoDialog({ projetoId, aberto, onOpenChange }: { projetoId: string; aberto: boolean; onOpenChange: (v: boolean) => void }) {
+function NovoEstudoDialog({
+  projetoId,
+  aberto,
+  onOpenChange,
+  tipos,
+}: {
+  projetoId: string;
+  aberto: boolean;
+  onOpenChange: (v: boolean) => void;
+  tipos: TipoDeEstudo[];
+}) {
   const router = useRouter();
   const [pendente, startTransition] = useTransition();
   const [nome, setNome] = useState("");
+  const [tipo, setTipo] = useState<TipoDeEstudo>(TIPO_ESTUDO_CARGAS);
+  // O tipo escolhido sempre é um dos liberados (quem não gere as ferramentas vê só os já validados).
+  const tipoEfetivo = tipos.includes(tipo) ? tipo : (tipos[0] ?? TIPO_ESTUDO_CARGAS);
 
   function criar(ev: React.FormEvent) {
     ev.preventDefault();
     startTransition(async () => {
-      const r = await criarEstudoAction({ projetoId, nome });
+      const r = await criarEstudoAction({ projetoId, nome, tipo: tipoEfetivo });
       if (!r.ok) return void toast.error(r.error);
       onOpenChange(false);
       setNome("");
@@ -164,8 +185,25 @@ function NovoEstudoDialog({ projetoId, aberto, onOpenChange }: { projetoId: stri
         <form onSubmit={criar} className="space-y-4">
           <DialogHeader>
             <DialogTitle>Novo estudo</DialogTitle>
-            <DialogDescription>Dê um nome ao levantamento (ex.: Edificação principal, Casa de apoio). Os ambientes e as cargas entram na próxima tela.</DialogDescription>
+            <DialogDescription>Dê um nome ao estudo (ex.: Edificação principal, Casa de apoio). O conteúdo entra na próxima tela.</DialogDescription>
           </DialogHeader>
+          {tipos.length > 1 && (
+            <div role="radiogroup" aria-label="Tipo de estudo" className="grid gap-2">
+              {tipos.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="radio"
+                  aria-checked={t === tipoEfetivo}
+                  onClick={() => setTipo(t)}
+                  className="flex flex-col gap-0.5 rounded-md border p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring aria-checked:border-primary aria-checked:bg-muted"
+                >
+                  <span className="text-sm font-semibold">{TIPO_ESTUDO_ROTULO[t]}</span>
+                  <span className="text-xs text-muted-foreground">{TIPO_ESTUDO_DESCRICAO[t]}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="novo-estudo-nome">Nome do estudo</Label>
             <Input id="novo-estudo-nome" value={nome} maxLength={120} autoFocus onChange={(e) => setNome(e.target.value)} />

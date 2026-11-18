@@ -12,7 +12,9 @@ import {
   editarTipoCertidaoSchema,
   criarLinkCertidoesSchema,
   atualizarLinkCertidoesSchema,
+  prazosCertidoesSchema,
 } from "./schemas";
+import { CHAVE_CONFIG_PRAZOS_CERTIDOES } from "./prazos";
 
 const base = { modulo: "certidoes", recurso: "certidoes", permissao: "gerir" } as const;
 const rev = () => revalidatePath("/certidoes");
@@ -186,5 +188,33 @@ export const revogarLinkCertidoes = defineAction(
     await prisma.linkPublicoCertidoes.update({ where: { id: i.id }, data: { ativo: false } });
     rev();
     return { id: i.id };
+  },
+);
+
+/**
+ * Prazos de "Vence em breve" e dos avisos de vencimento (`prazos.ts`). Vale para todos na hora:
+ * a tela, o badge do menu e o card do Início leem a configuração a cada carregamento, e o job
+ * das 08:00 lê no próprio disparo.
+ */
+export const salvarPrazosCertidoes = defineAction(
+  {
+    ...base,
+    acao: "salvar-prazos-certidoes",
+    entidade: "ConfigSistema",
+    schema: prazosCertidoesSchema,
+    capturarAntes: async () =>
+      (await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_PRAZOS_CERTIDOES } }))?.valor ?? null,
+  },
+  async (i) => {
+    // `diasAvisos` já chega normalizado pelo schema (sem repetidos, do maior para o menor).
+    const valor = { diasEmBreve: i.diasEmBreve, diasAvisos: i.diasAvisos };
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_CONFIG_PRAZOS_CERTIDOES },
+      create: { chave: CHAVE_CONFIG_PRAZOS_CERTIDOES, valor },
+      update: { valor },
+    });
+    rev();
+    revalidatePath("/");
+    return valor;
   },
 );

@@ -10,7 +10,7 @@
  * badge de contrato tinha o seu `new Date(x) < new Date()` solto).
  *
  * NÃO unifica a ESTRATÉGIA DE DISPARO dos alertas, que é diferente por bom motivo:
- * `alertaCertidoes` dispara em dia exato (30/15/7, via `diaAlvo`) e pode avisar três vezes;
+ * `alertaCertidoes` dispara em dia exato (os dias de `certidoes.prazos`, padrão 30/15/7) e avisa uma vez em cada um;
  * `alertaContratosEquipeVencendo` usa janela + marca de compare-and-swap e avisa uma vez só.
  * Forçar as duas no mesmo formato mudaria o comportamento de um alerta que funciona, sem ganho.
  */

@@ -24,6 +24,11 @@ import {
   type EstadoPagamento,
   type FaseParaPagamento,
 } from "@/modules/uploads/pagamento-fase";
+import {
+  aprovarFasesSemPagamento,
+  recalcularStatusDisciplina,
+  travarDisciplina,
+} from "@/modules/projetos/status-pelas-fases-service";
 
 type ResponsavelComUser = {
   userId: string;
@@ -96,6 +101,8 @@ export async function liberarPagamentosDaFase(
   },
 ): Promise<{ pagaveis: ResponsavelComUser[]; salariados: ResponsavelComUser[]; pool: number; jaLiberada: boolean }> {
   const { disciplina, faseId, autorId, agora } = params;
+  // Disciplina antes da fase (ordem única de travas, status-pelas-fases-service). Idempotente na transação.
+  await travarDisciplina(tx, disciplina.id);
   const fases = await fasesDaDisciplina(tx, disciplina.id);
   const pagamentos = await tx.pagamentoProjetista.findMany({
     where: { disciplinaId: disciplina.id },
@@ -121,6 +128,9 @@ export async function liberarPagamentosDaFase(
     if (zerada.count === 0) {
       throw new ActionError("A fase mudou enquanto a tela estava aberta — atualize e tente de novo.");
     }
+    // Status da disciplina vem das fases (spec 2026-11-13). Na aprovação global a disciplina já está
+    // gravada como aprovada antes daqui, e a regra 4 a mantém — não há passo intermediário.
+    await recalcularStatusDisciplina(tx, disciplina.id, { autorId, motivo: `fase ${fase.sigla} aprovada`, agora });
     return { pagaveis: [], salariados: [...disciplina.responsaveis], pool: 0, jaLiberada: false };
   }
 
@@ -137,6 +147,7 @@ export async function liberarPagamentosDaFase(
   if (marcada.count === 0) {
     throw new ActionError("A fase mudou enquanto a tela estava aberta — atualize e tente de novo.");
   }
+  await recalcularStatusDisciplina(tx, disciplina.id, { autorId, motivo: `fase ${fase.sigla} aprovada`, agora });
 
   const { pagaveis: cotas, salariados } = ratearPagamentoProjetista(disciplina.responsaveis, pool);
   const nome = rotuloDisciplinaPagamento(disciplina.disciplinaTextoLegado, fase.sigla);
@@ -205,19 +216,26 @@ export async function liberarPagamentosProjetista(
       select: { etapaId: true, status: true },
     });
     if (modoPagamento(pagamentos, fases) !== "disciplina") {
+      // 100% CLT: nada a pagar, nem a repartir. Até 2026-11-13 este ramo saía aqui sem tocar nas fases, e a
+      // disciplina ficava "Aprovado" com as fases "Aguardando". Agora as fases são liberadas do mesmo jeito:
+      // `liberarPagamentosDaFase` aprova a fase sem pagável com R$ 0 (decisão #9), sem exigir que os
+      // percentuais fechem 100% — percentual que não fecha não trava aprovação que não mexe em dinheiro.
       const semValor = ratearPagamentoProjetista(disciplina.responsaveis, 0);
-      // 100% CLT: nada a pagar, nem a repartir — e percentual que não fecha não pode travar
-      // uma aprovação que não mexe em dinheiro.
-      if (semValor.pagaveis.length === 0) return { pagaveis: [], salariados: semValor.salariados };
       const pendentes = fases
         .filter((f) => f.liberadaEm == null)
         .sort((a, b) => a.ordem - b.ordem || a.id.localeCompare(b.id));
       const recebem = new Map<string, ResponsavelComUser>();
-      let salariados: ResponsavelComUser[] = [];
+      let salariados: ResponsavelComUser[] = semValor.salariados;
       for (const f of pendentes) {
         const r = await liberarPagamentosDaFase(tx, { disciplina, faseId: f.id, autorId, agora });
         for (const p of r.pagaveis) recebem.set(p.userId, p);
         salariados = r.salariados;
+      }
+      // Fase JÁ liberada que voltou a revisão (reabertura/apontamentos) não está em `pendentes`: aprovar a
+      // disciplina inteira a aprova também, sem pagamento novo — senão a regra 2 devolveria a disciplina a
+      // "Em revisão" logo depois de "Entrega validada" (spec 2026-11-13).
+      if ((await aprovarFasesSemPagamento(tx, disciplina.id, agora)) > 0) {
+        await recalcularStatusDisciplina(tx, disciplina.id, { autorId, motivo: "disciplina aprovada inteira", agora });
       }
       return { pagaveis: [...recebem.values()], salariados };
     }
@@ -292,6 +310,7 @@ export async function sincronizarValorDisciplina(
       poolFaseAntes: fase?.valorPagamento == null ? 0 : Number(fase.valorPagamento),
       somaVivosFase: agg._sum.valor == null ? 0 : Number(agg._sum.valor),
     });
+    // recalculo-ok: só o pool da fase (write-back de valor); status e conjunto de fases não mudam.
     await tx.disciplinaEtapa.update({ where: { id: etapaId }, data: { valorPagamento: wb.poolFase } });
     await tx.disciplina.update({ where: { id: disciplinaId }, data: { valor: wb.valorDisciplina } });
     return;

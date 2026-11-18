@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { Prisma } from "@/generated/prisma/client";
 import { sanitize } from "@/lib/audit";
-import { aplicarExecucao, fotoDaExecucao, registrarExecucaoSchema, statusAoDesbloquear, type LinhaParaExecucao } from "./execucao";
+import {
+  aplicarExecucao,
+  execucaoDaCelula,
+  MOTIVO_APAGAR_INICIO_COM_TERMINO,
+  MOTIVO_REABRIR_NA_CELULA,
+  fotoDaExecucao,
+  registrarExecucaoSchema,
+  statusAoDesbloquear,
+  type LinhaParaExecucao,
+} from "./execucao";
 
 const HOJE = "2026-10-20";
 const atv = (extra: Partial<LinhaParaExecucao> = {}): LinhaParaExecucao => ({
@@ -201,5 +210,104 @@ describe("registrarExecucaoSchema", () => {
   it("campos novos são opcionais (chamadas antigas continuam valendo)", () => {
     expect(registrarExecucaoSchema.safeParse(base).success).toBe(true);
     expect(registrarExecucaoSchema.safeParse({ ...base, custoRealTerceiro: null }).success).toBe(true);
+  });
+});
+
+describe("execucaoDaCelula — datas reais digitadas na tabela", () => {
+  const linha = (extra: Partial<Parameters<typeof execucaoDaCelula>[0]> = {}) => ({
+    marco: false,
+    status: "nin" as const,
+    inicioReal: null,
+    fimReal: null,
+    inicioPrevisto: "2026-10-05",
+    ...extra,
+  });
+
+  it("início real: mantém o término que já existe", () => {
+    expect(execucaoDaCelula(linha({ fimReal: null }), "inicioReal", "2026-10-06")).toEqual({
+      ok: true,
+      inicioReal: "2026-10-06",
+      fimReal: null,
+      inicioDeduzido: false,
+    });
+    expect(execucaoDaCelula(linha({ status: "con", inicioReal: "2026-10-01", fimReal: "2026-10-10" }), "inicioReal", "2026-10-02")).toEqual({
+      ok: true,
+      inicioReal: "2026-10-02",
+      fimReal: "2026-10-10",
+      inicioDeduzido: false,
+    });
+  });
+
+  it("apagar o início com término real é recusado; sem término, apaga", () => {
+    expect(execucaoDaCelula(linha({ status: "con", inicioReal: "2026-10-01", fimReal: "2026-10-10" }), "inicioReal", null)).toEqual({
+      ok: false,
+      motivo: MOTIVO_APAGAR_INICIO_COM_TERMINO,
+    });
+    expect(execucaoDaCelula(linha({ status: "and", inicioReal: "2026-10-01" }), "inicioReal", null)).toEqual({
+      ok: true,
+      inicioReal: null,
+      fimReal: null,
+      inicioDeduzido: false,
+    });
+  });
+
+  it("término sem início real: o início vira o previsto (como o Project)", () => {
+    expect(execucaoDaCelula(linha(), "fimReal", "2026-10-12")).toEqual({
+      ok: true,
+      inicioReal: "2026-10-05",
+      fimReal: "2026-10-12",
+      inicioDeduzido: "previsto",
+    });
+    // No mesmo dia do previsto: é o previsto.
+    expect(execucaoDaCelula(linha({ inicioPrevisto: "2026-10-12" }), "fimReal", "2026-10-12")).toMatchObject({ inicioDeduzido: "previsto" });
+  });
+
+  it("término antes do início previsto (ou sem previsto): o início é o próprio término", () => {
+    expect(execucaoDaCelula(linha({ inicioPrevisto: "2026-10-15" }), "fimReal", "2026-10-12")).toMatchObject({
+      inicioReal: "2026-10-12",
+      inicioDeduzido: "termino",
+    });
+    expect(execucaoDaCelula(linha({ inicioPrevisto: null }), "fimReal", "2026-10-12")).toMatchObject({
+      inicioReal: "2026-10-12",
+      inicioDeduzido: "termino",
+    });
+  });
+
+  it("término com início real: só o término muda", () => {
+    expect(execucaoDaCelula(linha({ status: "and", inicioReal: "2026-10-07" }), "fimReal", "2026-10-12")).toEqual({
+      ok: true,
+      inicioReal: "2026-10-07",
+      fimReal: "2026-10-12",
+      inicioDeduzido: false,
+    });
+  });
+
+  it("apagar o término de concluída aponta o Atualizar tarefa (reabrir pede o %)", () => {
+    expect(execucaoDaCelula(linha({ status: "con", inicioReal: "2026-10-01", fimReal: "2026-10-10" }), "fimReal", null)).toEqual({
+      ok: false,
+      motivo: MOTIVO_REABRIR_NA_CELULA,
+    });
+  });
+
+  it("marco: uma data só; apagar reabre", () => {
+    expect(execucaoDaCelula(linha({ marco: true }), "fimReal", "2026-10-12")).toEqual({
+      ok: true,
+      inicioReal: "2026-10-12",
+      fimReal: "2026-10-12",
+      inicioDeduzido: false,
+    });
+    expect(execucaoDaCelula(linha({ marco: true, status: "con", inicioReal: "2026-10-12", fimReal: "2026-10-12" }), "fimReal", null)).toEqual({
+      ok: true,
+      inicioReal: null,
+      fimReal: null,
+      inicioDeduzido: false,
+    });
+    expect(execucaoDaCelula(linha({ marco: true }), "inicioReal", "2026-10-12").ok).toBe(false);
+  });
+
+  it("o que a célula monta, a regra do servidor aceita", () => {
+    const r = execucaoDaCelula(linha(), "fimReal", "2026-10-12");
+    if (!r.ok) throw new Error("esperava ok");
+    expect(aplicarExecucao(atv(), { inicioReal: r.inicioReal, fimReal: r.fimReal }, HOJE)).toMatchObject({ ok: true, status: "con", progresso: 100 });
   });
 });

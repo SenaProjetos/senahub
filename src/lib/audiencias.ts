@@ -124,6 +124,16 @@ export const AUDIENCIAS = {
     modo: "permissao",
     permissao: "rh:gerir",
   },
+  /**
+   * Administradores (superusuário). Decidem ausência e férias de quem é do RH (decisão do dono,
+   * 2026-11-16, `modules/rh/quem-decide.ts`), então recebem esses pedidos no lugar do RH.
+   * Não é eixo do vínculo, mas é um filtro fixo do mesmo jeito.
+   */
+  administradores: {
+    descricao: "Administradores (superusuário) — decidem ausência e férias de quem é do RH",
+    modo: "eixo",
+    where: { superUsuario: true },
+  },
   chat_participante: {
     descricao: "Quem entra no canal #geral do chat — segue a permissão `chat:geral`, configurável por perfil",
     modo: "permissao",

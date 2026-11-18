@@ -73,6 +73,8 @@ export async function semearEtapasPadrao(
   });
   const fases = fasesParaNascer({ tipoProjeto: p.tipoProjeto, idsDoTipo: tipo?.etapasPadraoIds ?? null, catalogo });
   if (fases.length === 0) return 0;
+  // recalculo-ok: só disciplina recém-criada (status aguardando) ganha as fases padrão, todas aguardando — o
+  // status calculado é o mesmo. Disciplinas antigas não ganham etapa (CLAUDE.md, "Etapas no card").
   const r = await tx.disciplinaEtapa.createMany({
     data: disciplinaIds.flatMap((disciplinaId) => fases.map((etapaId, ordem) => ({ disciplinaId, etapaId, percentual: 0, ordem }))),
     skipDuplicates: true,

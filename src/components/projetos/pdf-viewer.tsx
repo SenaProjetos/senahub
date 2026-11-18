@@ -1457,16 +1457,25 @@ export function PdfViewer(props: Props) {
     });
   }
 
-  function aplicarEnvio(data: { tarefaId: string; total: number; revisaoAberta: number | null }) {
+  function aplicarEnvio(data: {
+    tarefaId: string;
+    total: number;
+    revisaoAberta: number | null;
+    revisaoDevolvida: string | null;
+    avisoDevolucao: string | null;
+  }) {
     setPendencias((ps) =>
       ps.map((p) => (estaAberta(p.status) && !p.tarefaId ? { ...p, tarefaId: data.tarefaId } : p)),
     );
     router.refresh();
     toast.success(
-      data.revisaoAberta != null
+      (data.revisaoAberta != null
         ? `Revisão R${data.revisaoAberta} aberta · tarefa com ${data.total} apontamento(s).`
-        : `Tarefa criada com ${data.total} apontamento(s).`,
+        : `Tarefa criada com ${data.total} apontamento(s).`) +
+        // Ciclo documental (A10): a prancha em análise voltou para ajustes junto com o envio.
+        (data.revisaoDevolvida ? ` A revisão ${data.revisaoDevolvida} do documento voltou para ajustes.` : ""),
     );
+    if (data.avisoDevolucao) toast.warning(data.avisoDevolucao);
     setModoApontar(false);
   }
 
@@ -2003,7 +2012,9 @@ export function PdfViewer(props: Props) {
               </>
             )}
           </div>
-          <div className="flex shrink-0 flex-wrap items-center justify-center gap-1 sm:flex-nowrap">
+          {/* `max-w-full`: com o seletor de pranchas cheio (setas + contagem), a linha passava de 390 px no
+              celular — `shrink-0` sozinho segura a largura da linha inteira e o `flex-wrap` nunca quebra. */}
+          <div className="flex max-w-full shrink-0 flex-wrap items-center justify-center gap-1 sm:flex-nowrap">
             <SeletorPranchas
               projetoId={projetoId}
               uploadId={uploadId}

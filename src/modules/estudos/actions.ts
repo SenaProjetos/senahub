@@ -6,7 +6,8 @@ import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 
-import { conteudoSchema, nomeEstudoSchema } from "./conteudo";
+import { TIPOS_DE_ESTUDO } from "./acesso";
+import { nomeEstudoSchema } from "./conteudo";
 import { criarEstudo, duplicarEstudo, excluirEstudo, salvarEstudo } from "./service";
 
 // Gate grosso = quem usa as ferramentas e é interno; o fino (motor liberado, projeto visível,
@@ -24,7 +25,11 @@ export const criarEstudoAction = defineAction(
   {
     ...base,
     acao: "criar-estudo",
-    schema: z.object({ projetoId: z.string().min(1, "Projeto inválido."), nome: nomeEstudoSchema }),
+    schema: z.object({
+      projetoId: z.string().min(1, "Projeto inválido."),
+      nome: nomeEstudoSchema,
+      tipo: z.enum(TIPOS_DE_ESTUDO, { message: "Tipo de estudo inválido." }).default("cargas_eletricas"),
+    }),
     entidadeId: (d) => (d as { id: string }).id,
   },
   async (i, { user }) => {
@@ -42,7 +47,8 @@ export const salvarEstudoAction = defineAction(
       id: z.string().min(1, "Estudo inválido."),
       versao: z.number().int().positive("Versão inválida."),
       nome: nomeEstudoSchema,
-      conteudo: conteudoSchema,
+      // O esquema é o do TIPO do estudo, que só o service sabe (lê a linha): ele valida antes de gravar.
+      conteudo: z.unknown(),
     }),
     entidadeId: (_d, i) => i.id,
     // O conteúdo anterior fica no log: é o histórico recuperável do estudo.

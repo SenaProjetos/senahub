@@ -112,6 +112,8 @@ export function renderMemoriaHtml(doc: MemoriaDoc): string {
   header .sub { font-size: 11pt; color: #555; margin: 0; }
   header .meta { font-size: 9pt; color: #777; margin-top: 6px; }
   section { margin: 14px 0; page-break-inside: avoid; }
+  /* Seção só com o título (a numerada que abre subseções) não fica sozinha no pé da página. */
+  section:has(> h2:only-child) { break-after: avoid; page-break-after: avoid; }
   h2 { font-size: 12pt; color: #2c3e50; border-bottom: 1px solid #ddd; padding-bottom: 3px; margin: 0 0 8px; }
   p { margin: 4px 0; }
   table { width: 100%; border-collapse: collapse; margin: 6px 0; }

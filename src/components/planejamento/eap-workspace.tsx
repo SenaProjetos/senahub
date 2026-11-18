@@ -34,7 +34,9 @@ import {
   moverEapTarefaNoNivel,
   reagendarPlano,
   recuarEapTarefa,
+  registrarExecucao,
 } from "@/modules/planejamento/actions";
+import { execucaoDaCelula } from "@/modules/planejamento/execucao";
 import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-actions";
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
 import type { Achado } from "@/modules/planejamento/qualidade";
@@ -83,9 +85,9 @@ import {
   ACAO_SALVAR_MODELO,
   itensDoPlanejamento,
 } from "@/modules/planejamento/acoes-planejamento";
-import { PlanoGantt, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
+import { PlanoGantt, type CampoReal, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
 import { EapLinhaPainel } from "@/components/planejamento/eap-linha-painel";
-import { ExecucaoDialog } from "@/components/planejamento/execucao-dialog";
+import { ExecucaoDialog, useOferecerFase, type FaseOferecida } from "@/components/planejamento/execucao-dialog";
 import { FaixaCronograma } from "@/components/planejamento/faixa-cronograma";
 import type { ComparativoBase } from "@/components/planejamento/saude-cronograma-painel";
 import { rotuloBaseline, rotuloDaOpcao, tarefasComBaseline } from "@/modules/planejamento/baselines";
@@ -363,6 +365,43 @@ export function EapWorkspace({
       router.refresh();
       return null;
     });
+  }
+
+  const oferecerFase = useOferecerFase(podeAprovarFase);
+  /**
+   * Gantt de Controle: início/término real digitado na célula. A célula muda uma data; `execucaoDaCelula` completa a
+   * outra (término sem início = início previsto, como o Project). A oferta de aprovar a fase (marco) vem DEPOIS da fila:
+   * o `confirm` dela não pode segurar a próxima gravação.
+   */
+  async function editarExecucao(t: EapTarefaDTO, campo: CampoReal, dia: string | null): Promise<string | null> {
+    const dataBr = (iso: string) => iso.split("-").reverse().join("/");
+    const montado = execucaoDaCelula(t, campo, dia);
+    if (!montado.ok) return montado.motivo;
+    // Holder: atribuído dentro da fila, o TS não enxergaria a mudança de uma variável solta.
+    const achou: { fase: FaseOferecida | null } = { fase: null };
+    const erro = await naFila(async () => {
+      const r = await registrarExecucao({
+        id: t.id,
+        inicioReal: montado.inicioReal,
+        fimReal: montado.fimReal,
+        esperado: { inicioReal: t.inicioReal ?? null, fimReal: t.fimReal ?? null },
+      });
+      if (!r.ok) return r.error;
+      if (montado.inicioDeduzido && montado.inicioReal) {
+        toast.info(`Início real: ${dataBr(montado.inicioReal)}.`, {
+          description:
+            montado.inicioDeduzido === "previsto"
+              ? "A tarefa não tinha início real — ficou o início previsto."
+              : "A tarefa não tinha início real e o previsto era depois do término — ficou o próprio término.",
+        });
+      }
+      if (r.data.status === "con" && t.status !== "con") toast.success(t.marco ? "Marco concluído." : "Tarefa concluída.");
+      achou.fase = r.data.fase;
+      router.refresh();
+      return null;
+    });
+    if (achou.fase) await oferecerFase(achou.fase);
+    return erro;
   }
 
   /** A célula Predecessoras: o conjunto inteiro de uma vez, com um reagendamento só. */
@@ -934,6 +973,7 @@ export function EapWorkspace({
                 : undefined
             }
             onEditarCampo={podeGerir ? editarCampo : undefined}
+            onEditarExecucao={podeExecutado ? editarExecucao : undefined}
             planoTravado={travado}
             largurasIniciais={largurasColunas}
             onEditarPredecessoras={podeGerir && !travado ? editarPredecessoras : undefined}

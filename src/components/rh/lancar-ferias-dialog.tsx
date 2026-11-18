@@ -111,7 +111,9 @@ export function LancarFeriasDialog({
                 </Select>
                 {colaboradores.length === 0 && (
                   <p className="text-xs text-muted-foreground">
-                    Nenhum colaborador CLT ou estagiário ativo — férias são instituto celetista.
+                    Nenhum colaborador CLT ou estagiário que você possa lançar — férias são instituto
+                    celetista. As suas próprias férias e as de quem é do RH vão pela solicitação em RH, que
+                    um administrador aprova.
                   </p>
                 )}
               </div>
@@ -134,9 +136,8 @@ export function LancarFeriasDialog({
                 <p className="flex items-start gap-2 rounded-sm border border-dashed p-2 text-xs text-muted-foreground">
                   <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
                   <span>
-                    O banco de horas desse mês já foi fechado. Depois de lançar, use{" "}
-                    <strong>Recalcular histórico</strong> em Banco de horas para o saldo refletir as
-                    férias.
+                    O banco de horas desse mês já foi fechado. Ao lançar, o saldo dessa pessoa nos meses
+                    fechados é refeito para contar as férias.
                   </span>
                 </p>
               )}

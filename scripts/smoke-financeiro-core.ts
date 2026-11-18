@@ -394,7 +394,7 @@ async function desfazerImportacao(autorId: string) {
   const lotes: string[] = [];
   try {
     const res = normalizarLinhas([linha(1), linha(2)], mapa);
-    const { loteId } = await executarCommit(prisma, { nomeArquivo: `${tag}.csv`, mapeamento: {}, res, autorId });
+    const { loteId } = await executarCommit(prisma, { nomeArquivo: `${tag}.csv`, mapeamento: {}, res, autorId, criarCadastros: true });
     lotes.push(loteId);
     const linhas = await prisma.lancamento.findMany({ where: { importLoteId: loteId }, select: { id: true, importHash: true } });
 
@@ -410,7 +410,7 @@ async function desfazerImportacao(autorId: string) {
 
     // Lote intocado: desfaz por exclusão lógica, e reimportar volta a criar.
     const res2 = normalizarLinhas([linha(3)], mapa);
-    const lote2 = await executarCommit(prisma, { nomeArquivo: `${tag}-2.csv`, mapeamento: {}, res: res2, autorId });
+    const lote2 = await executarCommit(prisma, { nomeArquivo: `${tag}-2.csv`, mapeamento: {}, res: res2, autorId, criarCadastros: true });
     lotes.push(lote2.loteId);
     const out = await executarDesfazer(prisma, lote2.loteId);
     const l2 = await prisma.lancamento.findMany({ where: { importLoteId: lote2.loteId, excluidoEm: { not: undefined } }, select: { excluidoEm: true, importHash: true } });
@@ -613,7 +613,7 @@ async function travaDoPeriodo(autorId: string) {
 
     const linha = ["Despesa", "Pendente", "2045-03-02", "", "-80", "", `${tag} imp trava`, `${tag} cat`, "", `${tag} trava`, "", "", "", `${Date.now()}t`];
     const mapa = { tipo: 0, status: 1, data: 2, dataConfirmacao: 3, valor: 4, valorEfetivo: 5, descricao: 6, categoria: 7, subcategoria: 8, conta: 9, contaTransferencia: 10, contato: 11, documento: 12, idUnico: 13 };
-    const imp = await erroDe(executarCommit(prisma, { nomeArquivo: `${tag}-trava.csv`, mapeamento: {}, res: normalizarLinhas([linha], mapa), autorId }));
+    const imp = await erroDe(executarCommit(prisma, { nomeArquivo: `${tag}-trava.csv`, mapeamento: {}, res: normalizarLinhas([linha], mapa), autorId, criarCadastros: true }));
     check("importar linha de mês fechado é recusado", imp?.includes("fechado") === true, imp);
 
     const saldos = await saldosDasContasNoFimDoMes(2045, 3);
@@ -823,7 +823,7 @@ async function regrasDePreenchimento(autorId: string) {
     const linha = ["Despesa", "Pendente", "2043-04-02", "", "-90", "", `${termo} planilha`, `${tag} catplan`, "", `${tag} contaplan`, "", "", "", `${Date.now()}rg`];
     const mapa = { tipo: 0, status: 1, data: 2, dataConfirmacao: 3, valor: 4, valorEfetivo: 5, descricao: 6, categoria: 7, subcategoria: 8, conta: 9, contaTransferencia: 10, contato: 11, documento: 12, idUnico: 13 };
     const res = normalizarLinhas([linha], mapa);
-    const { loteId } = await executarCommit(prisma, { nomeArquivo: `${tag}-regras.csv`, mapeamento: {}, res, autorId });
+    const { loteId } = await executarCommit(prisma, { nomeArquivo: `${tag}-regras.csv`, mapeamento: {}, res, autorId, criarCadastros: true });
     lotes.push(loteId);
     const li = await prisma.lancamento.findFirstOrThrow({ where: { importLoteId: loteId }, select: { centroId: true, fornecedorId: true, tags: true, categoria: { select: { nome: true } } } });
     check("importação: centro, contato e tags vêm da regra; a categoria fica a da planilha", li.centroId === centro.id && li.fornecedorId === forn.id && li.tags.includes("art") && li.categoria.nome === `${tag} catplan`, li);

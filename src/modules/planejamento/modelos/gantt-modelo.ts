@@ -91,6 +91,7 @@ export function linhasDoGantt(
       custoReal: null,
       custoRealParcial: false,
       custoRealTerceiro: null,
+      terminoPendente: null,
     };
   });
 }

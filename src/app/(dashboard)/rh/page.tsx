@@ -39,6 +39,7 @@ export default async function RhPage() {
           tratamento: a.tratamento,
           horaInicio: a.horaInicio,
           horaFim: a.horaFim,
+          lancadoPeloRh: a.lancadoPorId !== null,
         }))}
         ferias={ferias.map((f) => ({
           id: f.id,

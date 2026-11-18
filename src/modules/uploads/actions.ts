@@ -52,6 +52,11 @@ import {
 } from "@/modules/uploads/revisao-marcada";
 import { camposAlterados } from "@/modules/uploads/historico/eventos";
 import { historicoDocumento } from "@/modules/uploads/historico/queries";
+import {
+  aprovarFasesSemPagamento,
+  recalcularStatusDisciplina,
+  travarDisciplina,
+} from "@/modules/projetos/status-pelas-fases-service";
 
 const validarSchema = z.object({ disciplinaId: z.string().min(1) });
 
@@ -161,9 +166,22 @@ export const validarEntrega = defineAction(
 
     // Reaprovação: fecha a disciplina em "aprovado" mantendo o pagamento já liberado.
     if (jaTemPagamento) {
-      await prisma.disciplina.update({
-        where: { id: disciplina.id },
-        data: { status: "aprovado", entregueEm: agora },
+      // Reaprovação (spec 2026-11-13): as fases que voltaram a revisão (ou que nunca foram aprovadas, na
+      // disciplina paga inteira) vão a aprovado sem pagamento novo — senão o status calculado pelas fases
+      // derrubaria a disciplina de volta para "Em andamento".
+      await prisma.$transaction(async (tx) => {
+        await travarDisciplina(tx, disciplina.id);
+        // Relido sob a trava: uma fase nova entre a leitura e aqui não pode virar "aprovado" sem pagamento.
+        if (!(await situacaoPagamento(tx, disciplina.id)).jaLiberouTudo) {
+          throw new ActionError("A disciplina mudou enquanto a tela estava aberta — atualize e tente de novo.");
+        }
+        const r = await tx.disciplina.updateMany({
+          where: { id: disciplina.id, status: { not: "aprovado" } },
+          data: { status: "aprovado", entregueEm: agora },
+        });
+        if (r.count !== 1) throw new ActionError("Esta entrega já foi validada.");
+        await aprovarFasesSemPagamento(tx, disciplina.id, agora);
+        await recalcularStatusDisciplina(tx, disciplina.id, { autorId: user.id, motivo: "entrega reaprovada", agora });
       });
       const avisar = [
         ...disciplina.responsaveis.map((r) => r.userId),
@@ -193,6 +211,7 @@ export const validarEntrega = defineAction(
     if (bloqueio) throw new ActionError(bloqueio);
 
     const { pagaveis, salariados } = await prisma.$transaction(async (tx) => {
+      await travarDisciplina(tx, disciplina.id);
       // Condicionado: duas validações ao mesmo tempo liberavam o pagamento em dobro (A5). A 2ª
       // espera o lock da linha, relê "aprovado" e não acha nada para atualizar.
       const r = await tx.disciplina.updateMany({

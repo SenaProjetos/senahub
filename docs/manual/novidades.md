@@ -20,6 +20,100 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Enviar apontamentos devolve a prancha para ajustes (novembro/2026)
+
+- Ao **enviar os apontamentos** de uma prancha **em análise**, a revisão volta sozinha para **em andamento**: o
+  projetista já pode mandar a correção, sem a coordenação precisar clicar em **Devolver para ajustes**. O histórico
+  do documento registra quem enviou e quantos apontamentos foram, e o aviso dos apontamentos diz que a revisão
+  voltou para ajustes.
+- Só o **envio** devolve: apontamento em rascunho não muda nada. Revisão **bloqueada** continua em análise, e o
+  sistema avisa para devolver à mão depois de remover o bloqueio.
+- Quer publicar **com** apontamentos em aberto (projeto que permite)? Publique antes de enviá-los.
+
+## Início real pelo ponto e "falta o término real" (novembro/2026)
+
+- **Início real automático:** ao bater o ponto (ou abrir o apontamento) escolhendo o card de uma atividade do
+  cronograma, o dia da **primeira hora apontada** vira o **início real** dela. Só preenche quando está vazio: a data
+  que a coordenação digitou continua valendo e pode ser corrigida a qualquer momento.
+- **Célula amarela no Gantt de Controle:** quando a atividade seguinte (vínculo término → início) já começou e a
+  anterior está sem **término real**, a célula **Térm. real** da anterior fica amarela, com uma **data sugerida** — o
+  último dia com hora apontada nela. Clique e tecle **Enter** para confirmar, ou digite outra data. Nada é concluído
+  sem confirmação.
+- Quem só consulta o cronograma não vê o amarelo: ele aparece para quem registra o executado.
+
+## Datas reais direto no Gantt de Controle (novembro/2026)
+
+- No **Gantt de Controle**, o **início real** e o **término real** agora se digitam na própria tabela, sem
+  abrir o diálogo da tarefa. Vale a mesma permissão de quem já registra o executado.
+- Informou só o término? O sistema usa o início previsto (ou o próprio término) como início. Marco tem
+  uma data só. O calendário não deixa escolher dia depois de hoje.
+- **Tab** e **Enter** andam pelas células das datas reais. Reabrir uma tarefa concluída continua sendo
+  pelo **%** (Atualizar tarefa), não pela data.
+- Continua funcionando com o cronograma aprovado.
+
+## Administrador pode enviar para análise com exceção (novembro/2026)
+
+- Na pasta do projeto, só o **administrador** pode enviar uma revisão para análise **sem** as conferências
+  de nome, descrição e carimbo, informando o **motivo**. Quem não é administrador não vê essa opção.
+- As travas de arquivo continuam: sem arquivo, desenho sem PDF e arquivo idêntico ao da revisão anterior
+  seguem barrando o envio.
+- O motivo e o que foi dispensado ficam no histórico do documento.
+
+## Avisos de prazo no dia certo (novembro/2026)
+
+Alguns avisos diários do sino erravam o dia por causa do fuso horário. Agora cada um sai uma vez,
+no dia que o título diz:
+
+- **Prazo de disciplina** (7, 3 e 1 dia antes): saía **um dia antes** do que dizia (o "prazo em 7
+  dias" chegava 8 dias antes). Agora sai um dia depois do que saía, no dia certo.
+- **Licitação** (15, 7 e 1 dia antes), **cotação** (3 e 1 dia antes) e **acesso do cofre** (90, 30
+  e 7 dias antes): saíam **duas vezes**, um dia antes e no dia certo. Agora só no dia certo.
+- **Cotação com fornecedor sem resposta**: saía já no dia do prazo, quando o fornecedor ainda podia
+  responder. Agora sai no dia seguinte ao prazo.
+- **Recebimento vencido (D+1)**, sino interno do financeiro: saía no próprio dia do vencimento,
+  quando o recebimento ainda não estava atrasado. Agora sai no dia seguinte ao vencimento, como o
+  nome diz. O **e-mail de cobrança ao cliente** não muda: ele já saía no dia certo.
+- Avisos de **vigência e garantia de contrato** já saíam no dia certo e continuam iguais.
+- No primeiro dia depois da atualização, um aviso de prazo de disciplina pode chegar repetido uma
+  vez (ele já tinha saído, adiantado, na véspera).
+
+## Prazos de vencimento das certidões (novembro/2026)
+
+- Em **Certidões**, botão **⋯** do topo → **Prazos de vencimento**: escolha a partir de quantos
+  dias antes a certidão aparece como **Vence em breve** e em quais dias sai a notificação.
+- Até agora era fixo: 30 dias para "Vence em breve" e avisos com 30, 15 e 7 dias. Continua assim
+  enquanto ninguém mudar.
+- Correção: o aviso "vence em 30 dias" saía um dia atrasado na conta, para a certidão que vencia
+  em 31. Agora sai no dia certo.
+- **Exportar** e **Gerenciar tipos** também foram para o **⋯** do topo.
+
+## Status da disciplina pelas fases (novembro/2026)
+
+- Disciplina com etapas (EP, BS, EX…) não tem mais o status escolhido à mão: ele **vem das fases**. Acabou
+  o card com a disciplina "Em revisão" e a fase "Aguardando" ao mesmo tempo.
+- Todas as fases aguardando → **Aguardando**; alguma andando → **Em andamento**; todas entregues ou
+  aprovadas → **Entregue**; todas aprovadas → **Aprovado**; alguma em revisão → **Em revisão**.
+- Para mudar o status, mude a fase: **Enviei os documentos**, o diálogo **Etapas** ou **Aprovar**.
+- **Reabrir** a disciplina e **enviar apontamentos** levam a fase do documento para Em revisão. Reaprovar
+  não gera pagamento novo.
+- Aprovar a disciplina inteira de uma equipe só CLT agora aprova as fases também.
+- Disciplina sem etapa continua como era.
+
+## Importar extrato do banco já categorizado (novembro/2026)
+
+- Em **Financeiro → Mais → Importar planilha**, a opção **Criar cadastros que não existirem** vem
+  desmarcada: categoria, conta, forma ou centro que não existem viram erro na linha, em vez de
+  virar cadastro novo. Marque só para migrar do Meu Dinheiro.
+- Colunas novas: **Projeto** (código), **Sócio** e **Nº documento**. A categoria aceita o código
+  do plano de contas.
+- A conferência mostra todas as linhas, paginadas, com filtros (só com erro, só cadastros a criar,
+  só duplicadas).
+- Com a opção desmarcada, o importador também recusa: cadastro inativo, linha paga sem conta,
+  linha paga com data futura e transferência sem conta de destino.
+- Folha CLT: as folhas de competência anterior a 10/2026 foram lançadas no Financeiro pelo extrato
+  e **não fecham** mais (fechar criaria as contas em dobro). O botão aparece desabilitado com o
+  motivo. Uma folha dessas que já esteja fechada também não reabre.
+
 ## Projeto novo nasce no padrão de nomenclatura mais atual (novembro/2026)
 
 - Todo projeto novo — criado na tela, pelo aceite de proposta, importado de licitação ou duplicado — nasce na versão do padrão de nomenclatura **publicada mais recente**, a mesma que aparece como "vigente" em Configurações → Disciplinas e nomenclatura → Versões. A cópia de um projeto não herda mais o padrão do original.

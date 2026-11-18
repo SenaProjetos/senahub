@@ -13,6 +13,7 @@ import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import {
   aplicarControleNoBanco,
   devolverNoBanco,
+  devolverPelosApontamentosNoTx,
   devolverRevisoesSemArquivo,
   enviarParaAnaliseNoBanco,
   liberarRestricaoDePendencias,
@@ -35,6 +36,7 @@ import { MOTIVO_CORRECAO_INTEGRIDADE } from "../src/modules/uploads/ciclo/integr
 import { MOTIVO_SEM_DWG_SEM_TIPO } from "../src/modules/uploads/ciclo/regras";
 import { MOTIVO_REVISAO_SEM_ARQUIVO } from "../src/modules/uploads/ciclo/transicoes";
 import { conteudoPublicoPorToken, type ConteudoPublico } from "../src/modules/projetos/arquivos/link-publico";
+import { podeAcessarPrancha } from "../src/modules/projetos/pendencias/acesso-prancha";
 
 async function main() {
   const tag = `SMKCICLO_${Date.now()}`;
@@ -455,6 +457,75 @@ async function main() {
       "envio automático desligado = herança antiga",
       pubF1.envioAoCliente === "herdado" && (await ativos(rF1.id)).includes("enviado_cliente") && !(await ativos(rF0.id)).includes("em_revisao"),
     );
+    // ── A10: a rodada de apontamentos enviada devolve a revisão em análise para ajustes ──
+    const dA = await documento("apontar");
+    const rA = await revisao(dA.id, 1);
+    await enviarParaAnaliseNoBanco({ revisaoId: rA.id, quem });
+    const devolverPelaRodada = (revisaoId: string, total: number) =>
+      prisma.$transaction((tx) => devolverPelosApontamentosNoTx(tx, revisaoId, { quem, total, tarefaId: `${tag}_tarefa` }));
+    const desfeita = await recusa(() =>
+      prisma.$transaction(async (tx) => {
+        await devolverPelosApontamentosNoTx(tx, rA.id, { quem, total: 1, tarefaId: `${tag}_tarefa` });
+        throw new Error("rodada falhou depois");
+      }),
+    );
+    check(
+      "A10: na transação da rodada — rodada que falha deixa a revisão em análise, sem evento",
+      desfeita === "rodada falhou depois" &&
+        (await estado(rA.id)) === "compartilhado" &&
+        (await prisma.documentoEvento.count({ where: { revisaoId: rA.id, tipo: "estado" } })) === 1,
+    );
+    const devA = await devolverPelaRodada(rA.id, 2);
+    const eventoA = await prisma.documentoEvento.findFirst({
+      where: { revisaoId: rA.id, tipo: "estado" },
+      orderBy: { createdAt: "desc" },
+      select: { userId: true, detalhe: true },
+    });
+    const detalheA = eventoA?.detalhe as { de?: string; para?: string; motivo?: string; automatico?: boolean; origem?: string } | undefined;
+    check(
+      "A10: revisão em análise volta para em andamento, com evento de quem enviou e o motivo",
+      devA?.tipo === "devolvida" &&
+        devA.numero === 1 &&
+        (await estado(rA.id)) === "em_andamento" &&
+        eventoA?.userId === usuario.id &&
+        detalheA?.de === "compartilhado" &&
+        detalheA?.para === "em_andamento" &&
+        detalheA?.motivo === "2 apontamentos enviados" &&
+        detalheA?.automatico === false &&
+        detalheA?.origem === "apontamentos",
+    );
+    check("A10: rodada nova com a revisão já em andamento não faz nada", (await devolverPelaRodada(rA.id, 1)) === null && (await estado(rA.id)) === "em_andamento");
+
+    const dB = await documento("apontar-bloqueada");
+    const rB = await revisao(dB.id, 1);
+    await enviarParaAnaliseNoBanco({ revisaoId: rB.id, quem });
+    await aplicarControleNoBanco({ revisaoId: rB.id, tipo: "bloqueio", quem, motivo: "Aguardando ART", escopos: ["download"] });
+    const devB = await devolverPelaRodada(rB.id, 1);
+    check(
+      "A10: bloqueada fica em análise e devolve o aviso para a tela (I7)",
+      devB?.tipo === "bloqueada" && devB.numero === 1 && (await estado(rB.id)) === "compartilhado",
+    );
+    check("A10: revisão publicada não muda (o próximo envio abre a seguinte)", (await devolverPelaRodada(rSemTipo.id, 1)) === null && (await estado(rSemTipo.id)) === "publicado");
+    check("A10: arquivo sem revisão (fora do ciclo) não faz nada", (await prisma.$transaction((tx) => devolverPelosApontamentosNoTx(tx, null, { quem, total: 1, tarefaId: "x" }))) === null);
+
+    // A10: o envio da rodada exige enxergar a prancha (mesma regra do visualizador).
+    const estranho = await prisma.user.findFirst({
+      where: { ativo: true, superUsuario: false, tipo: "interno", projetosMembro: { none: { projetoId: projeto.id } } },
+      select: { id: true },
+    });
+    if (estranho) {
+      const disc = { projetoId: projeto.id, responsaveis: [] as { userId: string }[] };
+      const sujeito = { id: estranho.id, superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" as const };
+      check("A10: quem não é do projeto não envia a rodada", !(await podeAcessarPrancha(sujeito, disc)));
+      await prisma.projetoMembro.create({ data: { projetoId: projeto.id, userId: estranho.id } });
+      check("A10: membro do projeto envia", await podeAcessarPrancha(sujeito, disc));
+      await prisma.projetoMembro.deleteMany({ where: { projetoId: projeto.id, userId: estranho.id } });
+      check("A10: responsável da disciplina envia", await podeAcessarPrancha(sujeito, { ...disc, responsaveis: [{ userId: estranho.id }] }));
+      check("A10: acesso global envia", await podeAcessarPrancha({ ...sujeito, escopoGlobalPerfil: true }, disc));
+    } else {
+      console.log("[--] sem usuário interno fora do projeto; escopo da rodada não exercitado.");
+    }
+
     // ── Revisão em análise que ficou sem arquivo (exclusão definitiva) volta para em andamento ──
     const dV = await documento("vazia");
     const rV = await revisao(dV.id, 1, { dwg: true });

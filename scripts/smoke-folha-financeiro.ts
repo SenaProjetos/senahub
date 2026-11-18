@@ -17,6 +17,8 @@ import { prisma } from "../src/lib/prisma";
 import { paraCentavos } from "../src/modules/financeiro/liquidez/dinheiro";
 import { baixarNoBanco } from "../src/modules/financeiro/lancamentos/baixa-service";
 import { fecharFolhaNoBanco, MSG_MOTIVO_CURTO, reabrirFolhaNoBanco } from "../src/modules/rh/folha/fechamento-service";
+import { CHAVE_CORTE_FOLHA } from "../src/modules/rh/folha/corte";
+import { Prisma } from "../src/generated/prisma/client";
 import { hojeParaBanco } from "../src/lib/data";
 
 let falhas = 0;
@@ -87,7 +89,29 @@ async function main() {
     return linhas.map((l) => ({ ...l, lanc: lancs.find((x) => x.id === l.lancamentoId)! }));
   };
 
+  // Corte do retroativo: guarda a chave como estava para restaurar no fim (o banco pode não ter a chave).
+  const corteOriginal = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CORTE_FOLHA } });
+
   try {
+    // 0 — corte: com a chave em 2042-01, a folha de 05/2041 (anterior ao corte) não fecha e não lança nada.
+    await prisma.configSistema.upsert({
+      where: { chave: CHAVE_CORTE_FOLHA },
+      create: { chave: CHAVE_CORTE_FOLHA, valor: "2042-01" },
+      update: { valor: "2042-01" },
+    });
+    const folhaCorte = await folhaDe(5, [{ userId: ana.id, proventos: 3300, descontos: 300 }], { totalInssRetido: 300 });
+    const eCorte = await erroDe(() => fecharFolhaNoBanco(folhaCorte, ana.id));
+    const partesCorte = await prisma.folhaLancamento.count({ where: { folhaId: folhaCorte } });
+    const statusCorte = await prisma.folhaPagamento.findUnique({ where: { id: folhaCorte }, select: { status: true, lancamentoId: true } });
+    check(
+      "folha anterior ao corte não fecha, com a frase exata",
+      eCorte === "A folha de 05/2041 foi lançada no Financeiro pelo extrato. Fechar criaria as contas em dobro.",
+      eCorte,
+    );
+    check("folha recusada pelo corte não lança nenhuma conta", partesCorte === 0 && statusCorte?.status !== "fechada" && statusCorte?.lancamentoId == null, { partesCorte, statusCorte });
+    if (corteOriginal) await prisma.configSistema.update({ where: { chave: CHAVE_CORTE_FOLHA }, data: { valor: corteOriginal.valor as Prisma.InputJsonValue } });
+    else await prisma.configSistema.delete({ where: { chave: CHAVE_CORTE_FOLHA } });
+
     // 1
     const folha = await folhaDe(
       6,
@@ -197,6 +221,12 @@ async function main() {
     const inss13 = (await partesDa(f13.id)).find((x) => x.parte === "inss_retido");
     check("INSS do 13º vence dia 20 de dezembro, não em janeiro", iso(inss13?.lanc.vencimento) === `${ANO}-12-20`, inss13?.lanc);
   } finally {
+    // Restaura o corte mesmo se algo acima falhou no meio.
+    if (corteOriginal) {
+      await prisma.configSistema.update({ where: { chave: CHAVE_CORTE_FOLHA }, data: { valor: corteOriginal.valor as Prisma.InputJsonValue } });
+    } else {
+      await prisma.configSistema.deleteMany({ where: { chave: CHAVE_CORTE_FOLHA } });
+    }
     const folhas = await prisma.folhaPagamento.findMany({ where: { ano: ANO }, select: { id: true, lancamentoId: true } });
     const partes = await prisma.folhaLancamento.findMany({ where: { folhaId: { in: folhas.map((f) => f.id) } }, select: { lancamentoId: true } });
     const lancIds = [...partes.map((p) => p.lancamentoId), ...folhas.flatMap((f) => (f.lancamentoId ? [f.lancamentoId] : []))];

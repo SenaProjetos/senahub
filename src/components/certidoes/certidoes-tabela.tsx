@@ -50,6 +50,7 @@ const TOM_TEXTO = {
  */
 export function CertidoesTabela({
   certidoes,
+  diasEmBreve,
   podeGerir,
   selecao,
   menuDe,
@@ -59,6 +60,8 @@ export function CertidoesTabela({
   onEditar,
 }: {
   certidoes: Certidao[];
+  /** Janela de "Vence em breve" configurada (`prazos.ts`). */
+  diasEmBreve: number;
   podeGerir: boolean;
   /** Seleção compartilhada (ADR-0002, regra 3) — o menu de contexto age sobre ela. */
   selecao: Selecao;
@@ -98,8 +101,8 @@ export function CertidoesTabela({
         </TableHeader>
         <TableBody>
           {certidoes.map((c) => {
-            const situacao = statusCertidao(c.validade);
-            const validade = textoValidade(c.validade);
+            const situacao = statusCertidao(c.validade, diasEmBreve);
+            const validade = textoValidade(c.validade, diasEmBreve);
             const temArquivo = !!c.arquivoNome;
             const precisaAcao = situacao !== "ok";
             // §14 — falta de responsável só é PENDÊNCIA quando a certidão é obrigatória e já

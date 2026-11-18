@@ -1,97 +1,84 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { notificar } from "@/lib/notificar";
 import { logAudit, getClientIp } from "@/lib/audit";
-import { salvarArquivo, slug, nomeArquivoLimpo } from "@/lib/storage";
-import { whereAudiencia } from "@/lib/audiencias";
-import { minutosHHMM, minutosJanela } from "@/modules/ponto/abono";
+import { removerArquivo } from "@/lib/storage";
 import { formatarData } from "@/lib/utils";
+import { rotuloMotivo } from "@/modules/rh/ausencia";
+import { motivoDoConflito, validarEntradaAbono } from "@/modules/rh/abono-entrada";
+import { notificarQuemDecide } from "@/modules/rh/gestores-rh";
+import {
+  MOTIVO_AUSENCIA_OCUPADA,
+  comAusenciasTravadas,
+  conflitoDaAusencia,
+  ehTempoEsgotado,
+} from "@/modules/rh/abono-service";
+import {
+  camposDoFormAbono,
+  lerFormularioLimitado,
+  motivoParaRecusarAtestadoDoForm,
+  salvarAtestadoDoForm,
+} from "@/modules/rh/abono-arquivo";
 
-const MAX = 25 * 1024 * 1024;
-const MOTIVOS = ["atestado", "consulta", "exame", "compromisso", "outro"];
+/** Sobreposição achada dentro da transação (depois da trava). */
+class RecusaPorConflito extends Error {}
 
+/** Solicitação / aviso de ausência da PRÓPRIA pessoa — nasce pendente. O RH lança por `/api/rh/abono/lancar`. */
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
+  // A tela `/rh` é só de interno (`requireInterno`); a rota segue o mesmo público.
+  if (user.tipo !== "interno") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  const leitura = await lerFormularioLimitado(req);
+  if (!leitura.ok) {
+    return leitura.motivo === "grande"
+      ? NextResponse.json({ error: "Atestado muito grande (máx. 25 MB)." }, { status: 413 })
+      : NextResponse.json({ error: "Formulário inválido." }, { status: 400 });
+  }
+  const form = leitura.form;
+  const campos = camposDoFormAbono(form);
+  const v = validarEntradaAbono(campos);
+  if (!v.ok) return NextResponse.json({ error: v.erro }, { status: 400 });
+  const recusaArquivo = motivoParaRecusarAtestadoDoForm(form);
+  if (recusaArquivo) return NextResponse.json({ error: recusaArquivo }, { status: 400 });
+  const { dataInicio, dataFim, motivoTipo, horaInicio, horaFim } = v.dados;
 
-  const form = await req.formData();
-  const dataInicio = String(form.get("dataInicio") ?? "");
-  const dataFim = String(form.get("dataFim") ?? "");
-  const motivo = String(form.get("motivo") ?? "");
-  const atestado = form.get("atestado");
-  const motivoTipo = String(form.get("motivoTipo") ?? "atestado");
-  const horaInicio = String(form.get("horaInicio") ?? "") || null;
-  const horaFim = String(form.get("horaFim") ?? "") || null;
-  if (!dataInicio || !dataFim) {
-    return NextResponse.json({ error: "Datas obrigatórias." }, { status: 400 });
-  }
-  if (!MOTIVOS.includes(motivoTipo)) {
-    return NextResponse.json({ error: "Motivo inválido." }, { status: 400 });
-  }
-  if (dataFim < dataInicio) {
-    return NextResponse.json({ error: "A data de fim não pode ser anterior ao início." }, { status: 400 });
-  }
-  if (horaInicio || horaFim) {
-    if (!horaInicio || !horaFim || minutosHHMM(horaInicio) == null || minutosHHMM(horaFim) == null) {
-      return NextResponse.json({ error: "Informe o horário de início e de fim." }, { status: 400 });
-    }
-    if (minutosJanela(horaInicio, horaFim) === 0) {
-      return NextResponse.json({ error: "O horário de fim deve ser depois do início." }, { status: 400 });
-    }
-    if (dataInicio !== dataFim) {
-      return NextResponse.json({ error: "Ausência com horário vale para um único dia." }, { status: 400 });
-    }
+  // Já pediu (ou já tem aprovada) uma ausência no mesmo tempo, ou está de férias aprovadas: a
+  // recusa vem agora, não só quando o RH fosse aprovar. Conferido antes de gravar o arquivo e de
+  // novo sob a trava, como no lançamento do RH.
+  const novo = { dataInicio, dataFim, horaInicio, horaFim };
+  const conflitoAntes = await conflitoDaAusencia(prisma, user.id, novo, ["pendente", "aprovado"]);
+  if (conflitoAntes) {
+    return NextResponse.json({ error: motivoDoConflito(conflitoAntes, "propria") }, { status: 409 });
   }
 
-  let atestadoPath: string | null = null;
-  let atestadoNome: string | null = null;
-  if (atestado instanceof File && atestado.size > 0) {
-    if (atestado.size > MAX) {
-      return NextResponse.json({ error: "Atestado muito grande (máx 25 MB)." }, { status: 400 });
-    }
-    const nome = nomeArquivoLimpo(atestado.name);
-    const rel = `rh/atestados/${user.id}/${Date.now()}_${slug(nome)}`;
-    const salvo = await salvarArquivo(rel, Buffer.from(await atestado.arrayBuffer()));
-    atestadoPath = salvo.caminho;
-    atestadoNome = nome;
+  const arquivo = await salvarAtestadoDoForm(form, user.id);
+  let abono;
+  try {
+    abono = await comAusenciasTravadas(user.id, async (tx) => {
+      const conflito = await conflitoDaAusencia(tx, user.id, novo, ["pendente", "aprovado"]);
+      if (conflito) throw new RecusaPorConflito(motivoDoConflito(conflito, "propria"));
+      return tx.abonoFalta.create({
+        data: {
+          userId: user.id,
+          dataInicio: new Date(dataInicio),
+          dataFim: new Date(dataFim),
+          motivo: campos.motivo || null,
+          motivoTipo,
+          horaInicio,
+          horaFim,
+          ...arquivo,
+        },
+      });
+    });
+  } catch (e) {
+    // Sem a linha, o arquivo ficaria órfão em `rh/atestados/<userId>/`.
+    if (arquivo.atestadoPath) await removerArquivo(arquivo.atestadoPath);
+    if (e instanceof RecusaPorConflito) return NextResponse.json({ error: e.message }, { status: 409 });
+    if (ehTempoEsgotado(e)) return NextResponse.json({ error: MOTIVO_AUSENCIA_OCUPADA }, { status: 503 });
+    throw e;
   }
-
-  const abono = await prisma.abonoFalta.create({
-    data: {
-      userId: user.id,
-      dataInicio: new Date(dataInicio),
-      dataFim: new Date(dataFim),
-      motivo: motivo || null,
-      motivoTipo: motivoTipo as "atestado",
-      horaInicio,
-      horaFim,
-      atestadoPath,
-      atestadoNome,
-    },
-  });
-
-  // Aviso antecipado: pedido feito ANTES do dia da ausência (consulta/compromisso).
-  const hojeISO = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-  const antecipado = dataInicio > hojeISO;
-  const quando = horaInicio ? `${formatarData(dataInicio)}, ${horaInicio}–${horaFim}` : formatarData(dataInicio);
-
-  const gestores = await prisma.user.findMany({
-    where: whereAudiencia("rh_admin"),
-    select: { id: true },
-  });
-  await Promise.all(
-    gestores.map((g) =>
-      notificar(g.id, {
-        titulo: antecipado ? "Aviso antecipado de ausência" : "Abono de falta para validar",
-        corpo: antecipado
-          ? `${user.name} avisou uma ausência (${motivoTipo}) em ${quando}.`
-          : `${user.name} solicitou abono.`,
-        href: "/rh/admin",
-      }),
-    ),
-  );
 
   await logAudit({
     userId: user.id,
@@ -102,6 +89,26 @@ export async function POST(req: Request) {
     entidadeId: abono.id,
     ip: await getClientIp(),
   });
+
+  // Aviso antecipado: pedido feito ANTES do dia da ausência (consulta/compromisso).
+  const hojeISO = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  const antecipado = dataInicio > hojeISO;
+  const quando = horaInicio ? `${formatarData(dataInicio)}, ${horaInicio}–${horaFim}` : formatarData(dataInicio);
+
+  // Melhor esforço: a solicitação já existe; uma falha no aviso não pode virar erro na tela
+  // (a pessoa tentaria de novo e duplicaria o pedido). Quem é do RH tem o pedido decidido por um
+  // administrador, então o aviso vai para os administradores (`notificarQuemDecide`).
+  try {
+    await notificarQuemDecide(user.id, {
+      titulo: antecipado ? "Aviso antecipado de ausência" : "Abono de falta para validar",
+      corpo: antecipado
+        ? `${user.name} avisou uma ausência (${rotuloMotivo(motivoTipo).toLowerCase()}) em ${quando}.`
+        : `${user.name} solicitou abono.`,
+      href: "/rh/admin",
+    });
+  } catch (e) {
+    console.error("[abono] falha ao avisar o RH", e);
+  }
 
   return NextResponse.json({ id: abono.id });
 }

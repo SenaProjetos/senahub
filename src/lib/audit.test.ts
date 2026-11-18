@@ -51,6 +51,19 @@ describe("sanitize — campos sensíveis", () => {
     expect(sanitize({ CPF: "1", Banco: "2", Conta: "3" })).toEqual({ CPF: red, Banco: red, Conta: red });
   });
 
+  it("grava Date como texto ISO, não como objeto vazio", () => {
+    const dia = new Date("2026-11-17T00:00:00.000Z");
+    expect(sanitize({ antes: { inicio: dia, nome: "Ana" } })).toEqual({
+      antes: { inicio: "2026-11-17T00:00:00.000Z", nome: "Ana" },
+    });
+    expect(sanitize([dia])).toEqual(["2026-11-17T00:00:00.000Z"]);
+  });
+
+  it("usa o toJSON de qualquer objeto (Decimal do Prisma vira texto)", () => {
+    const decimal = { d: [1], e: 0, s: 1, toJSON: () => "1.50" };
+    expect(sanitize({ valor: decimal })).toEqual({ valor: "1.50" });
+  });
+
   it("devolve primitivos e null sem alteração", () => {
     expect(sanitize(null)).toBeNull();
     expect(sanitize("texto")).toBe("texto");

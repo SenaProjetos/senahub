@@ -274,6 +274,10 @@ async function main() {
     ),
   );
   check("100% CLT: aprova sem pagamento, mesmo com % que não fecha", e12 === null && (await prisma.pagamentoProjetista.count({ where: { disciplinaId: disc3.id } })) === 0, e12);
+  // Spec 2026-11-13 (status da disciplina pelas fases): a aprovação global também aprova as fases do 100% CLT,
+  // liberadas com R$ 0 — antes este ramo saía sem tocar nelas e a disciplina ficava aprovada com fase aberta.
+  const fase3Depois = await prisma.disciplinaEtapa.findUniqueOrThrow({ where: { id: fase3.id } });
+  check("100% CLT: a fase também é aprovada e liberada com R$ 0", fase3Depois.status === "aprovado" && fase3Depois.liberadaEm != null && Number(fase3Depois.valorPagamento) === 0, fase3Depois);
 
   // 12b) Decisão #9: fase de disciplina 100% CLT é LIBERADA com R$ 0, e o % dela passa para as que faltam.
   const discClt = await prisma.disciplina.create({
@@ -396,14 +400,21 @@ async function main() {
   await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: null, hoje });
   const exAg = await registrarExecucaoNaLinha({ id: marco.id, inicioReal: null, fimReal: hoje, hoje });
   check("#8: fase aguardando também é entregue pelo marco", exAg.fase?.marcadaEntregue === true, exAg.fase);
+  // Fase entregue de disciplina 100% CLT ainda não aprovada (a do passo 12 já foi aprovada pela global).
+  const discCltFila = await prisma.disciplina.create({
+    data: { projetoId: projeto.id, disciplinaTextoLegado: "Climatização", valor: null, responsaveis: { create: [{ userId: clt.id }] } },
+  });
+  const faseCltFila = await prisma.disciplinaEtapa.create({
+    data: { disciplinaId: discCltFila.id, etapaId: fasesCat[0].id, percentual: 100, ordem: 0, status: "entregue" },
+  });
   const fila2 = await fasesAAprovar(viewer, true);
   const daFila = fila2.find((f) => f.id === fase4.id);
   check("L3: fase entregue e não liberada entra na fila, com disciplina, projeto e sigla", !!daFila && daFila.status === "entregue" && daFila.projetoId === projeto.id && !!daFila.sigla, daFila);
-  check("L3: fase de disciplina só com CLT também entra (aprova-se sem pagamento)", fila2.some((f) => f.id === fase3.id));
+  check("L3: fase de disciplina só com CLT também entra (aprova-se sem pagamento)", fila2.some((f) => f.id === faseCltFila.id));
   const deFora = await fasesAAprovar({ id: "sem-vinculo-nenhum", superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" as const }, false);
   check("L3: quem não é da disciplina nem do projeto não vê a fila dela (muralha)", deFora.length === 0, deFora.map((f) => f.id));
   const doResponsavel = await fasesAAprovar({ id: pjA.id, superUsuario: false, escopoGlobalPerfil: false, tipo: "interno" as const }, false);
-  check("L3: o responsável da disciplina vê a fase dela, e só a dele", doResponsavel.some((f) => f.id === fase4.id) && !doResponsavel.some((f) => f.id === fase3.id), doResponsavel.map((f) => f.id));
+  check("L3: o responsável da disciplina vê a fase dela, e só a dele", doResponsavel.some((f) => f.id === fase4.id) && !doResponsavel.some((f) => f.id === faseCltFila.id), doResponsavel.map((f) => f.id));
   // A tela chama aprovarEtapaDisciplina → liberarPagamentosDaFase: o MESMO caminho da F7.4.
   await prisma.$transaction(async (tx) =>
     liberarPagamentosDaFase(tx, {
@@ -434,7 +445,7 @@ async function main() {
 
   // Limpeza — pagamentos antes das fases (FK), lançamentos antes dos pagamentos.
   await prisma.eapTarefa.deleteMany({ where: { projetoId: projeto.id } });
-  const discIds = [disciplina.id, disc2.id, disc3.id, disc4.id];
+  const discIds = [disciplina.id, disc2.id, disc3.id, disc4.id, discCltFila.id];
   const pagIds = (await prisma.pagamentoProjetista.findMany({ where: { disciplinaId: { in: discIds } }, select: { id: true } })).map((p) => p.id);
   await prisma.lancamento.deleteMany({ where: { pagamentoProjetistaId: { in: pagIds } } });
   await prisma.pagamentoProjetista.deleteMany({ where: { id: { in: pagIds } } });

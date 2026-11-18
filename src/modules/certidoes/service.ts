@@ -7,8 +7,12 @@ export type StatusCertidao = "vencida" | "vence_em_breve" | "ok";
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
-/** Janela de "vence em breve" — a mesma em toda parte (status da tela, badge do menu, alertas). */
-export const DIAS_ALERTA = 30;
+/*
+ * A janela de "vence em breve" é CONFIGURÁVEL (`prazos.ts`, `PrazosCertidoes.diasEmBreve`) e por
+ * isso entra como parâmetro OBRIGATÓRIO em toda função que classifica: sem valor padrão, o
+ * compilador acha o chamador que esqueceu de passar — e a tela, o badge e o card do Início nunca
+ * ficam com janelas diferentes.
+ */
 
 function hojeISOPadrao(): string {
   return new Date().toISOString().slice(0, 10);
@@ -22,10 +26,14 @@ export function diasParaVencimento(validadeISO: string, hojeISO: string = hojeIS
 }
 
 /** Status por validade (independe de ter arquivo anexado — ver `semArquivo` à parte). */
-export function statusCertidao(validadeISO: string, hojeISO: string = hojeISOPadrao()): StatusCertidao {
+export function statusCertidao(
+  validadeISO: string,
+  diasEmBreve: number,
+  hojeISO: string = hojeISOPadrao(),
+): StatusCertidao {
   const dias = diasParaVencimento(validadeISO, hojeISO);
   if (dias < 0) return "vencida";
-  if (dias <= DIAS_ALERTA) return "vence_em_breve";
+  if (dias <= diasEmBreve) return "vence_em_breve";
   return "ok";
 }
 
@@ -39,9 +47,12 @@ export function statusCertidao(validadeISO: string, hojeISO: string = hojeISOPad
  * Meia-noite **UTC** porque `Certidao.validade` é `@db.Date`: o Postgres devolve meia-noite UTC e
  * comparar com meia-noite local venceria a certidão de hoje um dia antes (ver `lib/data.ts`).
  */
-export function janelaAtencaoUtc(agora: Date = new Date()): { hojeUtc: Date; limiteUtc: Date } {
+export function janelaAtencaoUtc(
+  diasEmBreve: number,
+  agora: Date = new Date(),
+): { hojeUtc: Date; limiteUtc: Date } {
   const hojeUtc = new Date(Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate()));
-  return { hojeUtc, limiteUtc: new Date(hojeUtc.getTime() + DIAS_ALERTA * DIA_MS) };
+  return { hojeUtc, limiteUtc: new Date(hojeUtc.getTime() + diasEmBreve * DIA_MS) };
 }
 
 /**
@@ -56,6 +67,7 @@ export function janelaAtencaoUtc(agora: Date = new Date()): { hojeUtc: Date; lim
  */
 export function textoValidade(
   validadeISO: string,
+  diasEmBreve: number,
   hojeISO: string = hojeISOPadrao(),
 ): { texto: string; tom: "danger" | "warning" | "neutral" } {
   const dias = diasParaVencimento(validadeISO, hojeISO);
@@ -65,7 +77,7 @@ export function textoValidade(
     return { texto: `Vencida há ${atraso} ${atraso === 1 ? "dia" : "dias"}`, tom: "danger" };
   }
   if (dias === 0) return { texto: "Vence hoje", tom: "warning" };
-  if (dias <= DIAS_ALERTA) {
+  if (dias <= diasEmBreve) {
     return { texto: `Vence em ${dias} ${dias === 1 ? "dia" : "dias"}`, tom: "warning" };
   }
   return { texto: `Válida por ${dias} dias`, tom: "neutral" };
@@ -96,9 +108,10 @@ export type CertidaoParaPrioridade = {
  */
 export function prioridadeCertidao(
   c: CertidaoParaPrioridade,
+  diasEmBreve: number,
   hojeISO: string = hojeISOPadrao(),
 ): number {
-  const status = statusCertidao(c.validade, hojeISO);
+  const status = statusCertidao(c.validade, diasEmBreve, hojeISO);
   if (status === "vencida") return c.obrigatoria ? 0 : 1;
   if (status === "vence_em_breve") return c.obrigatoria ? 2 : 3;
   return c.arquivoNome ? 5 : 4;
@@ -107,11 +120,12 @@ export function prioridadeCertidao(
 /** Aplica §8: prioridade e, dentro do grupo, validade mais próxima primeiro. Não muta a entrada. */
 export function ordenarPorPrioridade<T extends CertidaoParaPrioridade>(
   certidoes: T[],
+  diasEmBreve: number,
   hojeISO: string = hojeISOPadrao(),
 ): T[] {
   return [...certidoes].sort((a, b) => {
-    const pa = prioridadeCertidao(a, hojeISO);
-    const pb = prioridadeCertidao(b, hojeISO);
+    const pa = prioridadeCertidao(a, diasEmBreve, hojeISO);
+    const pb = prioridadeCertidao(b, diasEmBreve, hojeISO);
     if (pa !== pb) return pa - pb;
     return a.validade.localeCompare(b.validade);
   });
@@ -134,11 +148,12 @@ export type PanoramaCompliance = {
 /** Agregação p/ o painel de vencimentos (feature 1). */
 export function panoramaCompliance(
   certidoes: CertidaoParaPanorama[],
+  diasEmBreve: number,
   hojeISO: string = hojeISOPadrao(),
 ): PanoramaCompliance {
   const p: PanoramaCompliance = { vencidas: 0, venceEmBreve: 0, ok: 0, semArquivo: 0 };
   for (const c of certidoes) {
-    const status = statusCertidao(c.validade, hojeISO);
+    const status = statusCertidao(c.validade, diasEmBreve, hojeISO);
     if (status === "vencida") p.vencidas++;
     else if (status === "vence_em_breve") p.venceEmBreve++;
     else p.ok++;

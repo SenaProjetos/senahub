@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { hashesExistentes as hashesDoCommit } from "@/modules/financeiro/importacao/commit-core";
+import { hashesExistentes as hashesDoCommit, carregarIndice as carregarIndiceDoCommit } from "@/modules/financeiro/importacao/commit-core";
+import type { IndiceCadastros } from "@/modules/financeiro/importacao/cadastros";
 import { chaveMatch } from "@/lib/import/valores";
 import { chaveCatPai, chaveCatFilha, type Existentes } from "@/modules/financeiro/importacao/processar";
 
@@ -74,6 +75,11 @@ export async function carregarExistentes(): Promise<Existentes> {
 /** Hashes já importados — mesma regra do commit (`commit-core.ts`), para a prévia não divergir. */
 export async function hashesExistentes(hashes: string[]): Promise<Set<string>> {
   return hashesDoCommit(prisma, hashes);
+}
+
+/** Índice dos cadastros para a prévia — o mesmo que o commit relê dentro da transação. */
+export async function carregarIndice(): Promise<IndiceCadastros> {
+  return carregarIndiceDoCommit(prisma);
 }
 
 /** Histórico de importações (lotes não desfeitos primeiro), para a tela. */

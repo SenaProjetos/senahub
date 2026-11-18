@@ -73,7 +73,10 @@ const LARGURA_COLUNA_DATA = 108;
 export type { ModoGantt } from "@/components/planejamento/gantt-barra";
 
 /** O que se edita direto na célula. `pred` (Predecessoras) tem callback próprio: grava o conjunto inteiro. */
-export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred" | "inicio" | "termino";
+export type CampoEditavel = "nome" | "duracao" | "progresso" | "pred" | "inicio" | "termino" | CampoReal;
+
+/** As datas reais do Gantt de Controle (Iníc. real / Térm. real): outra permissão (`cronograma:executado`), outro callback. */
+export type CampoReal = "inicioReal" | "fimReal";
 
 export type EdicaoDeCampo =
   | { campo: "nome"; nome: string }
@@ -119,6 +122,11 @@ export type PlanoGanttProps = {
    * elas as colunas abrem no tamanho padrão; arrastar a borda do cabeçalho grava a nova preferência.
    */
   largurasIniciais?: Larguras;
+  /**
+   * Gantt de Controle: início e término reais digitados na célula (`YYYY-MM-DD`, `null` = apagou) — quem registra a execução,
+   * que não é necessariamente quem monta o cronograma. Vale também com o plano travado: acompanhar é depois de aprovar.
+   */
+  onEditarExecucao?: (t: EapTarefaDTO, campo: CampoReal, dia: string | null) => Promise<string | null>;
   /** A célula Predecessoras: o conjunto inteiro de uma vez. */
   onEditarPredecessoras?: (t: EapTarefaDTO, vinculos: Vinculo[]) => Promise<string | null>;
   /** Uma edição que o texto digitado não permite (o que o servidor nem chega a ver). */
@@ -184,6 +192,15 @@ const diasDeDesvio = (t: EapTarefaDTO) => diasDeVariacao(t.fimBaseline, t.fimPre
 
 const SEM_VALOR = <span className="text-xs text-muted-foreground">—</span>;
 
+/**
+ * "Falta o término real" (`termino-pendente.ts`): a sucessora já começou e esta segue sem término real. Só aparece para
+ * quem registra a execução (é quem resolve) e nunca na linha verde — o card concluído já pede a validação, um sinal por vez.
+ */
+function terminoPendenteVisivel(t: EapTarefaDTO, hoje: string, podeEditarExecucao: boolean) {
+  if (!podeEditarExecucao || !t.terminoPendente || t.fimReal) return null;
+  return sinalDaLinha(t, hoje) === "validar" ? null : t.terminoPendente;
+}
+
 /** Selo de variação em dias (Desvio, Var. início, Var. término): vermelho = depois da base, verde = antes. */
 function seloDeVariacao(d: number | null) {
   if (d == null) return SEM_VALOR;
@@ -218,6 +235,7 @@ export function PlanoGantt({
   filtroIds,
   onAbrir,
   onEditarCampo,
+  onEditarExecucao,
   planoTravado = false,
   largurasIniciais,
   onEditarPredecessoras,
@@ -330,12 +348,18 @@ export function PlanoGantt({
 
   const podeEditar = !!onEditarCampo;
   const podeEditarPred = !!onEditarPredecessoras;
+  const podeEditarExecucao = !!onEditarExecucao;
   // Agrupamento só edita o nome: duração, % e predecessoras derivam dos filhos (Doc 03 §23). Marco não tem % digitado.
   const ehEditavel = (l: Linha, campo: CampoEditavel): boolean => {
     // Variação é só comparação com a base: nada se edita nela.
     if (conjuntoDeColunas === "variacao") return false;
     if (campo === "nome") return podeEditar;
     if (l.temFilhos) return false;
+    // Suspensa, cancelada ou arquivada não recebe datas reais; marco tem uma data só (a do término).
+    if (campo === "inicioReal" || campo === "fimReal") {
+      if (!podeEditarExecucao || ["sus", "can", "arq"].includes(l.t.status)) return false;
+      return campo === "fimReal" || !l.t.marco;
+    }
     if (campo === "duracao") return podeEditar && !planoTravado;
     if (campo === "inicio") return podeEditar && !planoTravado;
     if (campo === "termino") return podeEditar && !planoTravado && !l.t.marco; // marco é uma data só: muda-se o início
@@ -348,7 +372,7 @@ export function PlanoGantt({
       ? []
       : modo === "planejamento"
         ? ["nome", "duracao", "inicio", "termino", "pred"]
-        : ["nome", "progresso"];
+        : ["nome", "progresso", "inicioReal", "fimReal"];
 
   const textoInicial = (l: Linha, campo: CampoEditavel): string => {
     const t = l.t;
@@ -357,6 +381,12 @@ export function PlanoGantt({
     if (campo === "progresso") return String(t.progresso);
     if (campo === "inicio") return dataCurta(t.inicioPrevisto) || "";
     if (campo === "termino") return dataCurta(t.fimPrevisto) || "";
+    if (campo === "inicioReal") return dataCurta(t.inicioReal) || "";
+    if (campo === "fimReal") {
+      // Sem término real e com sugestão: o campo abre com ela, e só o Enter a confirma (Tab e clicar fora passam — `sugerido`).
+      const sugestao = terminoPendenteVisivel(t, hoje, podeEditarExecucao)?.sugestao;
+      return dataCurta(t.fimReal) || (sugestao ? dataCurta(sugestao) : "");
+    }
     return formatarPredecessoras(t.predecessoras, codigoPorId);
   };
 
@@ -431,6 +461,21 @@ export function PlanoGantt({
       if (r.dia === atual) return true;
       exibir = dataCurta(r.dia);
       erro = await onEditarCampo!(t, { campo, data: r.dia });
+    } else if (campo === "inicioReal" || campo === "fimReal") {
+      // Célula vazia = apagar a data real (reabrir, no término). O resto das regras é do servidor (e de `execucaoDaCelula`).
+      let dia: string | null = null;
+      if (texto.trim() !== "") {
+        const r = lerDataDigitada(texto, hoje);
+        if (!r.ok) {
+          onErro?.(r.erro);
+          return false;
+        }
+        dia = r.dia;
+      }
+      const atual = campo === "inicioReal" ? t.inicioReal : t.fimReal;
+      if (dia === (atual ?? null)) return true;
+      erro = await onEditarExecucao!(t, campo, dia);
+      exibir = "";
     } else {
       const r = lerPredecessoras(texto, idPorCodigo, t.id);
       if (!r.ok) {
@@ -447,7 +492,7 @@ export function PlanoGantt({
     }
     // Início e término NÃO mostram o texto digitado como se estivesse gravado: o motor pode dar outra data (predecessora, dia
     // não útil) e o término vira duração — a célula espera o dado novo do servidor.
-    if (campo !== "inicio" && campo !== "termino") setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
+    if (campo !== "inicio" && campo !== "termino" && campo !== "inicioReal" && campo !== "fimReal") setGravados({ base: tarefas, valores: { ...valoresGravados, [`${t.id}:${campo}`]: exibir } });
     return true;
   }
 
@@ -474,15 +519,33 @@ export function PlanoGantt({
   }
 
   /** Envolve o conteúdo de uma célula na edição direto na tabela, quando a linha e a pessoa permitem. */
-  const envolver = (l: Linha, campo: CampoEditavel, rotulo: string, conteudo: ReactNode): ReactNode =>
-    ehEditavel(l, campo) ? (
+  const envolver = (l: Linha, campo: CampoEditavel, rotulo: string, conteudo: ReactNode): ReactNode => {
+    if (!ehEditavel(l, campo)) return conteudo;
+    const pendente = campo === "fimReal" ? terminoPendenteVisivel(l.t, hoje, podeEditarExecucao) : null;
+    const sugestao = pendente?.sugestao ?? null;
+    // O aria-label substitui o conteúdo da célula: o amarelo e a sugestão precisam estar nele para o leitor de tela.
+    const pendencia = pendente
+      ? ` (falta o término real: a sucessora já começou${sugestao ? `; sugestão ${dataCurta(sugestao)}, Enter grava` : ""})`
+      : "";
+    return (
       <CelulaEditavel
-        data={campo === "inicio" ? { iso: l.t.inicioPrevisto } : campo === "termino" ? { iso: l.t.fimPrevisto } : undefined}
+        data={
+          campo === "inicio"
+            ? { iso: l.t.inicioPrevisto }
+            : campo === "termino"
+              ? { iso: l.t.fimPrevisto }
+              : campo === "inicioReal"
+                ? { iso: l.t.inicioReal, max: hoje }
+                : campo === "fimReal"
+                  ? { iso: l.t.fimReal ?? sugestao, max: hoje }
+                  : undefined
+        }
+        sugerido={sugestao != null}
         ativa={edicao?.id === l.t.id && edicao.campo === campo}
         salvando={salvando}
         invalida={invalida}
         valorInicial={textoInicial(l, campo)}
-        rotulo={`${rotulo} da tarefa ${l.codigo}`}
+        rotulo={`${rotulo} da tarefa ${l.codigo}${pendencia}`}
         aoIniciar={() => iniciar(l.t.id, campo)}
         aoConfirmar={(texto, destino) => confirmar(l, campo, texto, destino)}
         aoCancelar={cancelar}
@@ -490,9 +553,8 @@ export function PlanoGantt({
       >
         {conteudo}
       </CelulaEditavel>
-    ) : (
-      conteudo
     );
+  };
   const gravado = (id: string, campo: CampoEditavel) => valoresGravados[`${id}:${campo}`];
 
   // Arrastar só na árvore inteira: com filtro, "logo acima" na tela não é a linha de cima de verdade.
@@ -786,18 +848,57 @@ export function PlanoGantt({
       render: (l) => seloDeVariacao(diasDeVariacao(l.t.inicioBaseline, l.t.inicioPrevisto)),
     };
     const varTermino: Coluna = { ...desvio, id: "varTermino", rotulo: "Var. término" };
-    // ── Lote 7: o realizado (só leitura; "—" = não se mede) ──
+    // ── Lote 7: o realizado ("—" = não se mede). Início e término reais se digitam na célula, como no Project ──
     const inicioReal: Coluna = {
       id: "inicioReal",
       rotulo: "Iníc. real",
-      w: 84,
-      render: (l) => (l.t.inicioReal ? <span className="font-mono text-xs">{dataCurta(l.t.inicioReal)}</span> : SEM_VALOR),
+      w: podeEditarExecucao ? LARGURA_COLUNA_DATA : 84,
+      render: (l) =>
+        envolver(
+          l,
+          "inicioReal",
+          "Início real",
+          l.t.inicioReal ? (
+            <span className="font-mono text-xs" title="Digite, cole ou escolha no calendário (dd/mm/aaaa). Apague para tirar o início real.">
+              {dataCurta(l.t.inicioReal)}
+            </span>
+          ) : (
+            SEM_VALOR
+          ),
+        ),
     };
     const fimReal: Coluna = {
       id: "fimReal",
       rotulo: "Térm. real",
-      w: 84,
-      render: (l) => (l.t.fimReal ? <span className="font-mono text-xs">{dataCurta(l.t.fimReal)}</span> : SEM_VALOR),
+      w: podeEditarExecucao ? LARGURA_COLUNA_DATA : 84,
+      render: (l) => {
+        const pendente = terminoPendenteVisivel(l.t, hoje, podeEditarExecucao);
+        return envolver(
+          l,
+          "fimReal",
+          l.t.marco ? "Data real" : "Término real",
+          l.t.fimReal ? (
+            <span className="font-mono text-xs" title="O término real conclui a tarefa (100%). Sem início real, ele vira o início previsto.">
+              {dataCurta(l.t.fimReal)}
+            </span>
+          ) : pendente ? (
+            // A sucessora já começou: falta o término real desta. A data sugerida é só sugestão — nada foi gravado.
+            <span
+              className="inline-flex h-5 min-w-0 items-center rounded-sm border border-warning/60 bg-warning/15 px-1 font-mono text-xs text-warning-text"
+              title={
+                `A sucessora "${pendente.sucessoraNome}" começou em ${dataCurta(pendente.sucessoraDesde)}: informe o término real desta tarefa.` +
+                (pendente.sugestao
+                  ? ` Sugestão: ${dataCurta(pendente.sugestao)}, o último dia com hora apontada nela. Clique e Enter confirma; Tab ou clicar fora passa sem gravar.`
+                  : " Não há hora apontada nela para sugerir uma data.")
+              }
+            >
+              {pendente.sugestao ? `${dataCurta(pendente.sugestao)}?` : "informar"}
+            </span>
+          ) : (
+            SEM_VALOR
+          ),
+        );
+      },
     };
     const duracaoReal: Coluna = {
       id: "duracaoReal",
@@ -900,7 +1001,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, conjuntoDeColunas, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, conjuntoDeColunas, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, podeEditarExecucao, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
   // da alça não refazer as células de todas as linhas (só a largura muda).
@@ -1282,7 +1383,14 @@ export function PlanoGantt({
         </div>
       )}
 
-      {verDatas && linhas.length > 0 && <Legenda modo={modo} tarefas={tarefas} rotuloBase={rotuloBase} />}
+      {verDatas && linhas.length > 0 && (
+        <Legenda
+          modo={modo}
+          tarefas={tarefas}
+          rotuloBase={rotuloBase}
+          temTerminoPendente={modo === "controle" && tarefas.some((t) => terminoPendenteVisivel(t, hoje, podeEditarExecucao))}
+        />
+      )}
     </div>
   );
 }
@@ -1295,6 +1403,7 @@ export function PlanoGantt({
  */
 function CelulaEditavel({
   data,
+  sugerido = false,
   ativa,
   salvando,
   invalida,
@@ -1306,8 +1415,14 @@ function CelulaEditavel({
   aoDigitar,
   children,
 }: {
-  /** Presente = célula de data: máscara dd/mm/aaaa ao digitar e calendário nativo (`iso` = o dia atual da linha). */
-  data?: { iso: string | null };
+  /** Presente = célula de data: máscara dd/mm/aaaa ao digitar e calendário nativo (`iso` = o dia atual da linha; `max` = o último dia que o calendário oferece). */
+  data?: { iso: string | null; max?: string };
+  /**
+   * O campo abre com uma SUGESTÃO (o término real pedido pelo "falta o término real"), não com um valor gravado: só o
+   * Enter (ou digitar/escolher outra data) grava. Tab e clicar fora sem mexer passam sem gravar — abrir a célula por
+   * engano, ou andar pelas células com Tab, concluiria a tarefa.
+   */
+  sugerido?: boolean;
   ativa: boolean;
   salvando: boolean;
   invalida: boolean;
@@ -1477,7 +1592,16 @@ function CelulaEditavel({
           confirmar(e.currentTarget.value, "abaixo");
         } else if (e.key === "Tab") {
           e.preventDefault();
-          confirmar(e.currentTarget.value, e.shiftKey ? "anterior" : "proxima");
+          const destino = e.shiftKey ? "anterior" : "proxima";
+          if (sugerido && e.currentTarget.value === abertoCom.current) {
+            // Passar pela célula sugerida não aceita a sugestão: vai para a próxima sem gravar (célula vazia = nada mudou).
+            encerrada.current = true;
+            void aoConfirmar("", destino).then((ok) => {
+              if (!ok) encerrada.current = false;
+            });
+          } else {
+            confirmar(e.currentTarget.value, destino);
+          }
         } else if (e.key === "Escape") {
           e.preventDefault();
           encerrada.current = true;
@@ -1487,6 +1611,11 @@ function CelulaEditavel({
       }}
       onBlur={(e) => {
         if (encerrada.current || seletorAberto.current) return;
+        if (sugerido && e.currentTarget.value === abertoCom.current) {
+          encerrada.current = true;
+          aoCancelar();
+          return;
+        }
         confirmar(e.currentTarget.value, "fica");
       }}
     />
@@ -1528,6 +1657,7 @@ function CelulaEditavel({
         tabIndex={-1}
         aria-hidden
         value={isoDoDia}
+        max={data.max}
         className="pointer-events-none absolute inset-0 opacity-0"
         onChange={(e) => escolheuDia(e.currentTarget.value)}
         onBlur={seletorFechou}
@@ -1536,7 +1666,17 @@ function CelulaEditavel({
   );
 }
 
-function Legenda({ modo, tarefas, rotuloBase }: { modo: ModoGantt; tarefas: EapTarefaDTO[]; rotuloBase?: string }) {
+function Legenda({
+  modo,
+  tarefas,
+  rotuloBase,
+  temTerminoPendente = false,
+}: {
+  modo: ModoGantt;
+  tarefas: EapTarefaDTO[];
+  rotuloBase?: string;
+  temTerminoPendente?: boolean;
+}) {
   const temCritico = tarefas.some((t) => t.critica);
   const temMarco = tarefas.some((t) => t.marco);
   const temResumo = tarefas.some((t) => tarefas.some((f) => f.parentId === t.id));
@@ -1563,6 +1703,12 @@ function Legenda({ modo, tarefas, rotuloBase }: { modo: ModoGantt; tarefas: EapT
       {modo === "controle" && (
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-[9px] w-5 rounded-sm bg-muted-foreground dark:bg-muted-foreground/60" aria-hidden /> Linha de base{rotuloBase ? ` ${rotuloBase}` : ""} (mesma espessura da tarefa)
+        </span>
+      )}
+      {temTerminoPendente && (
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block h-2.5 w-5 rounded-sm border border-warning/60 bg-warning/15" aria-hidden /> Térm. real a informar (a
+          sucessora já começou; a data é sugestão)
         </span>
       )}
       <span className="flex items-center gap-1.5">

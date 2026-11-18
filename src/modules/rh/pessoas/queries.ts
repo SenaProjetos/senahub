@@ -309,13 +309,16 @@ export type CadastroPessoa = NonNullable<Awaited<ReturnType<typeof cadastroDaPes
 /**
  * Aba Ausências — abonos de falta + solicitações de férias de UMA pessoa.
  * Preenche o buraco: hoje só existia a fila global de pendências e a self-service do próprio.
+ * `anexoFechado` = por que quem lê NÃO abre os atestados desta pessoa (`motivoParaNaoVerAtestado`,
+ * `null` = abre). Fechado, o nome do arquivo também não sai (pode dizer o que a pessoa tem) e a
+ * tela mostra a frase no lugar de Ver/Baixar.
  */
-export async function solicitacoesDoUsuario(userId: string) {
+export async function solicitacoesDoUsuario(userId: string, { anexoFechado }: { anexoFechado: string | null }) {
   const [abonos, ferias] = await Promise.all([
     prisma.abonoFalta.findMany({
       where: { userId },
       orderBy: { dataInicio: "desc" },
-      select: { id: true, dataInicio: true, dataFim: true, motivo: true, motivoTipo: true, tratamento: true, horaInicio: true, horaFim: true, atestadoPath: true, atestadoNome: true, status: true, validadoEm: true, createdAt: true },
+      select: { id: true, dataInicio: true, dataFim: true, motivo: true, motivoTipo: true, tratamento: true, horaInicio: true, horaFim: true, atestadoPath: true, atestadoNome: true, status: true, validadoEm: true, lancadoPorId: true, createdAt: true },
     }),
     prisma.ferias.findMany({
       where: { userId },
@@ -327,8 +330,12 @@ export async function solicitacoesDoUsuario(userId: string) {
     abonos: abonos.map((a) => ({
       id: a.id, dataInicio: ymd(a.dataInicio)!, dataFim: ymd(a.dataFim)!, motivo: a.motivo,
       motivoTipo: a.motivoTipo, tratamento: a.tratamento, horaInicio: a.horaInicio, horaFim: a.horaFim,
-      temAnexo: a.atestadoPath !== null, atestadoNome: a.atestadoNome,
-      antecipado: ehAvisoAntecipado(a.createdAt, a.dataInicio), status: a.status, validadoEm: a.validadoEm ? a.validadoEm.toISOString() : null,
+      temAnexo: a.atestadoPath !== null,
+      anexoFechado: a.atestadoPath !== null ? anexoFechado : null,
+      atestadoNome: anexoFechado === null ? a.atestadoNome : null,
+      // "Aviso antecipado" é da pessoa avisando antes; lançamento do RH nunca é aviso.
+      antecipado: a.lancadoPorId === null && ehAvisoAntecipado(a.createdAt, a.dataInicio), status: a.status, validadoEm: a.validadoEm ? a.validadoEm.toISOString() : null,
+      lancadoPeloRh: a.lancadoPorId !== null,
       criadoEm: a.createdAt.toISOString(),
     })),
     ferias: ferias.map((f) => ({

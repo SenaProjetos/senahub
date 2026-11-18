@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnexoAbono } from "@/components/rh/anexo-abono";
 import { MOTIVOS_AUSENCIA, rotuloJanela, rotuloMotivo, rotuloTratamento } from "@/modules/rh/ausencia";
+import { motivoParaRecusarAtestado } from "@/modules/rh/abono-entrada";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FeriasAcoes, type FeriaItem } from "@/components/rh/ferias-acoes";
 
@@ -39,6 +40,8 @@ type Abono = {
   tratamento: string;
   horaInicio: string | null;
   horaFim: string | null;
+  /** Ausência registrada pelo RH, sem solicitação — nasce aprovada. */
+  lancadoPeloRh: boolean;
 };
 type Feria = FeriaItem;
 
@@ -154,9 +157,9 @@ function MinhasSolicitacoes({ abonos, ferias }: { abonos: Abono[]; ferias: Feria
                       {rotuloTratamento(s.status, s.abono.tratamento) ? ` · ${rotuloTratamento(s.status, s.abono.tratamento)}` : ""}
                     </span>
                   )}
-                  {s.feria?.lancadaPeloRh && (
+                  {(s.feria?.lancadaPeloRh || s.abono?.lancadoPeloRh) && (
                     <Badge variant="outline" className="ml-2 align-middle">
-                      Lançada pelo RH
+                      {s.abono ? "Lançado pelo RH" : "Lançada pelo RH"}
                     </Badge>
                   )}
                 </div>
@@ -287,7 +290,8 @@ function AbonoCard() {
         limparArquivo();
         router.refresh();
       } else {
-        toast.error((await res.json()).error ?? "Falha.");
+        const corpo = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast.error(corpo?.error ?? "Não foi possível enviar a solicitação. Tente de novo.");
       }
     } finally {
       setEnviando(false);
@@ -351,7 +355,15 @@ function AbonoCard() {
             type="file"
             accept="image/*,.pdf"
             className="sr-only"
-            onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              // Mesma regra (e frase) que a rota aplica: tamanho e formato.
+              const recusa = f ? motivoParaRecusarAtestado(f.name, f.size) : null;
+              if (recusa) {
+                toast.error(recusa);
+                limparArquivo();
+              } else setArquivo(f);
+            }}
           />
           <Button
             type="button"

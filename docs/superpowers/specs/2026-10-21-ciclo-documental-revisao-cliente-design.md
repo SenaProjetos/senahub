@@ -30,6 +30,9 @@ para todos até a revisão nova chegar; nenhuma R01+ sai sem o que mudou escrito
 
 **Fora (decisões do dono):**
 - "Devolver para ajustes" continua manual. Criar ou enviar apontamento não devolve a revisão.
+  **Substituído em 2026-11-17 (A10):** enviar a rodada de apontamentos de uma revisão EM ANÁLISE a devolve
+  para ajustes; criar o apontamento continua sem efeito — ver
+  [2026-10-08-ciclo-documental-iso19650.md](2026-10-08-ciclo-documental-iso19650.md), "Decisão de 2026-11-17".
 - O cliente marcar "Em revisão" pelo portal fica para depois. Nesta entrega quem marca é a coordenação.
 - Nenhum status novo de ESTADO: "Em revisão" é um CONTROLE, não um estado da máquina.
 

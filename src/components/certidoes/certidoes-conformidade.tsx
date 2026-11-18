@@ -18,19 +18,22 @@ import { statusCertidao } from "@/modules/certidoes/service";
  */
 export function CertidoesConformidade({
   certidoes,
+  diasEmBreve,
   faltando,
   onVerPendencias,
 }: {
   certidoes: Certidao[];
+  /** Janela de "Vence em breve" configurada (`prazos.ts`). */
+  diasEmBreve: number;
   /** Tipos obrigatórios sem certidão vigente (calculado no servidor). */
   faltando: TipoObrigatorio[];
   onVerPendencias: () => void;
 }) {
   const obrigatorias = certidoes.filter((c) => c.obrigatoria);
-  const vencidas = obrigatorias.filter((c) => statusCertidao(c.validade) === "vencida");
+  const vencidas = obrigatorias.filter((c) => statusCertidao(c.validade, diasEmBreve) === "vencida");
   const semDocumento = obrigatorias.filter((c) => !c.arquivoNome);
   const semResponsavel = obrigatorias.filter(
-    (c) => !c.responsavelNome && statusCertidao(c.validade) !== "ok",
+    (c) => !c.responsavelNome && statusCertidao(c.validade, diasEmBreve) !== "ok",
   );
 
   // Tipos obrigatórios que não têm nenhuma certidão cadastrada (nem vencida) — `faltando` inclui

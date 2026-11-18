@@ -92,7 +92,7 @@ async function main() {
     check("cadastro.cpf preenchido", cad?.cpf === "00000000000");
     check("cadastro tem arrays dependentes/documentos", Array.isArray(cad?.dependentes) && Array.isArray(cad?.documentos));
 
-    const aus = await solicitacoesDoUsuario(clt.id);
+    const aus = await solicitacoesDoUsuario(clt.id, { anexoFechado: null });
     check("solicitacoesDoUsuario => abonos+ferias arrays", Array.isArray(aus.abonos) && Array.isArray(aus.ferias));
 
     const p = await pontoDoMes(clt.id);

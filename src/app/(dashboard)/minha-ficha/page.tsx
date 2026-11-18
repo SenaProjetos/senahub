@@ -64,7 +64,8 @@ export default async function MinhaFichaPage({ searchParams }: { searchParams: P
 
   const [cadastro, ausencias, banco, escalaUsuario, escalaPadrao, holerites, nf, pendente, prefsConta, acesso, contas, historico, contaPendente] = await Promise.all([
     isColaborador ? cadastroDaPessoa(id) : Promise.resolve(null),
-    controlaJornada ? solicitacoesDoUsuario(id) : Promise.resolve(null),
+    // A própria ficha: os próprios atestados.
+    controlaJornada ? solicitacoesDoUsuario(id, { anexoFechado: null }) : Promise.resolve(null),
     controlaJornada ? bancoHorasDe(id) : Promise.resolve(null),
     temEscala ? escalaUsuarioGrade(id) : Promise.resolve(null),
     temEscala ? escalaPadraoDoUsuario(id) : Promise.resolve(null),
