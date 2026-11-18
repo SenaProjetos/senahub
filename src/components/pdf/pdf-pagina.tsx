@@ -166,7 +166,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         const mark = document.createElement("mark");
         mark.dataset.ocorrencia = m.ocorrenciaId;
         mark.style.color = "transparent";
-        mark.className = m.atual ? "bg-orange-400/70" : "bg-yellow-300/60";
+        mark.className = m.atual ? "bg-busca-pdf-atual" : "bg-busca-pdf";
         mark.textContent = texto.slice(m.inicio, m.fim);
         div.appendChild(mark);
         cursor = m.fim;

@@ -61,6 +61,9 @@
   --color-marcacao-verde: var(--marcacao-verde);
   --color-marcacao-laranja: var(--marcacao-laranja);
   --color-marcacao-preto: var(--marcacao-preto);
+  /* Marca da busca de texto sobre a prancha */
+  --color-busca-pdf: var(--busca-pdf);
+  --color-busca-pdf-atual: var(--busca-pdf-atual);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -200,6 +203,17 @@
   --marcacao-verde: #1b8a3a;
   --marcacao-laranja: #e07000;
   --marcacao-preto: #1a1a1a;
+}
+
+/*
+ * Marca da busca de texto (`<mark>` de `PdfPagina`). Mesma razão das `--marcacao-*`: ela cobre o texto da
+ * folha do PDF, que é sempre branca, então não ganha variante no tema escuro — um amarelo/laranja
+ * "escurecido" perderia contraste justamente sobre o papel. Translúcidas para o texto do canvas aparecer
+ * por baixo. `--busca-pdf-atual` é a ocorrência selecionada.
+ */
+:root {
+  --busca-pdf: rgb(253 224 71 / 0.6);
+  --busca-pdf-atual: rgb(251 146 60 / 0.7);
 }
 
 /*
