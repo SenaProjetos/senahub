@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Crosshair, Layers, Loader2, MapPin, Maximize } from "lucide-react";
@@ -136,7 +136,8 @@ function SeletorCamada({
       <SelectContent>
         {camadas.map((c) => (
           <SelectItem key={c.id} value={c.id}>
-            {c.disciplina}
+            {/* Duas pranchas da mesma disciplina no pavimento: o título separa uma da outra. */}
+            {c.disciplina} · {c.titulo}
             {c.base ? " (base)" : ""}
           </SelectItem>
         ))}
@@ -159,7 +160,33 @@ function semOQueJaGravou(ajustes: Record<string, AjusteCamada>, camadas: CamadaD
   return out;
 }
 
-export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
+export function SobreposicaoView({ cena, documentos, sobreposicoes }: SobreposicaoViewProps) {
+  // Sem camada, a cena nem monta: ao chegar a primeira (router.refresh), ela monta do zero e mede a altura do
+  // quadro já com ele na tela (medida no primeiro render, com o EmptyState no lugar, ficava sem altura).
+  if (cena.camadas.length === 0) {
+    return (
+      <EmptyState
+        icon={Layers}
+        title="Nenhuma camada nesta sobreposição"
+        description={
+          documentos.length === 0
+            ? "Envie o PDF ou o DWG das disciplinas na aba Arquivos para montar a sobreposição."
+            : cena.podeGerir
+              ? "Comece pela base do pavimento, normalmente a arquitetura."
+              : "A coordenação ainda não adicionou as plantas deste pavimento."
+        }
+        action={
+          cena.podeGerir && documentos.length > 0 ? (
+            <AdicionarCamadaDialog sobreposicaoId={cena.id} documentos={documentos} primeira />
+          ) : undefined
+        }
+      />
+    );
+  }
+  return <CenaComCamadas cena={cena} documentos={documentos} sobreposicoes={sobreposicoes} />;
+}
+
+function CenaComCamadas({ cena, documentos }: SobreposicaoViewProps) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pendente, start] = useTransition();
@@ -207,6 +234,13 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
   const tamanhos = useTamanhosPdf(camadas);
   const pinos = useMemo(() => pinosNoMundo(camadas, tamanhos), [camadas, tamanhos]);
   const rascunhos = useMemo(() => rascunhosPorPrancha(camadas), [camadas]);
+
+  // O que aparece acima do quadro (barra do alinhamento, aviso de corrida, barra do apontar, rascunhos, seletores
+  // dos modos) muda a altura que sobra; o quadro só re-mede no `resize`, então avisa — senão o palco passa da tela.
+  const acimaDoQuadro = [sessao !== null, corrida, apontando, rascunhos.length > 0, modo].join("|");
+  useLayoutEffect(() => {
+    window.dispatchEvent(new Event("resize"));
+  }, [acimaDoQuadro]);
 
   // A camada sumiu ou trocou de formato no meio do alinhamento: a sessão não vale mais.
   useEffect(() => {
@@ -598,27 +632,6 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
     return documentos.filter((d) => !usados.has(d.documentoId));
   }, [cena.camadas, documentos]);
 
-  if (cena.camadas.length === 0) {
-    return (
-      <EmptyState
-        icon={Layers}
-        title="Nenhuma camada nesta sobreposição"
-        description={
-          documentos.length === 0
-            ? "Envie o PDF ou o DWG das disciplinas na aba Arquivos para montar a sobreposição."
-            : cena.podeGerir
-              ? "Comece pela base do pavimento, normalmente a arquitetura."
-              : "A coordenação ainda não adicionou as plantas deste pavimento."
-        }
-        action={
-          cena.podeGerir && documentos.length > 0 ? (
-            <AdicionarCamadaDialog sobreposicaoId={cena.id} documentos={documentos} primeira />
-          ) : undefined
-        }
-      />
-    );
-  }
-
   const painel = (
     <PainelCamadas
       sobreposicaoId={cena.id}
@@ -725,8 +738,8 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
                     onClick={() => aoAlinhar(c.id)}
                   >
                     <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: c.cor }} aria-hidden />
-                    <span className="truncate">
-                      {c.disciplina}
+                    <span className="truncate" title={`${c.disciplina} · ${c.titulo}`}>
+                      {c.disciplina} · {c.titulo}
                       {c.base ? " (base)" : ""}
                     </span>
                   </DropdownMenuItem>

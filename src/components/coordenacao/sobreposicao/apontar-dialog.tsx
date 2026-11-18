@@ -105,7 +105,14 @@ export function ApontarDialog({ aberto, onOpenChange, camadas, onUsarPdf, onConf
           <DialogBody className="space-y-4">
             <div className="grid gap-1.5">
               <Label htmlFor="apontar-camada">Disciplina que deve alterar</Label>
-              <Select value={camadaId ?? ""} onValueChange={(v) => setCamadaId(v || null)}>
+              <Select
+                value={camadaId ?? ""}
+                onValueChange={(v) => {
+                  // O erro da tentativa anterior era da outra prancha.
+                  setErro(null);
+                  setCamadaId(v || null);
+                }}
+              >
                 <SelectTrigger
                   id="apontar-camada"
                   className="w-full"
