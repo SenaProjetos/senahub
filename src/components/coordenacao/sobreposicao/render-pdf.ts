@@ -1,7 +1,7 @@
 "use client";
 
 // Rasteriza a página de um PDF UMA vez, tingida, para o palco compor com zoom/pan sem re-renderizar.
-import { ehLayerArquitetura } from "@/modules/coordenacao/sobreposicao/regras";
+import { ehLayerArquitetura, rotacaoDaFolha } from "@/modules/coordenacao/sobreposicao/regras";
 import { hexParaRgb, tingir } from "@/modules/coordenacao/sobreposicao/pixels";
 import { criarPiscina } from "@/modules/coordenacao/sobreposicao/piscina";
 import type { Caixa } from "@/modules/coordenacao/sobreposicao/transformacao";
@@ -10,7 +10,7 @@ import type { Caixa } from "@/modules/coordenacao/sobreposicao/transformacao";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PdfDoc = any;
 
-/** Tamanho da página em pontos PDF (`getViewport({ scale: 1, rotation: 0 })`). */
+/** Tamanho da página em pontos PDF, com o `/Rotate` dela (`rotacaoDaFolha`) — o espaço de `Pendencia.x/y`. */
 export type TamanhoPdf = { largura: number; altura: number };
 
 export type RenderPdf = {
@@ -19,7 +19,7 @@ export type RenderPdf = {
   imagem: HTMLCanvasElement;
   /** Pixels da imagem por ponto PDF (espaço nativo da camada). */
   escalaRaster: number;
-  /** A folha inteira, em pontos PDF (`getViewport({ scale: 1, rotation: 0 })`). */
+  /** A folha inteira, em pontos PDF, com o `/Rotate` da página (`rotacaoDaFolha`). */
   caixaNativa: Caixa;
   /** Fora da base, o PDF não tinha o grupo SENA_ARQ para esconder. */
   avisoArquitetura: boolean;
@@ -74,13 +74,14 @@ async function rasterizarNo(
 ): Promise<RenderPdf> {
   const numPaginas: number = pdf.numPages;
   const page = await pdf.getPage(Math.min(Math.max(1, pagina), numPaginas));
-  const base = page.getViewport({ scale: 1, rotation: 0 });
+  const rotation = rotacaoDaFolha(page.rotate);
+  const base = page.getViewport({ scale: 1, rotation });
   // A folha já está aberta: guarda o tamanho da página (o pino da camada vai precisar dele sem reabrir o PDF).
   if (!tamanhos.has(chaveTamanho(uploadId, pagina))) {
     tamanhos.set(chaveTamanho(uploadId, pagina), Promise.resolve({ largura: base.width, altura: base.height }));
   }
   const escala = Math.min(LADO_MAXIMO / Math.max(base.width, base.height), ESCALA_MAXIMA);
-  const viewport = page.getViewport({ scale: escala, rotation: 0 });
+  const viewport = page.getViewport({ scale: escala, rotation });
 
   // Fora da base, o grupo SENA_ARQ (se o PDF foi exportado com layers) fica invisível.
   let avisoArquitetura = false;
@@ -130,7 +131,7 @@ export function tamanhoDaPagina(uploadId: string, pagina: number): Promise<Taman
   if (!p) {
     p = documentos.usar(uploadId, async (pdf) => {
       const page = await pdf.getPage(Math.min(Math.max(1, pagina), pdf.numPages));
-      const v = page.getViewport({ scale: 1, rotation: 0 });
+      const v = page.getViewport({ scale: 1, rotation: rotacaoDaFolha(page.rotate) });
       return { largura: v.width, altura: v.height };
     });
     tamanhos.set(chave, p);

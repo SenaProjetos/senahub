@@ -19,6 +19,7 @@ import {
   mundoDaCena,
   pdfObsoleto,
   primitivasDaCamada,
+  rotacaoDaFolha,
 } from "./regras";
 
 const up = (id: string, nomeArquivo: string, versao: number, excluidoEm: Date | null = null) => ({
@@ -107,6 +108,19 @@ describe("mundoDaCena", () => {
     expect(r.alinhamentoBase).toEqual(encaixeInicial(nativaDwg, { minX: 0, minY: 0, maxX: 100, maxY: 50 }));
     expect(r.caixaMundo.minX).toBeCloseTo(0, 9);
     expect(r.caixaMundo.maxX).toBeCloseTo(100, 9);
+  });
+});
+
+describe("rotacaoDaFolha", () => {
+  it("a folha usa o /Rotate da página: o mesmo espaço de Pendencia.x/y no visualizador", () => {
+    expect(rotacaoDaFolha(270)).toBe(270);
+    expect(rotacaoDaFolha(90)).toBe(90);
+  });
+  it("sem /Rotate (ou valor fora do passo de 90°) cai no múltiplo de 90° normalizado", () => {
+    expect(rotacaoDaFolha(undefined)).toBe(0);
+    expect(rotacaoDaFolha(null)).toBe(0);
+    expect(rotacaoDaFolha(-90)).toBe(270);
+    expect(rotacaoDaFolha(450)).toBe(90);
   });
 });
 

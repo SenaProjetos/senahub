@@ -1,5 +1,6 @@
 // Regras puras da sobreposição 2D. Sem I/O, sem Prisma/Next/node:* — roda também no navegador.
 import type { Primitiva } from "@/modules/dwg/parse";
+import { giroNaTela, type Giro } from "@/modules/projetos/pendencias/giro";
 import {
   IDENTIDADE,
   aplicar,
@@ -31,6 +32,15 @@ export function pdfObsoleto(uploads: readonly { id: string; versao: number }[], 
   const pdf = uploads.find((u) => u.id === pdfId);
   if (!pdf) return false;
   return uploads.some((u) => u.versao > pdf.versao);
+}
+
+/**
+ * Rotação com que a folha PDF é lida (`getViewport({ rotation })`): o `/Rotate` da própria página, sem giro de
+ * leitura. É o espaço de `Pendencia.x/y` (`pendencias/giro.ts`); com `rotation: 0` a prancha deitada ficaria em pé
+ * e o pino cairia fora do lugar.
+ */
+export function rotacaoDaFolha(rotatePdf: number | null | undefined): Giro {
+  return giroNaTela(rotatePdf, 0);
 }
 
 /** Maior `versao` do formato entre os arquivos fora da lixeira. */

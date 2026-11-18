@@ -40,7 +40,7 @@ export type CamadaParaApontar = {
   pinos: PinoDaCamada[];
 };
 
-/** Tamanho da página do PDF em pontos (`getViewport({ scale: 1, rotation: 0 })`). */
+/** Tamanho da página do PDF em pontos, com o `/Rotate` dela (`rotacaoDaFolha`). */
 export type TamanhoPagina = { largura: number; altura: number };
 
 /**
