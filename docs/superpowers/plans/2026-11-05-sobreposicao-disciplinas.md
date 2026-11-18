@@ -31,7 +31,8 @@ canvas 2D, vitest, tsx (smoke).
 - Menu de contexto pelo ADR-0002: descritor puro + `LinhaComMenu`/`BotaoAcoes` com o mesmo array, nunca handler de `contextmenu` à mão.
 - `await confirm()` sempre antes de `startTransition`.
 - Tela pesada atrás de `next/dynamic({ ssr: false })`. Viewport 390×844 sem rolagem horizontal; no celular o painel de camadas vira gaveta.
-- Nada de `next build` com `next dev` rodando nesta pasta. Dev desta worktree: porta 3001, banco `senahub_remake_vscode`.
+- Nada de `next build` com `next dev` rodando nesta pasta. Dev desta worktree (`SENAHub-remake-sobreposicao`, desde 2026-11-18):
+  porta 3002, banco `senahub_sobreposicao_dev`. As Tasks 1–6 foram feitas na worktree `-vscode` (porta 3001, removida em 2026-11-16).
 
 ## Review Focus
 

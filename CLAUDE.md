@@ -731,6 +731,18 @@ corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. 
   vale para a SÉRIE do arquivo (`serieDoModelo`: disciplina + nome, ou o Documento recebido), então a revisão nova continua fora.
   `modelosCoordenacao` devolve todos com `oculto`; cada leitor decide — o painel, o realinhamento, o diff e
   `candidatosDoProjeto` (federado) tiram; a lista de conversões e o Custos mostram.
+- **Sobreposição 2D** (`coordenacao/sobreposicao/`, aba `/projetos/[id]/coordenacao/sobreposicao`, spec
+  `docs/superpowers/specs/2026-11-05-sobreposicao-disciplinas-design.md`): plantas PDF/DWG de N disciplinas sobre uma base, por
+  pavimento (`SobreposicaoPlanta` → `SobreposicaoCamada` = documento + formato, uma base por índice parcial). O MUNDO é o espaço
+  nativo do primeiro arquivo da base: pontos PDF com Y para baixo (`getViewport({ scale: 1, rotation: 0 })`, o espaço de
+  `Pendencia.x/y`); o DWG entra como `(x, −y)` do DXF (`nativoDwg`). `SobreposicaoAlinhamento` é uma similaridade (tx, ty, giro,
+  escala) por camada+formato, com `uploadConferidoId` (arquivo vigente diferente = "revisão anterior", "Está certo" só reconfere) e
+  trava otimista por `versao`. Contas puras em `transformacao.ts`/`regras.ts`/`sessao-alinhamento.ts`/`apontar.ts`/`cruzamentos.ts`
+  (rodam no navegador). Fora da base o layer `SENA_ARQ` (arquitetura de fundo) não é desenhado — no PDF só se o arquivo tem esse
+  grupo de conteúdo opcional — e volta em cinza enquanto a camada é alinhada. O apontamento é SEMPRE `criarPendencia` no PDF vigente
+  da prancha escolhida (camada em DWG pede o PDF; nunca converte posição de DWG por adivinhação) + a imagem pela rota
+  `/api/pendencias/anexo`; "Enviar apontamentos" é `enviarApontamentos` por prancha via `useLote` — nenhum `pendencia.create` neste
+  módulo. Cruzamentos é ajuda visual (grade de `pendencias/diff.ts`), nunca cria apontamento. Smoke: `npm run smoke:sobreposicao`.
 
 **Comercial / CRM (`modules/comercial/`)** — reforma F0-F7 **concluída** em 2026-09-02 (ver
 `docs/crm/06-progresso.md`, entrada mais recente). `docs/crm/` é o registro histórico da decisão:

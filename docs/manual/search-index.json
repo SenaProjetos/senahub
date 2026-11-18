@@ -3153,6 +3153,42 @@
       ]
     },
     {
+      "titulo": "Sobreposição 2D (plantas das disciplinas)",
+      "path": "projetos/sobreposicao-2d.md",
+      "descricao": "Como sobrepor as plantas PDF e DWG das disciplinas de um pavimento, alinhar cada uma sobre a arquitetura e transformar uma interferência em apontamento.",
+      "resumo": "Na aba Coordenação do projeto, a Sobreposição 2D junta as plantas de várias disciplinas sobre uma base. Cada camada é alinhada uma vez (1 ponto, 2 pontos ou ajuste fino) e a revisão nova já chega no lugar. A interferência vira um apontamento em rascunho na prancha da disciplina que deve alterar.",
+      "tags": [
+        "sobreposição",
+        "compatibilização",
+        "coordenação",
+        "planta",
+        "pdf",
+        "dwg",
+        "alinhar",
+        "apontamento",
+        "interferência",
+        "estudo preliminar"
+      ],
+      "palavrasChave": [
+        "sobreposição 2d",
+        "sobrepor plantas",
+        "compatibilização 2d",
+        "alinhar planta",
+        "sena_arq",
+        "cortina",
+        "cruzamentos",
+        "apontar interferência",
+        "enviar apontamentos",
+        "pavimento"
+      ],
+      "sinonimos": [
+        "sobrepor disciplinas",
+        "compatibilizar plantas",
+        "overlay de plantas",
+        "conferir interferências"
+      ]
+    },
+    {
       "titulo": "Estudo de cargas e demanda por concessionária",
       "path": "projetos/estudo-cargas-e-demanda.md",
       "descricao": "Estudo preliminar de demanda de edificações de múltiplas unidades, pelo método da concessionária, na aba Estudos do projeto.",
