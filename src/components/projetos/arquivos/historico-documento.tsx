@@ -104,8 +104,11 @@ export function HistoricoDocumento({
 }
 
 function ItemHistorico({ evento: e }: { evento: EventoHistorico }) {
-  const Icone = e.origem === "link_publico" ? Globe : e.tipo === "download" ? Download : e.tipo === "visualizacao" ? Eye : PencilLine;
-  const quem = e.autor ?? (e.origem === "link_publico" ? `Link público${e.linkNome ? ` "${e.linkNome}"` : ""}` : "Sistema");
+  const Icone = e.origem !== "interno" ? Globe : e.tipo === "download" ? Download : e.tipo === "visualizacao" ? Eye : PencilLine;
+  const quem =
+    e.origem === "portal"
+      ? `${e.autor ?? "Cliente"} (portal do cliente)`
+      : (e.autor ?? (e.origem === "link_publico" ? `Link público${e.linkNome ? ` "${e.linkNome}"` : ""}` : "Sistema"));
   const contexto = [
     e.arquivo,
     e.versao != null ? rotuloRevisao(e.versao) : null,

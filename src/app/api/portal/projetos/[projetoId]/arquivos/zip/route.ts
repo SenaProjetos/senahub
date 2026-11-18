@@ -1,0 +1,93 @@
+import { NextResponse } from "next/server";
+import { ZipArchive } from "archiver";
+import { uploadsDoAlcanceParaZip } from "@/modules/projetos/arquivos/link-publico";
+import { acessoAoProjetoDoPortal } from "@/modules/portal/acesso";
+import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
+import { prisma } from "@/lib/prisma";
+import { resolverCaminho } from "@/lib/storage";
+import { logAudit, getClientIp } from "@/lib/audit";
+import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
+
+/**
+ * Download (.zip) das entregas de um projeto pelo portal do cliente. Espelha
+ * `/api/p/arquivos/[token]/zip`, com login no lugar do token: quem decide se a pessoa entra é
+ * `acessoAoProjetoDoPortal` (cliente do projeto, termo aceito, senha em dia) e o conteúdo é o MESMO núcleo
+ * do link (`uploadsDoAlcanceParaZip` com o alcance do portal). Os parâmetros só recortam uma pasta.
+ */
+export async function GET(req: Request, ctx: { params: Promise<{ projetoId: string }> }) {
+  const { projetoId } = await ctx.params;
+  const acesso = await acessoAoProjetoDoPortal(projetoId);
+  if (!acesso.ok) return NextResponse.json({ error: acesso.erro }, { status: acesso.status });
+  const sp = new URL(req.url).searchParams;
+  const disciplinaId = sp.get("disciplinaId") ?? undefined;
+  const fase = sp.get("fase") ?? undefined;
+  const ext = sp.get("ext") ?? undefined;
+  const situacao = sp.get("situacao") ?? undefined;
+
+  const pacote = await uploadsDoAlcanceParaZip(acesso.alcance, { disciplinaId, fase, ext, situacao });
+  if (!pacote) return NextResponse.json({ error: "Arquivos indisponíveis." }, { status: 404 });
+  // Ciclo documental: revisão com bloqueio de download fica fora do pacote (I7).
+  const bloqueados = await uploadsComBloqueioDeDownload(prisma, pacote.entradas.map((e) => e.uploadId));
+  const entradas = pacote.entradas.filter((e) => !bloqueados.has(e.uploadId));
+  if (entradas.length === 0) return NextResponse.json({ error: "Arquivos indisponíveis." }, { status: 404 });
+
+  await logAudit({
+    modulo: "uploads",
+    acao: "download-portal-zip",
+    resultado: "sucesso",
+    userId: acesso.userId,
+    entidade: "Projeto",
+    entidadeId: projetoId,
+    detalhe: { projetoId, disciplinaId, fase, ext, situacao },
+    ip: await getClientIp(),
+  });
+  // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita
+  // (engole e loga), e o servidor é um processo longo — a gravação termina em segundo plano.
+  void registrarAcessoUploads({
+    uploadIds: entradas.map((e) => e.uploadId),
+    tipo: "download",
+    origem: "portal",
+    userId: acesso.userId,
+    linkId: null,
+    via: "zip",
+  });
+
+  const archive = new ZipArchive({ zlib: { level: 6 } });
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      archive.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+      archive.on("end", () => controller.close());
+      archive.on("warning", (err) => console.warn("[zip] warning:", err));
+      archive.on("error", (err) => {
+        console.error("[zip] erro no archiver:", err);
+        controller.error(err);
+      });
+      for (const e of entradas) {
+        try {
+          archive.file(resolverCaminho(e.caminho), { name: e.nome });
+        } catch {
+          // arquivo ausente no disco — ignora
+        }
+      }
+      void archive.finalize();
+    },
+  });
+
+  // O nome do arquivo acompanha a pasta pedida, senão três downloads diferentes chegam na
+  // pasta de Downloads do cliente com o mesmo nome.
+  const sufixo = [
+    situacao === "compartilhado" ? "compartilhado" : situacao === "liberado_obra" ? "obra" : null,
+    disciplinaId ? "disciplina" : null,
+    fase ? "fase" : null,
+    ext ? ext.replace("__outros__", "outros") : null,
+  ]
+    .filter(Boolean)
+    .join("-");
+  const nome = `${pacote.codigo}_arquivos${sufixo ? `_${sufixo}` : ""}.zip`;
+  return new NextResponse(stream, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(nome)}"`,
+    },
+  });
+}
