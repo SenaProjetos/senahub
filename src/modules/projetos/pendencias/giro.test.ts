@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { desgirarPonto, girarPonto, trocaEixos, type Giro } from "./giro";
+import { paraVisual } from "./carimbo/coords";
+import { desgirarPonto, girarPonto, girarVetor, giroNaTela, trocaEixos, type Giro } from "./giro";
 
 const GIROS: Giro[] = [0, 90, 180, 270];
 
@@ -32,5 +33,51 @@ describe("giro da prancha", () => {
 
   it("só 90° e 270° trocam os eixos", () => {
     expect(GIROS.map(trocaEixos)).toEqual([false, true, false, true]);
+  });
+});
+
+describe("giro na tela = /Rotate do PDF + giro de leitura", () => {
+  it.each([
+    [0, 0, 0],
+    [270, 0, 270],
+    [270, 90, 0],
+    [90, 180, 270],
+    [180, 270, 90],
+    [-90, 0, 270],
+    [450, 0, 90],
+  ] as const)("/Rotate %i com giro %i abre a %i°", (rotatePdf, giro, esperado) => {
+    expect(giroNaTela(rotatePdf, giro)).toBe(esperado);
+  });
+
+  it("sem /Rotate (página sem a chave) vale o giro de leitura", () => {
+    expect(giroNaTela(undefined, 90)).toBe(90);
+  });
+
+  // `girarPonto` leva o espaço SEM rotação nenhuma ao espaço do `/Rotate`: tem de bater com o mapeamento do carimbo, que
+  // foi conferido numa prancha real `/Rotate 270` (`carimbo/coords.ts`).
+  it.each([90, 180, 270] as const)("bate com o carimbo: ponto do PDF na página sem rotação → com /Rotate %i", (rot) => {
+    const W = 2401;
+    const H = 3387;
+    for (const p of [
+      { x: 100, y: 200 },
+      { x: 2300, y: 50 },
+      { x: 1200, y: 3000 },
+    ]) {
+      const sem = paraVisual(p, W, H, 0);
+      const com = paraVisual(p, W, H, rot);
+      const r = girarPonto(sem.u, sem.v, rot);
+      expect(r.u).toBeCloseTo(com.u, 10);
+      expect(r.v).toBeCloseTo(com.v, 10);
+    }
+  });
+
+  it.each(GIROS)("girar um deslocamento em %i° é a diferença dos dois pontos girados", (giro) => {
+    const a = { x: 0.31, y: 0.62 };
+    const d = { dx: 0.05, dy: -0.12 };
+    const pa = girarPonto(a.x, a.y, giro);
+    const pb = girarPonto(a.x + d.dx, a.y + d.dy, giro);
+    const v = girarVetor(d.dx, d.dy, giro);
+    expect(v.dx).toBeCloseTo(pb.u - pa.u, 12);
+    expect(v.dy).toBeCloseTo(pb.v - pa.v, 12);
   });
 });

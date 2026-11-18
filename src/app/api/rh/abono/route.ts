@@ -8,6 +8,7 @@ import { rotuloMotivo } from "@/modules/rh/ausencia";
 import { motivoDoConflito, validarEntradaAbono } from "@/modules/rh/abono-entrada";
 import { notificarQuemDecide } from "@/modules/rh/gestores-rh";
 import {
+  MOTIVO_AUSENCIA_NAO_REGISTRADA,
   MOTIVO_AUSENCIA_OCUPADA,
   comAusenciasTravadas,
   conflitoDaAusencia,
@@ -15,6 +16,7 @@ import {
 } from "@/modules/rh/abono-service";
 import {
   camposDoFormAbono,
+  MOTIVO_ATESTADO_NAO_GRAVADO,
   lerFormularioLimitado,
   motivoParaRecusarAtestadoDoForm,
   salvarAtestadoDoForm,
@@ -53,7 +55,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: motivoDoConflito(conflitoAntes, "propria") }, { status: 409 });
   }
 
-  const arquivo = await salvarAtestadoDoForm(form, user.id);
+  // `salvarArquivo` já apaga o que ficou pela metade; aqui a falha só vira resposta legível.
+  let arquivo;
+  try {
+    arquivo = await salvarAtestadoDoForm(form, user.id);
+  } catch (e) {
+    console.error("[abono] falha ao gravar o atestado", e);
+    return NextResponse.json({ error: MOTIVO_ATESTADO_NAO_GRAVADO }, { status: 500 });
+  }
   let abono;
   try {
     abono = await comAusenciasTravadas(user.id, async (tx) => {
@@ -77,7 +86,8 @@ export async function POST(req: Request) {
     if (arquivo.atestadoPath) await removerArquivo(arquivo.atestadoPath);
     if (e instanceof RecusaPorConflito) return NextResponse.json({ error: e.message }, { status: 409 });
     if (ehTempoEsgotado(e)) return NextResponse.json({ error: MOTIVO_AUSENCIA_OCUPADA }, { status: 503 });
-    throw e;
+    console.error("[abono] falha ao registrar a solicitação", e);
+    return NextResponse.json({ error: MOTIVO_AUSENCIA_NAO_REGISTRADA }, { status: 500 });
   }
 
   await logAudit({

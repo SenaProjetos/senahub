@@ -18,6 +18,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AnexoAbono } from "@/components/rh/anexo-abono";
 import { MOTIVOS_AUSENCIA, rotuloJanela, rotuloMotivo, rotuloTratamento } from "@/modules/rh/ausencia";
 import { motivoParaRecusarAtestado } from "@/modules/rh/abono-entrada";
+import { motivoPeriodoFerias } from "@/modules/rh/ferias-decisao";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FeriasAcoes, type FeriaItem } from "@/components/rh/ferias-acoes";
 
@@ -409,6 +410,11 @@ function FeriasCard() {
   function solicitar() {
     if (!inicio || !fim) {
       toast.error("Informe as datas.");
+      return;
+    }
+    const motivoPeriodo = motivoPeriodoFerias(inicio, fim);
+    if (motivoPeriodo) {
+      toast.error(motivoPeriodo);
       return;
     }
     start(async () => {

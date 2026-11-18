@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { createReadStream, createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { Transform } from "node:stream";
@@ -47,11 +47,46 @@ export type ArquivoSalvo = {
   tamanho: number;
 };
 
-/** Salva um buffer em `relativo` (criando diretórios). Retorna hash SHA-256 e tamanho. */
+/** Sufixo do arquivo temporário de `salvarArquivo` (vive milissegundos, na mesma pasta do destino). */
+export const SUFIXO_GRAVACAO_PARCIAL = ".gravando";
+
+/** Erros do Windows de arquivo segurado por outro programa (antivírus, indexador, leitor) — passam sozinhos. */
+const TRAVA_PASSAGEIRA = new Set(["EBUSY", "EPERM", "EACCES"]);
+
+/** `rename` que espera um pouco quando o destino está segurado por outro programa (até 4 tentativas). */
+async function renomearComEspera(de: string, para: string): Promise<void> {
+  for (let tentativa = 1; ; tentativa++) {
+    try {
+      await fs.rename(de, para);
+      return;
+    } catch (erro) {
+      const codigo = (erro as NodeJS.ErrnoException).code ?? "";
+      if (tentativa >= 4 || !TRAVA_PASSAGEIRA.has(codigo)) throw erro;
+      await new Promise((r) => setTimeout(r, 100 * tentativa));
+    }
+  }
+}
+
+/**
+ * Salva um buffer em `relativo` (criando diretórios). Retorna hash SHA-256 e tamanho.
+ *
+ * Grava num temporário da mesma pasta e só então o renomeia sobre o destino: o nome final nunca tem
+ * um arquivo pela metade. Falhou (disco cheio, rede do compartilhamento caiu) → o temporário é apagado,
+ * o destino fica como estava (o conteúdo anterior, ou o arquivo vazio de `reservarCaminhoLivre`) e o
+ * erro sobe. Sem isso, um arquivo truncado com o nome certo pareceria um anexo válido, e regravar um
+ * caminho fixo (avatar, logo, PDF gerado) apagava o conteúdo bom antes de falhar.
+ */
 export async function salvarArquivo(relativo: string, conteudo: Buffer): Promise<ArquivoSalvo> {
   const full = resolverCaminho(relativo);
   await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, conteudo);
+  const temporario = `${full}.${randomBytes(6).toString("hex")}${SUFIXO_GRAVACAO_PARCIAL}`;
+  try {
+    await fs.writeFile(temporario, conteudo, { flag: "wx" });
+    await renomearComEspera(temporario, full);
+  } catch (erro) {
+    await fs.rm(temporario, { force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
+    throw erro;
+  }
   const hashSha256 = createHash("sha256").update(conteudo).digest("hex");
   return { caminho: relativo, hashSha256, tamanho: conteudo.length };
 }
@@ -110,7 +145,7 @@ export async function copiarArquivo(relativoDe: string, relativoPara: string): P
   try {
     await pipeline(createReadStream(de), contador, createWriteStream(para));
   } catch (erro) {
-    await fs.rm(para, { force: true }).catch(() => {});
+    await fs.rm(para, { force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
     throw erro;
   }
   return { caminho: relativoPara, hashSha256: hash.digest("hex"), tamanho };

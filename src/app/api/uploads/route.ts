@@ -377,7 +377,15 @@ export async function POST(req: Request) {
       return pastaAlvo ? `${baseDir}/${pastaAlvo.caminho}/${nomeVersionado}` : `${baseDir}/${destino}/${nomeVersionado}`;
     }, versao);
 
-    const salvo = await gravar(relativo);
+    let salvo: ArquivoSalvo;
+    try {
+      salvo = await gravar(relativo);
+    } catch (erro) {
+      // A gravação falhou: o arquivo vazio que reservou o nome (sem linha no banco) não pode ficar
+      // ocupando o número da versão nem parecer um anexo.
+      await removerArquivoDeUploadSemDono(relativo).catch(() => {});
+      throw erro;
+    }
 
     // ── Metadados lidos do nome (motor de nomenclatura) ────────────────────────────────────
     // Precedência do ADR-0003 (regra 2): escolha manual do diálogo > valor que o documento já

@@ -96,6 +96,9 @@ export async function salvarAtestadoDoForm(form: FormData, userId: string): Prom
   return { atestadoPath: salvo.caminho, atestadoNome: nome };
 }
 
+/** Frase quando o atestado não pôde ser gravado no disco (nada fica gravado nem pela metade). */
+export const MOTIVO_ATESTADO_NAO_GRAVADO = "Não foi possível gravar o atestado. Tente de novo.";
+
 /** Campos de texto do formulário de abono (mesmos nomes nos dois caminhos). */
 export function camposDoFormAbono(form: FormData) {
   const txt = (k: string) => String(form.get(k) ?? "");

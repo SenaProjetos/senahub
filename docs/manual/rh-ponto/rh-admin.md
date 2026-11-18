@@ -33,6 +33,8 @@ Reunir as rotinas administrativas de RH em um só lugar.
   - Também é recusado aprovar um abono num período em que a pessoa está de **férias aprovadas**
     (o dia já não é cobrado), e aprovar férias que cruzam **outras férias aprovadas** da mesma
     pessoa (os dias sairiam duas vezes do período aquisitivo).
+  - Um período de férias tem no máximo **30 dias corridos**, ao lançar, ao editar e ao propor nova
+    data. Períodos acumulados entram como períodos separados, um logo depois do outro.
   - **Atestado:** só abre quem pode decidir a ausência. O atestado de quem é do RH só um
     administrador abre; para os demais, a fila e a ficha mostram "Atestado anexado: só um
     administrador abre." no lugar de **Ver** e **Baixar**. A própria pessoa sempre abre o dela.

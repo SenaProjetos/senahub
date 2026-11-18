@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { localizarOcorrencias, normalizarBusca, paginaTemTextoPesquisavel, type PaginaTexto } from "./pdf-busca";
+import { chaveDeMarcas, localizarOcorrencias, normalizarBusca, paginaTemTextoPesquisavel, type PaginaTexto } from "./pdf-busca";
 
 function item(texto: string, temQuebraLinha = false) {
   return { texto, temQuebraLinha };
@@ -91,5 +91,22 @@ describe("paginaTemTextoPesquisavel", () => {
   it("false quando todas as páginas estão vazias (PDF escaneado, sem OCR)", () => {
     const paginas: PaginaTexto[] = [{ pagina: 1, itens: [] }, { pagina: 2, itens: [item("   ")] }];
     expect(paginaTemTextoPesquisavel(paginas)).toBe(false);
+  });
+});
+
+describe("chaveDeMarcas", () => {
+  const paginas: PaginaTexto[] = [{ pagina: 1, itens: [item("Lista mestra")] }];
+
+  it("muda quando o termo cresce e a ocorrência começa no mesmo ponto (mesmo id)", () => {
+    const curta = localizarOcorrencias(paginas, "Lista m");
+    const inteira = localizarOcorrencias(paginas, "Lista mestra");
+    expect(curta[0].id).toBe(inteira[0].id);
+    expect(chaveDeMarcas(curta, curta[0].id)).not.toBe(chaveDeMarcas(inteira, inteira[0].id));
+  });
+
+  it("é igual para o mesmo conjunto e muda quando a atual muda", () => {
+    const o = localizarOcorrencias([{ pagina: 1, itens: [item("aa aa")] }], "aa");
+    expect(chaveDeMarcas(o, o[0].id)).toBe(chaveDeMarcas(localizarOcorrencias([{ pagina: 1, itens: [item("aa aa")] }], "aa"), o[0].id));
+    expect(chaveDeMarcas(o, o[0].id)).not.toBe(chaveDeMarcas(o, o[1].id));
   });
 });

@@ -46,3 +46,29 @@ export function girarPonto(x: number, y: number, giro: Giro): { u: number; v: nu
 export function trocaEixos(giro: Giro): boolean {
   return giro === 90 || giro === 270;
 }
+
+/**
+ * Rotação que vai para o `getViewport` do pdf.js: o `/Rotate` da página (`page.rotate`) MAIS o giro de leitura.
+ * Passar só o giro anula o `/Rotate` — a prancha deitada abria em pé, e o pino gravado assim ficava fora do espaço
+ * que o carimbo e a âncora textual usam (ver `correcao-giro.ts`).
+ */
+export function giroNaTela(rotatePdf: number | null | undefined, giro: Giro): Giro {
+  const total = Math.round(((rotatePdf ?? 0) + giro) / 90) * 90;
+  return (((total % 360) + 360) % 360) as Giro;
+}
+
+/** Deslocamento normalizado (ex.: vértice da marcação relativo ao pino) girado como `girarPonto` gira o ponto. */
+export function girarVetor(dx: number, dy: number, giro: Giro): { dx: number; dy: number } {
+  // Sem `-0` no banco: negar um zero dá `-0`, que compara diferente em `Object.is`.
+  const neg = (v: number) => (v === 0 ? 0 : -v);
+  switch (giro) {
+    case 90:
+      return { dx: neg(dy), dy: dx };
+    case 180:
+      return { dx: neg(dx), dy: neg(dy) };
+    case 270:
+      return { dx: dy, dy: neg(dx) };
+    default:
+      return { dx, dy };
+  }
+}

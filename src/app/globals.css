@@ -61,6 +61,9 @@
   --color-marcacao-verde: var(--marcacao-verde);
   --color-marcacao-laranja: var(--marcacao-laranja);
   --color-marcacao-preto: var(--marcacao-preto);
+  /* Marca da busca de texto sobre a prancha */
+  --color-busca-pdf: var(--busca-pdf);
+  --color-busca-pdf-atual: var(--busca-pdf-atual);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -200,6 +203,17 @@
   --marcacao-verde: #1b8a3a;
   --marcacao-laranja: #e07000;
   --marcacao-preto: #1a1a1a;
+}
+
+/*
+ * Marca da busca de texto (`<mark>` de `PdfPagina`). Mesma razão das `--marcacao-*`: ela cobre o texto da
+ * folha do PDF, que é sempre branca, então não ganha variante no tema escuro — um amarelo/laranja
+ * "escurecido" perderia contraste justamente sobre o papel. Translúcidas para o texto do canvas aparecer
+ * por baixo. `--busca-pdf-atual` é a ocorrência selecionada.
+ */
+:root {
+  --busca-pdf: rgb(253 224 71 / 0.6);
+  --busca-pdf-atual: rgb(251 146 60 / 0.7);
 }
 
 /*
@@ -467,9 +481,10 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
  * `pdfjs-dist/web/pdf_viewer.css` oficial (não importado inteiro: aquele arquivo também traz
  * o editor de marcação nativo do pdf.js — que não usamos, temos nosso próprio <mark> — e
  * `color-scheme:only light`, que quebraria o dark mode do resto do app). Os custom
- * properties (--font-height, --scale-x, --total-scale-factor, ...) são setados pela própria
- * classe `TextLayer` do pdf.js via JS a cada span; esta folha só consome esses valores —
- * não são inventados aqui, então não simplificar a fórmula sem checar contra a lib.
+ * properties --font-height/--scale-x/--rotate são setados pela própria classe `TextLayer` do
+ * pdf.js a cada span; já `--total-scale-factor` (px por ponto do PDF) é de quem monta a camada
+ * (`PdfPagina`) — sem ele o `font-size` fica inválido. Esta folha só consome esses valores;
+ * não simplificar a fórmula sem checar contra a lib.
  */
 .textLayer {
   position: absolute;
@@ -485,6 +500,9 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   transform-origin: 0 0;
   z-index: 0;
   --min-font-size: 1;
+  /* Arredondamento da caixa que o pdf.js calcula (`setLayerDimensions`); `--total-scale-factor` vem de `PdfPagina`. */
+  --scale-round-x: 1px;
+  --scale-round-y: 1px;
   --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
   --min-font-size-inv: calc(1 / var(--min-font-size));
 }
@@ -507,6 +525,18 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
 }
 .textLayer .markedContent {
   display: contents;
+}
+/* Página girada (`/Rotate` do PDF + giro de leitura): o pdf.js posiciona o texto na página SEM rotação e marca a
+   rotação em `data-main-rotation`; quem gira a camada é esta regra, igual à do `pdf_viewer.css` oficial. A caixa é a
+   da página sem rotação (transposta em 90°/270°), e é o pdf.js quem a dimensiona a partir de `--total-scale-factor`. */
+.textLayer[data-main-rotation="90"] {
+  transform: rotate(90deg) translateY(-100%);
+}
+.textLayer[data-main-rotation="180"] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+.textLayer[data-main-rotation="270"] {
+  transform: rotate(270deg) translateX(-100%);
 }
 .textLayer span[role="img"] {
   user-select: none;

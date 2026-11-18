@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ItemPagina } from "@/lib/pdf-busca";
+import { ehCancelamentoDoPdf } from "@/lib/pdf-erro";
 import {
   escalaDoCanvas,
   MAX_PIXELS_DETALHE,
@@ -11,6 +14,7 @@ import {
   regiaoDetalhe,
 } from "@/lib/pdf-zoom";
 import { posicaoNormalizadaItem } from "@/modules/projetos/pendencias/ancora";
+import { giroNaTela } from "@/modules/projetos/pendencias/giro";
 
 // pdf.js é carregado dinamicamente no cliente pelo componente pai (evita SSR e mantém o
 // chunk fora do bundle inicial) — este componente só recebe o doc já aberto.
@@ -53,9 +57,9 @@ type Props = {
    */
   children?: ReactNode | ((dim: { w: number; h: number; wPt: number; hPt: number }) => ReactNode);
   /**
-   * Giro da página em graus (0|90|180|270), somado ao `/Rotate` do próprio PDF. Só afeta a
-   * exibição — quem usa camada de coordenadas (pinos, medição) tem de tratar o giro por
-   * conta, porque `x`/`y` normalizados continuam no espaço NÃO rotacionado.
+   * Giro da página em graus (0|90|180|270), somado ao `/Rotate` do próprio PDF (`giroNaTela`). Só
+   * afeta a exibição — quem usa camada de coordenadas (pinos, medição) tem de tratar o giro por
+   * conta, porque `x`/`y` normalizados continuam no espaço SEM este giro (com o `/Rotate`).
    */
   rotacao?: 0 | 90 | 180 | 270;
 };
@@ -112,9 +116,21 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
   const [dim, setDim] = useState<{ w: number; h: number; wPt: number; hPt: number } | null>(null);
   /** altura/largura da página (com giro). Conhecida, a caixa acompanha `largura` sem esperar o desenho. */
   const [proporcao, setProporcao] = useState<number | null>(null);
+  /**
+   * Largura da página em pontos do PDF, com o giro aplicado (`/Rotate` + leitura) — muda junto com `proporcao`.
+   * `largura / larguraPagina` é a escala em px por ponto, que a camada de texto do pdf.js lê em
+   * `--total-scale-factor`: é dela que sai o `font-size` de cada trecho e o tamanho da caixa da camada.
+   */
+  const [larguraPagina, setLarguraPagina] = useState<number | null>(null);
   /** Sobe a cada página inteira desenhada; o trecho em detalhe é refeito em seguida. */
   const [versaoBase, setVersaoBase] = useState(0);
   const [comDetalhe, setComDetalhe] = useState(false);
+  /** O desenho da página inteira falhou (não foi cancelamento): a caixa mostra o aviso e o "Tentar de novo". */
+  const [falhaPagina, setFalhaPagina] = useState(false);
+  /** A camada de texto falhou: a página segue à vista, só busca e seleção ficam de fora. */
+  const [falhaTexto, setFalhaTexto] = useState(false);
+  /** Sobe no "Tentar de novo" — refaz o desenho e a camada de texto. */
+  const [tentativa, setTentativa] = useState(0);
   /** Giro com que o detalhe atual foi desenhado — com outro giro ele estaria no lugar errado. */
   const giroDetalheRef = useRef(rotacao);
   /**
@@ -159,7 +175,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         const mark = document.createElement("mark");
         mark.dataset.ocorrencia = m.ocorrenciaId;
         mark.style.color = "transparent";
-        mark.className = m.atual ? "bg-orange-400/70" : "bg-yellow-300/60";
+        mark.className = m.atual ? "bg-busca-pdf-atual" : "bg-busca-pdf";
         mark.textContent = texto.slice(m.inicio, m.fim);
         div.appendChild(mark);
         cursor = m.fim;
@@ -180,15 +196,22 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     let cancelado = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let renderTask: any;
+    /** Canvas fora da tela em uso — liberado também na falha (o Safari não solta memória de canvas pelo coletor). */
+    let foraEmUso: HTMLCanvasElement | null = null;
+    // Outra página/PDF/largura: o aviso da anterior não vale mais (o `Skeleton` e o desenho voltam a valer).
+    setFalhaPagina(false);
     (async () => {
       try {
         const page = await pdf.getPage(pagina);
-        const base = page.getViewport({ scale: 1, rotation: rotacao });
+        // `/Rotate` do PDF + giro de leitura: passar só o giro anularia o `/Rotate` (prancha deitada abria em pé).
+        const giro = giroNaTela(page.rotate, rotacao);
+        const base = page.getViewport({ scale: 1, rotation: giro });
         const scale = largura / base.width;
-        const viewport = page.getViewport({ scale, rotation: rotacao });
+        const viewport = page.getViewport({ scale, rotation: giro });
         const canvas = canvasRef.current;
         if (!canvas || cancelado) return;
         setProporcao(viewport.height / viewport.width);
+        setLarguraPagina(base.width);
         // Girou: o detalhe desenhado com o giro antigo está no lugar errado até ser refeito.
         if (giroDetalheRef.current !== rotacao && detalheRef.current) detalheRef.current.style.display = "none";
         const dpr = dprDaTela();
@@ -209,10 +232,17 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
           // Desenha fora da tela e só então troca: o desenho anterior (esticado) fica à vista
           // enquanto o novo não termina, em vez de a página piscar em branco a cada zoom.
           const fora = document.createElement("canvas");
+          foraEmUso = fora;
           fora.width = alvoW;
           fora.height = alvoH;
           const ctx = fora.getContext("2d");
-          if (!ctx) return;
+          if (!ctx) {
+            // Sem contexto (memória de canvas esgotada): a página ficaria em branco sem aviso.
+            fora.width = 0;
+            fora.height = 0;
+            if (!cancelado) setFalhaPagina(true);
+            return;
+          }
           renderTask = page.render({
             canvasContext: ctx,
             viewport,
@@ -228,6 +258,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
           transferir(fora, canvas);
           desenhoRef.current = { pdf, pagina, rotacao, ocgVersao, w: alvoW, h: alvoH };
         }
+        setFalhaPagina(false);
         setComDetalhe(precisaDetalhe(escala, dpr));
         setVersaoBase((v) => v + 1);
         // `wPt`/`hPt` são as dimensões do viewport em escala 1 — ou seja, a página em PONTOS
@@ -240,8 +271,15 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
           hPt: base.height,
         });
       } catch (e) {
-        // Cancelamento de render dispara exceção esperada ao trocar largura.
-        if (!cancelado) console.debug("[pdf-pagina] falha pág.", pagina, e);
+        // Cancelar o desenho (trocou largura/giro/página) é o fluxo normal; o resto deixa a página em branco, então avisa.
+        if (foraEmUso) {
+          foraEmUso.width = 0;
+          foraEmUso.height = 0;
+        }
+        if (!cancelado && !ehCancelamentoDoPdf(e)) {
+          console.error("[pdf-pagina] falha ao desenhar a página", pagina, e);
+          setFalhaPagina(true);
+        }
       }
     })();
     return () => {
@@ -256,7 +294,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     // objeto não muda — só o contador força este efeito (que re-renderiza o canvas do zero,
     // já que camada visível/oculta é decidida DENTRO do `page.render()`) a rodar de novo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdf, pagina, largura, ocgVersao, rotacao]);
+  }, [pdf, pagina, largura, ocgVersao, rotacao, tentativa]);
 
   // Extração de texto + camada de texto: UMA vez por página/giro. O texto não muda com o zoom
   // (a posição de cada item vai normalizada, em escala 1); antes ele era pedido de novo ao worker
@@ -265,20 +303,25 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     let cancelado = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let textLayer: any;
+    /** `onTexto` já foi chamado — se a camada falhar depois, o índice da busca segue valendo. */
+    let textoReportado = false;
+    setFalhaTexto(false);
     (async () => {
       try {
         const pdfjs = await import("pdfjs-dist");
         const page = await pdf.getPage(pagina);
         if (cancelado) return;
-        const base = page.getViewport({ scale: 1, rotation: rotacao });
-        const viewport = page.getViewport({ scale: larguraRef.current / base.width, rotation: rotacao });
+        const giro = giroNaTela(page.rotate, rotacao);
+        const base = page.getViewport({ scale: 1, rotation: giro });
+        const viewport = page.getViewport({ scale: larguraRef.current / base.width, rotation: giro });
         const textContent = await page.getTextContent();
         // `items` mistura TextItem (tem `.str`) e TextMarkedContent (não tem) — só o primeiro
         // grupo tem texto pesquisável, e é exatamente o subconjunto que o TextLayer usa pra
         // gerar `textDivs` (mesma ordem, garantida pelo contrato público da lib).
         // A posição normalizada de cada item alimenta a ancoragem de apontamentos (item 3);
         // a busca ignora. Vem do viewport em escala 1 de propósito: assim o valor não muda
-        // com o zoom, que é o que torna a âncora comparável entre revisões.
+        // com o zoom, que é o que torna a âncora comparável entre revisões. Sem `rotation`: com o
+        // `/Rotate` e sem o giro de leitura, o mesmo espaço de `Pendencia.x/y` (`pendencias/giro.ts`).
         const vpBase = page.getViewport({ scale: 1 });
         const itensTexto: ItemPagina[] = textContent.items
           .filter((it: unknown): it is { str: string; hasEOL: boolean; transform: number[]; width: number } => typeof (it as { str?: unknown }).str === "string")
@@ -295,6 +338,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
           });
         if (cancelado) return;
         onTexto?.(pagina, itensTexto);
+        textoReportado = true;
 
         const container = textLayerRef.current;
         if (!container) return;
@@ -307,11 +351,18 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         textosRef.current = textLayer.textContentItemsStr as string[];
         camadaTextoRef.current = { textLayer, page };
         // O zoom pode ter mudado enquanto o texto carregava.
-        textLayer.update({ viewport: page.getViewport({ scale: larguraRef.current / base.width, rotation: rotacao }) });
+        textLayer.update({ viewport: page.getViewport({ scale: larguraRef.current / base.width, rotation: giro }) });
+        setFalhaTexto(false);
         pintarMarcas();
       } catch (e) {
-        // Cancelamento do textLayer dispara exceção esperada ao trocar de página.
-        if (!cancelado) console.debug("[pdf-pagina] falha no texto pág.", pagina, e);
+        // Cancelar a camada (trocou de página/giro) é o fluxo normal. A falha de verdade não derruba a página — o canvas
+        // segue visível —, só tira a busca e a seleção dela; o aviso fica discreto.
+        if (!cancelado && !ehCancelamentoDoPdf(e)) {
+          console.error("[pdf-pagina] falha na camada de texto da página", pagina, e);
+          setFalhaTexto(true);
+          // Sem isto a página nunca "reporta" e a busca fica esperando por ela para sempre (`pronto` nunca fecha).
+          if (!textoReportado) onTexto?.(pagina, []);
+        }
       }
     })();
     return () => {
@@ -326,7 +377,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdf, pagina, rotacao]);
+  }, [pdf, pagina, rotacao, tentativa]);
 
   // Zoom: a camada de texto só é reajustada (`TextLayer.update` remede cada trecho), com uma
   // pausa curta — numa sequência de roda do mouse ela acerta uma vez só, no fim. Invisível, ela
@@ -335,8 +386,9 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     const timer = setTimeout(() => {
       const camada = camadaTextoRef.current;
       if (!camada) return;
-      const base = camada.page.getViewport({ scale: 1, rotation: rotacao });
-      camada.textLayer.update({ viewport: camada.page.getViewport({ scale: largura / base.width, rotation: rotacao }) });
+      const giro = giroNaTela(camada.page.rotate, rotacao);
+      const base = camada.page.getViewport({ scale: 1, rotation: giro });
+      camada.textLayer.update({ viewport: camada.page.getViewport({ scale: largura / base.width, rotation: giro }) });
     }, 150);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -374,9 +426,10 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
       try {
         const page = await pdf.getPage(pagina);
         if (cancelado) return;
-        const base = page.getViewport({ scale: 1, rotation: rotacao });
+        const giro = giroNaTela(page.rotate, rotacao);
+        const base = page.getViewport({ scale: 1, rotation: giro });
         // Escala pela caixa MEDIDA: é nela que o trecho foi calculado.
-        const viewport = page.getViewport({ scale: rp.width / base.width, rotation: rotacao });
+        const viewport = page.getViewport({ scale: rp.width / base.width, rotation: giro });
         const fora = document.createElement("canvas");
         fora.width = Math.max(1, Math.floor(reg.w * reg.escala));
         fora.height = Math.max(1, Math.floor(reg.h * reg.escala));
@@ -405,8 +458,10 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         detalhe.style.display = "block";
         giroDetalheRef.current = rotacao;
       } catch (err) {
-        // Cancelar o desenho (rolou de novo, zoom mudou) dispara exceção esperada.
-        if (!cancelado) console.debug("[pdf-pagina] falha no detalhe pág.", pagina, err);
+        // Falha no trecho em detalhe NÃO é avisada de propósito: a página inteira já está desenhada (só menos nítida)
+        // e o trecho é refeito a cada rolagem/zoom, então um aviso aqui piscaria sem a pessoa poder fazer nada. Cancelar
+        // o desenho (rolou de novo, zoom mudou) também cai aqui e é esperado.
+        if (!cancelado && !ehCancelamentoDoPdf(err)) console.debug("[pdf-pagina] falha no detalhe pág.", pagina, err);
       }
     }
 
@@ -433,6 +488,12 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comDetalhe, versaoBase]);
 
+  const alturaCaixa = proporcao ? Math.round(largura * proporcao) : null;
+  // Escala que o pdf.js espera nos seus próprios estilos (no visualizador oficial: `--scale-factor` × `--user-unit`).
+  // Sem ela o `font-size` de cada trecho fica inválido e herda o da página — a marca da busca não cobre a palavra.
+  const escalaTexto = larguraPagina ? largura / larguraPagina : undefined;
+  const estiloTexto = escalaTexto === undefined ? undefined : ({ "--total-scale-factor": escalaTexto } as CSSProperties);
+
   return (
     <div
       ref={(el) => {
@@ -441,17 +502,41 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
       }}
       data-pdf-pagina={pagina}
       className="relative mx-auto shadow-sm"
-      style={{ width: largura, height: proporcao ? Math.round(largura * proporcao) : undefined }}
+      style={{ width: largura, height: alturaCaixa ?? undefined }}
     >
       {/* Antes da primeira medida o canvas fica no tamanho natural; depois, preenche a caixa
           (e estica o desenho anterior durante um zoom, até o novo ficar pronto). */}
       <canvas ref={canvasRef} className={proporcao ? "block size-full bg-white" : "block bg-white"} />
       <canvas ref={detalheRef} className="pointer-events-none absolute hidden" aria-hidden />
-      <div ref={textLayerRef} className="textLayer" style={{ width: dim?.w, height: dim?.h }} />
+      {/* Antes do primeiro desenho a caixa seria só um retângulo branco. */}
+      {proporcao === null && !falhaPagina && <Skeleton className="pointer-events-none absolute inset-0 rounded-none" aria-hidden />}
+      {/* O pdf.js escreve o `width`/`height` da camada (página sem rotação, em múltiplos de `--total-scale-factor`);
+          a rotação de 90°/270° é do CSS (`data-main-rotation`, em `globals.css`). */}
+      <div ref={textLayerRef} className="textLayer" style={estiloTexto} />
       {/* Overlay do chamador (pinos/formas/clique) — ele mesmo é responsável pelo próprio
           `absolute inset-0`, igual já fazia antes desta extração. A forma de função só é
           chamada depois de a página medir, senão o SVG nasceria com viewBox 0x0. */}
       {typeof children === "function" ? (dim ? children(dim) : null) : children}
+      {falhaTexto && !falhaPagina && (
+        <p
+          role="status"
+          className="pointer-events-none absolute right-2 top-2 z-10 max-w-[90%] rounded-md bg-muted/90 px-2 py-1 text-xs text-muted-foreground shadow-sm"
+        >
+          Busca e seleção de texto indisponíveis nesta página.
+        </p>
+      )}
+      {falhaPagina && (
+        <div role="alert" className="absolute inset-0 z-20 bg-muted">
+          {/* A caixa é a página inteira (pode ter metros de altura num zoom grande): o aviso gruda no terço de cima da
+              área visível em vez de ficar no meio da folha, fora da tela. */}
+          <div className="sticky top-1/3 flex flex-col items-center gap-3 px-4 py-10 text-center">
+            <p className="text-sm text-destructive">Não foi possível exibir esta página.</p>
+            <Button type="button" size="sm" variant="outline" onClick={() => setTentativa((t) => t + 1)}>
+              Tentar de novo
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,41 @@
  */
 import { bloqueioDeDecisao } from "./quem-decide";
 
+/**
+ * Teto de UM período de férias: 30 dias corridos (CLT art. 130; o recesso do estágio também é de 30
+ * dias, Lei 11.788 art. 13). Períodos vencidos acumulados entram como períodos separados.
+ */
+export const MAX_DIAS_FERIAS = 30;
+export const MOTIVO_FIM_ANTES_DO_INICIO = "A data de fim não pode ser anterior ao início.";
+
+const DIA_MS = 86_400_000;
+
+/** Dias corridos de `inicio` a `fim` (`YYYY-MM-DD`, os dois inclusos). Data ilegível = `NaN`. */
+export function diasCorridosFerias(inicio: string, fim: string): number {
+  return Math.round((Date.parse(`${fim}T00:00:00Z`) - Date.parse(`${inicio}T00:00:00Z`)) / DIA_MS) + 1;
+}
+
+/**
+ * Por que o período de férias não vale (`null` = vale): fim antes do início, ou mais de
+ * `MAX_DIAS_FERIAS` dias corridos. A mesma frase na tela (antes de enviar) e no servidor (schema).
+ * `quem`: quem digita as datas (padrão) ou quem só decide um pedido/proposta já gravado antes do
+ * teto — esse não muda as datas, então a frase manda recusar.
+ */
+export function motivoPeriodoFerias(
+  inicio: string,
+  fim: string,
+  quem: "digita" | "decide" = "digita",
+): string | null {
+  if (fim < inicio) return MOTIVO_FIM_ANTES_DO_INICIO;
+  const dias = diasCorridosFerias(inicio, fim);
+  if (dias > MAX_DIAS_FERIAS) {
+    return quem === "decide"
+      ? `Este período tem ${dias} dias corridos, acima do máximo de ${MAX_DIAS_FERIAS}. Recuse e peça um período de até ${MAX_DIAS_FERIAS} dias.`
+      : `Um período de férias tem no máximo ${MAX_DIAS_FERIAS} dias corridos (este tem ${dias}). Para mais dias, lance outro período em seguida.`;
+  }
+  return null;
+}
+
 /** Mesma frase na action e no toast: dois cliques (ou duas abas) decidindo as mesmas férias. */
 export const MOTIVO_FERIAS_JA_DECIDIDAS = "Estas férias já foram decididas. Atualize a página.";
 /** Mesmas frases na action e na fila do RH (no lugar dos botões). */

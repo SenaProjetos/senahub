@@ -389,6 +389,25 @@ aparecem no relatório: o script nunca os reescreve. Os registros reescritos gan
 > e deve ser **apagado depois de usado** (guarde o `campos-alterados-*-gravado.csv` só enquanto
 > puder precisar desfazer algo).
 
+### 9.2 Release que soma o `/Rotate` do PDF ao giro do visualizador (uma vez por ambiente)
+
+De 14/08/2026 até esta versão, o visualizador ignorava o `/Rotate` da página: prancha deitada abria em pé, e o
+apontamento feito nela foi gravado no espaço SEM rotação. O PDF carimbado e a âncora textual sempre usaram o espaço COM
+`/Rotate`, então esses pinos já saíam no lugar errado no carimbo, e com a versão nova sairiam errados também na tela.
+O script leva esses pinos (com forma e âncora) para o espaço certo. Só mexe em página com `/Rotate` 90/180/270.
+
+Rodar **depois** que a versão nova estiver no ar, com `--ate` = a hora em que ela entrou no ar (log do deploy). O que
+nasceu depois disso já está certo e não pode ser girado — por isso o script recusa gravar sem `--ate`.
+
+    npm run apontamentos:converter-giro -- --ate=2026-11-20T22:00:00-03:00            # simula: lista os pinos
+    # backup do banco AGORA (menu, opção 9 — seção 8), logo antes de gravar
+    npm run apontamentos:converter-giro -- --ate=2026-11-20T22:00:00-03:00 --gravar   # grava
+
+O início da janela é, por padrão, o merge do defeito no `master` (14/08/2026 13:10). Se a versão de agosto (v1.11.0)
+entrou em produção mais tarde, passe também `--desde=<hora daquele deploy>`: o que foi criado antes dele estava certo.
+Cada pino corrigido ganha uma linha no `AuditLog` (`corrigir-giro-pendencia`, com o antes e o depois) — é ela que
+impede corrigir duas vezes, e é por ela que se desfaz uma linha.
+
 ---
 
 ## 10. Deploy automático noturno (opcional)

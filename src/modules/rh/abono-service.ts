@@ -17,6 +17,9 @@ export const OPCOES_TX_AUSENCIA = { maxWait: 10_000, timeout: 20_000 } as const;
 export const MOTIVO_AUSENCIA_OCUPADA =
   "Outra gravação de ausência desta pessoa está em andamento. Aguarde um instante e tente de novo.";
 
+/** Erro inesperado ao gravar a ausência (o atestado já foi apagado; nada ficou gravado). */
+export const MOTIVO_AUSENCIA_NAO_REGISTRADA = "Não foi possível registrar a ausência. Tente de novo.";
+
 /** A transação desistiu de esperar (P2028 do Prisma: tempo da transação ou da conexão). */
 export function ehTempoEsgotado(e: unknown): boolean {
   return typeof e === "object" && e !== null && (e as { code?: unknown }).code === "P2028";
