@@ -25,7 +25,8 @@ const ERRO_MESMO_LUGAR = "Os dois pontos estão no mesmo lugar. Escolha pontos a
 const PARA_RAD = Math.PI / 180;
 const PARA_GRAUS = 180 / Math.PI;
 
-function normalizarGiro(graus: number): number {
+/** Leva o giro para (-180, 180]. */
+export function normalizarGiro(graus: number): number {
   const r = ((graus % 360) + 360) % 360;
   return r > 180 ? r - 360 : r;
 }

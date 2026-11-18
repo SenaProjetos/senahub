@@ -28,6 +28,11 @@ type Props = {
   onAcao: (c: CamadaDaCena, item: AcaoItemAcao) => void;
   onMudar: (camadaId: string, ajuste: AjusteCamada, modo: ModoGravar) => void;
   onUsarPdf: (camadaId: string) => void;
+  /** Camada em alinhamento agora (o painel mostra "Alinhando…" no lugar dos botões). */
+  alinhandoId: string | null;
+  onAlinhar: (camadaId: string) => void;
+  /** "Está certo": o alinhamento da revisão anterior vale para o arquivo vigente. */
+  onConfirmar: (camadaId: string) => void;
 };
 
 const TEXTO_STATUS_DWG = {
@@ -37,10 +42,17 @@ const TEXTO_STATUS_DWG = {
   sem_conversao: "DWG ainda não convertido",
 } as const;
 
-/** Avisos da camada, na ordem em que importam; `usarPdf` = oferecer o botão "Usar o PDF". */
-function avisosDa(c: CamadaDaCena, estado: EstadoRender | undefined): { textos: string[]; usarPdf: boolean } {
+/**
+ * Avisos da camada, na ordem em que importam; `usarPdf` = oferecer o botão "Usar o PDF";
+ * `alinhamento` = oferecer "Alinhar" (camada sem alinhamento) ou "Está certo" + "Alinhar" (revisão nova).
+ */
+function avisosDa(
+  c: CamadaDaCena,
+  estado: EstadoRender | undefined,
+): { textos: string[]; usarPdf: boolean; alinhamento: "alinhar" | "conferir" | null } {
   const textos: string[] = [];
   let usarPdf = false;
+  let alinhamento: "alinhar" | "conferir" | null = null;
   const arquivo = c.formato === "pdf" ? c.pdf : c.dwg;
   if (!arquivo) {
     textos.push(c.formato === "pdf" ? "Sem arquivo PDF vigente" : "Sem arquivo DWG vigente");
@@ -52,14 +64,17 @@ function avisosDa(c: CamadaDaCena, estado: EstadoRender | undefined): { textos: 
   if (estado?.tipo === "erro") textos.push(estado.mensagem);
 
   const al = c.alinhamentos[c.formato];
-  if (!al && !c.base) textos.push("Não alinhada");
-  else if (al?.estado === "revisao_anterior") {
+  if (!al && !c.base) {
+    textos.push("Não alinhada");
+    alinhamento = "alinhar";
+  } else if (al?.estado === "revisao_anterior") {
     textos.push(al.revisaoConferida ? `Alinhamento da revisão anterior (${al.revisaoConferida})` : "Alinhamento da revisão anterior");
+    alinhamento = "conferir";
   }
   if (estado?.tipo === "pronto" && estado.render.avisoArquitetura) {
     textos.push("Arquitetura de fundo não encontrada (layer SENA_ARQ)");
   }
-  return { textos, usarPdf };
+  return { textos, usarPdf, alinhamento };
 }
 
 function rotuloArquivo(c: CamadaDaCena): string {
@@ -80,6 +95,9 @@ function LinhaCamada({
   onAcao,
   onMudar,
   onUsarPdf,
+  alinhando,
+  onAlinhar,
+  onConfirmar,
 }: {
   camada: CamadaDaCena;
   estado: EstadoRender | undefined;
@@ -88,9 +106,13 @@ function LinhaCamada({
   onAcao: Props["onAcao"];
   onMudar: Props["onMudar"];
   onUsarPdf: Props["onUsarPdf"];
+  alinhando: boolean;
+  onAlinhar: Props["onAlinhar"];
+  onConfirmar: Props["onConfirmar"];
 }) {
   const nome = `${c.disciplina} · ${c.titulo}`;
-  const { textos, usarPdf } = avisosDa(c, estado);
+  const { textos, usarPdf, alinhamento } = avisosDa(c, estado);
+  const desenhada = estado?.tipo === "pronto";
   const numPaginas = estado?.tipo === "pronto" && estado.render.formato === "pdf" ? estado.render.numPaginas : 1;
 
   return (
@@ -171,26 +193,57 @@ function LinhaCamada({
         </div>
       )}
 
-      {(textos.length > 0 || usarPdf) && (
-        <div className="space-y-1 pl-9">
-          {textos.map((t) => (
-            <p key={t} className="text-xs text-warning-text">
-              {t}
-            </p>
-          ))}
-          {usarPdf && podeGerir && (
-            <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => onUsarPdf(c.id)}>
-              Usar o PDF
-            </Button>
-          )}
-        </div>
+      {alinhando ? (
+        <p className="pl-9 text-xs font-medium text-primary">Alinhando…</p>
+      ) : (
+        (textos.length > 0 || usarPdf) && (
+          <div className="space-y-1 pl-9">
+            {textos.map((t) => (
+              <p key={t} className="text-xs text-warning-text">
+                {t}
+              </p>
+            ))}
+            {podeGerir && (usarPdf || (alinhamento && desenhada)) && (
+              <div className="flex flex-wrap gap-1.5">
+                {usarPdf && (
+                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => onUsarPdf(c.id)}>
+                    Usar o PDF
+                  </Button>
+                )}
+                {alinhamento === "conferir" && desenhada && (
+                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => onConfirmar(c.id)}>
+                    Está certo
+                  </Button>
+                )}
+                {alinhamento && desenhada && (
+                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => onAlinhar(c.id)}>
+                    Alinhar
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )
       )}
     </LinhaComMenu>
   );
 }
 
 /** Painel lateral (gaveta no celular): uma linha por camada, base no topo, e "+ Adicionar disciplina". */
-export function PainelCamadas({ sobreposicaoId, podeGerir, camadas, estados, documentos, itensDe, onAcao, onMudar, onUsarPdf }: Props) {
+export function PainelCamadas({
+  sobreposicaoId,
+  podeGerir,
+  camadas,
+  estados,
+  documentos,
+  itensDe,
+  onAcao,
+  onMudar,
+  onUsarPdf,
+  alinhandoId,
+  onAlinhar,
+  onConfirmar,
+}: Props) {
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 pt-3">
@@ -208,6 +261,9 @@ export function PainelCamadas({ sobreposicaoId, podeGerir, camadas, estados, doc
             onAcao={onAcao}
             onMudar={onMudar}
             onUsarPdf={onUsarPdf}
+            alinhando={alinhandoId === c.id}
+            onAlinhar={onAlinhar}
+            onConfirmar={onConfirmar}
           />
         ))}
       </ul>

@@ -10,6 +10,8 @@ export type RenderDwg = {
   formato: "dwg";
   /** Em coordenadas do DXF (Y para cima); o nativo da camada é `nativoDwg` = (x, −y). */
   primitivas: Primitiva[];
+  /** Fora da base, as primitivas do SENA_ARQ (só desenhadas, em cinza, enquanto a camada é alinhada). */
+  arquitetura: Primitiva[];
   /** Caixa do desenho inteiro (com a arquitetura de fundo) no espaço nativo (Y para baixo). */
   caixaNativa: Caixa;
   /** Fora da base, o DWG não tinha o layer SENA_ARQ. */
@@ -48,10 +50,11 @@ export async function renderDwg(opts: { desenhoId: string; base: boolean }): Pro
   const cena = await p;
   const caixa = bbox(cena.primitivas);
   if (!caixa) throw new Error("O desenho não tem nada para mostrar.");
-  const { primitivas, achouArquitetura } = primitivasDaCamada(cena.primitivas, opts.base);
+  const { primitivas, arquitetura, achouArquitetura } = primitivasDaCamada(cena.primitivas, opts.base);
   return {
     formato: "dwg",
     primitivas,
+    arquitetura,
     // DXF é Y para cima: o nativo inverte o Y, então a caixa troca min e max.
     caixaNativa: { minX: caixa.minX, minY: -caixa.maxY, maxX: caixa.maxX, maxY: -caixa.minY },
     avisoArquitetura: !opts.base && !achouArquitetura,
@@ -63,16 +66,40 @@ const PARA_RAD = Math.PI / 180;
 const TEXTO_MINIMO_PX = 3;
 
 /**
- * Desenha as primitivas com `nativoParaTela` (nativo da camada → px do canvas). O caminho é montado
- * sob a matriz e o traço sai com a matriz zerada, para a espessura ficar em 1 px em qualquer zoom.
+ * Desenha as primitivas da camada com `nativoParaTela` (nativo da camada → px do canvas). Com
+ * `corArquitetura`, desenha antes, nessa cor, a arquitetura de fundo que a camada esconde (ao alinhar).
  */
-export function desenharDwg(ctx: CanvasRenderingContext2D, r: RenderDwg, nativoParaTela: Matriz, cor: string, espessura: number): void {
+export function desenharDwg(
+  ctx: CanvasRenderingContext2D,
+  r: RenderDwg,
+  nativoParaTela: Matriz,
+  cor: string,
+  espessura: number,
+  corArquitetura?: string,
+): void {
+  if (corArquitetura && r.arquitetura.length > 0) {
+    desenharPrimitivas(ctx, r.arquitetura, nativoParaTela, corArquitetura, espessura);
+  }
+  desenharPrimitivas(ctx, r.primitivas, nativoParaTela, cor, espessura);
+}
+
+/**
+ * O caminho é montado sob a matriz e o traço sai com a matriz zerada, para a espessura ficar em 1 px
+ * em qualquer zoom.
+ */
+function desenharPrimitivas(
+  ctx: CanvasRenderingContext2D,
+  primitivas: readonly Primitiva[],
+  nativoParaTela: Matriz,
+  cor: string,
+  espessura: number,
+): void {
   const [a, b, c, d, e, f] = nativoParaTela;
   ctx.save();
   // DXF → nativo é (x, −y): a matriz final para o DXF inverte a segunda coluna.
   ctx.setTransform(a, b, -c, -d, e, f);
   ctx.beginPath();
-  for (const p of r.primitivas) {
+  for (const p of primitivas) {
     switch (p.tipo) {
       case "linha":
         ctx.moveTo(p.p1.x, p.p1.y);
@@ -108,7 +135,7 @@ export function desenharDwg(ctx: CanvasRenderingContext2D, r: RenderDwg, nativoP
   const escala = Math.hypot(a, b);
   ctx.fillStyle = cor;
   ctx.textBaseline = "alphabetic";
-  for (const p of r.primitivas) {
+  for (const p of primitivas) {
     if (p.tipo !== "texto" || !p.conteudo) continue;
     const px = p.altura * escala;
     if (px < TEXTO_MINIMO_PX) continue;

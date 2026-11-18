@@ -18,6 +18,7 @@ export const ACAO_REMOVER = "remover";
 
 export const MOTIVO_SEM_PDF = "Este documento não tem arquivo PDF vigente.";
 export const MOTIVO_SEM_DWG = "Este documento não tem arquivo DWG vigente.";
+export const MOTIVO_SEM_DESENHO = "A camada ainda não está desenhada. Espere carregar para alinhar.";
 
 export function itensDaSobreposicao({ podeGerir }: { podeGerir: boolean }): AcaoItem[] {
   if (!podeGerir) return [];
@@ -45,6 +46,8 @@ export function itensDaCamada(c: {
   temPdf: boolean;
   temDwg: boolean;
   totalCamadas: number;
+  /** O desenho da camada não está na tela (carregando, sem arquivo, DWG sem conversão): não há o que alinhar. */
+  semDesenho?: boolean;
 }): AcaoItem[] {
   if (!c.podeGerir) return [];
 
@@ -71,7 +74,13 @@ export function itensDaCamada(c: {
   return limparSeparadores([
     ...(c.base ? [] : [{ tipo: "acao", id: ACAO_DEFINIR_BASE, rotulo: "Definir como base", icone: Layers } satisfies AcaoItem]),
     trocarFormato,
-    { tipo: "acao", id: ACAO_ALINHAR, rotulo: "Alinhar", icone: Crosshair },
+    {
+      tipo: "acao",
+      id: ACAO_ALINHAR,
+      rotulo: "Alinhar",
+      icone: Crosshair,
+      ...(c.semDesenho ? { desabilitado: MOTIVO_SEM_DESENHO } : {}),
+    },
     { tipo: "separador", id: "sep-remover" },
     {
       tipo: "acao",

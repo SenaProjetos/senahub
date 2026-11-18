@@ -28,10 +28,14 @@ export type CamadaNoPalco = {
   cor: string;
   opacidade: number;
   visivel: boolean;
+  /** DWG: desenha também, nesta cor, a arquitetura de fundo que a camada esconde (enquanto é alinhada). */
+  corArquitetura?: string;
 };
 
 export type PalcoHandle = {
   ajustar(): void;
+  /** Px CSS de tela por unidade do mundo, no zoom atual. */
+  escalaVista(): number;
   /** PNG de `larguraPx` × `alturaPx` centrado em `centroMundo`, no zoom atual. */
   paraImagem(centroMundo: Ponto, larguraPx: number, alturaPx: number): Promise<Blob>;
 };
@@ -42,6 +46,11 @@ type Props = {
   caixaMundo: Caixa | null;
   /** Clique sem arrastar, em coordenadas do mundo. */
   onPontoMundo?: (p: Ponto) => void;
+  /**
+   * Com ele, arrastar (botão esquerdo, um dedo) move a camada em vez da vista: recebe o deslocamento no
+   * mundo e `inicio` no primeiro movimento de cada arraste. O botão do meio continua movendo a vista.
+   */
+  arrastarCamada?: (deltaMundo: Ponto, inicio: boolean) => void;
   /** Desenhado por cima das camadas, com o contexto em px CSS (pinos, marcadores). */
   sobreposto?: (ctx: CanvasRenderingContext2D, vista: VistaPalco) => void;
   /** Zoom em % do "ajustar à tela". */
@@ -93,7 +102,7 @@ function desenharCena(
       ctx.setTransform(m[0] * k, m[1] * k, m[2] * k, m[3] * k, m[4], m[5]);
       ctx.drawImage(c.render.imagem, 0, 0);
     } else {
-      desenharDwg(ctx, c.render, m, c.cor, dpr);
+      desenharDwg(ctx, c.render, m, c.cor, dpr, c.corArquitetura);
     }
   }
   ctx.globalAlpha = 1;
@@ -103,7 +112,7 @@ function desenharCena(
 
 /** Canvas da sobreposição: zoom pela roda sob o cursor, arrastar = pan, pinça no toque, duplo clique = ajustar. */
 export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
-  { camadas, caixaMundo, onPontoMundo, sobreposto, onZoom, className },
+  { camadas, caixaMundo, onPontoMundo, arrastarCamada, sobreposto, onZoom, className },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -113,9 +122,9 @@ export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
   const autoRef = useRef(true);
   const quadroRef = useRef<number | null>(null);
   // As props mais recentes, lidas pelos handlers e pelo quadro sem recriá-los.
-  const atual = useRef({ camadas, caixaMundo, sobreposto, onZoom, onPontoMundo });
+  const atual = useRef({ camadas, caixaMundo, sobreposto, onZoom, onPontoMundo, arrastarCamada });
   useLayoutEffect(() => {
-    atual.current = { camadas, caixaMundo, sobreposto, onZoom, onPontoMundo };
+    atual.current = { camadas, caixaMundo, sobreposto, onZoom, onPontoMundo, arrastarCamada };
   });
   const zoomInformado = useRef<number | null>(null);
 
@@ -220,7 +229,12 @@ export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
 
   // Arrastar (1 ponteiro) e pinça (2); clique sem arrastar vira ponto do mundo.
   const ponteiros = useRef(new Map<number, Ponto>());
-  const gesto = useRef({ inicio: { x: 0, y: 0 }, moveu: false });
+  const gesto = useRef<{ inicio: Ponto; moveu: boolean; alvo: "vista" | "camada"; iniciou: boolean }>({
+    inicio: { x: 0, y: 0 },
+    moveu: false,
+    alvo: "vista",
+    iniciou: false,
+  });
 
   function local(ev: React.PointerEvent): Ponto {
     const r = ev.currentTarget.getBoundingClientRect();
@@ -228,12 +242,18 @@ export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
   }
 
   function aoDescer(ev: React.PointerEvent<HTMLCanvasElement>) {
-    if (ev.pointerType === "mouse" && ev.button !== 0) return;
+    const meio = ev.pointerType === "mouse" && ev.button === 1;
+    if (ev.pointerType === "mouse" && ev.button !== 0 && !meio) return;
+    // Botão do meio: sem a rolagem automática do navegador.
+    if (meio) ev.preventDefault();
     ev.currentTarget.setPointerCapture(ev.pointerId);
     const p = local(ev);
     ponteiros.current.set(ev.pointerId, p);
-    if (ponteiros.current.size === 1) gesto.current = { inicio: p, moveu: false };
-    else gesto.current.moveu = true;
+    if (ponteiros.current.size === 1) {
+      const alvo = !meio && atual.current.arrastarCamada ? "camada" : "vista";
+      // O meio nunca vira clique: já nasce como arraste da vista.
+      gesto.current = { inicio: p, moveu: meio, alvo, iniciou: false };
+    } else gesto.current.moveu = true;
   }
 
   function aoMover(ev: React.PointerEvent<HTMLCanvasElement>) {
@@ -245,9 +265,15 @@ export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
       if (Math.hypot(p.x - inicio.x, p.y - inicio.y) > ARRASTE_MINIMO) gesto.current.moveu = true;
       if (!gesto.current.moveu) return;
       const v = vistaRef.current;
+      ponteiros.current.set(ev.pointerId, p);
+      const mover = atual.current.arrastarCamada;
+      if (gesto.current.alvo === "camada" && mover) {
+        mover({ x: (p.x - antes.x) / v.escala, y: (p.y - antes.y) / v.escala }, !gesto.current.iniciou);
+        gesto.current.iniciou = true;
+        return;
+      }
       autoRef.current = false;
       vistaRef.current = { ...v, tx: v.tx + p.x - antes.x, ty: v.ty + p.y - antes.y };
-      ponteiros.current.set(ev.pointerId, p);
       redesenhar();
       return;
     }
@@ -276,6 +302,7 @@ export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
     ref,
     () => ({
       ajustar,
+      escalaVista: () => vistaRef.current.escala,
       paraImagem(centroMundo, larguraPx, alturaPx) {
         const fora = document.createElement("canvas");
         fora.width = Math.max(1, Math.round(larguraPx));

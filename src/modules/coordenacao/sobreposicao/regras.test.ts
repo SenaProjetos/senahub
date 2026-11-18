@@ -100,6 +100,13 @@ describe("primitivasDaCamada", () => {
     expect(r.primitivas).toHaveLength(1);
     expect(r.achouArquitetura).toBe(false);
   });
+  it("fora da base devolve à parte as do SENA_ARQ (desenhadas em cinza ao alinhar)", () => {
+    const r = primitivasDaCamada(prims, false);
+    expect(r.arquitetura.map((p) => p.camada)).toEqual(["sena_arq", "SENA_ARQ"]);
+  });
+  it("na base a arquitetura já está nas primitivas: a lista à parte vem vazia", () => {
+    expect(primitivasDaCamada(prims, true).arquitetura).toEqual([]);
+  });
 });
 
 describe("nativoDwg", () => {

@@ -15,14 +15,16 @@ export type EstadoRender =
 
 type Pedido = { id: string; chave: string; carregar: () => Promise<CamadaRenderizada> };
 
-function pedidoDa(c: CamadaDaCena): Pedido | null {
+/** `alinhando` = a camada está sendo alinhada: o PDF mostra a arquitetura de fundo (o DWG a traz à parte). */
+function pedidoDa(c: CamadaDaCena, alinhando: boolean): Pedido | null {
   if (c.formato === "pdf") {
     if (!c.pdf) return null;
     const { uploadId } = c.pdf;
+    const esconderArquitetura = !c.base && !alinhando;
     return {
       id: c.id,
-      chave: `pdf:${uploadId}:${c.pagina}:${c.base ? "base" : "camada"}`,
-      carregar: () => renderPdf({ uploadId, pagina: c.pagina, esconderArquitetura: !c.base, cor: c.cor }),
+      chave: `pdf:${uploadId}:${c.pagina}:${esconderArquitetura ? "sem-arq" : "com-arq"}`,
+      carregar: () => renderPdf({ uploadId, pagina: c.pagina, esconderArquitetura, cor: c.cor }),
     };
   }
   if (!c.dwg || c.dwg.status !== "concluido") return null;
@@ -38,8 +40,11 @@ const MENSAGEM_PDF = "Não foi possível abrir o PDF desta camada.";
 const MENSAGEM_DWG = "Não foi possível abrir o desenho desta camada.";
 
 /** Carrega (com cache) o desenho de cada camada; só recarrega a camada cujo arquivo, página, formato ou papel mudou. */
-export function useCamadasRenderizadas(camadas: CamadaDaCena[]): Record<string, EstadoRender> {
-  const pedidos = useMemo(() => camadas.map((c) => ({ id: c.id, pedido: pedidoDa(c) })), [camadas]);
+export function useCamadasRenderizadas(camadas: CamadaDaCena[], alinhandoId: string | null): Record<string, EstadoRender> {
+  const pedidos = useMemo(
+    () => camadas.map((c) => ({ id: c.id, pedido: pedidoDa(c, c.id === alinhandoId) })),
+    [camadas, alinhandoId],
+  );
   const assinatura = pedidos.map((p) => `${p.id}=${p.pedido?.chave ?? "-"}`).join("|");
   const [estados, setEstados] = useState<Record<string, { chave: string; estado: EstadoRender }>>({});
   const vigentes = useRef(new Map<string, string>());

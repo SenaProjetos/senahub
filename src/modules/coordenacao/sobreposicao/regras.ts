@@ -41,20 +41,26 @@ export function ehLayerArquitetura(nome: string): boolean {
   return nome.toLowerCase() === LAYER_ARQUITETURA.toLowerCase();
 }
 
-/** Fora da base, tira as primitivas do layer da arquitetura. */
+/**
+ * Fora da base, tira as primitivas do layer da arquitetura e as devolve à parte em `arquitetura`
+ * (só desenhadas, em cinza, enquanto a camada é alinhada).
+ */
 export function primitivasDaCamada(
   primitivas: readonly Primitiva[],
   ehBase: boolean,
-): { primitivas: Primitiva[]; achouArquitetura: boolean } {
-  if (ehBase) return { primitivas: [...primitivas], achouArquitetura: false };
+): { primitivas: Primitiva[]; arquitetura: Primitiva[]; achouArquitetura: boolean } {
+  if (ehBase) return { primitivas: [...primitivas], arquitetura: [], achouArquitetura: false };
   const mantidas: Primitiva[] = [];
-  let achouArquitetura = false;
+  const arquitetura: Primitiva[] = [];
   for (const p of primitivas) {
-    if (ehLayerArquitetura(p.camada)) achouArquitetura = true;
+    if (ehLayerArquitetura(p.camada)) arquitetura.push(p);
     else mantidas.push(p);
   }
-  return { primitivas: mantidas, achouArquitetura };
+  return { primitivas: mantidas, arquitetura, achouArquitetura: arquitetura.length > 0 };
 }
+
+/** Cor da arquitetura de fundo da camada enquanto ela é alinhada. */
+export const COR_ARQUITETURA_ALINHANDO = "#9ca3af";
 
 /** DXF tem Y para cima; o espaço nativo da camada é Y para baixo. */
 export function nativoDwg(p: Ponto): Ponto {

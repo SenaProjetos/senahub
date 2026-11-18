@@ -67,6 +67,16 @@ describe("itensDaCamada", () => {
     expect(remover?.tipo === "acao" && remover.desabilitado).toBeUndefined();
   });
 
+  it("camada sem desenho na tela: 'Alinhar' fica desabilitado com o motivo", () => {
+    const alinhar = item(itensDaCamada({ ...camada, semDesenho: true }), "alinhar");
+    expect(alinhar?.tipo === "acao" && alinhar.desabilitado).toBe("A camada ainda não está desenhada. Espere carregar para alinhar.");
+  });
+
+  it("camada desenhada: 'Alinhar' habilitado", () => {
+    const alinhar = item(itensDaCamada(camada), "alinhar");
+    expect(alinhar?.tipo === "acao" && alinhar.desabilitado).toBeUndefined();
+  });
+
   it("remover é destrutivo e pede confirmação", () => {
     const remover = item(itensDaCamada(camada), "remover");
     expect(remover?.tipo === "acao" && remover.variant).toBe("destructive");
