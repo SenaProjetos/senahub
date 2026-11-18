@@ -508,6 +508,23 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
 .textLayer .markedContent {
   display: contents;
 }
+/* Página girada (`/Rotate` do PDF + giro de leitura): o pdf.js posiciona o texto na página SEM rotação e marca a
+   rotação em `data-main-rotation`; quem gira a camada é esta regra, igual à do `pdf_viewer.css` oficial. A caixa é a
+   da página sem rotação (transposta em 90°/270°), vinda de `PdfPagina` por variável. O `!important` vence o
+   `width`/`height` que o próprio pdf.js escreve na camada ao montá-la — sem ele, quem escreve por último decide. */
+.textLayer {
+  width: var(--largura-sem-giro, 100%) !important;
+  height: var(--altura-sem-giro, 100%) !important;
+}
+.textLayer[data-main-rotation="90"] {
+  transform: rotate(90deg) translateY(-100%);
+}
+.textLayer[data-main-rotation="180"] {
+  transform: rotate(180deg) translate(-100%, -100%);
+}
+.textLayer[data-main-rotation="270"] {
+  transform: rotate(270deg) translateX(-100%);
+}
 .textLayer span[role="img"] {
   user-select: none;
   cursor: default;

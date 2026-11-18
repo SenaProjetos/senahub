@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { ItemPagina } from "@/lib/pdf-busca";
 import {
   escalaDoCanvas,
@@ -11,6 +11,7 @@ import {
   regiaoDetalhe,
 } from "@/lib/pdf-zoom";
 import { posicaoNormalizadaItem } from "@/modules/projetos/pendencias/ancora";
+import { giroNaTela } from "@/modules/projetos/pendencias/giro";
 
 // pdf.js é carregado dinamicamente no cliente pelo componente pai (evita SSR e mantém o
 // chunk fora do bundle inicial) — este componente só recebe o doc já aberto.
@@ -53,9 +54,9 @@ type Props = {
    */
   children?: ReactNode | ((dim: { w: number; h: number; wPt: number; hPt: number }) => ReactNode);
   /**
-   * Giro da página em graus (0|90|180|270), somado ao `/Rotate` do próprio PDF. Só afeta a
-   * exibição — quem usa camada de coordenadas (pinos, medição) tem de tratar o giro por
-   * conta, porque `x`/`y` normalizados continuam no espaço NÃO rotacionado.
+   * Giro da página em graus (0|90|180|270), somado ao `/Rotate` do próprio PDF (`giroNaTela`). Só
+   * afeta a exibição — quem usa camada de coordenadas (pinos, medição) tem de tratar o giro por
+   * conta, porque `x`/`y` normalizados continuam no espaço SEM este giro (com o `/Rotate`).
    */
   rotacao?: 0 | 90 | 180 | 270;
 };
@@ -112,6 +113,12 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
   const [dim, setDim] = useState<{ w: number; h: number; wPt: number; hPt: number } | null>(null);
   /** altura/largura da página (com giro). Conhecida, a caixa acompanha `largura` sem esperar o desenho. */
   const [proporcao, setProporcao] = useState<number | null>(null);
+  /**
+   * Giro total (`/Rotate` + leitura) da `proporcao` atual — os dois mudam juntos. A camada de texto do pdf.js é
+   * montada na página SEM rotação e girada por CSS (`.textLayer[data-main-rotation]` em `globals.css`): em 90°/270°
+   * a caixa dela é a transposta da caixa da página.
+   */
+  const [giroDaCaixa, setGiroDaCaixa] = useState(0);
   /** Sobe a cada página inteira desenhada; o trecho em detalhe é refeito em seguida. */
   const [versaoBase, setVersaoBase] = useState(0);
   const [comDetalhe, setComDetalhe] = useState(false);
@@ -183,12 +190,15 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     (async () => {
       try {
         const page = await pdf.getPage(pagina);
-        const base = page.getViewport({ scale: 1, rotation: rotacao });
+        // `/Rotate` do PDF + giro de leitura: passar só o giro anularia o `/Rotate` (prancha deitada abria em pé).
+        const giro = giroNaTela(page.rotate, rotacao);
+        const base = page.getViewport({ scale: 1, rotation: giro });
         const scale = largura / base.width;
-        const viewport = page.getViewport({ scale, rotation: rotacao });
+        const viewport = page.getViewport({ scale, rotation: giro });
         const canvas = canvasRef.current;
         if (!canvas || cancelado) return;
         setProporcao(viewport.height / viewport.width);
+        setGiroDaCaixa(giro);
         // Girou: o detalhe desenhado com o giro antigo está no lugar errado até ser refeito.
         if (giroDetalheRef.current !== rotacao && detalheRef.current) detalheRef.current.style.display = "none";
         const dpr = dprDaTela();
@@ -270,15 +280,17 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         const pdfjs = await import("pdfjs-dist");
         const page = await pdf.getPage(pagina);
         if (cancelado) return;
-        const base = page.getViewport({ scale: 1, rotation: rotacao });
-        const viewport = page.getViewport({ scale: larguraRef.current / base.width, rotation: rotacao });
+        const giro = giroNaTela(page.rotate, rotacao);
+        const base = page.getViewport({ scale: 1, rotation: giro });
+        const viewport = page.getViewport({ scale: larguraRef.current / base.width, rotation: giro });
         const textContent = await page.getTextContent();
         // `items` mistura TextItem (tem `.str`) e TextMarkedContent (não tem) — só o primeiro
         // grupo tem texto pesquisável, e é exatamente o subconjunto que o TextLayer usa pra
         // gerar `textDivs` (mesma ordem, garantida pelo contrato público da lib).
         // A posição normalizada de cada item alimenta a ancoragem de apontamentos (item 3);
         // a busca ignora. Vem do viewport em escala 1 de propósito: assim o valor não muda
-        // com o zoom, que é o que torna a âncora comparável entre revisões.
+        // com o zoom, que é o que torna a âncora comparável entre revisões. Sem `rotation`: com o
+        // `/Rotate` e sem o giro de leitura, o mesmo espaço de `Pendencia.x/y` (`pendencias/giro.ts`).
         const vpBase = page.getViewport({ scale: 1 });
         const itensTexto: ItemPagina[] = textContent.items
           .filter((it: unknown): it is { str: string; hasEOL: boolean; transform: number[]; width: number } => typeof (it as { str?: unknown }).str === "string")
@@ -307,7 +319,7 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
         textosRef.current = textLayer.textContentItemsStr as string[];
         camadaTextoRef.current = { textLayer, page };
         // O zoom pode ter mudado enquanto o texto carregava.
-        textLayer.update({ viewport: page.getViewport({ scale: larguraRef.current / base.width, rotation: rotacao }) });
+        textLayer.update({ viewport: page.getViewport({ scale: larguraRef.current / base.width, rotation: giro }) });
         pintarMarcas();
       } catch (e) {
         // Cancelamento do textLayer dispara exceção esperada ao trocar de página.
@@ -335,8 +347,9 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     const timer = setTimeout(() => {
       const camada = camadaTextoRef.current;
       if (!camada) return;
-      const base = camada.page.getViewport({ scale: 1, rotation: rotacao });
-      camada.textLayer.update({ viewport: camada.page.getViewport({ scale: largura / base.width, rotation: rotacao }) });
+      const giro = giroNaTela(camada.page.rotate, rotacao);
+      const base = camada.page.getViewport({ scale: 1, rotation: giro });
+      camada.textLayer.update({ viewport: camada.page.getViewport({ scale: largura / base.width, rotation: giro }) });
     }, 150);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -374,9 +387,10 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
       try {
         const page = await pdf.getPage(pagina);
         if (cancelado) return;
-        const base = page.getViewport({ scale: 1, rotation: rotacao });
+        const giro = giroNaTela(page.rotate, rotacao);
+        const base = page.getViewport({ scale: 1, rotation: giro });
         // Escala pela caixa MEDIDA: é nela que o trecho foi calculado.
-        const viewport = page.getViewport({ scale: rp.width / base.width, rotation: rotacao });
+        const viewport = page.getViewport({ scale: rp.width / base.width, rotation: giro });
         const fora = document.createElement("canvas");
         fora.width = Math.max(1, Math.floor(reg.w * reg.escala));
         fora.height = Math.max(1, Math.floor(reg.h * reg.escala));
@@ -433,6 +447,17 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comDetalhe, versaoBase]);
 
+  const alturaCaixa = proporcao ? Math.round(largura * proporcao) : null;
+  // Caixa da camada de texto = a da página SEM rotação: a da tela, transposta em 90°/270° (ver `giroDaCaixa`).
+  const transposta = giroDaCaixa === 90 || giroDaCaixa === 270;
+  const caixaTexto =
+    alturaCaixa === null
+      ? undefined
+      : ({
+          "--largura-sem-giro": `${transposta ? alturaCaixa : largura}px`,
+          "--altura-sem-giro": `${transposta ? largura : alturaCaixa}px`,
+        } as CSSProperties);
+
   return (
     <div
       ref={(el) => {
@@ -441,13 +466,15 @@ export function PdfPagina({ pdf, pagina, largura, registrar, onTexto, marcas, oc
       }}
       data-pdf-pagina={pagina}
       className="relative mx-auto shadow-sm"
-      style={{ width: largura, height: proporcao ? Math.round(largura * proporcao) : undefined }}
+      style={{ width: largura, height: alturaCaixa ?? undefined }}
     >
       {/* Antes da primeira medida o canvas fica no tamanho natural; depois, preenche a caixa
           (e estica o desenho anterior durante um zoom, até o novo ficar pronto). */}
       <canvas ref={canvasRef} className={proporcao ? "block size-full bg-white" : "block bg-white"} />
       <canvas ref={detalheRef} className="pointer-events-none absolute hidden" aria-hidden />
-      <div ref={textLayerRef} className="textLayer" style={{ width: dim?.w, height: dim?.h }} />
+      {/* Tamanho por variável, não por `width`/`height`: o pdf.js escreve o `width`/`height` da camada ao montá-la
+          (com variáveis que este app não define) e, quando escreve depois do React, a caixa perdia a transposta. */}
+      <div ref={textLayerRef} className="textLayer" style={caixaTexto} />
       {/* Overlay do chamador (pinos/formas/clique) — ele mesmo é responsável pelo próprio
           `absolute inset-0`, igual já fazia antes desta extração. A forma de função só é
           chamada depois de a página medir, senão o SVG nasceria com viewBox 0x0. */}

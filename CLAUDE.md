@@ -66,6 +66,7 @@ npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias út
 npm run smoke:pagamento-fase  # pagamento por fase: pool congelado, write-back por diferença, SLA, marco → aprovar fase
 npm run smoke:status-pelas-fases  # status da disciplina pelas fases: envio/desfazer, aprovação global PJ e CLT, reabrir/reaprovar sem pagamento novo, apontamentos, paga inteira, corrida, prévia da migração
 npm run disciplinas:recalcular-status [-- --gravar]  # migração (deploy): lista as disciplinas cujo status mudaria; só grava com --gravar
+npm run apontamentos:converter-giro [-- --ate=<deploy> --gravar]  # migração (deploy): pinos gravados de 14/08/2026 até a correção em página com /Rotate (o visualizador ignorava o /Rotate) → espaço com /Rotate; só lê sem --gravar, e --gravar exige --ate
 npm run smoke:previsao-recebimento  # contrato por entrega: previsão no caixa, marco anda, faturar, fora do aging
 npm run smoke:duplicar-projeto      # duplicar projeto com EAP: estrutura, IDs novos, cronograma em rascunho, o que NÃO copia
 npm run smoke:modelo-disciplina     # modelos de EAP por disciplina: criar do modelo de projeto, "Gerar EAP das disciplinas", fases encadeadas

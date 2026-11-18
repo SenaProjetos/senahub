@@ -20,6 +20,17 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Pranchas na orientação certa e linhas traço-ponto completas no visualizador de PDF (novembro/2026)
+
+- Prancha que o arquivo PDF manda abrir **deitada** agora abre deitada no visualizador, como no leitor de PDF do
+  navegador. Antes ela abria em pé e era preciso usar **Girar 90°** para ler. O **Girar 90°** continua lá e gira a
+  partir dessa orientação.
+- Os apontamentos feitos nessas pranchas foram levados para o lugar certo: aparecem sobre o mesmo ponto da folha na
+  tela e no **PDF carimbado**, que antes podia sair com o pino em outro lugar.
+- Nas pranchas exportadas do CAD, as linhas **traço-ponto** (eixos, linhas de centro, contornos de circuito) agora
+  mostram o **ponto** entre os traços. Antes o visualizador mostrava só os traços, e a linha parecia um tracejado
+  simples.
+
 ## Enviar apontamentos devolve a prancha para ajustes (novembro/2026)
 
 - Ao **enviar os apontamentos** de uma prancha **em análise**, a revisão volta sozinha para **em andamento**: o
