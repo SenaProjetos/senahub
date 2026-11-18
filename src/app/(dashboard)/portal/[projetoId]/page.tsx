@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import { formatarData } from "@/lib/utils";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, MapPin, FolderOpen } from "lucide-react";
+import { CalendarDays, Download, FileStack, MapPin, FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { projetoDoCliente } from "@/modules/portal/queries";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
+import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
+import { ArvoreEntregas } from "@/components/arquivos/arquivos-publico-view";
+import { conteudoDoAlcance } from "@/modules/projetos/arquivos/link-publico";
+import { alcanceDoPortal } from "@/modules/projetos/arquivos/link-publico-regras";
+import { Button } from "@/components/ui/button";
 import { SITUACAO_PROJETO_LABEL, STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Badge } from "@/components/ui/badge";
@@ -31,35 +35,36 @@ export default async function PortalProjetoPage({
   const { projetoId } = await params;
   const projeto = await projetoDoCliente(u.clienteId, projetoId);
   if (!projeto) notFound();
-  const recebidos = await recebidosDoProjeto(projetoId);
+  const [recebidos, entregas] = await Promise.all([
+    recebidosDoProjeto(projetoId),
+    conteudoDoAlcance(alcanceDoPortal(projeto)),
+  ]);
+  const totalEntregas = entregas
+    ? entregas.situacoes.reduce((n, s) => n + s.total, 0) + entregas.arts.length
+    : 0;
+  const base = `/api/portal/projetos/${projeto.id}/arquivos`;
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link
-          href="/portal"
-          className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="size-3" /> Meus projetos
-        </Link>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-sm text-muted-foreground">{formatarCodigo(projeto.codigo)}</span>
-          <h2 className="text-2xl font-extrabold tracking-tight">{projeto.nome}</h2>
-          <Badge variant="outline">{SITUACAO_PROJETO_LABEL[projeto.situacao]}</Badge>
-        </div>
-        <div className="mt-1 flex flex-wrap gap-4 text-sm text-muted-foreground">
+      <CabecalhoPagina
+        titulo={projeto.nome}
+        descricao={`${formatarCodigo(projeto.codigo)} · ${SITUACAO_PROJETO_LABEL[projeto.situacao]}`}
+        trilha={[{ label: "Meus projetos", href: "/portal" }, { label: projeto.nome }]}
+      />
+      {(projeto.prazoContrato || projeto.endereco) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {projeto.prazoContrato && (
             <span className="flex items-center gap-1.5">
               <CalendarDays className="size-4" /> Prazo: {fmt(projeto.prazoContrato)}
             </span>
           )}
           {projeto.endereco && (
-            <span className="flex items-center gap-1.5">
-              <MapPin className="size-4" /> {projeto.endereco}
+            <span className="flex min-w-0 items-center gap-1.5">
+              <MapPin className="size-4 shrink-0" /> <span className="truncate">{projeto.endereco}</span>
             </span>
           )}
         </div>
-      </div>
+      )}
 
       <Card>
         <CardHeader className="pb-2">
@@ -82,6 +87,26 @@ export default async function PortalProjetoPage({
                 </li>
               ))}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+          <CardTitle className="text-base">Entregas</CardTitle>
+          {totalEntregas > 0 && (
+            <Button size="sm" variant="outline" render={<a href={`${base}/zip`} rel="noopener" />}>
+              <Download className="size-4" /> Baixar tudo (.zip)
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent className="p-2 pt-0">
+          {entregas && totalEntregas > 0 ? (
+            <div className="divide-y">
+              <ArvoreEntregas base={base} conteudo={entregas} />
+            </div>
+          ) : (
+            <EmptyState icon={FileStack} title="Nenhuma prancha compartilhada ainda." />
           )}
         </CardContent>
       </Card>
