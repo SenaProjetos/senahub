@@ -64,8 +64,9 @@ function avisosDa(
   if (estado?.tipo === "erro") textos.push(estado.mensagem);
 
   const al = c.alinhamentos[c.formato];
-  if (!al && !c.base) {
-    textos.push("Não alinhada");
+  if (!al) {
+    // A base sem alinhamento (trocou de formato ou virou base) fica onde `mundoDaCena` a encaixou: provisória.
+    textos.push(c.base ? "Base não alinhada: alinhe-a antes das outras camadas" : "Não alinhada");
     alinhamento = "alinhar";
   } else if (al?.estado === "revisao_anterior") {
     textos.push(al.revisaoConferida ? `Alinhamento da revisão anterior (${al.revisaoConferida})` : "Alinhamento da revisão anterior");

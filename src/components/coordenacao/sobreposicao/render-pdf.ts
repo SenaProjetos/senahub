@@ -3,11 +3,15 @@
 // Rasteriza a página de um PDF UMA vez, tingida, para o palco compor com zoom/pan sem re-renderizar.
 import { ehLayerArquitetura } from "@/modules/coordenacao/sobreposicao/regras";
 import { hexParaRgb, tingir } from "@/modules/coordenacao/sobreposicao/pixels";
+import { criarPiscina } from "@/modules/coordenacao/sobreposicao/piscina";
 import type { Caixa } from "@/modules/coordenacao/sobreposicao/transformacao";
 
 // pdf.js é carregado dinamicamente no cliente; os tipos dele ficam na borda.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type PdfDoc = any;
+
+/** Tamanho da página em pontos PDF (`getViewport({ scale: 1, rotation: 0 })`). */
+export type TamanhoPdf = { largura: number; altura: number };
 
 export type RenderPdf = {
   formato: "pdf";
@@ -28,31 +32,25 @@ const LADO_MAXIMO = 4096;
 const ESCALA_MAXIMA = 4;
 const MAX_EM_CACHE = 8;
 
-const documentos = new Map<string, Promise<PdfDoc>>();
 const rasters = new Map<string, Promise<RenderPdf>>();
+/** Tamanho de cada página já lida, por `uploadId:pagina` (não muda: o arquivo de um upload nunca muda). */
+const tamanhos = new Map<string, Promise<TamanhoPdf>>();
 
 const urlDoArquivo = (uploadId: string) => `/api/uploads/${uploadId}/download?disposition=inline`;
 
-function documento(uploadId: string): Promise<PdfDoc> {
-  let p = documentos.get(uploadId);
-  if (!p) {
-    p = (async () => {
-      const pdfjs = await import("pdfjs-dist");
-      pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
-      return pdfjs.getDocument({ url: urlDoArquivo(uploadId) }).promise;
-    })();
-    p.catch(() => documentos.delete(uploadId));
-  }
-  // O mais usado por último fica no fim; acima do limite, o mais antigo é fechado (libera o worker).
-  documentos.delete(uploadId);
-  documentos.set(uploadId, p);
-  while (documentos.size > MAX_EM_CACHE) {
-    const antigo = documentos.keys().next().value as string;
-    documentos.get(antigo)?.then((d) => d?.destroy?.(), () => {});
-    documentos.delete(antigo);
-  }
-  return p;
-}
+/**
+ * Documentos abertos no pdf.js, por uploadId, com contagem de uso: rasterizar e ler o tamanho da página
+ * correm ao mesmo tempo, e só o último a soltar destrói (libera o worker). O cache por idade de antes
+ * destruía documento em uso quando a cena tinha mais de 8 PDFs.
+ */
+const documentos = criarPiscina<PdfDoc>(
+  async (uploadId) => {
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+    return pdfjs.getDocument({ url: urlDoArquivo(uploadId) }).promise;
+  },
+  (pdf) => void pdf?.destroy?.(),
+);
 
 /** Mantém no máximo MAX_EM_CACHE folhas no cache (a usada há mais tempo sai; o GC a leva quando ninguém a desenha). */
 function guardar(chave: string, p: Promise<RenderPdf>) {
@@ -61,11 +59,26 @@ function guardar(chave: string, p: Promise<RenderPdf>) {
   while (rasters.size > MAX_EM_CACHE) rasters.delete(rasters.keys().next().value as string);
 }
 
-async function rasterizar(uploadId: string, pagina: number, esconderArquitetura: boolean, cor: string): Promise<RenderPdf> {
-  const pdf = await documento(uploadId);
+const chaveTamanho = (uploadId: string, pagina: number) => `${uploadId}:${pagina}`;
+
+function rasterizar(uploadId: string, pagina: number, esconderArquitetura: boolean, cor: string): Promise<RenderPdf> {
+  return documentos.usar(uploadId, (pdf) => rasterizarNo(pdf, uploadId, pagina, esconderArquitetura, cor));
+}
+
+async function rasterizarNo(
+  pdf: PdfDoc,
+  uploadId: string,
+  pagina: number,
+  esconderArquitetura: boolean,
+  cor: string,
+): Promise<RenderPdf> {
   const numPaginas: number = pdf.numPages;
   const page = await pdf.getPage(Math.min(Math.max(1, pagina), numPaginas));
   const base = page.getViewport({ scale: 1, rotation: 0 });
+  // A folha já está aberta: guarda o tamanho da página (o pino da camada vai precisar dele sem reabrir o PDF).
+  if (!tamanhos.has(chaveTamanho(uploadId, pagina))) {
+    tamanhos.set(chaveTamanho(uploadId, pagina), Promise.resolve({ largura: base.width, altura: base.height }));
+  }
   const escala = Math.min(LADO_MAXIMO / Math.max(base.width, base.height), ESCALA_MAXIMA);
   const viewport = page.getViewport({ scale: escala, rotation: 0 });
 
@@ -110,12 +123,23 @@ async function rasterizar(uploadId: string, pagina: number, esconderArquitetura:
   };
 }
 
-/** Tamanho da página em pontos PDF (o espaço de `Pendencia.x/y`), sem rasterizar. */
-export async function tamanhoDaPagina(uploadId: string, pagina: number): Promise<{ largura: number; altura: number }> {
-  const pdf = await documento(uploadId);
-  const page = await pdf.getPage(Math.min(Math.max(1, pagina), pdf.numPages));
-  const v = page.getViewport({ scale: 1, rotation: 0 });
-  return { largura: v.width, altura: v.height };
+/** Tamanho da página em pontos PDF (o espaço de `Pendencia.x/y`), sem rasterizar; lido uma vez por página. */
+export function tamanhoDaPagina(uploadId: string, pagina: number): Promise<TamanhoPdf> {
+  const chave = chaveTamanho(uploadId, pagina);
+  let p = tamanhos.get(chave);
+  if (!p) {
+    p = documentos.usar(uploadId, async (pdf) => {
+      const page = await pdf.getPage(Math.min(Math.max(1, pagina), pdf.numPages));
+      const v = page.getViewport({ scale: 1, rotation: 0 });
+      return { largura: v.width, altura: v.height };
+    });
+    tamanhos.set(chave, p);
+    // Falhou (rede): a próxima chamada tenta de novo.
+    p.catch(() => {
+      if (tamanhos.get(chave) === p) tamanhos.delete(chave);
+    });
+  }
+  return p;
 }
 
 /** A folha tingida da página; reaproveita a do cache (só troca a cor, se mudou). */

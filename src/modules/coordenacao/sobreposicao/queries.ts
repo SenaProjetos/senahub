@@ -8,7 +8,7 @@ import { STATUS_ABERTOS } from "@/modules/projetos/pendencias/helpers";
 import { ROTULO_ESTADO } from "@/modules/uploads/ciclo/estados";
 import { refUploadDwg } from "@/modules/dwg/desenho-ref";
 import type { Alinhamento } from "./transformacao";
-import { arquivoVigente, estadoDoAlinhamento, type EstadoAlinhamento, type Formato } from "./regras";
+import { arquivoVigente, estadoDoAlinhamento, pdfObsoleto, type EstadoAlinhamento, type Formato } from "./regras";
 
 export type ArquivoDaCamada = {
   uploadId: string;
@@ -51,7 +51,8 @@ export type CamadaDaCena = {
   visivel: boolean;
   ordem: number;
   pagina: number;
-  pdf: ArquivoDaCamada | null;
+  /** `obsoleto`: outro arquivo do documento tem versão maior e `criarPendencia` recusa pino neste PDF. */
+  pdf: (ArquivoDaCamada & { obsoleto: boolean }) | null;
   dwg: (ArquivoDaCamada & { desenhoId: string; status: StatusConversaoDwg }) | null;
   alinhamentos: Partial<Record<Formato, AlinhamentoDaCena>>;
   pinos: PinoDaCena[];
@@ -234,7 +235,8 @@ export async function cenaDaSobreposicao(sobreposicaoId: string, user: SessionUs
       visivel: c.visivel,
       ordem: c.ordem,
       pagina: c.pagina,
-      pdf: pdf ? arquivoDaCamada(pdf) : null,
+      // Mesmo conjunto que `criarPendencia` lê (fora da lixeira, não substituído): o pino nunca é recusado depois.
+      pdf: pdf ? { ...arquivoDaCamada(pdf), obsoleto: pdfObsoleto(c.documento.uploads, pdf.id) } : null,
       dwg: dwg
         ? {
             ...arquivoDaCamada(dwg),

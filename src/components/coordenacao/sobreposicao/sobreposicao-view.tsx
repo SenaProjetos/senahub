@@ -39,6 +39,7 @@ import {
   COR_ARQUITETURA_ALINHANDO,
   MOTIVO_CORRIDA_ALINHAMENTO,
   alinhamentoEfetivo,
+  mundoDaCena,
   type Formato,
 } from "@/modules/coordenacao/sobreposicao/regras";
 import {
@@ -54,7 +55,7 @@ import {
   trocarModo,
   type SessaoAlinhamento,
 } from "@/modules/coordenacao/sobreposicao/sessao-alinhamento";
-import { aplicar, caixaAplicada, type Alinhamento, type Caixa, type Ponto } from "@/modules/coordenacao/sobreposicao/transformacao";
+import { aplicar, type Alinhamento, type Caixa, type Ponto } from "@/modules/coordenacao/sobreposicao/transformacao";
 import { limparSeparadores, type AcaoItemAcao } from "@/components/ui/acoes";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -325,17 +326,25 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
     }
   }
 
-  // Mundo = caixa nativa da base passada pelo alinhamento SALVO dela (alinhar a base não move o mundo);
-  // cada camada entra pelo seu, e a que está sendo alinhada pelo da sessão.
+  // Mundo = `mundoDaCena`: a base pelo alinhamento SALVO dela (alinhar a base não move o mundo); base sem
+  // alinhamento encaixa nas camadas já alinhadas, sem redefinir o mundo. Cada camada entra pelo seu, e a que
+  // está sendo alinhada pelo da sessão.
   const { noPalco, caixaMundo } = useMemo(() => {
-    const salvoOuEfetivo = (c: CamadaDaCena, mundo: Caixa, nativa: Caixa) =>
-      recemSalvos[chaveAlinhamento(c.id, c.formato)] ?? alinhamentoEfetivo(c, mundo, nativa);
+    const salvo = (c: CamadaDaCena) =>
+      recemSalvos[chaveAlinhamento(c.id, c.formato)] ?? c.alinhamentos[c.formato]?.alinhamento ?? null;
     const base = camadas.find((c) => c.base);
     const eBase = base ? estados[base.id] : undefined;
-    const mundo =
-      base && eBase?.tipo === "pronto"
-        ? caixaAplicada(salvoOuEfetivo(base, eBase.render.caixaNativa, eBase.render.caixaNativa), eBase.render.caixaNativa)
-        : null;
+    const alinhadas: { caixaNativa: Caixa; alinhamento: Alinhamento }[] = [];
+    for (const c of camadas) {
+      const e = estados[c.id];
+      const al = c.base ? null : salvo(c);
+      if (e?.tipo === "pronto" && al) alinhadas.push({ caixaNativa: e.render.caixaNativa, alinhamento: al });
+    }
+    const daCena = mundoDaCena(
+      base && eBase?.tipo === "pronto" ? { caixaNativa: eBase.render.caixaNativa, salvo: salvo(base) } : null,
+      alinhadas,
+    );
+    const mundo = daCena?.caixaMundo ?? null;
     const lista: CamadaNoPalco[] = [];
     for (const c of camadas) {
       const e = estados[c.id];
@@ -343,10 +352,12 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
       if (e.render.formato === "pdf") colorir(e.render, c.cor);
       const nativa = e.render.caixaNativa;
       const alinhando = sessao !== null && sessao.camadaId === c.id;
+      const doMundo =
+        c.base && daCena ? daCena.alinhamentoBase : (salvo(c) ?? alinhamentoEfetivo(c, mundo ?? nativa, nativa));
       lista.push({
         id: c.id,
         render: e.render,
-        alinhamento: alinhando ? sessao.atual : salvoOuEfetivo(c, mundo ?? nativa, nativa),
+        alinhamento: alinhando ? sessao.atual : doMundo,
         cor: c.cor,
         opacidade: c.opacidade,
         visivel: c.visivel,
@@ -787,6 +798,7 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
             cortina={cortinaNoPalco}
             onVistaAssentou={modo === "cruzamentos" ? () => setVistaAssentou((n) => n + 1) : undefined}
             arrastarCamada={aoArrastarCamada}
+            ajustarNoDuploClique={!sessao && !apontando}
             sobreposto={desenharPorCima}
             className={
               sessao ? (sessao.modo === "ajuste" ? "cursor-move" : "cursor-crosshair") : apontando ? "cursor-crosshair" : undefined

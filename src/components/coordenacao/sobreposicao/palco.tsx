@@ -2,6 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { cliqueRepetido } from "@/modules/coordenacao/sobreposicao/atalhos";
 import {
   aplicar,
   caixaAplicada,
@@ -23,7 +24,7 @@ export type CamadaRenderizada = RenderPdf | RenderDwg;
 export type CamadaNoPalco = {
   id: string;
   render: CamadaRenderizada;
-  /** Nativo da camada → mundo (`alinhamentoEfetivo`). */
+  /** Nativo da camada → mundo (`mundoDaCena` para a base, `alinhamentoEfetivo` para as demais). */
   alinhamento: Alinhamento;
   cor: string;
   opacidade: number;
@@ -66,6 +67,8 @@ type Props = {
   cortina?: CortinaPalco | null;
   /** A vista parou de mudar (soltou o pan, terminou o zoom, redimensionou). */
   onVistaAssentou?: () => void;
+  /** Duplo clique = ajustar à tela (padrão). Desligado enquanto o clique escolhe ponto (alinhar, apontar). */
+  ajustarNoDuploClique?: boolean;
   className?: string;
 };
 
@@ -148,7 +151,18 @@ function desenharCena(
 
 /** Canvas da sobreposição: zoom pela roda sob o cursor, arrastar = pan, pinça no toque, duplo clique = ajustar. */
 export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
-  { camadas, caixaMundo, onPontoMundo, arrastarCamada, sobreposto, onZoom, cortina = null, onVistaAssentou, className },
+  {
+    camadas,
+    caixaMundo,
+    onPontoMundo,
+    arrastarCamada,
+    sobreposto,
+    onZoom,
+    cortina = null,
+    onVistaAssentou,
+    ajustarNoDuploClique = true,
+    className,
+  },
   ref,
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -346,13 +360,21 @@ export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
     if (distAntes > 0) zoomEm(distAgora / distAntes, { x: (p.x + o.x) / 2, y: (p.y + o.y) / 2 });
   }
 
+  // O último clique (px de tela + hora): o segundo clique de um duplo clique não vira um ponto novo.
+  const ultimoClique = useRef<{ x: number; y: number; t: number } | null>(null);
+
   function aoSubir(ev: React.PointerEvent<HTMLCanvasElement>) {
     if (!ponteiros.current.has(ev.pointerId)) return;
     const eraUnico = ponteiros.current.size === 1;
     ponteiros.current.delete(ev.pointerId);
     if (ev.type !== "pointerup" || !eraUnico || gesto.current.moveu) return;
+    const tela = local(ev);
+    const clique = { ...tela, t: ev.timeStamp };
+    const repetido = cliqueRepetido(ultimoClique.current, clique);
+    ultimoClique.current = clique;
+    if (repetido) return;
     const quando = atual.current.onPontoMundo;
-    if (quando) quando(aplicar(inverter(vistaRef.current), local(ev)));
+    if (quando) quando(aplicar(inverter(vistaRef.current), tela));
   }
 
   useImperativeHandle(
@@ -412,8 +434,12 @@ export const Palco = forwardRef<PalcoHandle, Props>(function Palco(
       onPointerMove={aoMover}
       onPointerUp={aoSubir}
       onPointerCancel={aoSubir}
-      onDoubleClick={ajustar}
-      aria-label="Sobreposição das plantas. Role para aproximar, arraste para mover, duplo clique para ajustar à tela."
+      onDoubleClick={ajustarNoDuploClique ? ajustar : undefined}
+      aria-label={
+        ajustarNoDuploClique
+          ? "Sobreposição das plantas. Role para aproximar, arraste para mover, duplo clique para ajustar à tela."
+          : "Sobreposição das plantas. Role para aproximar, arraste para mover, clique para escolher o ponto."
+      }
       role="img"
     />
   );
