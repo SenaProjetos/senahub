@@ -549,7 +549,8 @@ Contract: `docs/superpowers/specs/2026-09-30-planejador-financeiro.md` (wins ove
 
 **Document lifecycle (ISO 19650)** (`modules/uploads/ciclo/`, spec `docs/superpowers/specs/2026-10-08-ciclo-documental-iso19650.md`):
 each `DocumentoRevisao` has ONE `estado` (`em_andamento → compartilhado → publicado → arquivado`; the screen calls
-`compartilhado` "Em análise"), `ControleRevisao` rows coexist with it (`liberado_obra`, `enviado_cliente`, `bloqueio`,
+`compartilhado` "Em análise"; sending a round of apontamentos (`enviarApontamentos`) on a revision in análise
+returns it to `em_andamento` inside the round's transaction — `devolverPelosApontamentosNoTx`, A10), `ControleRevisao` rows coexist with it (`liberado_obra`, `enviado_cliente`, `bloqueio`,
 `restricao` — removal fills `removidoEm`, never deletes) and every change is a `DocumentoEvento` with `revisaoId` written
 INSIDE the transaction (`gravarEventoNoTx`). Only `ciclo/service.ts` changes state or controls (`updateMany` conditioned
 on the state read; pure table in `transicoes.ts`); the partial index `documento_revisao_um_publicado` enforces one

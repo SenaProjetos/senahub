@@ -35,6 +35,7 @@ sem selo, sem ações, serviço recusa.
 |---|---|---|---|
 | em andamento | em análise | quem envia na disciplina (`arquivos:enviar` + muralha) | verificações do envio (A4); sem bloqueio |
 | em análise | em andamento (devolver) | `arquivos:publicar` | motivo obrigatório; notifica o autor (A8) |
+| em análise | em andamento (A10) | quem envia a rodada de apontamentos (`uploads:validar`) | automático no envio; sem bloqueio |
 | em análise | publicado | `arquivos:publicar` | todos os arquivos validados (D2-a); apontamentos (D3-c); sem bloqueio |
 | publicado | arquivado | sistema (A1) ou `arquivos:publicar` com motivo | sem bloqueio |
 | em andamento / em análise | arquivado | só sistema (A1, "Substituída pela revisão N") | — |
@@ -96,6 +97,31 @@ login, o link público já se limita à pasta Liberado para obra.
 - **Código do projeto no nome** tem de estar escrito como o cadastrado (`26027` ≠ `260027`): erro do
   projetista. Em 2027 os códigos passam a ter 5 dígitos — a regra continua a mesma.
 - Permissões `arquivos:publicar`/`bloquear` são dadas à mão em produção (ninguém tinha `alterar_status`).
+
+## Decisão de 2026-11-17 — A10: a rodada de apontamentos devolve a revisão em análise
+
+Pergunta do dono: "uma prancha em análise, ao abrirmos apontamento, não deveria voltar automaticamente para
+ajustes?". Antes, `enviarApontamentos` tirava a validação do arquivo e criava a tarefa, mas a revisão ficava em
+análise — e em análise o envio do arquivo corrigido é recusado (V2-a), então alguém ainda tinha de clicar em
+"Devolver para ajustes". **Substitui** o item "Criar ou enviar apontamento não devolve a revisão" de
+[2026-10-21-ciclo-documental-revisao-cliente-design.md](2026-10-21-ciclo-documental-revisao-cliente-design.md).
+
+- **Gatilho = o ENVIO da rodada**, não a criação do apontamento: o rascunho é privado do revisor (item 31), e
+  devolver no primeiro pino reabriria a revisão com a análise pela metade.
+- **Na MESMA transação da rodada** (`devolverPelosApontamentosNoTx` em `ciclo/service.ts`, decisão pura
+  `decidirDevolucaoPelosApontamentos` em `regras.ts`). Revisão = a do arquivo apontado (`Upload.revisaoId`).
+  Corrida com quem publicou ou devolveu: `MOTIVO_MUDOU` e a rodada inteira desfaz.
+- **Autor do evento = quem enviou**, motivo "N apontamento(s) enviado(s)", detalhe `origem: "apontamentos"`,
+  `tarefaId` (`automatico` falso: no ciclo ele quer dizer "feito pelo sistema"). A permissão de devolver à mão
+  (`arquivos:publicar`) não é exigida: a devolução é efeito do envio, que já exige `uploads:validar`. O envio
+  passou a exigir também o escopo da prancha (`podeAcessarPrancha`, a mesma regra do visualizador: global,
+  responsável da disciplina, membro do projeto ou responsável de outra disciplina dele) — antes, quem tinha
+  `uploads:validar` enviava a rodada de qualquer upload pelo id.
+- **Sem segundo aviso**: o aviso da rodada (responsáveis + autor do arquivo) ganha "A R01 voltou para ajustes".
+- **Bloqueada (I7)**: a rodada é enviada, a revisão fica em análise e a tela avisa (`avisoDevolucaoBloqueada`).
+- **Publicada, em andamento, fora do ciclo**: nada muda (a publicada recebe a correção na revisão seguinte).
+- **Consequência aceita**: com o projeto permitindo publicar com pendências (D3-c), quem quiser publicar assim
+  publica ANTES de enviar a rodada.
 
 ## Em aberto
 

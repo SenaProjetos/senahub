@@ -20,6 +20,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Enviar apontamentos devolve a prancha para ajustes (novembro/2026)
+
+- Ao **enviar os apontamentos** de uma prancha **em análise**, a revisão volta sozinha para **em andamento**: o
+  projetista já pode mandar a correção, sem a coordenação precisar clicar em **Devolver para ajustes**. O histórico
+  do documento registra quem enviou e quantos apontamentos foram, e o aviso dos apontamentos diz que a revisão
+  voltou para ajustes.
+- Só o **envio** devolve: apontamento em rascunho não muda nada. Revisão **bloqueada** continua em análise, e o
+  sistema avisa para devolver à mão depois de remover o bloqueio.
+- Quer publicar **com** apontamentos em aberto (projeto que permite)? Publique antes de enviá-los.
+
 ## Início real pelo ponto e "falta o término real" (novembro/2026)
 
 - **Início real automático:** ao bater o ponto (ou abrir o apontamento) escolhendo o card de uma atividade do

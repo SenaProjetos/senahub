@@ -13,6 +13,7 @@ import { contextoTarefasDasPendencias, opcoesTarefa } from "@/modules/tarefas/qu
 import { PdfViewer } from "@/components/projetos/pdf-viewer";
 import { PARAM_VOLTA, voltaPadrao, voltaValida } from "@/modules/uploads/volta-visualizador";
 import { ordenarPorFormato } from "@/modules/uploads/ordem-formato";
+import { podeAcessarPrancha } from "@/modules/projetos/pendencias/acesso-prancha";
 
 export const metadata: Metadata = { title: "Visualizar prancha" };
 
@@ -56,21 +57,12 @@ export default async function VisualizarPage({
   // O upload precisa existir, estar fora da lixeira E pertencer ao projeto da URL.
   if (!upload || upload.excluidoEm || upload.disciplina.projetoId !== id) notFound();
 
-  // Mesmo controle de acesso do download: global, responsável da disciplina ou membro do projeto.
-  const membros = await prisma.projetoMembro.findMany({
-    where: { projetoId: id },
-    select: { userId: true },
-  });
+  // Mesmo controle de acesso do download: global, responsável da disciplina, membro do projeto ou responsável de
+  // OUTRA disciplina dele (sem isto, o link "Abrir na prancha" da aba Problemas caía em 404). A mesma regra
+  // barra o envio dos apontamentos (`enviarApontamentos`).
+  if (!(await podeAcessarPrancha(user, upload.disciplina))) notFound();
   const ehGlobal = acessoGlobal(user);
   const ehResp = upload.disciplina.responsaveis.some((r) => r.userId === user.id);
-  const ehMembro = membros.some((m) => m.userId === user.id);
-  // Participa do projeto também quem é responsável por OUTRA disciplina dele — a mesma regra da muralha do download e
-  // da aba Problemas (sem isto, o link "Abrir na prancha" da aba caía em 404).
-  const ehRespNoProjeto =
-    !ehGlobal && !ehResp && !ehMembro
-      ? (await prisma.disciplina.count({ where: { projetoId: id, responsaveis: { some: { userId: user.id } } } })) > 0
-      : false;
-  if (!ehGlobal && !ehResp && !ehMembro && !ehRespNoProjeto) notFound();
 
   // Só a versão vigente do arquivo aceita novos apontamentos.
   const maisNova = await prisma.upload.findFirst({

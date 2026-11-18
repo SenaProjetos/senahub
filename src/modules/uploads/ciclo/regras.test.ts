@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  avisoDevolucaoBloqueada,
+  decidirDevolucaoPelosApontamentos,
   decidirEnvioAoCliente,
   decidirLiberacaoAutomatica,
   decidirPublicacao,
   documentosSemPublicacao,
+  motivoDevolucaoPelosApontamentos,
   motivoEntregaSemPublicacao,
   MOTIVO_SEM_DWG_SEM_TIPO,
   restricaoDePendenciasPodeSair,
@@ -149,5 +152,33 @@ describe("decidirEnvioAoCliente (envio automático ao publicar)", () => {
     expect(decidirEnvioAoCliente({ automatico: true, anteriorEnviada: true })).toBe("automatico");
     expect(decidirEnvioAoCliente({ automatico: false, anteriorEnviada: true })).toBe("herdado");
     expect(decidirEnvioAoCliente({ automatico: false, anteriorEnviada: false })).toBeNull();
+  });
+});
+
+describe("decidirDevolucaoPelosApontamentos (A10: a rodada enviada devolve a revisão em análise)", () => {
+  const base = { estado: "compartilhado" as const, participa: true, bloqueada: false };
+
+  it("revisão em análise do ciclo volta para ajustes", () => {
+    expect(decidirDevolucaoPelosApontamentos(base)).toBe("devolver");
+  });
+
+  it("bloqueada fica em análise e a tela avisa (I7)", () => {
+    expect(decidirDevolucaoPelosApontamentos({ ...base, bloqueada: true })).toBe("bloqueada");
+  });
+
+  it("fora de análise ou fora do ciclo, nada muda", () => {
+    for (const estado of ["em_andamento", "publicado", "arquivado"] as const) {
+      expect(decidirDevolucaoPelosApontamentos({ ...base, estado })).toBe("nada");
+      expect(decidirDevolucaoPelosApontamentos({ ...base, estado, bloqueada: true })).toBe("nada");
+    }
+    expect(decidirDevolucaoPelosApontamentos({ ...base, participa: false })).toBe("nada");
+  });
+
+  it("motivo e aviso no singular e no plural", () => {
+    expect(motivoDevolucaoPelosApontamentos(1)).toBe("1 apontamento enviado");
+    expect(motivoDevolucaoPelosApontamentos(3)).toBe("3 apontamentos enviados");
+    expect(avisoDevolucaoBloqueada(2)).toBe(
+      "A R01 está bloqueada e continua em análise. Remova o bloqueio e devolva para ajustes à mão.",
+    );
   });
 });

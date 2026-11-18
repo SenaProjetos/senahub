@@ -2,9 +2,11 @@
  * Pré-condições de negócio das transições — o que a tabela de `transicoes.ts` não sabe (ela só conhece
  * estado, ator, bloqueio e motivo). PURO: o serviço monta a entrada lendo o banco e decide aqui.
  */
+import { rotuloRevisao } from "@/lib/utils";
 import { contaComoTrabalho } from "@/modules/projetos/pendencias/helpers";
 import { ehDocumentoDeModelo } from "./escopo";
 import type { EstadoRevisao } from "./estados";
+import type { EstadoParaTransicao } from "./transicoes";
 import { formatosQueFaltam, resumoDosFormatos, rotuloDoFormato, type FormatoExigido } from "./formatos-exigidos";
 
 /** Arquivo que VALE na revisão: fora da lixeira e não substituído por versão mais nova. */
@@ -108,6 +110,27 @@ export function decidirPublicacao(p: {
 /** A3, volta: a restrição automática dos apontamentos sai quando não sobra nenhum em aberto. */
 export function restricaoDePendenciasPodeSair(pendencias: readonly PendenciaParaGate[]): boolean {
   return !pendencias.some(contaComoTrabalho);
+}
+
+/**
+ * A10 (decisão do dono, 2026-11-17): enviar a rodada de apontamentos de uma prancha EM ANÁLISE devolve a
+ * revisão para ajustes — enviar a rodada já é pedir a correção, e em análise o projetista não consegue
+ * mandar o arquivo corrigido (V2-a). Só o ENVIO devolve: o apontamento em rascunho é privado do revisor.
+ * Bloqueada (I7) fica em análise e a tela avisa; fora de análise ou fora do ciclo, nada muda.
+ */
+export function decidirDevolucaoPelosApontamentos(r: EstadoParaTransicao): "devolver" | "bloqueada" | "nada" {
+  if (!r.participa || r.estado !== "compartilhado") return "nada";
+  return r.bloqueada ? "bloqueada" : "devolver";
+}
+
+/** Motivo gravado no evento da devolução pelos apontamentos. */
+export function motivoDevolucaoPelosApontamentos(total: number): string {
+  return plural(total, "apontamento enviado", "apontamentos enviados");
+}
+
+/** Aviso da tela quando a rodada foi enviada mas a revisão bloqueada não pôde voltar para ajustes. */
+export function avisoDevolucaoBloqueada(numero: number): string {
+  return `A ${rotuloRevisao(numero)} está bloqueada e continua em análise. Remova o bloqueio e devolva para ajustes à mão.`;
 }
 
 /**

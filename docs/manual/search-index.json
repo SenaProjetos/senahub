@@ -90,7 +90,8 @@
         "composição de preço",
         "solicitação de revisão",
         "início real pelo ponto",
-        "término real sugerido"
+        "término real sugerido",
+        "devolver para ajustes"
       ],
       "palavrasChave": [
         "novidades",
@@ -356,6 +357,7 @@
         "responsáveis",
         "membros",
         "revisões",
+        "devolver para ajustes",
         "duplicar",
         "cancelar",
         "arquivar",
