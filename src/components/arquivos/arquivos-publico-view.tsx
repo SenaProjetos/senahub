@@ -69,7 +69,20 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
               Em revisão
             </span>
           )}
+          {arquivo.bloqueado && (
+            <span
+              className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_CONTROLE.bloqueio))}
+              title="Esta revisão está bloqueada para download. Fale com a equipe do projeto."
+            >
+              Download bloqueado
+            </span>
+          )}
         </span>
+        {arquivo.descricaoRevisao && (
+          <span className="max-w-full truncate text-xs text-muted-foreground" title={arquivo.descricaoRevisao}>
+            {arquivo.descricaoRevisao}
+          </span>
+        )}
         {arquivo.emRevisao && (
           <span className="max-w-full truncate text-xs text-muted-foreground" title={`Em revisão: ${arquivo.emRevisao}`}>
             Em revisão: {arquivo.emRevisao}
@@ -80,7 +93,7 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
         {rotuloRevisao(arquivo.versao)}
       </span>
       <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(arquivo.tamanho)}</span>
-      {arquivo.ehPdf && (
+      {arquivo.ehPdf && !arquivo.bloqueado && (
         <a
           href={`/api/p/arquivos/${token}/${arquivo.id}?disposition=inline`}
           target="_blank"
@@ -92,14 +105,16 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
           <Eye className="size-4" />
         </a>
       )}
-      <a
-        href={`/api/p/arquivos/${token}/${arquivo.id}`}
-        className="shrink-0 text-primary hover:text-primary/80"
-        title="Baixar"
-        aria-label={`Baixar ${arquivo.nome}`}
-      >
-        <Download className="size-4" />
-      </a>
+      {!arquivo.bloqueado && (
+        <a
+          href={`/api/p/arquivos/${token}/${arquivo.id}`}
+          className="shrink-0 text-primary hover:text-primary/80"
+          title="Baixar"
+          aria-label={`Baixar ${arquivo.nome}`}
+        >
+          <Download className="size-4" />
+        </a>
+      )}
     </li>
   );
 }

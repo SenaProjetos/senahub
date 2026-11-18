@@ -17,6 +17,7 @@ import {
   type PastaFase,
 } from "@/modules/uploads/arvore-navegacao";
 import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/queries";
+import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 
 /**
  * Link público (sem login) de arquivos do projeto — somente ver + baixar.
@@ -71,6 +72,13 @@ export type ArquivoPublico = {
   faseNome: string | null;
   /** Motivo da marca "Em revisão" na revisão deste arquivo (o cliente pediu ajuste); `null` = sem marca. */
   emRevisao: string | null;
+  /** O que mudou nesta revisão (`DocumentoRevisao.descricao`, lida do carimbo ou digitada); `null` = sem descrição. */
+  descricaoRevisao: string | null;
+  /**
+   * Revisão com bloqueio de download ativo (ciclo documental, I7). Continua listada, com o selo, e as
+   * rotas recusam — esconder mudaria a contagem das pastas; listar sem selo daria um clique quebrado.
+   */
+  bloqueado: boolean;
 };
 /**
  * O arquivo como a PÁGINA precisa dele. Fase fica de fora de propósito: depois do agrupamento,
@@ -128,6 +136,7 @@ const DOCUMENTO_REGRAS = {
 const REVISAO_COM_MARCA = {
   select: {
     numero: true,
+    descricao: true,
     controles: { where: { tipo: "em_revisao", removidoEm: null }, select: { motivo: true }, take: 1 },
   },
 } as const;
@@ -334,7 +343,7 @@ function paraArquivoPublico(u: {
   nomeArquivo: string;
   tamanho: number;
   versao: number;
-  revisao?: { controles: { motivo: string }[] } | null;
+  revisao?: { descricao: string | null; controles: { motivo: string }[] } | null;
   documento: { fase: { id: string; sigla: string; nome: string } | null } | null;
 }): ArquivoPublico {
   return {
@@ -344,6 +353,9 @@ function paraArquivoPublico(u: {
     ehPdf: ehPdf(u.nomeArquivo),
     versao: u.versao,
     emRevisao: u.revisao?.controles[0]?.motivo ?? null,
+    descricaoRevisao: u.revisao?.descricao ?? null,
+    // Preenchido depois, numa consulta só para o conteúdo inteiro (`marcarBloqueados`).
+    bloqueado: false,
     faseId: u.documento?.fase?.id ?? null,
     faseSigla: u.documento?.fase?.sigla ?? null,
     faseNome: u.documento?.fase?.nome ?? null,
@@ -376,6 +388,8 @@ function emPastas(
           ehPdf: a.ehPdf,
           versao: a.versao,
           emRevisao: a.emRevisao,
+          descricaoRevisao: a.descricaoRevisao,
+          bloqueado: a.bloqueado,
         })),
       })),
     })),
@@ -422,6 +436,26 @@ async function alcanceDoToken(token: string): Promise<AlcanceArquivos | null> {
  * link e da seção de entregas do portal.
  */
 export async function conteudoDoAlcance(link: AlcanceArquivos): Promise<ConteudoPublico | null> {
+  const conteudo = await montarConteudo(link);
+  return conteudo ? marcarBloqueados(conteudo) : null;
+}
+
+/** Todo arquivo do conteúdo (pastas do cliente + disciplinas), para as marcas que pedem consulta. */
+function arquivosDoConteudo(c: ConteudoPublico): ArquivoPublicoEmPasta[] {
+  return [...c.situacoes.flatMap((s) => s.disciplinas), ...c.disciplinas].flatMap((d) =>
+    d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos)),
+  );
+}
+
+/** Marca as revisões com bloqueio de download, numa consulta só (I7 — a rota continua recusando). */
+async function marcarBloqueados(c: ConteudoPublico): Promise<ConteudoPublico> {
+  const arquivos = arquivosDoConteudo(c);
+  const bloqueados = await uploadsComBloqueioDeDownload(prisma, arquivos.map((a) => a.id));
+  for (const a of arquivos) a.bloqueado = bloqueados.has(a.id);
+  return c;
+}
+
+async function montarConteudo(link: AlcanceArquivos): Promise<ConteudoPublico | null> {
   const projeto = link.projeto;
 
   if (link.escopo === "selecao") {
