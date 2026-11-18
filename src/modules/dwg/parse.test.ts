@@ -80,8 +80,29 @@ describe("converterParaCena", () => {
     const parsed = new DxfParser().parseSync(texto);
     const cena = converterParaCena(parsed!);
     expect(cena.primitivas).toEqual([
-      { tipo: "linha", p1: { x: 100, y: 50 }, p2: { x: 100, y: 70 }, camada: "0" },
+      { tipo: "linha", p1: { x: 100, y: 50 }, p2: { x: 100, y: 70 }, camada: "0", insercoes: ["0"] },
     ]);
+  });
+
+  it("guarda o layer de cada INSERT que envolve a primitiva (de fora para dentro), sem trocar o layer dela", () => {
+    const texto = dxf(
+      0, "SECTION", 2, "BLOCKS",
+      0, "BLOCK", 8, "0", 2, "PAREDE", 70, "0", 10, "0.0", 20, "0.0", 30, "0.0", 3, "PAREDE",
+      0, "LINE", 8, "A-PAREDE", 10, "0.0", 20, "0.0", 30, "0.0", 11, "1.0", 21, "0.0", 31, "0.0",
+      0, "ENDBLK",
+      0, "BLOCK", 8, "0", 2, "ARQ", 70, "0", 10, "0.0", 20, "0.0", 30, "0.0", 3, "ARQ",
+      0, "INSERT", 8, "0", 2, "PAREDE", 10, "0.0", 20, "0.0", 30, "0.0",
+      0, "ENDBLK",
+      0, "ENDSEC",
+      0, "SECTION", 2, "ENTITIES",
+      0, "INSERT", 8, "SENA_ARQ", 2, "ARQ", 10, "0.0", 20, "0.0", 30, "0.0",
+      0, "ENDSEC",
+      0, "EOF",
+    );
+    const cena = converterParaCena(new DxfParser().parseSync(texto)!);
+    expect(cena.primitivas).toHaveLength(1);
+    expect(cena.primitivas[0].camada).toBe("A-PAREDE");
+    expect(cena.primitivas[0].insercoes).toEqual(["SENA_ARQ", "0"]);
   });
 
   it("lista camadas com flag de visibilidade (cor negativa na tabela LAYER = oculta)", () => {

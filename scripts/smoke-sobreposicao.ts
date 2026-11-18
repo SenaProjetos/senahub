@@ -218,6 +218,19 @@ async function main() {
       base9?.base === true && base9.formato === "dwg" && base9.alinhamentos.dwg === undefined && base9.alinhamentos.pdf?.versao === 2 && estadoBase9 === "sem_alinhamento" && linhasDwg === 0,
       { alinhamentos: base9?.alinhamentos, linhasDwg },
     );
+    // Duas trocas de base ao mesmo tempo: uma vence; a outra, se colidir no índice parcial, recebe a mensagem de corrida.
+    const trocas = await Promise.allSettled([
+      definirBaseNoBanco(prisma, { camadaId: camadaArq }),
+      definirBaseNoBanco(prisma, { camadaId: camadaHid }),
+    ]);
+    const errosTroca = trocas.flatMap((t) => (t.status === "rejected" ? [t.reason instanceof Error ? t.reason.message : String(t.reason)] : []));
+    const basesTroca = await prisma.sobreposicaoCamada.count({ where: { sobreposicaoId, base: true } });
+    check(
+      "   duas trocas de base simultâneas: uma base só, e a perdedora recebe a mensagem de corrida",
+      basesTroca === 1 && errosTroca.every((m) => m === "Outra pessoa mudou esta sobreposição enquanto você editava. Recarregue a página."),
+      { errosTroca, basesTroca },
+    );
+    await definirBaseNoBanco(prisma, { camadaId: camadaEst });
     await removerCamadaNoBanco(prisma, { camadaId: camadaArq });
     check("   a ex-base agora sai", (await prisma.sobreposicaoCamada.count({ where: { sobreposicaoId } })) === 2);
 

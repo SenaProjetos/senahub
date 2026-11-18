@@ -33,8 +33,16 @@ import { cruzamentos, regiaoParaMundo } from "@/modules/coordenacao/sobreposicao
 import { mascaraDeTinta } from "@/modules/coordenacao/sobreposicao/pixels";
 import type { CamadaDaCena, CenaSobreposicao } from "@/modules/coordenacao/sobreposicao/queries";
 import { criarPendencia } from "@/modules/projetos/pendencias/actions";
-import { COR_ARQUITETURA_ALINHANDO, alinhamentoEfetivo, type Formato } from "@/modules/coordenacao/sobreposicao/regras";
+import { atalhoNoAlvo } from "@/modules/coordenacao/sobreposicao/atalhos";
 import {
+  COR_ALERTA,
+  COR_ARQUITETURA_ALINHANDO,
+  MOTIVO_CORRIDA_ALINHAMENTO,
+  alinhamentoEfetivo,
+  type Formato,
+} from "@/modules/coordenacao/sobreposicao/regras";
+import {
+  aceitarVersao,
   clicar,
   definirCampos,
   deslocar,
@@ -84,13 +92,8 @@ function ordemDeDesenho(camadas: CamadaDaCena[]): CamadaDaCena[] {
   return [...camadas].sort((a, b) => Number(b.base) - Number(a.base) || a.ordem - b.ordem);
 }
 
-/** Tecla digitada num campo (ou num diálogo/menu aberto) não é atalho do alinhamento. */
-function teclaDeCampo(alvo: EventTarget | null): boolean {
-  if (!(alvo instanceof HTMLElement)) return false;
-  if (alvo.isContentEditable) return true;
-  if (["INPUT", "TEXTAREA", "SELECT"].includes(alvo.tagName)) return true;
-  return alvo.closest("[role=dialog],[role=menu],[role=listbox]") !== null;
-}
+/** Os atalhos só valem com o foco na página ou no desenho (botão, aba e campo ficam com a tecla deles). */
+const atalhoNoEvento = (ev: KeyboardEvent) => atalhoNoAlvo(ev.target instanceof Element ? ev.target : null);
 
 const chaveAlinhamento = (camadaId: string, formato: Formato) => `${camadaId}:${formato}`;
 
@@ -98,13 +101,10 @@ const MENSAGEM_SEM_IMAGEM = "Apontamento criado, mas a imagem da sobreposição 
 
 type Modo = "sobrepor" | "cortina" | "cruzamentos";
 
-/** Vermelho dos retângulos de cruzamento (tailwind red-600). */
-const COR_CRUZAMENTO = "#dc2626";
-
 function desenharCruzamentos(ctx: CanvasRenderingContext2D, vista: VistaPalco, caixas: readonly Caixa[]) {
   if (caixas.length === 0) return;
   ctx.save();
-  ctx.strokeStyle = COR_CRUZAMENTO;
+  ctx.strokeStyle = COR_ALERTA;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([5, 3]);
   for (const k of caixas) {
@@ -176,6 +176,8 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
   const [sessao, setSessao] = useState<SessaoAlinhamento | null>(null);
   // O que acabou de ser salvo vale até a cena nova chegar (sem a camada piscar no lugar antigo).
   const [recemSalvos, setRecemSalvos] = useState<Record<string, Alinhamento>>({});
+  // Trava do alinhamento: outra pessoa salvou antes. "Manter o meu" recarrega e passa a ler a versão dela.
+  const [corrida, setCorrida] = useState<"aviso" | "atualizando" | null>(null);
   // "Apontar interferência": ligado, o clique no desenho escolhe o ponto e abre o diálogo.
   const [apontando, setApontando] = useState(false);
   const [pontoApontar, setPontoApontar] = useState<Ponto | null>(null);
@@ -212,6 +214,19 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
     if (!c || c.formato !== sessao.formato) setSessao(null);
   }, [camadas, sessao]);
 
+  // Chegou a cena recarregada depois de "Manter o meu": a sessão lê a versão nova e segue com o alinhamento dela.
+  useEffect(() => {
+    if (corrida !== "atualizando") return;
+    setSessao((s) => {
+      if (!s) return s;
+      const c = cena.camadas.find((x) => x.id === s.camadaId);
+      return aceitarVersao(s, c?.alinhamentos[s.formato]?.versao ?? null);
+    });
+    setCorrida(null);
+    // Só a chegada da cena nova importa aqui.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cena.camadas]);
+
   const gravar = useCallback(
     (camadaId: string) => {
       const p = pendentes.current.get(camadaId);
@@ -219,16 +234,21 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
       pendentes.current.delete(camadaId);
       if (p.timer) clearTimeout(p.timer);
       const ajuste = p.ajuste;
-      void atualizarCamada({ camadaId, ...ajuste }).then((r) => {
-        if (r.ok) return;
-        toast.error(r.error);
-        // Falhou: a tela volta ao que o servidor tem.
+      // Falhou (recusa ou rede): a tela volta ao que o servidor tem.
+      const desfazerAjuste = (mensagem: string) => {
+        toast.error(mensagem);
         setAjustes((a) => {
           const atual = { ...a[camadaId] };
           for (const k of Object.keys(ajuste) as (keyof AjusteCamada)[]) delete atual[k];
           return { ...a, [camadaId]: atual };
         });
-      });
+      };
+      void atualizarCamada({ camadaId, ...ajuste }).then(
+        (r) => {
+          if (!r.ok) desfazerAjuste(r.error);
+        },
+        () => desfazerAjuste("Não foi possível gravar a mudança da camada. Confira a conexão."),
+      );
     },
     [],
   );
@@ -407,13 +427,21 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
     if (!sessao) return;
     const { camadaId, formato, atual, versaoLida } = sessao;
     start(async () => {
-      const r = await salvarAlinhamento({ camadaId, formato, alinhamento: atual, versaoLida });
+      let r: Awaited<ReturnType<typeof salvarAlinhamento>>;
+      try {
+        r = await salvarAlinhamento({ camadaId, formato, alinhamento: atual, versaoLida });
+      } catch {
+        toast.error("Não foi possível salvar o alinhamento. Confira a conexão e tente de novo.");
+        return;
+      }
       if (!r.ok) {
-        // A sessão continua: a pessoa decide entre recarregar e tentar de novo.
-        toast.error(r.error);
+        // A sessão continua. Na trava, o aviso fica na barra do alinhamento com a saída ("Manter o meu").
+        if (r.error === MOTIVO_CORRIDA_ALINHAMENTO) setCorrida("aviso");
+        else toast.error(r.error);
         return;
       }
       setRecemSalvos((a) => ({ ...a, [chaveAlinhamento(camadaId, formato)]: atual }));
+      setCorrida(null);
       setSessao(null);
       toast.success("Alinhamento salvo.");
       router.refresh();
@@ -424,7 +452,13 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
     const c = camadas.find((x) => x.id === camadaId);
     const al = c?.alinhamentos[c.formato];
     if (!c || !al) return;
-    rodar(() => confirmarAlinhamento({ camadaId, formato: c.formato, versaoLida: al.versao }), "Alinhamento conferido.");
+    start(async () => {
+      const r = await confirmarAlinhamento({ camadaId, formato: c.formato, versaoLida: al.versao }).catch(() => null);
+      if (r?.ok) toast.success("Alinhamento conferido.");
+      else toast.error(r ? r.error : "Não foi possível conferir o alinhamento. Confira a conexão.");
+      // Também na trava: a cena recarregada traz o alinhamento que a outra pessoa gravou.
+      router.refresh();
+    });
   }
 
   // Atalhos do alinhamento: setas deslocam, Ctrl+Z desfaz, Esc descarta os cliques do par.
@@ -432,7 +466,7 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
   useEffect(() => {
     if (!emSessao) return;
     function aoTeclar(ev: KeyboardEvent) {
-      if (teclaDeCampo(ev.target)) return;
+      if (!atalhoNoEvento(ev)) return;
       if ((ev.ctrlKey || ev.metaKey) && !ev.shiftKey && ev.key.toLowerCase() === "z") {
         ev.preventDefault();
         setSessao((s) => s && desfazer(s));
@@ -542,7 +576,7 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
   useEffect(() => {
     if (!apontando || pontoApontar) return;
     function aoTeclar(ev: KeyboardEvent) {
-      if (ev.key === "Escape" && !teclaDeCampo(ev.target)) setApontando(false);
+      if (ev.key === "Escape" && atalhoNoEvento(ev)) setApontando(false);
     }
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
@@ -591,6 +625,10 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
     />
   );
   const carregando = noPalco.length === 0 && camadas.some((c) => estados[c.id]?.tipo === "carregando");
+  // Nada a desenhar e nada carregando: todas as camadas estão desligadas, sem arquivo ou com erro.
+  const nadaDesenhado = noPalco.length === 0 && !carregando;
+  const cruzamentoCarregando =
+    modo === "cruzamentos" && [cruzA, cruzB].some((id) => id !== null && estados[id]?.tipo === "carregando");
 
   return (
     <div className="space-y-3">
@@ -635,7 +673,9 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
             <span className="text-xs text-muted-foreground" aria-live="polite">
               {cruzA === cruzB
                 ? "Escolha duas camadas diferentes."
-                : caixasCruzamento.length === 0
+                : cruzamentoCarregando
+                  ? "Carregando as plantas…"
+                  : caixasCruzamento.length === 0
                   ? "Nenhum cruzamento"
                   : caixasCruzamento.length === 1
                     ? "1 cruzamento"
@@ -683,7 +723,8 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <span className="text-xs tabular-nums text-muted-foreground" aria-label="Zoom">
+          <span className="text-xs tabular-nums text-muted-foreground">
+            <span className="sr-only">Zoom </span>
             {zoom}%
           </span>
           <Button type="button" size="sm" variant="outline" onClick={() => palcoRef.current?.ajustar()}>
@@ -719,6 +760,11 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
           onDesfazer={() => setSessao((s) => s && desfazer(s))}
           onCancelar={() => void cancelarAlinhamento()}
           onSalvar={salvarSessao}
+          corrida={corrida}
+          onManterMeu={() => {
+            setCorrida("atualizando");
+            router.refresh();
+          }}
         />
       )}
 
@@ -755,11 +801,22 @@ export function SobreposicaoView({ cena, documentos }: SobreposicaoViewProps) {
             />
           )}
           {carregando && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-muted-foreground">
+            <div
+              role="status"
+              className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-muted-foreground"
+            >
               <span className="flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-4 animate-spin" aria-hidden />
                 Carregando as plantas…
               </span>
+            </div>
+          )}
+          {nadaDesenhado && (
+            <div
+              role="status"
+              className="pointer-events-none absolute inset-0 grid place-items-center p-4 text-center text-sm text-muted-foreground"
+            >
+              Nenhuma camada pode ser desenhada agora. Veja os avisos em Camadas.
             </div>
           )}
         </div>

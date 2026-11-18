@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Undo2 } from "lucide-react";
+import { AlertTriangle, Loader2, Undo2 } from "lucide-react";
 import { COR_BASE } from "@/modules/coordenacao/sobreposicao/regras";
 import {
   instrucao,
@@ -87,10 +87,25 @@ type Props = {
   onDesfazer: () => void;
   onCancelar: () => void;
   onSalvar: () => void;
+  /** Trava: outra pessoa salvou o alinhamento desta camada. `atualizando` = recarregando a cena. */
+  corrida: "aviso" | "atualizando" | null;
+  /** Recarrega a cena e mantém o alinhamento desta sessão (o próximo "Salvar" grava por cima, sabendo). */
+  onManterMeu: () => void;
 };
 
 /** Barra do alinhamento: modo, o que clicar, campos X/Y/giro/escala, desfazer, cancelar e salvar. */
-export function FerramentaAlinhar({ sessao, nome, salvando, onModo, onCampos, onDesfazer, onCancelar, onSalvar }: Props) {
+export function FerramentaAlinhar({
+  sessao,
+  nome,
+  salvando,
+  onModo,
+  onCampos,
+  onDesfazer,
+  onCancelar,
+  onSalvar,
+  corrida,
+  onManterMeu,
+}: Props) {
   return (
     <section className="space-y-3 rounded-lg border bg-card p-3" aria-label={`Alinhando a camada ${nome}`}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -98,7 +113,7 @@ export function FerramentaAlinhar({ sessao, nome, salvando, onModo, onCampos, on
           Alinhando: {nome}
         </h3>
         <Tabs value={sessao.modo} onValueChange={(v) => v && onModo(v as ModoAlinhar)}>
-          <TabsList>
+          <TabsList aria-label="Modo de alinhamento">
             <TabsTrigger value="um_ponto">1 ponto</TabsTrigger>
             <TabsTrigger value="dois_pontos">2 pontos</TabsTrigger>
             <TabsTrigger value="ajuste">Ajuste fino</TabsTrigger>
@@ -106,8 +121,21 @@ export function FerramentaAlinhar({ sessao, nome, salvando, onModo, onCampos, on
         </Tabs>
       </div>
       <p className="text-sm text-muted-foreground" aria-live="polite">
-        {instrucao(sessao)}
+        {instrucao(sessao)} <span className="whitespace-nowrap">Ctrl+Z desfaz · Esc limpa os cliques.</span>
       </p>
+      {corrida && (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-warning-text/40 px-3 py-2 text-sm">
+          <AlertTriangle className="size-4 shrink-0 text-warning-text" aria-hidden />
+          <span className="min-w-0 flex-1">
+            Outra pessoa salvou o alinhamento desta camada enquanto você editava. Para manter o seu, atualize e salve de
+            novo (o seu grava por cima); para ver o dela, cancele.
+          </span>
+          <Button type="button" size="sm" variant="outline" onClick={onManterMeu} disabled={corrida === "atualizando"}>
+            {corrida === "atualizando" && <Loader2 className="size-4 animate-spin" />}
+            Atualizar e manter o meu
+          </Button>
+        </div>
+      )}
       <div className="flex flex-wrap items-end gap-2">
         {CAMPOS.map(({ campo, rotulo, casas }) => (
           <CampoNumero
@@ -134,7 +162,12 @@ export function FerramentaAlinhar({ sessao, nome, salvando, onModo, onCampos, on
           <Button type="button" size="sm" variant="outline" onClick={onCancelar} disabled={salvando}>
             Cancelar
           </Button>
-          <Button type="button" size="sm" onClick={onSalvar} disabled={salvando || (!mudou(sessao) && sessao.versaoLida !== null)}>
+          <Button
+            type="button"
+            size="sm"
+            onClick={onSalvar}
+            disabled={salvando || corrida !== null || (!mudou(sessao) && sessao.versaoLida !== null)}
+          >
             {salvando && <Loader2 className="size-4 animate-spin" />}
             Salvar alinhamento
           </Button>

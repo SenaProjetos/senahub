@@ -1,6 +1,15 @@
 // Regras puras da sobreposição 2D. Sem I/O, sem Prisma/Next/node:* — roda também no navegador.
 import type { Primitiva } from "@/modules/dwg/parse";
-import { IDENTIDADE, aplicar, encaixeInicial, inverter, type Alinhamento, type Caixa, type Ponto } from "./transformacao";
+import {
+  IDENTIDADE,
+  aplicar,
+  caixaAplicada,
+  encaixeInicial,
+  inverter,
+  type Alinhamento,
+  type Caixa,
+  type Ponto,
+} from "./transformacao";
 
 export type Formato = "pdf" | "dwg";
 
@@ -12,6 +21,16 @@ export function formatoDoArquivo(nomeArquivo: string): Formato | null {
   if (nome.endsWith(".pdf")) return "pdf";
   if (nome.endsWith(".dwg")) return "dwg";
   return null;
+}
+
+/**
+ * O PDF vigente perdeu a vez: outro arquivo do documento (de qualquer formato) tem versão maior, e `criarPendencia`
+ * só aceita pino na versão mais nova do documento. A tela recusa antes, com o motivo.
+ */
+export function pdfObsoleto(uploads: readonly { id: string; versao: number }[], pdfId: string): boolean {
+  const pdf = uploads.find((u) => u.id === pdfId);
+  if (!pdf) return false;
+  return uploads.some((u) => u.versao > pdf.versao);
 }
 
 /** Maior `versao` do formato entre os arquivos fora da lixeira. */
@@ -53,7 +72,8 @@ export function primitivasDaCamada(
   const mantidas: Primitiva[] = [];
   const arquitetura: Primitiva[] = [];
   for (const p of primitivas) {
-    if (ehLayerArquitetura(p.camada)) arquitetura.push(p);
+    // Bloco/xref inserido no SENA_ARQ é arquitetura inteiro, como no AutoCAD ao congelar o layer do INSERT.
+    if (ehLayerArquitetura(p.camada) || (p.insercoes ?? []).some(ehLayerArquitetura)) arquitetura.push(p);
     else mantidas.push(p);
   }
   return { primitivas: mantidas, arquitetura, achouArquitetura: arquitetura.length > 0 };
@@ -93,13 +113,24 @@ export function pinoParaMundo(
 /** Cor da camada base. */
 export const COR_BASE = "#374151";
 
+/**
+ * Vermelho da mira do apontamento e dos retângulos de cruzamento (tailwind red-600). Fica FORA da paleta das
+ * camadas, para uma camada nunca ser confundida com um alerta. Cores de canvas são literais: o contexto 2D não
+ * lê variável de CSS, e o papel da planta é branco nos dois temas.
+ */
+export const COR_ALERTA = "#dc2626";
+
+/** Mensagem da trava do alinhamento (o serviço a lança; a tela a reconhece para oferecer a saída). */
+export const MOTIVO_CORRIDA_ALINHAMENTO =
+  "Outra pessoa alinhou esta camada enquanto você editava. Recarregue para ver o alinhamento atual.";
+
 /** Cores das demais camadas (tailwind-600), legíveis sobre branco. */
 export const PALETA_CAMADAS: readonly string[] = [
   "#2563eb", // azul
   "#16a34a", // verde
   "#ea580c", // laranja
   "#9333ea", // roxo
-  "#dc2626", // vermelho
+  "#78350f", // marrom (o vermelho é do alerta)
   "#0d9488", // verde-água
   "#d97706", // âmbar
   "#db2777", // rosa
@@ -130,6 +161,29 @@ export function motivoParaNaoRemover(camada: { base: boolean }, totalCamadas: nu
     return "Defina outra camada como base antes de remover esta.";
   }
   return null;
+}
+
+/**
+ * O mundo da cena e o alinhamento com que a base é desenhada. Com alinhamento salvo, ele manda. Sem ele (a base
+ * trocou de formato, ou a camada virou base sem nunca ter sido alinhada), a base NÃO redefine o mundo: encaixa na
+ * caixa das camadas já alinhadas, para a pessoa alinhá-la a partir daí. Sem nenhuma alinhada, ela é o mundo.
+ */
+export function mundoDaCena(
+  base: { caixaNativa: Caixa; salvo: Alinhamento | null } | null,
+  alinhadas: readonly { caixaNativa: Caixa; alinhamento: Alinhamento }[],
+): { caixaMundo: Caixa; alinhamentoBase: Alinhamento } | null {
+  if (!base) return null;
+  if (base.salvo) return { alinhamentoBase: base.salvo, caixaMundo: caixaAplicada(base.salvo, base.caixaNativa) };
+  if (alinhadas.length === 0) return { alinhamentoBase: IDENTIDADE, caixaMundo: base.caixaNativa };
+  let ref: Caixa | null = null;
+  for (const a of alinhadas) {
+    const k = caixaAplicada(a.alinhamento, a.caixaNativa);
+    ref = ref
+      ? { minX: Math.min(ref.minX, k.minX), minY: Math.min(ref.minY, k.minY), maxX: Math.max(ref.maxX, k.maxX), maxY: Math.max(ref.maxY, k.maxY) }
+      : k;
+  }
+  const alinhamentoBase = encaixeInicial(base.caixaNativa, ref!);
+  return { alinhamentoBase, caixaMundo: caixaAplicada(alinhamentoBase, base.caixaNativa) };
 }
 
 /**

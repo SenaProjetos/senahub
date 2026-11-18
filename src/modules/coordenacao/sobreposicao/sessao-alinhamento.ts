@@ -176,6 +176,14 @@ export function definirCampos(
   return { sessao: comPasso(s, novo) };
 }
 
+/**
+ * Depois da trava ("outra pessoa alinhou"), a pessoa escolhe manter o seu: a sessão passa a ler a versão que a
+ * outra gravou, sem perder o alinhamento nem o desfazer. O próximo "Salvar" grava por cima — sabendo disso.
+ */
+export function aceitarVersao(s: SessaoAlinhamento, versao: number | null): SessaoAlinhamento {
+  return { ...s, versaoLida: versao };
+}
+
 export function desfazer(s: SessaoAlinhamento): SessaoAlinhamento {
   if (s.desfazer.length === 0) return s;
   return { ...s, atual: s.desfazer[s.desfazer.length - 1], desfazer: s.desfazer.slice(0, -1), cliques: [] };

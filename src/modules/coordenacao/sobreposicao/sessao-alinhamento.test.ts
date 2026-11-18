@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LIMITE_DESFAZER,
+  aceitarVersao,
   clicar,
   definirCampos,
   deslocar,
@@ -206,6 +207,19 @@ describe("definirCampos", () => {
   it("o mesmo valor não empilha passo", () => {
     const s = sessao({ tx: 1, ty: 2, giro: 3, escala: 4 });
     expect(definirCampos(s, { tx: 1 }).sessao.desfazer).toEqual([]);
+  });
+});
+
+describe("aceitarVersao", () => {
+  it("depois da corrida, adota a versão gravada pela outra pessoa e mantém o alinhamento e o desfazer desta sessão", () => {
+    const s = deslocar(sessao(), { x: 5, y: 0 }, true);
+    const t = aceitarVersao(s, 7);
+    expect(t.versaoLida).toBe(7);
+    expect(t.atual).toEqual(s.atual);
+    expect(t.desfazer).toEqual(s.desfazer);
+  });
+  it("sem alinhamento gravado do formato, volta a criar (versão nula)", () => {
+    expect(aceitarVersao(sessao(), null).versaoLida).toBeNull();
   });
 });
 

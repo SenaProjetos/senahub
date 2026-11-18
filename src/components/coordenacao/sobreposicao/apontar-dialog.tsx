@@ -59,14 +59,16 @@ export function ApontarDialog({ aberto, onOpenChange, camadas, onUsarPdf, onConf
 
   function fechar(aberto: boolean) {
     if (enviando) return;
-    if (!aberto) {
-      setCamadaId(null);
-      setTexto("");
-      setSeveridade(null);
-      setTipo(null);
-      setErro(null);
-    }
+    if (!aberto) limpar();
     onOpenChange(aberto);
+  }
+
+  function limpar() {
+    setCamadaId(null);
+    setTexto("");
+    setSeveridade(null);
+    setTipo(null);
+    setErro(null);
   }
 
   async function confirmar(ev: React.FormEvent) {
@@ -74,10 +76,20 @@ export function ApontarDialog({ aberto, onOpenChange, camadas, onUsarPdf, onConf
     if (!escolhida || motivo || !texto.trim()) return;
     setEnviando(true);
     setErro(null);
-    const r = await onConfirmar({ camadaId: escolhida.id, texto: texto.trim(), severidade, tipo });
+    let r: string | null;
+    try {
+      r = await onConfirmar({ camadaId: escolhida.id, texto: texto.trim(), severidade, tipo });
+    } catch {
+      // Falha de rede: o diálogo nunca fica preso em "enviando".
+      r = "Não foi possível criar o apontamento. Confira a conexão e tente de novo.";
+    }
     setEnviando(false);
-    if (r) setErro(r);
-    else fechar(false);
+    if (r) {
+      setErro(r);
+      return;
+    }
+    limpar();
+    onOpenChange(false);
   }
 
   return (
@@ -94,7 +106,12 @@ export function ApontarDialog({ aberto, onOpenChange, camadas, onUsarPdf, onConf
             <div className="grid gap-1.5">
               <Label htmlFor="apontar-camada">Disciplina que deve alterar</Label>
               <Select value={camadaId ?? ""} onValueChange={(v) => setCamadaId(v || null)}>
-                <SelectTrigger id="apontar-camada" className="w-full">
+                <SelectTrigger
+                  id="apontar-camada"
+                  className="w-full"
+                  aria-invalid={motivo !== null || undefined}
+                  aria-describedby={motivo ? "apontar-motivo" : undefined}
+                >
                   <SelectValue placeholder="Escolha a disciplina" />
                 </SelectTrigger>
                 <SelectContent>
@@ -108,7 +125,9 @@ export function ApontarDialog({ aberto, onOpenChange, camadas, onUsarPdf, onConf
               </Select>
               {escolhida && motivo && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm text-warning-text">{motivo.erro}</p>
+                  <p id="apontar-motivo" className="text-sm text-warning-text">
+                    {motivo.erro}
+                  </p>
                   {motivo.trocarParaPdf && (
                     <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => onUsarPdf(escolhida.id)}>
                       Usar o PDF
@@ -166,7 +185,11 @@ export function ApontarDialog({ aberto, onOpenChange, camadas, onUsarPdf, onConf
               </div>
             </div>
 
-            {erro && <p className="text-sm text-destructive">{erro}</p>}
+            {erro && (
+              <p role="alert" className="text-sm text-destructive">
+                {erro}
+              </p>
+            )}
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => fechar(false)} disabled={enviando}>

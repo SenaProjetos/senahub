@@ -71,6 +71,7 @@ export function CortinaDivisor({ corte, onCorte, rotuloEsquerda, rotuloDireita }
         aria-orientation="vertical"
         aria-label={`Divisor entre ${rotuloEsquerda} e ${rotuloDireita}`}
         aria-valuenow={pct}
+        aria-valuetext={`${pct}%`}
         aria-valuemin={0}
         aria-valuemax={100}
         tabIndex={0}

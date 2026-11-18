@@ -3,7 +3,14 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { ActionError } from "@/lib/action-error";
 import { IDENTIDADE, type Alinhamento } from "./transformacao";
-import { COR_BASE, arquivoVigente, corSugerida, motivoParaNaoRemover, type Formato } from "./regras";
+import {
+  COR_BASE,
+  MOTIVO_CORRIDA_ALINHAMENTO,
+  arquivoVigente,
+  corSugerida,
+  motivoParaNaoRemover,
+  type Formato,
+} from "./regras";
 
 type Tx = Prisma.TransactionClient;
 export type Db = PrismaClient | Tx;
@@ -11,8 +18,8 @@ export type Db = PrismaClient | Tx;
 export const MOTIVO_NOME_REPETIDO = "Já existe uma sobreposição com esse nome neste projeto.";
 export const MOTIVO_DOCUMENTO_DE_OUTRO_PROJETO = "Este documento não é deste projeto.";
 export const MOTIVO_DOCUMENTO_REPETIDO = "Este documento já está nesta sobreposição.";
-export const MOTIVO_CORRIDA_ALINHAMENTO =
-  "Outra pessoa alinhou esta camada enquanto você editava. Recarregue para ver o alinhamento atual.";
+// A mensagem mora no arquivo puro: a tela a reconhece para oferecer "manter o meu".
+export { MOTIVO_CORRIDA_ALINHAMENTO };
 export const MOTIVO_SOBREPOSICAO_SUMIU = "Esta sobreposição não existe mais. Recarregue a página.";
 export const MOTIVO_CAMADA_SUMIU = "Esta camada não existe mais. Recarregue a página.";
 export const MOTIVO_CORRIDA_CAMADA = "Outra pessoa mudou esta sobreposição enquanto você editava. Recarregue a página.";
@@ -186,15 +193,18 @@ export async function atualizarCamadaNoBanco(
 }
 
 export async function removerCamadaNoBanco(db: Db, input: { camadaId: string }): Promise<void> {
-  const camada = await db.sobreposicaoCamada.findUnique({
-    where: { id: input.camadaId },
-    select: { base: true, sobreposicaoId: true },
+  // Contar e apagar na mesma transação: duas remoções ao mesmo tempo não passam juntas pela regra da base.
+  await emTransacao(db, async (tx) => {
+    const camada = await tx.sobreposicaoCamada.findUnique({
+      where: { id: input.camadaId },
+      select: { base: true, sobreposicaoId: true },
+    });
+    if (!camada) throw new ActionError(MOTIVO_CAMADA_SUMIU);
+    const total = await tx.sobreposicaoCamada.count({ where: { sobreposicaoId: camada.sobreposicaoId } });
+    const motivo = motivoParaNaoRemover(camada, total);
+    if (motivo) throw new ActionError(motivo);
+    await tx.sobreposicaoCamada.deleteMany({ where: { id: input.camadaId } });
   });
-  if (!camada) throw new ActionError(MOTIVO_CAMADA_SUMIU);
-  const total = await db.sobreposicaoCamada.count({ where: { sobreposicaoId: camada.sobreposicaoId } });
-  const motivo = motivoParaNaoRemover(camada, total);
-  if (motivo) throw new ActionError(motivo);
-  await db.sobreposicaoCamada.deleteMany({ where: { id: input.camadaId } });
 }
 
 /**
@@ -203,16 +213,22 @@ export async function removerCamadaNoBanco(db: Db, input: { camadaId: string }):
  * "sem_alinhamento" até alguém alinhá-la sobre o mundo.
  */
 export async function definirBaseNoBanco(db: Db, input: { camadaId: string }): Promise<void> {
-  await emTransacao(db, async (tx) => {
-    const camada = await tx.sobreposicaoCamada.findUnique({
-      where: { id: input.camadaId },
-      select: { base: true, sobreposicaoId: true },
+  try {
+    await emTransacao(db, async (tx) => {
+      const camada = await tx.sobreposicaoCamada.findUnique({
+        where: { id: input.camadaId },
+        select: { base: true, sobreposicaoId: true },
+      });
+      if (!camada) throw new ActionError(MOTIVO_CAMADA_SUMIU);
+      if (camada.base) return;
+      await tx.sobreposicaoCamada.updateMany({ where: { sobreposicaoId: camada.sobreposicaoId, base: true }, data: { base: false } });
+      await tx.sobreposicaoCamada.update({ where: { id: input.camadaId }, data: { base: true } });
     });
-    if (!camada) throw new ActionError(MOTIVO_CAMADA_SUMIU);
-    if (camada.base) return;
-    await tx.sobreposicaoCamada.updateMany({ where: { sobreposicaoId: camada.sobreposicaoId, base: true }, data: { base: false } });
-    await tx.sobreposicaoCamada.update({ where: { id: input.camadaId }, data: { base: true } });
-  });
+  } catch (err) {
+    // Duas trocas de base ao mesmo tempo: o índice parcial (uma base por sobreposição) barra a segunda.
+    if (ehUnicoViolado(err)) throw new ActionError(MOTIVO_CORRIDA_CAMADA);
+    throw err;
+  }
 }
 
 // ── Alinhamento (trava otimista por `versao`) ──

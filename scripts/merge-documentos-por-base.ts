@@ -103,6 +103,7 @@ async function main() {
       revisoes: { mantidaId: string; aliasId: string; numero: number }[];
       calibracoes: { mantidaId: string; aliasId: string; pagina: number }[];
       leituras: { mantidaId: string; aliasId: string; userId: string }[];
+      camadas: { mantidaId: string; aliasId: string; sobreposicaoId: string }[];
     };
   }[] = [];
   for (const [, ds] of paraMesclar) {
@@ -113,6 +114,7 @@ async function main() {
       revisoes: [] as { mantidaId: string; aliasId: string; numero: number }[],
       calibracoes: [] as { mantidaId: string; aliasId: string; pagina: number }[],
       leituras: [] as { mantidaId: string; aliasId: string; userId: string }[],
+      camadas: [] as { mantidaId: string; aliasId: string; sobreposicaoId: string }[],
     };
 
     await prisma.$transaction(async (tx) => {
@@ -177,6 +179,24 @@ async function main() {
             conflitos.leituras.push({ mantidaId: existente.id, aliasId: l.id, userId: l.userId });
           }
         }
+
+        // Camada da Sobreposição 2D: UNIQUE (sobreposicaoId, documentoId). Sem colisão, passa a ler o canônico
+        // (os arquivos foram para ele); com colisão, a do alias fica no documento retirado e entra no relatório.
+        const camadas = await tx.sobreposicaoCamada.findMany({
+          where: { documentoId: p.id },
+          select: { id: true, sobreposicaoId: true },
+        });
+        for (const c of camadas) {
+          const existente = await tx.sobreposicaoCamada.findUnique({
+            where: { sobreposicaoId_documentoId: { sobreposicaoId: c.sobreposicaoId, documentoId: canonico.id } },
+            select: { id: true },
+          });
+          if (!existente) {
+            await tx.sobreposicaoCamada.update({ where: { id: c.id }, data: { documentoId: canonico.id } });
+          } else {
+            conflitos.camadas.push({ mantidaId: existente.id, aliasId: c.id, sobreposicaoId: c.sobreposicaoId });
+          }
+        }
         // Soft-retire + chave neutralizada, para não brigar pelo UNIQUE com o canônico.
         await tx.documentoDisciplina.update({
           where: { id: p.id },
@@ -209,12 +229,13 @@ async function main() {
       revisoes: total.revisoes + grupo.conflitos.revisoes.length,
       calibracoes: total.calibracoes + grupo.conflitos.calibracoes.length,
       leituras: total.leituras + grupo.conflitos.leituras.length,
+      camadas: total.camadas + grupo.conflitos.camadas.length,
     }),
-    { revisoes: 0, calibracoes: 0, leituras: 0 },
+    { revisoes: 0, calibracoes: 0, leituras: 0, camadas: 0 },
   );
   writeFileSync(arquivo, JSON.stringify({ quando: new Date().toISOString(), grupos: log, totaisConflitos }, null, 2), "utf8");
   console.log(`\ngrupos mesclados: ${log.length} | chaves atualizadas sem merge: ${renomeados}`);
-  console.log(`conflitos preservados: revisões=${totaisConflitos.revisoes} | calibrações=${totaisConflitos.calibracoes} | leituras=${totaisConflitos.leituras}`);
+  console.log(`conflitos preservados: revisões=${totaisConflitos.revisoes} | calibrações=${totaisConflitos.calibracoes} | leituras=${totaisConflitos.leituras} | camadas da sobreposição=${totaisConflitos.camadas}`);
   console.log(`mapa canônico→absorvidos em ${arquivo}`);
   await prisma.$disconnect();
 }

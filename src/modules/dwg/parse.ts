@@ -33,12 +33,20 @@ import type {
 
 export type Ponto = { x: number; y: number };
 
-export type Primitiva =
+export type Primitiva = (
   | { tipo: "linha"; p1: Ponto; p2: Ponto; camada: string }
   | { tipo: "circulo"; centro: Ponto; raio: number; camada: string }
   | { tipo: "arco"; centro: Ponto; raio: number; a0: number; a1: number; camada: string }
   | { tipo: "polilinha"; pontos: Ponto[]; fechada: boolean; camada: string }
-  | { tipo: "texto"; p: Ponto; altura: number; conteudo: string; rotacao: number; camada: string };
+  | { tipo: "texto"; p: Ponto; altura: number; conteudo: string; rotacao: number; camada: string }
+) & {
+  /**
+   * Layers dos INSERTs que envolvem a primitiva, de fora para dentro (ausente fora de bloco). `camada` continua
+   * sendo o layer da própria entidade; quem precisa do efeito do AutoCAD — congelar o layer de um INSERT esconde
+   * o bloco inteiro — olha também aqui (a sobreposição 2D, para o SENA_ARQ).
+   */
+  insercoes?: string[];
+};
 
 export type Camada = { nome: string; visivel: boolean };
 
@@ -154,7 +162,9 @@ function entidadesParaPrimitivas(entidades: IEntity[], blocks: Record<string, IB
         const bloco = blocks[ins.name];
         if (!bloco?.entities?.length) break;
         const filhos = entidadesParaPrimitivas(bloco.entities, blocks, profundidade + 1);
-        for (const prim of filhos) out.push(transformarPrimitiva(prim, ins));
+        for (const prim of filhos) {
+          out.push({ ...transformarPrimitiva(prim, ins), insercoes: [camada, ...(prim.insercoes ?? [])] });
+        }
         break;
       }
       default:

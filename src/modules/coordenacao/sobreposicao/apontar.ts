@@ -8,6 +8,8 @@ import type { Alinhamento, Ponto } from "./transformacao";
 export const MOTIVO_SEM_PDF_APONTAR = "Esta prancha não tem PDF vigente para receber o apontamento.";
 export const MOTIVO_USAR_PDF = "Para apontar, use o PDF desta prancha.";
 export const MOTIVO_ALINHAR_PDF = "Alinhe o PDF desta prancha antes de apontar.";
+export const MOTIVO_PDF_ANTIGO =
+  "O PDF desta prancha é anterior ao último arquivo enviado no documento. Peça o PDF atualizado para apontar.";
 
 /** Recorte da sobreposição anexado ao apontamento, em px. */
 export const RECORTE_CONTEXTO = { largura: 800, altura: 600 } as const;
@@ -32,7 +34,8 @@ export type CamadaParaApontar = {
   visivel: boolean;
   cor: string;
   pagina: number;
-  pdf: { uploadId: string } | null;
+  /** `obsoleto`: outro arquivo do documento tem versão maior (`pdfObsoleto`). */
+  pdf: { uploadId: string; obsoleto?: boolean } | null;
   alinhamentos: Partial<Record<Formato, { alinhamento: Alinhamento }>>;
   pinos: PinoDaCamada[];
 };
@@ -46,6 +49,7 @@ export type TamanhoPagina = { largura: number; altura: number };
  */
 export function motivoParaNaoApontar(c: CamadaParaApontar): { erro: string; trocarParaPdf: boolean } | null {
   if (!c.pdf) return { erro: MOTIVO_SEM_PDF_APONTAR, trocarParaPdf: false };
+  if (c.pdf.obsoleto) return { erro: MOTIVO_PDF_ANTIGO, trocarParaPdf: false };
   if (c.formato !== "pdf") return { erro: MOTIVO_USAR_PDF, trocarParaPdf: true };
   if (!c.alinhamentos.pdf) return { erro: MOTIVO_ALINHAR_PDF, trocarParaPdf: false };
   return null;

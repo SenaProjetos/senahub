@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Primitiva } from "@/modules/dwg/parse";
 import { IDENTIDADE, encaixeInicial, type Alinhamento, type Caixa } from "./transformacao";
 import {
+  COR_ALERTA,
   COR_BASE,
   LAYER_ARQUITETURA,
   PALETA_CAMADAS,
@@ -15,6 +16,8 @@ import {
   nativoDwg,
   pinoParaMundo,
   pontoParaPino,
+  mundoDaCena,
+  pdfObsoleto,
   primitivasDaCamada,
 } from "./regras";
 
@@ -78,6 +81,56 @@ describe("ehLayerArquitetura", () => {
   });
 });
 
+describe("mundoDaCena", () => {
+  const caixa = { minX: 0, minY: 0, maxX: 100, maxY: 50 };
+  it("sem base não há mundo", () => {
+    expect(mundoDaCena(null, [])).toBeNull();
+  });
+  it("base com alinhamento salvo: o mundo é a caixa dela por esse alinhamento", () => {
+    const salvo = { tx: 10, ty: 0, giro: 0, escala: 2 };
+    expect(mundoDaCena({ caixaNativa: caixa, salvo }, [])).toEqual({
+      alinhamentoBase: salvo,
+      caixaMundo: { minX: 10, minY: 0, maxX: 210, maxY: 100 },
+    });
+  });
+  it("base sem alinhamento e nenhuma camada alinhada: a base define o mundo (identidade)", () => {
+    expect(mundoDaCena({ caixaNativa: caixa, salvo: null }, [])).toEqual({ alinhamentoBase: IDENTIDADE, caixaMundo: caixa });
+  });
+  it("base sem alinhamento (trocou de formato ou virou base): encaixa nas camadas já alinhadas, sem redefinir o mundo", () => {
+    // DWG da base em mm com Y negado, 10× maior que a folha; as camadas alinhadas estão em pontos PDF.
+    const nativaDwg = { minX: 0, minY: -500, maxX: 1000, maxY: 0 };
+    const alinhadas = [
+      { caixaNativa: { minX: 0, minY: 0, maxX: 50, maxY: 50 }, alinhamento: IDENTIDADE },
+      { caixaNativa: { minX: 0, minY: 0, maxX: 50, maxY: 50 }, alinhamento: { tx: 50, ty: 0, giro: 0, escala: 1 } },
+    ];
+    const r = mundoDaCena({ caixaNativa: nativaDwg, salvo: null }, alinhadas)!;
+    expect(r.alinhamentoBase).toEqual(encaixeInicial(nativaDwg, { minX: 0, minY: 0, maxX: 100, maxY: 50 }));
+    expect(r.caixaMundo.minX).toBeCloseTo(0, 9);
+    expect(r.caixaMundo.maxX).toBeCloseTo(100, 9);
+  });
+});
+
+describe("pdfObsoleto", () => {
+  const u = (id: string, nomeArquivo: string, versao: number) => ({ id, nomeArquivo, versao, excluidoEm: null });
+  it("o PDF vigente é obsoleto quando outro arquivo do documento tem versão maior (a regra de criarPendencia)", () => {
+    expect(pdfObsoleto([u("p", "a.pdf", 3), u("d", "a.dwg", 4)], "p")).toBe(true);
+  });
+  it("PDF na versão mais alta do documento não é obsoleto", () => {
+    expect(pdfObsoleto([u("p", "a.pdf", 4), u("d", "a.dwg", 3)], "p")).toBe(false);
+    expect(pdfObsoleto([u("p", "a.pdf", 1)], "p")).toBe(false);
+  });
+  it("sem o PDF na lista não é obsoleto", () => {
+    expect(pdfObsoleto([u("d", "a.dwg", 4)], "x")).toBe(false);
+  });
+});
+
+describe("cor de alerta", () => {
+  it("a mira e os cruzamentos usam uma cor que nenhuma camada recebe por sugestão", () => {
+    expect(PALETA_CAMADAS.map((c) => c.toLowerCase())).not.toContain(COR_ALERTA.toLowerCase());
+    expect(COR_BASE.toLowerCase()).not.toBe(COR_ALERTA.toLowerCase());
+  });
+});
+
 describe("primitivasDaCamada", () => {
   const prims: Primitiva[] = [
     { tipo: "linha", p1: { x: 0, y: 0 }, p2: { x: 1, y: 1 }, camada: "ESTR" },
@@ -103,6 +156,14 @@ describe("primitivasDaCamada", () => {
   it("fora da base devolve à parte as do SENA_ARQ (desenhadas em cinza ao alinhar)", () => {
     const r = primitivasDaCamada(prims, false);
     expect(r.arquitetura.map((p) => p.camada)).toEqual(["sena_arq", "SENA_ARQ"]);
+  });
+  it("bloco (ou xref) inserido no SENA_ARQ conta como arquitetura, qualquer que seja o layer de dentro", () => {
+    const doBloco: Primitiva = { tipo: "linha", p1: { x: 0, y: 0 }, p2: { x: 1, y: 0 }, camada: "0", insercoes: ["SENA_ARQ"] };
+    const fora: Primitiva = { tipo: "linha", p1: { x: 0, y: 0 }, p2: { x: 1, y: 0 }, camada: "0", insercoes: ["0", "MOBILIA"] };
+    const r = primitivasDaCamada([doBloco, fora], false);
+    expect(r.arquitetura).toEqual([doBloco]);
+    expect(r.primitivas).toEqual([fora]);
+    expect(r.achouArquitetura).toBe(true);
   });
   it("na base a arquitetura já está nas primitivas: a lista à parte vem vazia", () => {
     expect(primitivasDaCamada(prims, true).arquitetura).toEqual([]);

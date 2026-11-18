@@ -128,7 +128,7 @@ function LinhaCamada({
           size="icon"
           className="size-7 shrink-0"
           aria-pressed={c.visivel}
-          aria-label={c.visivel ? `Ocultar a camada ${nome}` : `Mostrar a camada ${nome}`}
+          aria-label={`Mostrar a camada ${nome}`}
           onClick={() => onMudar(c.id, { visivel: !c.visivel }, "depois")}
         >
           {c.visivel ? <Eye className="size-4" /> : <EyeOff className="size-4 text-muted-foreground" />}
@@ -206,17 +206,38 @@ function LinhaCamada({
             {podeGerir && (usarPdf || (alinhamento && desenhada)) && (
               <div className="flex flex-wrap gap-1.5">
                 {usarPdf && (
-                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => onUsarPdf(c.id)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    aria-label={`Usar o PDF na camada ${nome}`}
+                    onClick={() => onUsarPdf(c.id)}
+                  >
                     Usar o PDF
                   </Button>
                 )}
                 {alinhamento === "conferir" && desenhada && (
-                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => onConfirmar(c.id)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    aria-label={`O alinhamento da camada ${nome} está certo`}
+                    onClick={() => onConfirmar(c.id)}
+                  >
                     Está certo
                   </Button>
                 )}
                 {alinhamento && desenhada && (
-                  <Button type="button" size="sm" variant="outline" className="h-7" onClick={() => onAlinhar(c.id)}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    aria-label={`Alinhar a camada ${nome}`}
+                    onClick={() => onAlinhar(c.id)}
+                  >
                     Alinhar
                   </Button>
                 )}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MOTIVO_ALINHAR_PDF,
+  MOTIVO_PDF_ANTIGO,
   MOTIVO_SEM_PDF_APONTAR,
   MOTIVO_USAR_PDF,
   hrefDoPino,
@@ -44,6 +45,15 @@ describe("motivoParaNaoApontar", () => {
   it("camada em DWG com PDF: pede para trocar para o PDF", () => {
     expect(motivoParaNaoApontar(camada({ formato: "dwg" }))).toEqual({ erro: MOTIVO_USAR_PDF, trocarParaPdf: true });
     expect(MOTIVO_USAR_PDF).toBe("Para apontar, use o PDF desta prancha.");
+  });
+  it("PDF mais antigo que outro arquivo do documento: recusa antes (criarPendencia só aceita a versão mais nova)", () => {
+    expect(motivoParaNaoApontar(camada({ pdf: { uploadId: "u-pdf", obsoleto: true } }))).toEqual({
+      erro: MOTIVO_PDF_ANTIGO,
+      trocarParaPdf: false,
+    });
+    expect(MOTIVO_PDF_ANTIGO).toBe(
+      "O PDF desta prancha é anterior ao último arquivo enviado no documento. Peça o PDF atualizado para apontar.",
+    );
   });
   it("PDF sem alinhamento salvo: pede para alinhar", () => {
     expect(motivoParaNaoApontar(camada({ alinhamentos: {} }))).toEqual({ erro: MOTIVO_ALINHAR_PDF, trocarParaPdf: false });
