@@ -1,8 +1,8 @@
 ---
 titulo: Portal do cliente (Meus projetos)
 descricao: Visão externa, somente leitura, onde o cliente acompanha seus projetos.
-resumo: O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes e baixa as pranchas entregues.
-tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas]
+resumo: O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.
+tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas]
 palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação]
 sinonimos: [área do cliente, portal externo, acompanhamento de projeto]
 ---
@@ -68,6 +68,27 @@ arquivo mostra a **revisão** (R00, R01…) e, quando houver, **o que mudou** ne
 
 Só aparecem aqui as pranchas que o escritório colocou nas pastas do cliente. Revisões em andamento ou em
 análise interna não aparecem. Os mesmos arquivos são os que um link de arquivos do projeto mostraria.
+
+## Financeiro
+
+No menu **Financeiro** o cliente vê as parcelas que paga ao escritório, **só valores e datas** — sem nota
+fiscal, boleto, conta bancária ou descrição interna.
+
+- No topo, três totais: **Vencido**, **A vencer** e **Pago**.
+- **Em aberto** — parcelas ainda não pagas, da mais antiga para a mais nova, com projeto, vencimento, valor e
+  situação (**Vencida** ou **A vencer**).
+- **Pagas** — da mais recente para a mais antiga, com o vencimento e a data em que o pagamento foi registrado.
+
+Regras:
+
+- Entra a parcela ligada ao cliente, ou sem cliente num projeto dele. Parcela com outro pagador no mesmo projeto
+  não aparece.
+- O valor é o que o cliente paga: quando a nota tem imposto retido, aparece o líquido. Numa parcela paga em
+  parte, a parte paga fica em **Pagas** e o resto em **Em aberto**.
+- Não aparecem: previsão de recebimento do cronograma (ainda não faturada), parcela cancelada, juros e descontos
+  da baixa e, como na cobrança por e-mail, parcelas de licitação (salvo se a cobrança de licitação estiver ligada
+  em Configurações → Avisos de vencimento).
+- Cliente desativado no cadastro vê o aviso de acesso suspenso, como no resto do portal.
 
 ## Casos especiais
 

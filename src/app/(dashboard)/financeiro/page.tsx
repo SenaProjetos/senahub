@@ -29,6 +29,12 @@ import { TorreLiquidez } from "@/components/financeiro/liquidez/torre-liquidez";
 import { Valor } from "@/components/financeiro/valor";
 import { brl, formatarData } from "@/lib/utils";
 import { ehPrestador } from "@/lib/contratacao";
+import { clienteDoUsuario } from "@/modules/portal/queries";
+import { financeiroDoClienteNoBanco } from "@/modules/portal/financeiro-queries";
+import {
+  FinanceiroClienteIndisponivel,
+  FinanceiroClienteView,
+} from "@/components/portal/financeiro-cliente-view";
 
 export const metadata: Metadata = { title: "Financeiro" };
 
@@ -65,6 +71,16 @@ export default async function FinanceiroPage({
   searchParams: Promise<{ periodo?: string }>;
 }) {
   const user = await requireUser();
+
+  // Cliente do portal: as parcelas que ELE paga ao escritório, só valores e datas (decisão do dono,
+  // 2026-11-19). Vem antes de tudo: externo nunca cai na visão da empresa nem no extrato do projetista.
+  if (user.tipo === "externo") {
+    if (!(await can(user, "financeiro", "extrato"))) redirect("/sem-permissao");
+    const cliente = await clienteDoUsuario(user.id);
+    if (!cliente || !cliente.ativo) return <FinanceiroClienteIndisponivel semVinculo={!cliente} />;
+    return <FinanceiroClienteView dados={await financeiroDoClienteNoBanco(cliente.clienteId)} />;
+  }
+
   const podeVer = await podeVerFinanceiro(user);
   // Botão do Guia de uso: eixo interno × externo, NÃO `podeVerFinanceiro`. Quem cai no "Meu
   // extrato" por não gerir o Financeiro (projetista PJ, por exemplo) é exatamente o leitor que o
@@ -184,7 +200,7 @@ export default async function FinanceiroPage({
     );
   }
 
-  // Sem visão completa → extrato próprio (projetista/freelancer/cliente).
+  // Sem visão completa → extrato próprio (projetista/freelancer; o cliente saiu acima).
   const podeExtrato = await can(user, "financeiro", "extrato");
   if (!podeExtrato) redirect("/sem-permissao");
 
