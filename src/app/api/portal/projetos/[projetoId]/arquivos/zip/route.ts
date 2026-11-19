@@ -77,6 +77,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
   return new NextResponse(stream, {
     headers: {
       "Content-Type": "application/zip",
+      "X-Content-Type-Options": "nosniff",
       "Content-Disposition": contentDisposition("attachment", nome),
     },
   });

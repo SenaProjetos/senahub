@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { createReadStream, promises as fs, type ReadStream } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -29,9 +29,18 @@ async function lerTudo(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
 
 describe("zipEmStream", () => {
   it("monta um .zip com os arquivos, nos nomes pedidos", async () => {
-    const zip = await lerTudo(zipEmStream([{ caminho: path.join(dir, "a.txt"), nome: "Pasta/Memória A.txt" }]));
+    const zip = await lerTudo(
+      zipEmStream([
+        { caminho: path.join(dir, "a.txt"), nome: "Pasta/Memória A.txt" },
+        { caminho: path.join(dir, "grande.bin"), nome: "Pasta/grande.bin" },
+        { caminho: path.join(dir, "a.txt"), nome: "Outra/A de novo.txt" },
+      ]),
+    );
     expect(zip.subarray(0, 2).toString()).toBe("PK");
-    expect(zip.includes(Buffer.from("Pasta/Memória A.txt"))).toBe(true);
+    for (const nome of ["Pasta/Memória A.txt", "Pasta/grande.bin", "Outra/A de novo.txt"]) {
+      expect(zip.includes(Buffer.from(nome)), nome).toBe(true);
+    }
+    expect(zip.length).toBeGreaterThan(8 * 1024 * 1024);
   });
 
   it("cancelar no meio encerra sem erro solto e sem ler o resto", async () => {
@@ -53,4 +62,27 @@ describe("zipEmStream", () => {
     }
   });
 
+
+  it("cancelar fecha o arquivo que estava sendo lido e não abre os seguintes", async () => {
+    const abertos: ReadStream[] = [];
+    const abrir = (p: string) => {
+      const rs = createReadStream(p);
+      abertos.push(rs);
+      return rs;
+    };
+    const grande = path.join(dir, "grande.bin");
+    const leitor = zipEmStream(
+      [
+        { caminho: grande, nome: "1.bin" },
+        { caminho: grande, nome: "2.bin" },
+      ],
+      abrir,
+    ).getReader();
+    await leitor.read();
+    await leitor.cancel();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(abertos.length).toBe(1);
+    // Aberto e parado no meio prenderia o arquivo no Windows (renomear, substituir, lixeira) até reiniciar o servidor.
+    expect(abertos.every((rs) => rs.destroyed)).toBe(true);
+  });
 });
