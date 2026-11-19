@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { salvarStream, nomeArquivoLimpo, removerArquivo } from "@/lib/storage";
+import { extensaoSegura, limitarStream, nomeArquivoLimpo, removerArquivo, salvarStream } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 import { clienteDoUsuario } from "@/modules/portal/queries";
@@ -33,10 +33,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Arquivo excede ${TAMANHO_MAX_LABEL}.` }, { status: 413 });
   }
 
+  // Sem `Content-Length` (envio chunked) o teto acima não vale: o corpo passa por um contador que para no
+  // mesmo limite antes de o `formData()` juntar tudo.
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
+    if (!req.body) throw new Error("sem corpo");
+    const corpo = limitarStream(req.body, TAMANHO_MAX + FOLGA_MULTIPART);
+    form = await new Request(req.url, { method: "POST", headers: req.headers, body: corpo, duplex: "half" } as RequestInit).formData();
+  } catch (erro) {
+    if (erro instanceof Error && erro.message === "Arquivo acima do limite.") {
+      return NextResponse.json({ error: `Arquivo excede ${TAMANHO_MAX_LABEL}.` }, { status: 413 });
+    }
     return NextResponse.json({ error: "Falha ao receber o arquivo." }, { status: 413 });
   }
 
@@ -57,7 +64,8 @@ export async function POST(req: Request) {
   }
 
   const nome = nomeArquivoLimpo(file.name || "arquivo");
-  const ext = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
+  // Só extensão simples no nome do arquivo em disco (o nome original fica no registro).
+  const ext = extensaoSegura(nome);
   const rel = `documentos/${cliente.clienteId}/${randomBytes(12).toString("hex")}${ext}`;
   // Grava em pedaços, sem copiar o arquivo para um Buffer.
   let salvo: Awaited<ReturnType<typeof salvarStream>>;

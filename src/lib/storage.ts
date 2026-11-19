@@ -35,6 +35,35 @@ export function slug(s: string): string {
   );
 }
 
+/**
+ * Extensão do nome enviado pelo cliente, só se for simples (`.pdf`, `.ifc`: letras e dígitos, até 10), em
+ * minúsculas. Qualquer outra coisa vira "" — `.pdf:x` abriria um stream NTFS e caractere inválido daria erro
+ * do Windows no meio da gravação.
+ */
+export function extensaoSegura(nome: string): string {
+  const i = nome.lastIndexOf(".");
+  if (i < 0) return "";
+  const ext = nome.slice(i);
+  return /^\.[a-z0-9]{1,10}$/i.test(ext) ? ext.toLowerCase() : "";
+}
+
+/**
+ * Passa o stream adiante e erra com "Arquivo acima do limite." quando passar de `limite` bytes. Para o corpo
+ * de um pedido sem `Content-Length` (chunked), que de outro modo seria lido inteiro antes de qualquer teto.
+ */
+export function limitarStream(origem: ReadableStream<Uint8Array>, limite: number): ReadableStream<Uint8Array> {
+  let total = 0;
+  return origem.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        total += chunk.byteLength;
+        if (total > limite) controller.error(new Error("Arquivo acima do limite."));
+        else controller.enqueue(chunk);
+      },
+    }),
+  );
+}
+
 /** Mantém só o nome do arquivo, descartando qualquer caminho original (Windows ou POSIX). */
 export function nomeArquivoLimpo(nome: string): string {
   const semCaminho = nome.split(/[\\/]/).pop() ?? nome;

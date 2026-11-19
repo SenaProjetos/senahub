@@ -16,8 +16,51 @@ const {
   arquivoParaStream,
   separarPorExistencia,
   salvarStream,
+  limitarStream,
+  extensaoSegura,
   SUFIXO_GRAVACAO_PARCIAL,
 } = await import("@/lib/storage");
+
+describe("storage — limitarStream (corpo sem Content-Length também tem teto)", () => {
+  const ler = async (s: ReadableStream<Uint8Array>) => {
+    const r = s.getReader();
+    let n = 0;
+    for (;;) {
+      const { done, value } = await r.read();
+      if (done) return n;
+      n += value.byteLength;
+    }
+  };
+  const de = (...tamanhos: number[]) =>
+    new ReadableStream<Uint8Array>({
+      start(c) {
+        for (const t of tamanhos) c.enqueue(new Uint8Array(t));
+        c.close();
+      },
+    });
+
+  it("dentro do limite passa inteiro", async () => {
+    expect(await ler(limitarStream(de(10, 5), 15))).toBe(15);
+  });
+
+  it("passou do limite: erra com a mensagem do limite", async () => {
+    await expect(ler(limitarStream(de(10, 6), 15))).rejects.toThrow("Arquivo acima do limite.");
+  });
+});
+
+describe("storage — extensaoSegura (extensão do nome enviado pelo cliente)", () => {
+  it("mantém extensão simples, em minúsculas", () => {
+    expect(extensaoSegura("Planta Baixa.PDF")).toBe(".pdf");
+    expect(extensaoSegura("modelo.ifc")).toBe(".ifc");
+  });
+  it("descarta o que não é extensão simples (stream NTFS, caractere inválido, longa demais, sem ponto)", () => {
+    expect(extensaoSegura("a.pdf:x")).toBe("");
+    expect(extensaoSegura("a.p<d")).toBe("");
+    expect(extensaoSegura("a.abcdefghijk")).toBe("");
+    expect(extensaoSegura("sem-extensao")).toBe("");
+    expect(extensaoSegura("arquivo.")).toBe("");
+  });
+});
 
 describe("storage — salvarStream (grava sem juntar o arquivo inteiro na memória)", () => {
   const streamDe = (partes: Buffer[], falharNo?: number) =>
