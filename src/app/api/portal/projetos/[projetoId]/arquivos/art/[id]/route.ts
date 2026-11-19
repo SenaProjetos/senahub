@@ -38,11 +38,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
   });
 
   const inline = new URL(req.url).searchParams.get("disposition") === "inline";
-  return new NextResponse(arquivo.abrir(), {
-    headers: {
-      "Content-Length": String(arquivo.tamanho),
-      "Content-Type": "application/pdf",
-      "Content-Disposition": contentDisposition(inline ? "inline" : "attachment", art.nome),
-    },
-  });
+  // Cabeçalhos antes de abrir o arquivo: se algo lançasse depois do `abrir()`, o stream ficaria aberto
+  // (no Windows, o arquivo travado).
+  const headers = {
+    "Content-Length": String(arquivo.tamanho),
+    "Content-Type": "application/pdf",
+    "Content-Disposition": contentDisposition(inline ? "inline" : "attachment", art.nome),
+  };
+  return new NextResponse(arquivo.abrir(), { headers });
 }

@@ -138,7 +138,9 @@ function EntregasCarregando() {
         <CardTitle className="text-base">Entregas</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <span className="sr-only">Carregando as entregas…</span>
+        <span role="status" className="sr-only">
+          Carregando as entregas…
+        </span>
         <Skeleton className="h-5 w-1/3" />
         <Skeleton className="h-9 w-full" />
         <Skeleton className="h-9 w-full" />

@@ -55,12 +55,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
     linkId: null,
   });
   const disposition = inline ? "inline" : "attachment";
-  return new NextResponse(arquivo.abrir(), {
-    headers: {
-      "Content-Length": String(arquivo.tamanho),
-      "Content-Type": upload.mimeType || "application/octet-stream",
-      "Content-Disposition": contentDisposition(disposition, upload.nomeArquivo),
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  // Cabeçalhos antes de abrir o arquivo: se algo lançasse depois do `abrir()`, o stream ficaria aberto
+  // (no Windows, o arquivo travado).
+  const headers = {
+    "Content-Length": String(arquivo.tamanho),
+    "Content-Type": upload.mimeType || "application/octet-stream",
+    "Content-Disposition": contentDisposition(disposition, upload.nomeArquivo),
+    "X-Content-Type-Options": "nosniff",
+  };
+  return new NextResponse(arquivo.abrir(), { headers });
 }

@@ -311,6 +311,11 @@ describe("contentDisposition", () => {
     expect(h.split("filename*=UTF-8''")[1]).toBe("it%27s%20%281%29%2A.pdf");
   });
 
+  it("surrogate solitário no nome não derruba a rota (encodeURIComponent lançaria URIError)", () => {
+    const h = contentDisposition("attachment", "a\uD800b.pdf");
+    expect(h.split("filename*=UTF-8''")[1]).toBe("a%EF%BF%BDb.pdf");
+  });
+
   it("nome sem nenhum caractere ASCII ainda tem filename de reserva", () => {
     const reserva = /filename="([^"]*)"/.exec(contentDisposition("attachment", "图纸.pdf"))?.[1];
     expect(reserva).toBe("__.pdf");

@@ -213,7 +213,9 @@ export function contentDisposition(tipo: "inline" | "attachment", nomeArquivo: s
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^\x20-\x7e]|["\\]/g, "_");
-  const codificado = encodeURIComponent(nomeArquivo).replace(
+  // Surrogate solitário (nome mal gravado) vira U+FFFD: `encodeURIComponent` lançaria URIError.
+  const bemFormado = nomeArquivo.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
+  const codificado = encodeURIComponent(bemFormado).replace(
     /['()*]/g,
     (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
   );
