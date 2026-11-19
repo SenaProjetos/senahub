@@ -420,15 +420,16 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
 }
 
 /**
- * Link do token, já vigente, no formato que o núcleo lê. `null` = token inexistente, revogado ou
- * expirado — a mesma resposta para os três, para não revelar se o link já existiu.
+ * Link do token, já vigente, no formato que o núcleo lê. `null` = token inexistente, revogado,
+ * expirado ou de projeto de cliente desativado no cadastro (decisão do dono, 2026-11-18) — a mesma
+ * resposta para todos, para não revelar se o link já existiu.
  */
 async function alcanceDoToken(token: string): Promise<AlcanceArquivos | null> {
   const link = await prisma.linkPublicoArquivos.findUnique({
     where: { token },
-    include: { projeto: { select: { codigo: true, nome: true } } },
+    include: { projeto: { select: { codigo: true, nome: true, cliente: { select: { ativo: true } } } } },
   });
-  if (!link || !linkVigente(link)) return null;
+  if (!link || !linkVigente(link) || !link.projeto.cliente.ativo) return null;
   return {
     projetoId: link.projetoId,
     projeto: { codigo: link.projeto.codigo, nome: link.projeto.nome },

@@ -247,7 +247,12 @@ async function main() {
       "cliente desativado: escopo de projeto do cliente vazio",
       (await prisma.projeto.count({ where: { id: p1.id, ...escopoProjeto(viewer) } })) === 0,
     );
+    // O link público do projeto também fecha (página, arquivo, ART e .zip pela mesma porta do token).
+    check("cliente desativado: link público não abre", (await conteudoPublicoPorToken(link.token)) === null);
+    check("cliente desativado: arquivo pelo link não sai", (await uploadLiberadoNoLink(link.token, a.up.id)) === null);
+    check("cliente desativado: ART pelo link não sai", (await artLiberadaNoLink(link.token, art.id)) === null);
     await prisma.cliente.update({ where: { id: cliente.id }, data: { ativo: true } });
+    check("cliente reativado: link público volta", (await conteudoPublicoPorToken(link.token)) !== null);
     check("cliente reativado: conta lida como ativa", (await clienteDoUsuario(portal.id))?.ativo === true);
     check("cliente reativado: projeto abre de novo", (await projetoDoCliente(cliente.id, p1.id)) !== null);
     check(
