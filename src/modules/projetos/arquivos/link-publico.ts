@@ -599,8 +599,9 @@ export async function uploadLiberadoNoAlcance(link: AlcanceArquivos, uploadId: s
 
   if (link.escopo === "selecao") {
     if (!link.uploadIds.includes(uploadId)) return null;
+    // Defesa extra: mesmo na lista do link, só sai upload de uma disciplina do projeto do link.
     return prisma.upload.findFirst({
-      where: { id: uploadId, excluidoEm: null },
+      where: { id: uploadId, excluidoEm: null, disciplina: { projetoId: link.projetoId } },
       select: servivel,
     });
   }
@@ -708,6 +709,8 @@ export async function uploadsDoAlcanceParaZip(link: AlcanceArquivos, recorte: Re
       where: {
         id: { in: link.uploadIds },
         excluidoEm: null,
+        // Defesa extra: só uploads de disciplinas do projeto do link, como em `uploadLiberadoNoAlcance`.
+        disciplina: { projetoId: link.projetoId },
         ...(disciplinaId ? { disciplinaId } : {}),
       },
       orderBy: [{ disciplina: { ordem: "asc" } }, { nomeArquivo: "asc" }],

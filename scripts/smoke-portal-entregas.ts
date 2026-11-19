@@ -16,7 +16,7 @@ import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
-import { alcanceDoPortal } from "../src/modules/projetos/arquivos/link-publico-regras";
+import { alcanceDoPortal, type AlcanceArquivos } from "../src/modules/projetos/arquivos/link-publico-regras";
 import {
   artLiberadaNoAlcance,
   artLiberadaNoLink,
@@ -170,6 +170,23 @@ async function main() {
     // A rota do link grava o linkId na auditoria e no histórico, nunca o token.
     check("download pelo link traz o linkId do link", (await uploadLiberadoNoLink(link.token, a.up.id))?.linkId === link.id);
     check("ART pelo link traz o linkId do link", (await artLiberadaNoLink(link.token, art.id))?.linkId === link.id);
+
+    // ── link de seleção: upload de outro projeto na lista nunca sai (defesa extra) ──
+    const selecao: AlcanceArquivos = {
+      ...alcanceDoPortal({ id: p1.id, codigo: p1.codigo, nome: p1.nome }),
+      escopo: "selecao",
+      porSituacao: false,
+      uploadIds: [a.up.id, deP3.up.id],
+    };
+    check("seleção: upload do projeto do link abre", (await uploadLiberadoNoAlcance(selecao, a.up.id)) !== null);
+    check("seleção: upload de outro projeto na lista não abre", (await uploadLiberadoNoAlcance(selecao, deP3.up.id)) === null);
+    const zipSelecao = await uploadsDoAlcanceParaZip(selecao);
+    check(
+      "seleção: .zip leva só o upload do projeto do link",
+      JSON.stringify(zipSelecao?.entradas.map((e) => e.uploadId)) === JSON.stringify([a.up.id]),
+    );
+    const soAlheio = await uploadsDoAlcanceParaZip({ ...selecao, uploadIds: [deP3.up.id] });
+    check("seleção: .zip só com upload de outro projeto → nada", soAlheio === null);
 
     // ── quem entra: a regra pura ligada ao banco ──
     const portal = await prisma.user.create({
