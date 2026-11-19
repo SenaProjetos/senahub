@@ -73,8 +73,8 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
       ) : (
         <FileIcon className="size-4 shrink-0 text-muted-foreground" />
       )}
-      {/* No celular a marca desce para a linha de baixo: lado a lado ela comeria o nome do arquivo. O motivo vai
-          em texto visível embaixo (no toque não há `title`), cortado numa linha, inteiro na dica. */}
+      {/* No celular a marca desce para a linha de baixo: lado a lado ela comeria o nome do arquivo. "Em revisão"
+          aparece uma vez só, no selo; o motivo vai em texto visível embaixo, inteiro (no toque não há `title`). */}
       <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
         <span className="flex max-w-full min-w-0 flex-col items-start gap-0.5 sm:flex-row sm:items-center sm:gap-2">
           <span className="max-w-full truncate" title={arquivo.nome}>
@@ -83,14 +83,19 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
           {arquivo.emRevisao !== null && (
             <span
               className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_CONTROLE.em_revisao))}
-              title={arquivo.emRevisao ? `Em revisão: ${arquivo.emRevisao}` : "Em revisão"}
             >
               Em revisão
             </span>
           )}
           {arquivo.bloqueado && (
             <span
-              className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_CONTROLE.bloqueio))}
+              // Texto no `foreground` (o vermelho fica no contorno e no fundo): o `text-destructive` sobre o próprio
+              // fundo dava 4,47:1 no claro e 4,01:1 no escuro, abaixo do AA para 10 px.
+              className={cn(
+                "shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none",
+                classeDoStatus(COR_CONTROLE.bloqueio),
+                "text-foreground",
+              )}
               title="Esta revisão está bloqueada para download. Fale com a equipe do projeto."
             >
               Download bloqueado
@@ -98,9 +103,7 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
           )}
         </span>
         {arquivo.emRevisao && (
-          <span className="max-w-full truncate text-xs text-muted-foreground" title={`Em revisão: ${arquivo.emRevisao}`}>
-            Em revisão: {arquivo.emRevisao}
-          </span>
+          <span className="max-w-full text-xs break-words text-muted-foreground">Motivo: {arquivo.emRevisao}</span>
         )}
       </span>
       <span className="shrink-0 font-mono text-xs text-muted-foreground" title={`Revisão ${arquivo.versao}`}>
