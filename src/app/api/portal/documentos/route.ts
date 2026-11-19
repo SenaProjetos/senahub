@@ -2,15 +2,16 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
+import { salvarArquivo, nomeArquivoLimpo, removerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 import { clienteDoUsuario } from "@/modules/portal/queries";
+import { acessoDoUsuarioAoProjetoDoPortal } from "@/modules/portal/acesso";
 
 /**
  * Upload do cliente logado (portal) para um projeto SEU. Cria
  * `Documento(origem=recebido_cliente, canal=portal)` ancorado no projeto.
- * Escopo estrito: o projeto precisa pertencer ao `clienteId` do usuário.
+ * Escopo estrito: o projeto precisa pertencer ao `clienteId` do usuário (`acessoDoUsuarioAoProjetoDoPortal`).
  */
 export async function POST(req: Request) {
   const session = await getSession();
@@ -31,9 +32,14 @@ export async function POST(req: Request) {
   }
 
   const projetoId = String(form.get("projetoId") ?? "");
-  // Escopo: o projeto tem que ser do cliente do próprio usuário.
-  const projeto = await prisma.projeto.findFirst({ where: { id: projetoId, clienteId: cliente.clienteId }, select: { id: true } });
-  if (!projeto) return NextResponse.json({ error: "Projeto não encontrado." }, { status: 404 });
+  // Mesma porta dos downloads do portal: projeto do cliente, cliente ativo, senha e termo em dia (a rota não
+  // passa pelo layout, que cobra senha e termo nas telas).
+  const acesso = await acessoDoUsuarioAoProjetoDoPortal(user, projetoId);
+  if (!acesso.ok) {
+    const erro = acesso.status === 404 ? "Projeto não encontrado." : acesso.erro;
+    return NextResponse.json({ error: erro }, { status: acesso.status });
+  }
+  const projeto = { id: projetoId };
 
   const file = form.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "Arquivo ausente." }, { status: 400 });
@@ -46,26 +52,32 @@ export async function POST(req: Request) {
   const rel = `documentos/${cliente.clienteId}/${randomBytes(12).toString("hex")}${ext}`;
   const salvo = await salvarArquivo(rel, Buffer.from(await file.arrayBuffer()));
 
-  const doc = await prisma.documento.create({
-    data: {
-      clienteId: cliente.clienteId,
-      projetoId: projeto.id,
-      origem: "recebido_cliente",
-      canal: "portal",
-      nome,
-      autorId: user.id,
-      versoes: {
-        create: {
-          numero: 1,
-          caminho: salvo.caminho,
-          nomeArquivo: nome,
-          mime: file.type || "application/octet-stream",
-          tamanho: salvo.tamanho,
-          hashSha256: salvo.hashSha256,
+  // Falhou ao gravar o registro: apaga o arquivo, senão ele ficaria no disco sem dono.
+  const doc = await prisma.documento
+    .create({
+      data: {
+        clienteId: cliente.clienteId,
+        projetoId: projeto.id,
+        origem: "recebido_cliente",
+        canal: "portal",
+        nome,
+        autorId: user.id,
+        versoes: {
+          create: {
+            numero: 1,
+            caminho: salvo.caminho,
+            nomeArquivo: nome,
+            mime: file.type || "application/octet-stream",
+            tamanho: salvo.tamanho,
+            hashSha256: salvo.hashSha256,
+          },
         },
       },
-    },
-  });
+    })
+    .catch(async (erro: unknown) => {
+      await removerArquivo(salvo.caminho);
+      throw erro;
+    });
 
   await logAudit({
     userId: user.id,
