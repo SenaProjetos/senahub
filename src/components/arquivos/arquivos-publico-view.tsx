@@ -15,19 +15,13 @@ import {
 } from "lucide-react";
 import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
 import { FASE_TODAS } from "@/modules/uploads/arvore-navegacao";
-import { cn, rotuloRevisao } from "@/lib/utils";
+import { cn, formatarBytes, rotuloRevisao } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { COR_CONTROLE } from "@/modules/uploads/ciclo/estados";
 import { conteudoTemZip, temArquivoBaixavel } from "@/modules/projetos/arquivos/link-publico-regras";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
-
-function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 type ArquivoPublicoView = ConteudoPublico["disciplinas"][number]["pastas"][number]["extensoes"][number]["arquivos"][number];
 
@@ -118,7 +112,7 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
       <span className="shrink-0 font-mono text-xs text-muted-foreground" title={`Revisão ${arquivo.versao}`}>
         {rotuloRevisao(arquivo.versao)}
       </span>
-      <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(arquivo.tamanho)}</span>
+      <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(arquivo.tamanho)}</span>
       {arquivo.ehPdf && baixavel && (
         <a
           href={`${base}/${arquivo.id}?disposition=inline`}

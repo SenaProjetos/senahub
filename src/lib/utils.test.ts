@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { brl, brlComSinal, brlInteiro, formatarData, formatarDataHora, formatarMesCurto, formatarDiaMes, rotuloRevisao } from "@/lib/utils";
+import { brl, brlComSinal, brlInteiro, formatarData, formatarDataHora, formatarMesCurto, formatarDiaMes, rotuloRevisao, formatarBytes } from "@/lib/utils";
 
 // normaliza espaço estreito/insecável que o Intl usa em pt-BR
 const norm = (s: string) => s.replace(/ | /g, " ");
@@ -78,5 +78,16 @@ describe("rotuloRevisao", () => {
 
   it("número fora da faixa não gera rótulo negativo", () => {
     expect(rotuloRevisao(0)).toBe("R00");
+  });
+});
+
+describe("formatarBytes", () => {
+  it("bytes e KB inteiros", () => {
+    expect(formatarBytes(193)).toBe("193 B");
+    expect(formatarBytes(1536)).toBe("2 KB");
+  });
+  it("MB com uma casa e vírgula decimal", () => {
+    expect(formatarBytes(1.5 * 1024 * 1024)).toBe("1,5 MB");
+    expect(formatarBytes(12 * 1024 * 1024)).toBe("12,0 MB");
   });
 });

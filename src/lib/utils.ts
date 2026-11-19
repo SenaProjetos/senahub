@@ -71,3 +71,10 @@ export function formatarDiaMes(d: Date | string | null | undefined): string {
   const date = paraData(d)
   return date ? date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : ""
 }
+
+/** Tamanho de arquivo em pt-BR: B e KB inteiros, MB com uma casa e vírgula ("1,5 MB"). */
+export function formatarBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1).replace(".", ",")} MB`;
+}
