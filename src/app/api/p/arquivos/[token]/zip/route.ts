@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { contentDisposition } from "@/modules/projetos/arquivos/link-publico-regras";
-import { ZipArchive } from "archiver";
 import { uploadsDoLinkParaZip } from "@/modules/projetos/arquivos/link-publico";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 import { prisma } from "@/lib/prisma";
 import { resolverCaminho, separarPorExistencia } from "@/lib/storage";
+import { zipEmStream } from "@/lib/zip-stream";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
@@ -58,21 +58,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     via: "zip",
   });
 
-  const archive = new ZipArchive({ zlib: { level: 6 } });
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      archive.on("data", (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
-      archive.on("end", () => controller.close());
-      archive.on("warning", (err) => console.warn("[zip] warning:", err));
-      archive.on("error", (err) => {
-        console.error("[zip] erro no archiver:", err);
-        controller.error(err);
-      });
-      // `entradas` já passou por `separarPorExistencia` (e por `resolverCaminho`).
-      for (const e of entradas) archive.file(resolverCaminho(e.caminho), { name: e.nome });
-      void archive.finalize();
-    },
-  });
+  // `entradas` já passou por `separarPorExistencia` (e por `resolverCaminho`).
+  const stream = zipEmStream(entradas.map((e) => ({ caminho: resolverCaminho(e.caminho), nome: e.nome })));
 
   // O nome do arquivo acompanha a pasta pedida, senão três downloads diferentes chegam na
   // pasta de Downloads do cliente com o mesmo nome.
