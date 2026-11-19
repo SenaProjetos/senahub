@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { formatarData } from "@/lib/utils";
 import { notFound, redirect } from "next/navigation";
 import { CalendarDays, Download, FileStack, MapPin, FolderOpen } from "lucide-react";
@@ -17,6 +18,8 @@ import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { LimiteErroEntregas } from "@/components/portal/limite-erro-entregas";
 
 export const metadata: Metadata = { title: "Projeto" };
 
@@ -35,14 +38,7 @@ export default async function PortalProjetoPage({
   const { projetoId } = await params;
   const projeto = await projetoDoCliente(u.clienteId, projetoId);
   if (!projeto) notFound();
-  const [recebidos, entregas] = await Promise.all([
-    recebidosDoProjeto(projetoId),
-    conteudoDoAlcance(alcanceDoPortal(projeto)),
-  ]);
-  const totalEntregas = entregas
-    ? entregas.situacoes.reduce((n, s) => n + s.total, 0) + entregas.arts.length
-    : 0;
-  const base = `/api/portal/projetos/${projeto.id}/arquivos`;
+  const recebidos = await recebidosDoProjeto(projetoId);
 
   return (
     <div className="space-y-6">
@@ -91,27 +87,63 @@ export default async function PortalProjetoPage({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
-          <CardTitle className="text-base">Entregas</CardTitle>
-          {entregas && conteudoTemZip(entregas) && (
-            <Button size="sm" variant="outline" render={<a href={`${base}/zip`} rel="noopener" />}>
-              <Download className="size-4" /> Baixar tudo (.zip)
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="p-2 pt-0">
-          {entregas && totalEntregas > 0 ? (
-            <div className="divide-y">
-              <ArvoreEntregas base={base} conteudo={entregas} />
-            </div>
-          ) : (
-            <EmptyState icon={FileStack} title="Nenhuma prancha compartilhada ainda." />
-          )}
-        </CardContent>
-      </Card>
+      {/* Entregas carregam à parte: enquanto isso o esqueleto; um erro aqui fica só neste card. */}
+      <LimiteErroEntregas>
+        <Suspense fallback={<EntregasCarregando />}>
+          <EntregasDoProjeto projeto={projeto} />
+        </Suspense>
+      </LimiteErroEntregas>
 
       <PortalDocumentos projetoId={projeto.id} docs={recebidos} />
     </div>
+  );
+}
+
+type ProjetoDoPortal = NonNullable<Awaited<ReturnType<typeof projetoDoCliente>>>;
+
+/** Card "Entregas": as pastas do cliente pelo mesmo núcleo do link público. */
+async function EntregasDoProjeto({ projeto }: { projeto: ProjetoDoPortal }) {
+  const entregas = await conteudoDoAlcance(alcanceDoPortal(projeto));
+  const totalEntregas = entregas
+    ? entregas.situacoes.reduce((n, s) => n + s.total, 0) + entregas.arts.length
+    : 0;
+  const base = `/api/portal/projetos/${projeto.id}/arquivos`;
+  return (
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+        <CardTitle className="text-base">Entregas</CardTitle>
+        {entregas && conteudoTemZip(entregas) && (
+          <Button size="sm" variant="outline" render={<a href={`${base}/zip`} rel="noopener" />}>
+            <Download className="size-4" /> Baixar tudo (.zip)
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="p-2 pt-0">
+        {entregas && totalEntregas > 0 ? (
+          <div className="divide-y">
+            <ArvoreEntregas base={base} conteudo={entregas} />
+          </div>
+        ) : (
+          <EmptyState icon={FileStack} title="Nenhuma prancha compartilhada ainda." />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function EntregasCarregando() {
+  return (
+    <Card aria-busy="true">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Entregas</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <span className="sr-only">Carregando as entregas…</span>
+        <Skeleton className="h-5 w-1/3" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-full" />
+        <Skeleton className="h-9 w-2/3" />
+      </CardContent>
+    </Card>
   );
 }
