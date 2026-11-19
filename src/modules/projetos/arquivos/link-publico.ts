@@ -320,8 +320,8 @@ async function conteudoDaSelecao(
   if (uploadIds.length === 0) return [];
   const [uploads, extensoes] = await Promise.all([
     prisma.upload.findMany({
-      // Só uploads de disciplinas do projeto do link, como no download e no .zip.
-      where: { id: { in: uploadIds }, excluidoEm: null, disciplina: { projetoId } },
+      // Só uploads validados de disciplinas do projeto do link, como no download, no .zip e nos outros escopos.
+      where: { id: { in: uploadIds }, validado: true, excluidoEm: null, disciplina: { projetoId } },
       orderBy: [{ disciplina: { ordem: "asc" } }, { nomeArquivo: "asc" }],
       select: {
         id: true,
@@ -627,9 +627,10 @@ export async function uploadLiberadoNoAlcance(link: AlcanceArquivos, uploadId: s
 
   if (link.escopo === "selecao") {
     if (!link.uploadIds.includes(uploadId)) return null;
-    // Defesa extra: mesmo na lista do link, só sai upload de uma disciplina do projeto do link.
+    // Defesa extra: mesmo na lista do link, só sai upload validado de uma disciplina do projeto do link
+    // (desvalidado depois de escolhido sai do link, como nos outros escopos).
     return prisma.upload.findFirst({
-      where: { id: uploadId, excluidoEm: null, disciplina: { projetoId: link.projetoId } },
+      where: { id: uploadId, validado: true, excluidoEm: null, disciplina: { projetoId: link.projetoId } },
       select: servivel,
     });
   }
@@ -736,6 +737,7 @@ export async function uploadsDoAlcanceParaZip(link: AlcanceArquivos, recorte: Re
     const uploads = await prisma.upload.findMany({
       where: {
         id: { in: link.uploadIds },
+        validado: true,
         excluidoEm: null,
         // Defesa extra: só uploads de disciplinas do projeto do link, como em `uploadLiberadoNoAlcance`.
         disciplina: { projetoId: link.projetoId },

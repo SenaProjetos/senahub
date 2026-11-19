@@ -203,6 +203,19 @@ async function main() {
       d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos.map((x) => x.id))),
     );
     check("seleção: a página lista só o upload do projeto do link", JSON.stringify(naPagina) === JSON.stringify([a.up.id]));
+    // Upload escolhido e depois desvalidado: sai do link, como nos outros escopos.
+    const naoValidado = await entrega(p1.disciplinaId, "naovalidado");
+    await prisma.upload.update({ where: { id: naoValidado.up.id }, data: { validado: false } });
+    const selecaoComNaoValidado = { ...selecao, uploadIds: [a.up.id, naoValidado.up.id] };
+    check("seleção: upload desvalidado não abre", (await uploadLiberadoNoAlcance(selecaoComNaoValidado, naoValidado.up.id)) === null);
+    check(
+      "seleção: upload desvalidado fora do .zip",
+      JSON.stringify((await uploadsDoAlcanceParaZip(selecaoComNaoValidado))?.entradas.map((e) => e.uploadId)) === JSON.stringify([a.up.id]),
+    );
+    const naPagina2 = ((await conteudoDoAlcance(selecaoComNaoValidado))?.disciplinas ?? []).flatMap((d) =>
+      d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos.map((x) => x.id))),
+    );
+    check("seleção: upload desvalidado fora da página", JSON.stringify(naPagina2) === JSON.stringify([a.up.id]));
 
     // ── quem entra: a regra pura ligada ao banco ──
     const portal = await prisma.user.create({
