@@ -1,7 +1,9 @@
 "use client";
 
-import { Component, type ReactNode } from "react";
-import { AlertTriangle } from "lucide-react";
+import { Component, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { AlertTriangle, RotateCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
@@ -17,7 +19,8 @@ export class LimiteErroEntregas extends Component<{ children: ReactNode }, { err
   }
 
   componentDidCatch(error: unknown) {
-    console.error("[portal] erro no card Entregas:", error);
+    // Em produção a mensagem vem censurada; o `digest` cruza com o log do servidor.
+    console.error("[portal] erro no card Entregas:", error, (error as { digest?: string })?.digest ?? "");
   }
 
   render() {
@@ -27,13 +30,35 @@ export class LimiteErroEntregas extends Component<{ children: ReactNode }, { err
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Entregas</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
           <p role="alert" className="flex items-start gap-2 text-sm text-muted-foreground">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
-            Não foi possível carregar as entregas agora. Recarregue a página para tentar de novo.
+            Não foi possível carregar as entregas agora. Tente de novo; se continuar, fale com a equipe do projeto.
           </p>
+          <TentarDeNovo aoTentar={() => this.setState({ erro: false })} />
         </CardContent>
       </Card>
     );
   }
+}
+
+/** Busca as entregas de novo no servidor e só então tira o erro (o padrão do `reset` do Next). */
+function TentarDeNovo({ aoTentar }: { aoTentar: () => void }) {
+  const router = useRouter();
+  const [pendente, startTransition] = useTransition();
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={pendente}
+      onClick={() =>
+        startTransition(() => {
+          router.refresh();
+          aoTentar();
+        })
+      }
+    >
+      <RotateCw className={pendente ? "size-4 animate-spin" : "size-4"} aria-hidden /> Tentar de novo
+    </Button>
+  );
 }

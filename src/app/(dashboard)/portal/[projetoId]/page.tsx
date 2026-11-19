@@ -124,7 +124,11 @@ async function EntregasDoProjeto({ projeto }: { projeto: ProjetoDoPortal }) {
             <ArvoreEntregas base={base} conteudo={entregas} />
           </div>
         ) : (
-          <EmptyState icon={FileStack} title="Nenhuma prancha compartilhada ainda." />
+          <EmptyState
+            icon={FileStack}
+            title="Nenhuma prancha compartilhada ainda."
+            description="Quando a equipe compartilhar pranchas com você, elas aparecem aqui."
+          />
         )}
       </CardContent>
     </Card>
