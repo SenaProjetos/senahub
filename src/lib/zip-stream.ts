@@ -16,7 +16,8 @@ export type FimDoZip = "completo" | "interrompido";
  *   Só `abort()` não basta — ele espera a entrada em andamento terminar, e ela fica parada para sempre com o
  *   arquivo aberto (no Windows, preso para renomear, substituir e lixeira até reiniciar o servidor).
  *
- * `aoFim` diz como terminou: `completo` só quando o cliente leu o pacote inteiro; `interrompido` se cancelou
+ * `aoFim` diz como terminou: `completo` só quando o último pedaço foi entregue a quem responde (aproximação
+ * do "o cliente recebeu": o que ainda estiver no buffer do socket não é visto daqui); `interrompido` se cancelou
  * ou deu erro. A auditoria e o histórico de acessos são gravados ali, não antes do primeiro byte.
  * `abrir` existe para o teste observar os arquivos abertos; as rotas usam o padrão.
  */
@@ -45,8 +46,6 @@ export function zipEmStream(
     console.error("[zip] erro no archiver:", err);
     saida.destroy(err);
   });
-  // "end" = o leitor consumiu tudo (o cliente recebeu o pacote inteiro).
-  saida.on("end", () => avisar("completo"));
   // Fechou antes de terminar = cancelado ou com erro: solta o que estiver aberto e para de vez.
   saida.on("close", () => {
     if (!saida.readableEnded) avisar("interrompido");
@@ -76,5 +75,28 @@ export function zipEmStream(
   };
   archive.on("entry", proxima);
   proxima();
-  return Readable.toWeb(saida) as ReadableStream<Uint8Array>;
+  // "completo" só quando quem responde pediu mais e o pacote acabou (o último pedaço já saiu), não quando o
+  // último pedaço entrou numa fila: a leitura é puxada sob demanda (highWaterMark 0).
+  const leitor = (Readable.toWeb(saida) as ReadableStream<Uint8Array>).getReader();
+  return new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        try {
+          const { done, value } = await leitor.read();
+          if (done) {
+            controller.close();
+            avisar("completo");
+          } else controller.enqueue(value);
+        } catch (err) {
+          avisar("interrompido");
+          controller.error(err);
+        }
+      },
+      cancel(motivo) {
+        avisar("interrompido");
+        return leitor.cancel(motivo);
+      },
+    },
+    { highWaterMark: 0 },
+  );
 }
