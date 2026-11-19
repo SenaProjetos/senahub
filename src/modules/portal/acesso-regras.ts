@@ -6,6 +6,8 @@
  * senha pendente e termo de uso do cliente sem aceite. Elas só são cobradas DEPOIS de saber que o projeto
  * é da pessoa — antes disso, tudo é o mesmo 404 neutro, que não revela se o projeto existe.
  * Perfil de acesso não entra: a regra do cliente é `tipo` + `clienteId`, como em `/api/portal/documentos`.
+ * Cliente desativado no cadastro (`Cliente.ativo = false`) cai no mesmo 404 neutro, mesmo com a conta de
+ * usuário ativa (decisão do dono, 2026-11-18).
  */
 
 export type EntradaAcessoPortal = {
@@ -16,6 +18,8 @@ export type EntradaAcessoPortal = {
   termoPendente: boolean;
   /** Cliente dono do projeto pedido; null = o projeto não existe. */
   projetoClienteId: string | null;
+  /** `Cliente.ativo` do cliente da pessoa; false = desativado no cadastro. */
+  clienteAtivo: boolean;
 };
 
 export type DecisaoAcessoPortal = { ok: true } | { ok: false; status: 401 | 403 | 404; erro: string };
@@ -29,7 +33,7 @@ export const MSG_PORTAL = {
 
 export function decidirAcessoPortal(e: EntradaAcessoPortal): DecisaoAcessoPortal {
   if (!e.temSessao) return { ok: false, status: 401, erro: MSG_PORTAL.semSessao };
-  if (e.tipo !== "externo" || !e.clienteId || e.projetoClienteId !== e.clienteId) {
+  if (e.tipo !== "externo" || !e.clienteId || !e.clienteAtivo || e.projetoClienteId !== e.clienteId) {
     return { ok: false, status: 404, erro: MSG_PORTAL.indisponivel };
   }
   if (e.mustChangePassword) return { ok: false, status: 403, erro: MSG_PORTAL.senha };

@@ -8,6 +8,7 @@ const base: EntradaAcessoPortal = {
   mustChangePassword: false,
   termoPendente: false,
   projetoClienteId: "c1",
+  clienteAtivo: true,
 };
 const indisponivel = { ok: false, status: 404, erro: "Arquivo indisponível." };
 
@@ -57,5 +58,15 @@ describe("decidirAcessoPortal", () => {
 
   it("termo/senha só depois do projeto: projeto alheio com termo pendente segue 404", () => {
     expect(decidirAcessoPortal({ ...base, projetoClienteId: "c2", termoPendente: true })).toEqual(indisponivel);
+  });
+
+  it("cliente desativado no cadastro → 404 neutro, mesmo com a conta ativa", () => {
+    expect(decidirAcessoPortal({ ...base, clienteAtivo: false })).toEqual(indisponivel);
+  });
+
+  it("cliente desativado não chega a ver cobrança de senha ou termo", () => {
+    expect(decidirAcessoPortal({ ...base, clienteAtivo: false, termoPendente: true, mustChangePassword: true })).toEqual(
+      indisponivel,
+    );
   });
 });

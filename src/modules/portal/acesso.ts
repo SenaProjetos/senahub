@@ -19,12 +19,17 @@ export async function acessoAoProjetoDoPortal(projetoId: string): Promise<Acesso
   const user = session?.user ?? null;
   const [dono, projeto] = user
     ? await Promise.all([
-        prisma.user.findUnique({ where: { id: user.id }, select: { clienteId: true } }),
+        prisma.user.findUnique({
+          where: { id: user.id },
+          select: { clienteId: true, cliente: { select: { ativo: true } } },
+        }),
         prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, codigo: true, nome: true, clienteId: true } }),
       ])
     : [null, null];
   const clienteId = dono?.clienteId ?? null;
-  const ehDoCliente = user !== null && user.tipo === "externo" && clienteId !== null && projeto?.clienteId === clienteId;
+  const clienteAtivo = dono?.cliente?.ativo ?? false;
+  const ehDoCliente =
+    user !== null && user.tipo === "externo" && clienteId !== null && clienteAtivo && projeto?.clienteId === clienteId;
   const termoPendente = ehDoCliente && user ? (await precisaAceitarTermo(user)) !== null : false;
 
   const decisao = decidirAcessoPortal({
@@ -34,6 +39,7 @@ export async function acessoAoProjetoDoPortal(projetoId: string): Promise<Acesso
     mustChangePassword: user?.mustChangePassword ?? false,
     termoPendente,
     projetoClienteId: projeto?.clienteId ?? null,
+    clienteAtivo,
   });
   if (!decisao.ok) return decisao;
   // `decisao.ok` garante sessão e projeto; a checagem é só para o TypeScript.
