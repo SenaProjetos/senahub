@@ -88,6 +88,7 @@
     "smoke:ciclo-documental": "tsx --tsconfig tsconfig.server.json scripts/smoke-ciclo-documental.ts",
     "smoke:pendencias-ciclo": "tsx --tsconfig tsconfig.server.json scripts/smoke-pendencias-ciclo.ts",
     "smoke:pastas-cliente": "tsx --tsconfig tsconfig.server.json scripts/smoke-pastas-cliente.ts",
+    "smoke:portal-entregas": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-entregas.ts",
     "smoke:vinculo-projeto-ficha": "tsx --tsconfig tsconfig.server.json scripts/smoke-vinculo-projeto-ficha.ts",
     "smoke:apagar-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-apagar-eap.ts",
     "smoke:trava-plano": "tsx --tsconfig tsconfig.server.json scripts/smoke-trava-plano.ts",

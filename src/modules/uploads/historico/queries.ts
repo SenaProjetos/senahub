@@ -89,7 +89,7 @@ export async function historicoDocumento(
       id: r.id,
       tipo: r.tipo,
       categoria: r.categoria === "acesso" ? "acesso" : "alteracao",
-      origem: r.origem === "link_publico" ? "link_publico" : "interno",
+      origem: r.origem === "link_publico" || r.origem === "portal" ? r.origem : "interno",
       // Tipo desconhecido (versão futura gravou, versão antiga lê) aparece cru em vez de sumir.
       rotulo: conhecido ? TIPOS_EVENTO[r.tipo as keyof typeof TIPOS_EVENTO].rotulo : r.tipo,
       complemento: conhecido ? complementoEvento(r.tipo as keyof typeof TIPOS_EVENTO, r.detalhe) : null,

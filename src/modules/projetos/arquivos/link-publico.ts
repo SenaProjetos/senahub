@@ -7,6 +7,7 @@ import {
   filtrarPorFases,
   recortarParaLinkPublico,
   situacoesDoUpload,
+  type AlcanceArquivos,
   type UploadParaSituacao,
 } from "./link-publico-regras";
 import { ROTULO_SITUACAO, SITUACOES, situacaoValida, type Situacao } from "@/modules/uploads/revisao-marcada";
@@ -16,6 +17,7 @@ import {
   type PastaFase,
 } from "@/modules/uploads/arvore-navegacao";
 import { carregarExtensoesNomenclatura } from "@/modules/uploads/nomenclatura/queries";
+import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 
 /**
  * Link público (sem login) de arquivos do projeto — somente ver + baixar.
@@ -70,6 +72,13 @@ export type ArquivoPublico = {
   faseNome: string | null;
   /** Motivo da marca "Em revisão" na revisão deste arquivo (o cliente pediu ajuste); `null` = sem marca. */
   emRevisao: string | null;
+  /** O que mudou nesta revisão (`DocumentoRevisao.descricao`, lida do carimbo ou digitada); `null` = sem descrição. */
+  descricaoRevisao: string | null;
+  /**
+   * Revisão com bloqueio de download ativo (ciclo documental, I7). Continua listada, com o selo, e as
+   * rotas recusam — esconder mudaria a contagem das pastas; listar sem selo daria um clique quebrado.
+   */
+  bloqueado: boolean;
 };
 /**
  * O arquivo como a PÁGINA precisa dele. Fase fica de fora de propósito: depois do agrupamento,
@@ -127,6 +136,7 @@ const DOCUMENTO_REGRAS = {
 const REVISAO_COM_MARCA = {
   select: {
     numero: true,
+    descricao: true,
     controles: { where: { tipo: "em_revisao", removidoEm: null }, select: { motivo: true }, take: 1 },
   },
 } as const;
@@ -333,7 +343,7 @@ function paraArquivoPublico(u: {
   nomeArquivo: string;
   tamanho: number;
   versao: number;
-  revisao?: { controles: { motivo: string }[] } | null;
+  revisao?: { descricao: string | null; controles: { motivo: string }[] } | null;
   documento: { fase: { id: string; sigla: string; nome: string } | null } | null;
 }): ArquivoPublico {
   return {
@@ -343,6 +353,9 @@ function paraArquivoPublico(u: {
     ehPdf: ehPdf(u.nomeArquivo),
     versao: u.versao,
     emRevisao: u.revisao?.controles[0]?.motivo ?? null,
+    descricaoRevisao: u.revisao?.descricao ?? null,
+    // Preenchido depois, numa consulta só para o conteúdo inteiro (`marcarBloqueados`).
+    bloqueado: false,
     faseId: u.documento?.fase?.id ?? null,
     faseSigla: u.documento?.fase?.sigla ?? null,
     faseNome: u.documento?.fase?.nome ?? null,
@@ -375,6 +388,8 @@ function emPastas(
           ehPdf: a.ehPdf,
           versao: a.versao,
           emRevisao: a.emRevisao,
+          descricaoRevisao: a.descricaoRevisao,
+          bloqueado: a.bloqueado,
         })),
       })),
     })),
@@ -387,18 +402,66 @@ function emPastas(
  * (a página pública trata como "link indisponível").
  */
 export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPublico | null> {
+  const alcance = await alcanceDoToken(token);
+  return alcance ? conteudoDoAlcance(alcance) : null;
+}
+
+/**
+ * Link do token, já vigente, no formato que o núcleo lê. `null` = token inexistente, revogado ou
+ * expirado — a mesma resposta para os três, para não revelar se o link já existiu.
+ */
+async function alcanceDoToken(token: string): Promise<AlcanceArquivos | null> {
   const link = await prisma.linkPublicoArquivos.findUnique({
     where: { token },
     include: { projeto: { select: { codigo: true, nome: true } } },
   });
   if (!link || !linkVigente(link)) return null;
+  return {
+    projetoId: link.projetoId,
+    projeto: { codigo: link.projeto.codigo, nome: link.projeto.nome },
+    escopo: link.escopo,
+    disciplinaIds: link.disciplinaIds,
+    uploadIds: link.uploadIds,
+    porSituacao: link.porSituacao,
+    faseIds: link.faseIds,
+    incluirSemFase: link.incluirSemFase,
+    agruparPorFase: link.agruparPorFase,
+    titulo: link.nome ?? null,
+    linkId: link.id,
+  };
+}
 
-  const projeto = { codigo: link.projeto.codigo, nome: link.projeto.nome };
+/**
+ * Conteúdo visível de um alcance (link vigente ou portal do cliente). Núcleo único da página do
+ * link e da seção de entregas do portal.
+ */
+export async function conteudoDoAlcance(link: AlcanceArquivos): Promise<ConteudoPublico | null> {
+  const conteudo = await montarConteudo(link);
+  return conteudo ? marcarBloqueados(conteudo) : null;
+}
+
+/** Todo arquivo do conteúdo (pastas do cliente + disciplinas), para as marcas que pedem consulta. */
+function arquivosDoConteudo(c: ConteudoPublico): ArquivoPublicoEmPasta[] {
+  return [...c.situacoes.flatMap((s) => s.disciplinas), ...c.disciplinas].flatMap((d) =>
+    d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos)),
+  );
+}
+
+/** Marca as revisões com bloqueio de download, numa consulta só (I7 — a rota continua recusando). */
+async function marcarBloqueados(c: ConteudoPublico): Promise<ConteudoPublico> {
+  const arquivos = arquivosDoConteudo(c);
+  const bloqueados = await uploadsComBloqueioDeDownload(prisma, arquivos.map((a) => a.id));
+  for (const a of arquivos) a.bloqueado = bloqueados.has(a.id);
+  return c;
+}
+
+async function montarConteudo(link: AlcanceArquivos): Promise<ConteudoPublico | null> {
+  const projeto = link.projeto;
 
   if (link.escopo === "selecao") {
     const disciplinas = await conteudoDaSelecao(link.uploadIds, link.agruparPorFase);
     if (disciplinas.length === 0) return null;
-    return { projeto, titulo: link.nome, disciplinas, situacoes: [], arts: [] };
+    return { projeto, titulo: link.titulo, disciplinas, situacoes: [], arts: [] };
   }
 
   const disciplinaIds = await disciplinasDoLink(link);
@@ -438,7 +501,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
         .filter((d) => d.total > 0);
       return { id: situacao, rotulo: ROTULO_SITUACAO[situacao], total: naPasta.reduce((n, d) => n + d.total, 0), disciplinas: naPasta };
     });
-    return { projeto, titulo: link.nome, disciplinas: [], situacoes, arts };
+    return { projeto, titulo: link.titulo, disciplinas: [], situacoes, arts };
   }
 
   const [disciplinas, extensoes] = await Promise.all([
@@ -468,7 +531,7 @@ export async function conteudoPublicoPorToken(token: string): Promise<ConteudoPu
 
   return {
     projeto,
-    titulo: link.nome,
+    titulo: link.titulo,
     arts,
     situacoes: [],
     disciplinas: disciplinas
@@ -523,8 +586,12 @@ async function sobreviveAoRecorte(upload: LinhaRegras): Promise<boolean> {
  * `token`. Retorna o upload servível (caminho/nome/mime) ou `null`.
  */
 export async function uploadLiberadoNoLink(token: string, uploadId: string) {
-  const link = await prisma.linkPublicoArquivos.findUnique({ where: { token } });
-  if (!link || !linkVigente(link)) return null;
+  const alcance = await alcanceDoToken(token);
+  return alcance ? uploadLiberadoNoAlcance(alcance, uploadId) : null;
+}
+
+/** O `uploadId` está liberado neste alcance? Mesma regra da página — ver `uploadLiberadoNoLink`. */
+export async function uploadLiberadoNoAlcance(link: AlcanceArquivos, uploadId: string) {
 
   const servivel = { id: true, nomeArquivo: true, caminho: true, mimeType: true } as const;
 
@@ -573,8 +640,13 @@ export async function uploadLiberadoNoLink(token: string, uploadId: string) {
  * Link de seleção não expõe ART: o conteúdo dele é só o que foi escolhido a dedo.
  */
 export async function artLiberadaNoLink(token: string, id: string) {
-  const link = await prisma.linkPublicoArquivos.findUnique({ where: { token } });
-  if (!link || !linkVigente(link) || link.escopo === "selecao") return null;
+  const alcance = await alcanceDoToken(token);
+  return alcance ? artLiberadaNoAlcance(alcance, id) : null;
+}
+
+/** A ART (ou versão) `id` está liberada neste alcance? Ver `artLiberadaNoLink`. */
+export async function artLiberadaNoAlcance(link: AlcanceArquivos, id: string) {
+  if (link.escopo === "selecao") return null;
 
   const disciplinaIds = await disciplinasDoLink(link);
   if (!disciplinaIds) return null;
@@ -617,12 +689,13 @@ export type RecorteZip = {
 };
 
 export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = {}) {
+  const alcance = await alcanceDoToken(token);
+  return alcance ? uploadsDoAlcanceParaZip(alcance, recorte) : null;
+}
+
+/** Uploads servíveis do alcance para o .zip, já nas pastas. Ver `uploadsDoLinkParaZip`. */
+export async function uploadsDoAlcanceParaZip(link: AlcanceArquivos, recorte: RecorteZip = {}) {
   const { disciplinaId, fase: faseAlvo, ext: extAlvo } = recorte;
-  const link = await prisma.linkPublicoArquivos.findUnique({
-    where: { token },
-    include: { projeto: { select: { codigo: true } } },
-  });
-  if (!link || !linkVigente(link)) return null;
 
   const extensoes = await carregarExtensoesNomenclatura();
 
@@ -658,7 +731,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
       { fase: faseAlvo, ext: extAlvo, agruparPorFase: link.agruparPorFase },
     );
     if (entradas.length === 0) return null;
-    return { linkId: link.id, codigo: link.projeto.codigo, entradas };
+    return { linkId: link.linkId, codigo: link.projeto.codigo, entradas };
   }
 
   const alcance = await disciplinasDoLink(link);
@@ -706,7 +779,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
       ),
     );
     if (entradas.length === 0) return null;
-    return { linkId: link.id, codigo: link.projeto.codigo, entradas };
+    return { linkId: link.linkId, codigo: link.projeto.codigo, entradas };
   }
 
   const disciplinas = await prisma.disciplina.findMany({
@@ -749,7 +822,7 @@ export async function uploadsDoLinkParaZip(token: string, recorte: RecorteZip = 
     ),
   );
   if (entradas.length === 0) return null;
-  return { linkId: link.id, codigo: link.projeto.codigo, entradas };
+  return { linkId: link.linkId, codigo: link.projeto.codigo, entradas };
 }
 
 /**

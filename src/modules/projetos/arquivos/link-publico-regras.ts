@@ -146,3 +146,76 @@ export function filtrarPorFases<T extends { faseId: string | null }>(itens: T[],
   if (filtro.faseIds.length === 0) return itens;
   return itens.filter((i) => faseLiberada(i.faseId, filtro));
 }
+
+/**
+ * O que as regras do link público leem de um link, sem o token. Vem de um `LinkPublicoArquivos`
+ * vigente (`alcanceDoToken`) ou do portal do cliente (`alcanceDoPortal`) — as duas portas passam
+ * pelo MESMO núcleo em `link-publico.ts`, então o cliente logado e o link nunca veem coisas diferentes.
+ */
+export type AlcanceArquivos = {
+  projetoId: string;
+  projeto: { codigo: string; nome: string };
+  escopo: "disciplinas" | "projeto_todo" | "selecao";
+  disciplinaIds: string[];
+  uploadIds: string[];
+  porSituacao: boolean;
+  faseIds: string[];
+  incluirSemFase: boolean;
+  agruparPorFase: boolean;
+  titulo: string | null;
+  /** Link de onde veio; null = portal. Vai para o histórico de acessos. */
+  linkId: string | null;
+};
+
+/**
+ * Alcance do portal do cliente: exatamente um link "projeto todo, por situação" do projeto, com
+ * todas as fases — o cliente vê o que a coordenação pôs nas pastas Compartilhado e Liberado para obra.
+ */
+export function alcanceDoPortal(projeto: { id: string; codigo: string; nome: string }): AlcanceArquivos {
+  return {
+    projetoId: projeto.id,
+    projeto: { codigo: projeto.codigo, nome: projeto.nome },
+    escopo: "projeto_todo",
+    disciplinaIds: [],
+    uploadIds: [],
+    porSituacao: true,
+    faseIds: [],
+    incluirSemFase: false,
+    agruparPorFase: true,
+    titulo: null,
+    linkId: null,
+  };
+}
+
+/**
+ * A pasta tem algo que o .zip entregaria? Revisão com bloqueio de download fica fora do pacote, então
+ * uma pasta só com bloqueadas daria um .zip vazio (404) — o botão não aparece.
+ */
+export function temArquivoBaixavel(arquivos: readonly { bloqueado: boolean }[]): boolean {
+  return arquivos.some((a) => !a.bloqueado);
+}
+
+/**
+ * Abrir no navegador (`Content-Disposition: inline`) só vale para PDF. Qualquer outro tipo sai como
+ * download: HTML ou SVG abertos inline rodariam na origem do sistema, com a sessão de quem está logado.
+ */
+export function abreNoNavegador(nomeArquivo: string, pediuInline: boolean): boolean {
+  return pediuInline && nomeArquivo.toLowerCase().endsWith(".pdf");
+}
+
+type DisciplinaComArquivos = { pastas: { extensoes: { arquivos: { bloqueado: boolean }[] }[] }[] };
+
+/**
+ * O conteúdo tem algum arquivo que o .zip "Baixar tudo" entregaria? ART não entra no pacote e revisão
+ * bloqueada fica fora dele — sem nada baixável, o botão não aparece (o clique daria 404).
+ */
+export function conteudoTemZip(c: {
+  situacoes: { disciplinas: DisciplinaComArquivos[] }[];
+  disciplinas: DisciplinaComArquivos[];
+}): boolean {
+  return temArquivoBaixavel(
+    [...c.situacoes.flatMap((s) => s.disciplinas), ...c.disciplinas].flatMap((d) =>
+      d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos)),
+    ),
+  );
+}

@@ -303,7 +303,7 @@
       "titulo": "Portal do cliente (Meus projetos)",
       "path": "inicio/portal-cliente.md",
       "descricao": "Visão externa, somente leitura, onde o cliente acompanha seus projetos.",
-      "resumo": "O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, e abre cada um para detalhes.",
+      "resumo": "O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes e baixa as pranchas entregues.",
       "tags": [
         "portal",
         "cliente",

@@ -18,6 +18,7 @@ import { FASE_TODAS } from "@/modules/uploads/arvore-navegacao";
 import { cn, rotuloRevisao } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { COR_CONTROLE } from "@/modules/uploads/ciclo/estados";
+import { conteudoTemZip, temArquivoBaixavel } from "@/modules/projetos/arquivos/link-publico-regras";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
@@ -30,8 +31,26 @@ function fmtBytes(n: number): string {
 
 type ArquivoPublicoView = ConteudoPublico["disciplinas"][number]["pastas"][number]["extensoes"][number]["arquivos"][number];
 
-/** Botão de .zip de uma pasta (disciplina, fase ou formato) — o recorte vai na URL. */
-function BaixarPasta({ token, rotulo, params }: { token: string; rotulo: string; params: Record<string, string> }) {
+type FasePublica = ConteudoPublico["disciplinas"][number]["pastas"][number];
+const arquivosDaFase = (f: FasePublica) => f.extensoes.flatMap((e) => e.arquivos);
+const arquivosDaDisciplina = (d: ConteudoPublico["disciplinas"][number]) => d.pastas.flatMap(arquivosDaFase);
+
+/**
+ * Botão de .zip de uma pasta (disciplina, fase ou formato) — o recorte vai na URL. Some quando a pasta só
+ * tem revisão bloqueada: o pacote viria vazio e o clique cairia numa página de erro.
+ */
+function BaixarPasta({
+  base,
+  rotulo,
+  params,
+  arquivos,
+}: {
+  base: string;
+  rotulo: string;
+  params: Record<string, string>;
+  arquivos: readonly { bloqueado: boolean }[];
+}) {
+  if (!temArquivoBaixavel(arquivos)) return null;
   return (
     <Button
       size="icon"
@@ -39,16 +58,16 @@ function BaixarPasta({ token, rotulo, params }: { token: string; rotulo: string;
       className="size-7"
       title={`Baixar ${rotulo} (.zip)`}
       aria-label={`Baixar ${rotulo} como .zip`}
-      render={<a href={`/api/p/arquivos/${token}/zip?${new URLSearchParams(params)}`} rel="noopener" />}
+      render={<a href={`${base}/zip?${new URLSearchParams(params)}`} rel="noopener" />}
     >
       <FileArchive className="size-3.5" />
     </Button>
   );
 }
 
-function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPublicoView }) {
+function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublicoView }) {
   return (
-    <li className="flex items-center gap-2 rounded-sm py-1.5 pl-14 pr-1 text-sm hover:bg-muted/40">
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm py-1.5 pl-14 pr-1 text-sm hover:bg-muted/40">
       {arquivo.ehPdf ? (
         <FileText className="size-4 shrink-0 text-destructive" />
       ) : (
@@ -69,6 +88,14 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
               Em revisão
             </span>
           )}
+          {arquivo.bloqueado && (
+            <span
+              className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_CONTROLE.bloqueio))}
+              title="Esta revisão está bloqueada para download. Fale com a equipe do projeto."
+            >
+              Download bloqueado
+            </span>
+          )}
         </span>
         {arquivo.emRevisao && (
           <span className="max-w-full truncate text-xs text-muted-foreground" title={`Em revisão: ${arquivo.emRevisao}`}>
@@ -80,9 +107,9 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
         {rotuloRevisao(arquivo.versao)}
       </span>
       <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(arquivo.tamanho)}</span>
-      {arquivo.ehPdf && (
+      {arquivo.ehPdf && !arquivo.bloqueado && (
         <a
-          href={`/api/p/arquivos/${token}/${arquivo.id}?disposition=inline`}
+          href={`${base}/${arquivo.id}?disposition=inline`}
           target="_blank"
           rel="noopener"
           className="shrink-0 text-primary hover:text-primary/80"
@@ -92,28 +119,37 @@ function LinhaArquivo({ token, arquivo }: { token: string; arquivo: ArquivoPubli
           <Eye className="size-4" />
         </a>
       )}
-      <a
-        href={`/api/p/arquivos/${token}/${arquivo.id}`}
-        className="shrink-0 text-primary hover:text-primary/80"
-        title="Baixar"
-        aria-label={`Baixar ${arquivo.nome}`}
-      >
-        <Download className="size-4" />
-      </a>
+      {!arquivo.bloqueado && (
+        <a
+          href={`${base}/${arquivo.id}`}
+          className="shrink-0 text-primary hover:text-primary/80"
+          title="Baixar"
+          aria-label={`Baixar ${arquivo.nome}`}
+        >
+          <Download className="size-4" />
+        </a>
+      )}
+      {/* O que mudou na revisão, numa linha própria com a largura toda: ao lado do nome, no celular,
+          sobrariam poucos caracteres. Duas linhas visíveis, o texto inteiro na dica. */}
+      {arquivo.descricaoRevisao && (
+        <span className="line-clamp-2 basis-full pl-6 text-xs text-muted-foreground" title={arquivo.descricaoRevisao}>
+          {arquivo.descricaoRevisao}
+        </span>
+      )}
     </li>
   );
 }
 
 /** Pastas de formato (PDF, DWG…) com os arquivos dentro — usadas com ou sem o nível de fase. */
 function PastasDeFormato({
-  token,
+  base,
   disciplina,
   fase,
   prefixoRotulo,
   recorteBase,
   recuo = "pl-10",
 }: {
-  token: string;
+  base: string;
   disciplina: ConteudoPublico["disciplinas"][number];
   fase: ConteudoPublico["disciplinas"][number]["pastas"][number];
   prefixoRotulo: string;
@@ -132,7 +168,8 @@ function PastasDeFormato({
               <span className="shrink-0 font-mono text-xs text-muted-foreground">{pasta.total}</span>
             </span>
             <BaixarPasta
-              token={token}
+              base={base}
+              arquivos={pasta.arquivos}
               rotulo={`${prefixoRotulo} / ${pasta.rotulo}`}
               params={
                 fase.chave === FASE_TODAS
@@ -143,7 +180,7 @@ function PastasDeFormato({
           </div>
           <ul>
             {pasta.arquivos.map((arquivo) => (
-              <LinhaArquivo key={arquivo.id} token={token} arquivo={arquivo} />
+              <LinhaArquivo key={arquivo.id} base={base} arquivo={arquivo} />
             ))}
           </ul>
         </li>
@@ -157,12 +194,12 @@ function PastasDeFormato({
  * as MESMAS pastas da aba Arquivos, montadas no servidor. Cada nível tem seu .zip.
  */
 function Disciplina({
-  token,
+  base,
   disciplina,
   recorteBase = {},
   recuo = "",
 }: {
-  token: string;
+  base: string;
   disciplina: ConteudoPublico["disciplinas"][number];
   /** Recorte de cima que todo .zip daqui leva junto (a pasta do cliente, no link por situação). */
   recorteBase?: Record<string, string>;
@@ -197,7 +234,7 @@ function Disciplina({
             {disciplina.total} arquivo{disciplina.total === 1 ? "" : "s"}
           </span>
         </button>
-        <BaixarPasta token={token} rotulo={`"${disciplina.nome}"`} params={{ ...recorteBase, disciplinaId: disciplina.id }} />
+        <BaixarPasta base={base} arquivos={arquivosDaDisciplina(disciplina)} rotulo={`"${disciplina.nome}"`} params={{ ...recorteBase, disciplinaId: disciplina.id }} />
       </div>
 
       {aberto && (
@@ -211,7 +248,7 @@ function Disciplina({
               return (
                 <li key={fase.chave}>
                   <PastasDeFormato
-                    token={token}
+                    base={base}
                     disciplina={disciplina}
                     fase={fase}
                     prefixoRotulo={disciplina.nome}
@@ -241,7 +278,8 @@ function Disciplina({
                     <span className="shrink-0 font-mono text-xs text-muted-foreground">{fase.total}</span>
                   </button>
                   <BaixarPasta
-                    token={token}
+                    base={base}
+                    arquivos={arquivosDaFase(fase)}
                     rotulo={`${disciplina.nome} / ${fase.rotulo}`}
                     params={{ ...recorteBase, disciplinaId: disciplina.id, fase: fase.chave }}
                   />
@@ -249,7 +287,7 @@ function Disciplina({
 
                 {faseAberta && (
                   <PastasDeFormato
-                    token={token}
+                    base={base}
                     disciplina={disciplina}
                     fase={fase}
                     prefixoRotulo={`${disciplina.nome} / ${fase.rotulo}`}
@@ -274,7 +312,7 @@ const EXPLICACAO_SITUACAO: Record<string, string> = {
  * Pasta do cliente num link por situação (reunião de 29/09/2026): "Compartilhado" e "Liberado para obra",
  * cada uma com as disciplinas dentro. Sempre as duas — vazia diz que ainda não há nada, em vez de sumir.
  */
-function PastaSituacao({ token, situacao }: { token: string; situacao: ConteudoPublico["situacoes"][number] }) {
+function PastaSituacao({ base, situacao }: { base: string; situacao: ConteudoPublico["situacoes"][number] }) {
   const [aberto, setAberto] = useState(true);
   const Icone = situacao.id === "liberado_obra" ? HardHat : Send;
   return (
@@ -296,14 +334,14 @@ function PastaSituacao({ token, situacao }: { token: string; situacao: ConteudoP
             {situacao.total} arquivo{situacao.total === 1 ? "" : "s"}
           </span>
         </button>
-        {situacao.total > 0 && <BaixarPasta token={token} rotulo={`"${situacao.rotulo}"`} params={{ situacao: situacao.id }} />}
+        {situacao.total > 0 && <BaixarPasta base={base} arquivos={situacao.disciplinas.flatMap(arquivosDaDisciplina)} rotulo={`"${situacao.rotulo}"`} params={{ situacao: situacao.id }} />}
       </div>
       {aberto &&
         (situacao.disciplinas.length === 0 ? (
           <p className="py-2 pl-12 text-xs text-muted-foreground">Nada nesta pasta ainda.</p>
         ) : (
           situacao.disciplinas.map((d) => (
-            <Disciplina key={d.id} token={token} disciplina={d} recorteBase={{ situacao: situacao.id }} recuo="pl-6" />
+            <Disciplina key={d.id} base={base} disciplina={d} recorteBase={{ situacao: situacao.id }} recuo="pl-6" />
           ))
         ))}
     </div>
@@ -311,7 +349,7 @@ function PastaSituacao({ token, situacao }: { token: string; situacao: ConteudoP
 }
 
 /** ARTs do projeto: documento vigente + versões anteriores, todos com PDF. Somente download. */
-function ArtsPublicas({ token, arts }: { token: string; arts: ConteudoPublico["arts"] }) {
+function ArtsPublicas({ base, arts }: { base: string; arts: ConteudoPublico["arts"] }) {
   const [aberto, setAberto] = useState(true);
   return (
     <div>
@@ -341,7 +379,7 @@ function ArtsPublicas({ token, arts }: { token: string; arts: ConteudoPublico["a
                   {a.disciplina ? ` · ${a.disciplina}` : ""}
                 </span>
                 <a
-                  href={`/api/p/arquivos/${token}/art/${a.id}?disposition=inline`}
+                  href={`${base}/art/${a.id}?disposition=inline`}
                   target="_blank"
                   rel="noopener"
                   className="shrink-0 text-primary hover:text-primary/80"
@@ -350,7 +388,7 @@ function ArtsPublicas({ token, arts }: { token: string; arts: ConteudoPublico["a
                   <Eye className="size-4" />
                 </a>
                 <a
-                  href={`/api/p/arquivos/${token}/art/${a.id}`}
+                  href={`${base}/art/${a.id}`}
                   className="shrink-0 text-primary hover:text-primary/80"
                   aria-label={`Baixar ${a.rotulo}`}
                 >
@@ -366,7 +404,7 @@ function ArtsPublicas({ token, arts }: { token: string; arts: ConteudoPublico["a
                     versão anterior {v.numero} — {v.rotulo}
                   </span>
                   <a
-                    href={`/api/p/arquivos/${token}/art/${v.id}`}
+                    href={`${base}/art/${v.id}`}
                     className="shrink-0 text-primary hover:text-primary/80"
                     aria-label={`Baixar versão ${v.numero} de ${a.rotulo}`}
                   >
@@ -382,7 +420,27 @@ function ArtsPublicas({ token, arts }: { token: string; arts: ConteudoPublico["a
   );
 }
 
+/**
+ * Árvore de entregas do cliente (pastas do cliente, disciplinas e ARTs), usada pelo link público e pelo
+ * portal. `base` é o prefixo das rotas de download, sem barra final: `/api/p/arquivos/<token>` no link,
+ * `/api/portal/projetos/<id>/arquivos` no portal — as duas expõem `/<uploadId>`, `/zip` e `/art/<id>`.
+ */
+export function ArvoreEntregas({ base, conteudo }: { base: string; conteudo: ConteudoPublico }) {
+  return (
+    <>
+      {conteudo.situacoes.map((s) => (
+        <PastaSituacao key={s.id} base={base} situacao={s} />
+      ))}
+      {conteudo.disciplinas.map((d) => (
+        <Disciplina key={d.id} base={base} disciplina={d} />
+      ))}
+      {conteudo.arts.length > 0 && <ArtsPublicas base={base} arts={conteudo.arts} />}
+    </>
+  );
+}
+
 export function ArquivosPublicoView({ token, conteudo }: { token: string; conteudo: ConteudoPublico }) {
+  const base = `/api/p/arquivos/${token}`;
   const total =
     conteudo.disciplinas.reduce((n, d) => n + d.total, 0) + conteudo.situacoes.reduce((n, s) => n + s.total, 0);
   return (
@@ -394,21 +452,17 @@ export function ArquivosPublicoView({ token, conteudo }: { token: string; conteu
         titulo={conteudo.projeto.nome}
         descricao={`${total} arquivo${total === 1 ? "" : "s"} dispon${total === 1 ? "ível" : "íveis"} para visualização e download.`}
         acoes={
-          <Button render={<a href={`/api/p/arquivos/${token}/zip`} rel="noopener" />}>
-            <Download className="size-4" /> Baixar tudo (.zip)
-          </Button>
+          conteudoTemZip(conteudo) ? (
+            <Button render={<a href={`${base}/zip`} rel="noopener" />}>
+              <Download className="size-4" /> Baixar tudo (.zip)
+            </Button>
+          ) : undefined
         }
       />
 
       <Card>
         <CardContent className="divide-y p-2">
-          {conteudo.situacoes.map((s) => (
-            <PastaSituacao key={s.id} token={token} situacao={s} />
-          ))}
-          {conteudo.disciplinas.map((d) => (
-            <Disciplina key={d.id} token={token} disciplina={d} />
-          ))}
-          {conteudo.arts.length > 0 && <ArtsPublicas token={token} arts={conteudo.arts} />}
+          <ArvoreEntregas base={base} conteudo={conteudo} />
         </CardContent>
       </Card>
 

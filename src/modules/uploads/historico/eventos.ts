@@ -12,7 +12,8 @@ import { ROTULO_CONTROLE, ROTULO_ESCOPO, ROTULO_ESTADO, type EscopoBloqueio, typ
 import { ROTULO_PENDENCIA } from "@/modules/uploads/ciclo/pendencias";
 
 export type CategoriaEvento = "alteracao" | "acesso";
-export type OrigemEvento = "interno" | "link_publico";
+/** `portal` = cliente logado no portal (o `userId` é ele, sem link). */
+export type OrigemEvento = "interno" | "link_publico" | "portal";
 
 export const TIPOS_EVENTO = {
   envio: { categoria: "alteracao", rotulo: "Enviou arquivo" },
