@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import {
   ChevronRight,
   Download,
@@ -63,7 +63,8 @@ function BaixarPasta({
  * Descrição da revisão em até duas linhas, com "Ver tudo" só quando o texto é cortado (medido na tela, então
  * vale para celular e computador). No toque não há `title`: o botão é a forma de ler o resto.
  */
-function DescricaoRevisao({ texto }: { texto: string }) {
+function DescricaoRevisao({ texto, arquivo }: { texto: string; arquivo: string }) {
+  const id = useId();
   const ref = useRef<HTMLSpanElement>(null);
   const [aberta, setAberta] = useState(false);
   const [cortada, setCortada] = useState(false);
@@ -78,14 +79,18 @@ function DescricaoRevisao({ texto }: { texto: string }) {
   }, [aberta, texto]);
   return (
     <span className="basis-full pl-6 text-xs text-muted-foreground">
-      <span ref={ref} className={cn("block break-words", !aberta && "line-clamp-2")}>
+      <span id={id} ref={ref} className={cn("block break-words", !aberta && "line-clamp-2")}>
         {texto}
       </span>
       {(cortada || aberta) && (
+        // Texto no `foreground` sublinhado: o `text-primary` do tema escuro ficava perto de 3:1. Alvo de toque
+        // de 24 px (44 px em tela de toque) e anel de foco próprio; o nome acessível leva o arquivo.
         <button
           type="button"
-          className="mt-0.5 text-primary underline-offset-2 hover:underline"
+          className="inline-flex min-h-6 items-center rounded-sm font-medium text-foreground underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:min-h-11"
           aria-expanded={aberta}
+          aria-controls={id}
+          aria-label={`${aberta ? "Ver menos" : "Ver tudo"}: descrição da revisão de ${arquivo}`}
           onClick={() => setAberta((v) => !v)}
         >
           {aberta ? "Ver menos" : "Ver tudo"}
@@ -178,7 +183,7 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
       )}
       {/* O que mudou na revisão, numa linha própria com a largura toda: ao lado do nome, no celular,
           sobrariam poucos caracteres. Duas linhas visíveis e "Ver tudo" quando o texto passa delas. */}
-      {arquivo.descricaoRevisao && <DescricaoRevisao texto={arquivo.descricaoRevisao} />}
+      {arquivo.descricaoRevisao && <DescricaoRevisao texto={arquivo.descricaoRevisao} arquivo={arquivo.nome} />}
     </li>
   );
 }
