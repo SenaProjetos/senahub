@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { salvarArquivo, nomeArquivoLimpo, removerArquivo } from "@/lib/storage";
+import { salvarStream, nomeArquivoLimpo, removerArquivo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
 import { clienteDoUsuario } from "@/modules/portal/queries";
@@ -13,6 +13,9 @@ import { acessoDoUsuarioAoProjetoDoPortal } from "@/modules/portal/acesso";
  * `Documento(origem=recebido_cliente, canal=portal)` ancorado no projeto.
  * Escopo estrito: o projeto precisa pertencer ao `clienteId` do usuário (`acessoDoUsuarioAoProjetoDoPortal`).
  */
+/** Cabeçalhos do multipart além do arquivo (nome, `projetoId`, fronteiras). */
+const FOLGA_MULTIPART = 1024 * 1024;
+
 export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
@@ -23,6 +26,12 @@ export async function POST(req: Request) {
   if (!cliente) return NextResponse.json({ error: "Usuário sem cliente vinculado." }, { status: 403 });
   // Cliente desativado no cadastro: mesma resposta de projeto alheio (decisão do dono, 2026-11-18).
   if (!cliente.ativo) return NextResponse.json({ error: "Projeto não encontrado." }, { status: 404 });
+
+  // Recusa antes de ler o corpo: o `formData()` junta o pedido inteiro na memória.
+  const declarado = Number(req.headers.get("content-length") ?? 0);
+  if (declarado > TAMANHO_MAX + FOLGA_MULTIPART) {
+    return NextResponse.json({ error: `Arquivo excede ${TAMANHO_MAX_LABEL}.` }, { status: 413 });
+  }
 
   let form: FormData;
   try {
@@ -50,7 +59,16 @@ export async function POST(req: Request) {
   const nome = nomeArquivoLimpo(file.name || "arquivo");
   const ext = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
   const rel = `documentos/${cliente.clienteId}/${randomBytes(12).toString("hex")}${ext}`;
-  const salvo = await salvarArquivo(rel, Buffer.from(await file.arrayBuffer()));
+  // Grava em pedaços, sem copiar o arquivo para um Buffer.
+  let salvo: Awaited<ReturnType<typeof salvarStream>>;
+  try {
+    salvo = await salvarStream(rel, file.stream(), { limite: TAMANHO_MAX });
+  } catch (erro) {
+    if (erro instanceof Error && erro.message === "Arquivo acima do limite.") {
+      return NextResponse.json({ error: `Arquivo excede ${TAMANHO_MAX_LABEL}.` }, { status: 413 });
+    }
+    throw erro;
+  }
 
   // Falhou ao gravar o registro: apaga o arquivo, senão ele ficaria no disco sem dono.
   const doc = await prisma.documento

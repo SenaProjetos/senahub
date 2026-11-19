@@ -91,6 +91,43 @@ export async function salvarArquivo(relativo: string, conteudo: Buffer): Promise
   return { caminho: relativo, hashSha256, tamanho: conteudo.length };
 }
 
+/**
+ * Igual a `salvarArquivo`, mas lendo de um stream (ex.: `File.stream()` de um upload): grava em pedaços, com
+ * hash e tamanho calculados no caminho, sem juntar o arquivo inteiro num Buffer. `limite` (bytes) para no
+ * meio quem passar dele ("Arquivo acima do limite."). Falhou → nem o temporário nem o destino ficam.
+ */
+export async function salvarStream(
+  relativo: string,
+  conteudo: ReadableStream<Uint8Array>,
+  opcoes: { limite?: number } = {},
+): Promise<ArquivoSalvo> {
+  const full = resolverCaminho(relativo);
+  await fs.mkdir(path.dirname(full), { recursive: true });
+  const temporario = `${full}.${randomBytes(6).toString("hex")}${SUFIXO_GRAVACAO_PARCIAL}`;
+  const hash = createHash("sha256");
+  let tamanho = 0;
+  const contador = new Transform({
+    transform(chunk: Buffer, _enc, cb) {
+      tamanho += chunk.length;
+      if (opcoes.limite !== undefined && tamanho > opcoes.limite) {
+        cb(new Error("Arquivo acima do limite."));
+        return;
+      }
+      hash.update(chunk);
+      cb(null, chunk);
+    },
+  });
+  try {
+    const origem = Readable.fromWeb(conteudo as import("node:stream/web").ReadableStream);
+    await pipeline(origem, contador, createWriteStream(temporario, { flags: "wx" }));
+    await renomearComEspera(temporario, full);
+  } catch (erro) {
+    await fs.rm(temporario, { force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
+    throw erro;
+  }
+  return { caminho: relativo, hashSha256: hash.digest("hex"), tamanho };
+}
+
 export async function lerArquivo(relativo: string): Promise<Buffer> {
   return fs.readFile(resolverCaminho(relativo));
 }

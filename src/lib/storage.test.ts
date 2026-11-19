@@ -15,8 +15,53 @@ const {
   removerArquivo,
   arquivoParaStream,
   separarPorExistencia,
+  salvarStream,
   SUFIXO_GRAVACAO_PARCIAL,
 } = await import("@/lib/storage");
+
+describe("storage — salvarStream (grava sem juntar o arquivo inteiro na memória)", () => {
+  const streamDe = (partes: Buffer[], falharNo?: number) =>
+    new ReadableStream<Uint8Array>({
+      start(c) {
+        partes.forEach((p, i) => {
+          if (i === falharNo) c.error(new Error("rede caiu"));
+          else c.enqueue(new Uint8Array(p));
+        });
+        if (falharNo === undefined) c.close();
+      },
+    });
+
+  it("grava o conteúdo e devolve o mesmo hash e tamanho de salvarArquivo", async () => {
+    const partes = [Buffer.from("parte-1-"), Buffer.from("parte-2-".repeat(5000))];
+    const rel = `teste-stream-salvar/${Date.now()}-a.bin`;
+    const relRef = `teste-stream-salvar/${Date.now()}-ref.bin`;
+    try {
+      const salvo = await salvarStream(rel, streamDe(partes));
+      const ref = await salvarArquivo(relRef, Buffer.concat(partes));
+      expect(salvo).toEqual({ caminho: rel, hashSha256: ref.hashSha256, tamanho: ref.tamanho });
+      expect((await lerArquivo(rel)).equals(Buffer.concat(partes))).toBe(true);
+    } finally {
+      await removerArquivo(rel);
+      await removerArquivo(relRef);
+    }
+  });
+
+  it("passou do limite: para, não deixa arquivo e avisa", async () => {
+    const rel = `teste-stream-salvar/${Date.now()}-grande.bin`;
+    await expect(salvarStream(rel, streamDe([Buffer.alloc(10), Buffer.alloc(10)]), { limite: 15 })).rejects.toThrow(
+      "Arquivo acima do limite.",
+    );
+    await expect(lerArquivo(rel)).rejects.toThrow();
+    const sobras = (await fsp.readdir(resolverCaminho("teste-stream-salvar"))).filter((n) => n.endsWith(SUFIXO_GRAVACAO_PARCIAL));
+    expect(sobras).toEqual([]);
+  });
+
+  it("stream que falha no meio não deixa arquivo pela metade", async () => {
+    const rel = `teste-stream-salvar/${Date.now()}-falha.bin`;
+    await expect(salvarStream(rel, streamDe([Buffer.from("a"), Buffer.from("b")], 1))).rejects.toThrow();
+    await expect(lerArquivo(rel)).rejects.toThrow();
+  });
+});
 
 describe("storage — copiarArquivo (stream, sem carregar o arquivo na memória)", () => {
   it("copia o conteúdo e devolve o mesmo hash e tamanho de quem gravou", async () => {
