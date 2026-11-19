@@ -259,6 +259,10 @@ describe("temArquivoBaixavel", () => {
   it("basta um arquivo liberado", () => {
     expect(temArquivoBaixavel([{ bloqueado: true }, { bloqueado: false }])).toBe(true);
   });
+  it("arquivo ausente no disco não conta como baixável", () => {
+    expect(temArquivoBaixavel([{ bloqueado: false, indisponivel: true }])).toBe(false);
+    expect(temArquivoBaixavel([{ bloqueado: false, indisponivel: true }, { bloqueado: false, indisponivel: false }])).toBe(true);
+  });
 });
 
 describe("abreNoNavegador", () => {

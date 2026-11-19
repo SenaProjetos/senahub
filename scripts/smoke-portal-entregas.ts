@@ -28,6 +28,7 @@ import {
   type ConteudoPublico,
 } from "../src/modules/projetos/arquivos/link-publico";
 import { uploadsComBloqueioDeDownload } from "../src/modules/uploads/ciclo/service";
+import { removerArquivo, salvarArquivo } from "../src/lib/storage";
 import { acessoDoUsuarioAoProjetoDoPortal } from "../src/modules/portal/acesso";
 import { clienteDoUsuario, projetoDoCliente, projetosDoCliente } from "../src/modules/portal/queries";
 import { escopoProjeto } from "../src/modules/projetos/queries";
@@ -55,6 +56,7 @@ async function main() {
   const clientes: string[] = [];
   const projetos: string[] = [];
   const usuarios: string[] = [];
+  const arquivosNoDisco: string[] = [];
   const novoCliente = async (sufixo: string) => {
     const c = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_${sufixo}` } });
     clientes.push(c.id);
@@ -122,6 +124,10 @@ async function main() {
       data: { revisaoId: b.rev.id, tipo: "bloqueio", escopos: ["download"], motivo: "smoke", aplicadoPorId: usuario.id },
     });
 
+    // Só o arquivo de A existe no disco; os outros uploads do smoke apontam para caminhos que não existem.
+    await salvarArquivo(a.up.caminho, Buffer.from("%PDF-1.4 smoke"));
+    arquivosNoDisco.push(a.up.caminho);
+
     const alcance = alcanceDoPortal({ id: p1.id, codigo: p1.codigo, nome: p1.nome });
     const conteudo = await conteudoDoAlcance(alcance);
     const arquivos = arquivosDe(conteudo);
@@ -130,6 +136,8 @@ async function main() {
 
     check("descrição da revisão chega ao arquivo", arqA?.descricaoRevisao === "Ajuste das cotas" && arqA?.bloqueado === false);
     check("revisão bloqueada continua listada, marcada", arqB?.bloqueado === true && arqB?.descricaoRevisao === null);
+    check("arquivo no disco não vem marcado indisponível", arqA?.indisponivel === false);
+    check("arquivo ausente no disco vem marcado indisponível", arqB?.indisponivel === true);
 
     const zip = await uploadsDoAlcanceParaZip(alcance);
     const bloqueados = await uploadsComBloqueioDeDownload(prisma, zip?.entradas.map((e) => e.uploadId) ?? []);
@@ -247,6 +255,7 @@ async function main() {
       (await prisma.projeto.count({ where: { id: p1.id, ...escopoProjeto(viewer) } })) === 1,
     );
   } finally {
+    for (const caminho of arquivosNoDisco) await removerArquivo(caminho);
     for (const id of usuarios) await prisma.user.delete({ where: { id } });
     for (const id of projetos) await prisma.projeto.delete({ where: { id } });
     for (const id of clientes) await prisma.cliente.delete({ where: { id } });

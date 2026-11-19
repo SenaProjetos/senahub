@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { separarPorExistencia } from "@/lib/storage";
 import { linkVigente } from "@/lib/link-publico";
 import {
   ehBackupDoModelo,
@@ -79,6 +80,11 @@ export type ArquivoPublico = {
    * rotas recusam — esconder mudaria a contagem das pastas; listar sem selo daria um clique quebrado.
    */
   bloqueado: boolean;
+  /**
+   * O arquivo não está no disco (a rota daria 410). Continua listado, com o selo e sem os botões, pelo mesmo
+   * motivo do `bloqueado`; fica fora do .zip.
+   */
+  indisponivel: boolean;
 };
 /**
  * O arquivo como a PÁGINA precisa dele. Fase fica de fora de propósito: depois do agrupamento,
@@ -359,8 +365,9 @@ function paraArquivoPublico(u: {
     versao: u.versao,
     emRevisao: u.revisao?.controles[0]?.motivo ?? null,
     descricaoRevisao: u.revisao?.descricao ?? null,
-    // Preenchido depois, numa consulta só para o conteúdo inteiro (`marcarBloqueados`).
+    // Preenchidos depois, para o conteúdo inteiro de uma vez (`marcarBloqueados` e `marcarAusentesNoDisco`).
     bloqueado: false,
+    indisponivel: false,
     faseId: u.documento?.fase?.id ?? null,
     faseSigla: u.documento?.fase?.sigla ?? null,
     faseNome: u.documento?.fase?.nome ?? null,
@@ -395,6 +402,7 @@ function emPastas(
           emRevisao: a.emRevisao,
           descricaoRevisao: a.descricaoRevisao,
           bloqueado: a.bloqueado,
+          indisponivel: a.indisponivel,
         })),
       })),
     })),
@@ -442,7 +450,7 @@ async function alcanceDoToken(token: string): Promise<AlcanceArquivos | null> {
  */
 export async function conteudoDoAlcance(link: AlcanceArquivos): Promise<ConteudoPublico | null> {
   const conteudo = await montarConteudo(link);
-  return conteudo ? marcarBloqueados(conteudo) : null;
+  return conteudo ? marcarAusentesNoDisco(await marcarBloqueados(conteudo)) : null;
 }
 
 /** Todo arquivo do conteúdo (pastas do cliente + disciplinas), para as marcas que pedem consulta. */
@@ -457,6 +465,20 @@ async function marcarBloqueados(c: ConteudoPublico): Promise<ConteudoPublico> {
   const arquivos = arquivosDoConteudo(c);
   const bloqueados = await uploadsComBloqueioDeDownload(prisma, arquivos.map((a) => a.id));
   for (const a of arquivos) a.bloqueado = bloqueados.has(a.id);
+  return c;
+}
+
+/** Marca os arquivos que não estão no disco (o caminho fica no servidor: só o sinal vai para a página). */
+async function marcarAusentesNoDisco(c: ConteudoPublico): Promise<ConteudoPublico> {
+  const arquivos = arquivosDoConteudo(c);
+  if (arquivos.length === 0) return c;
+  const caminhos = await prisma.upload.findMany({
+    where: { id: { in: [...new Set(arquivos.map((a) => a.id))] } },
+    select: { id: true, caminho: true },
+  });
+  const { ausentes } = await separarPorExistencia(caminhos);
+  const semArquivo = new Set(ausentes.map((u) => u.id));
+  for (const a of arquivos) a.indisponivel = semArquivo.has(a.id);
   return c;
 }
 

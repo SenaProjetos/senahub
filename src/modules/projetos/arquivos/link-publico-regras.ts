@@ -189,10 +189,11 @@ export function alcanceDoPortal(projeto: { id: string; codigo: string; nome: str
 
 /**
  * A pasta tem algo que o .zip entregaria? Revisão com bloqueio de download fica fora do pacote, então
- * uma pasta só com bloqueadas daria um .zip vazio (404) — o botão não aparece.
+ * uma pasta só com bloqueadas daria um .zip vazio (404) — o botão não aparece. Arquivo ausente no disco
+ * também fica fora do pacote.
  */
-export function temArquivoBaixavel(arquivos: readonly { bloqueado: boolean }[]): boolean {
-  return arquivos.some((a) => !a.bloqueado);
+export function temArquivoBaixavel(arquivos: readonly { bloqueado: boolean; indisponivel?: boolean }[]): boolean {
+  return arquivos.some((a) => !a.bloqueado && !a.indisponivel);
 }
 
 /**
@@ -232,7 +233,7 @@ export function contentDisposition(tipo: "inline" | "attachment", nomeArquivo: s
   return `${tipo}; filename="${reserva}"; filename*=UTF-8''${codificado}`;
 }
 
-type DisciplinaComArquivos ={ pastas: { extensoes: { arquivos: { bloqueado: boolean }[] }[] }[] };
+type DisciplinaComArquivos = { pastas: { extensoes: { arquivos: { bloqueado: boolean; indisponivel?: boolean }[] }[] }[] };
 
 /**
  * O conteúdo tem algum arquivo que o .zip "Baixar tudo" entregaria? ART não entra no pacote e revisão

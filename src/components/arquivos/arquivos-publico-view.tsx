@@ -37,7 +37,7 @@ const arquivosDaDisciplina = (d: ConteudoPublico["disciplinas"][number]) => d.pa
 
 /**
  * Botão de .zip de uma pasta (disciplina, fase ou formato) — o recorte vai na URL. Some quando a pasta só
- * tem revisão bloqueada: o pacote viria vazio e o clique cairia numa página de erro.
+ * tem revisão bloqueada ou arquivo ausente no disco: o pacote viria vazio e o clique cairia numa página de erro.
  */
 function BaixarPasta({
   base,
@@ -48,7 +48,7 @@ function BaixarPasta({
   base: string;
   rotulo: string;
   params: Record<string, string>;
-  arquivos: readonly { bloqueado: boolean }[];
+  arquivos: readonly { bloqueado: boolean; indisponivel: boolean }[];
 }) {
   if (!temArquivoBaixavel(arquivos)) return null;
   return (
@@ -66,6 +66,9 @@ function BaixarPasta({
 }
 
 function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublicoView }) {
+  // Bloqueada ou fora do disco: listada com o selo, sem ver nem baixar (a rota daria 404 ou 410).
+  const baixavel = !arquivo.bloqueado && !arquivo.indisponivel;
+  const semArquivo = arquivo.indisponivel && !arquivo.bloqueado;
   return (
     <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm py-1.5 pl-14 pr-1 text-sm hover:bg-muted/40">
       {arquivo.ehPdf ? (
@@ -101,16 +104,28 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
               Download bloqueado
             </span>
           )}
+          {semArquivo && (
+            <span
+              className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus("neutro"))}
+            >
+              Indisponível
+            </span>
+          )}
         </span>
         {arquivo.emRevisao && (
           <span className="max-w-full text-xs break-words text-muted-foreground">Motivo: {arquivo.emRevisao}</span>
+        )}
+        {semArquivo && (
+          <span className="max-w-full text-xs break-words text-muted-foreground">
+            O arquivo não está disponível no momento. Fale com a equipe do projeto.
+          </span>
         )}
       </span>
       <span className="shrink-0 font-mono text-xs text-muted-foreground" title={`Revisão ${arquivo.versao}`}>
         {rotuloRevisao(arquivo.versao)}
       </span>
       <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(arquivo.tamanho)}</span>
-      {arquivo.ehPdf && !arquivo.bloqueado && (
+      {arquivo.ehPdf && baixavel && (
         <a
           href={`${base}/${arquivo.id}?disposition=inline`}
           target="_blank"
@@ -122,7 +137,7 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
           <Eye className="size-4" />
         </a>
       )}
-      {!arquivo.bloqueado && (
+      {baixavel && (
         <a
           href={`${base}/${arquivo.id}`}
           className="shrink-0 text-primary hover:text-primary/80"
