@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { artLiberadaNoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import { acessoAoProjetoDoPortal } from "@/modules/portal/acesso";
-import { lerArquivo } from "@/lib/storage";
+import { arquivoParaStream } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 
 /**
@@ -17,9 +17,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
   const art = await artLiberadaNoAlcance(acesso.alcance, id);
   if (!art) return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404 });
 
-  let conteudo: Buffer;
+  // Stream: o arquivo pode ter centenas de MB — ler num Buffer (e copiar num Uint8Array) pesaria na memória.
+  let arquivo: Awaited<ReturnType<typeof arquivoParaStream>>;
   try {
-    conteudo = await lerArquivo(art.caminho);
+    arquivo = await arquivoParaStream(art.caminho);
   } catch {
     return NextResponse.json({ error: "Arquivo indisponível no disco." }, { status: 410 });
   }
@@ -36,8 +37,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
   });
 
   const inline = new URL(req.url).searchParams.get("disposition") === "inline";
-  return new NextResponse(new Uint8Array(conteudo), {
+  return new NextResponse(arquivo.abrir(), {
     headers: {
+      "Content-Length": String(arquivo.tamanho),
       "Content-Type": "application/pdf",
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${encodeURIComponent(art.nome)}"`,
     },

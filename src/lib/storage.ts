@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { createReadStream, createWriteStream, promises as fs } from "node:fs";
 import path from "node:path";
-import { Transform } from "node:stream";
+import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 
 const BASE = process.env.STORAGE_BASE_PATH;
@@ -93,6 +93,23 @@ export async function salvarArquivo(relativo: string, conteudo: Buffer): Promise
 
 export async function lerArquivo(relativo: string): Promise<Buffer> {
   return fs.readFile(resolverCaminho(relativo));
+}
+
+/**
+ * Arquivo para download por STREAM: confere que é um arquivo no disco (ausente, pasta ou caminho fora do
+ * base lança, e a rota responde 410) e devolve o tamanho para o `Content-Length`. O stream só é aberto em
+ * `abrir()`, na hora de responder — assim nada fica aberto se a rota sair antes por outro motivo.
+ */
+export async function arquivoParaStream(
+  relativo: string,
+): Promise<{ tamanho: number; abrir: () => ReadableStream<Uint8Array> }> {
+  const full = resolverCaminho(relativo);
+  const info = await fs.stat(full);
+  if (!info.isFile()) throw new Error("Não é um arquivo.");
+  return {
+    tamanho: info.size,
+    abrir: () => Readable.toWeb(createReadStream(full)) as ReadableStream<Uint8Array>,
+  };
 }
 
 /** Lê somente o cabeçalho de um arquivo, para validar assinatura sem carregar upload grande na RAM. */

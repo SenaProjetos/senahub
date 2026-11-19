@@ -3,7 +3,7 @@ import { abreNoNavegador } from "@/modules/projetos/arquivos/link-publico-regras
 import { uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import { acessoAoProjetoDoPortal } from "@/modules/portal/acesso";
 import { motivoBloqueioDosUploads } from "@/modules/uploads/ciclo/service";
-import { lerArquivo } from "@/lib/storage";
+import { arquivoParaStream } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
@@ -26,9 +26,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
     return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404 });
   }
 
-  let conteudo: Buffer;
+  // Stream: o arquivo pode ter centenas de MB — ler num Buffer (e copiar num Uint8Array) pesaria na memória.
+  let arquivo: Awaited<ReturnType<typeof arquivoParaStream>>;
   try {
-    conteudo = await lerArquivo(upload.caminho);
+    arquivo = await arquivoParaStream(upload.caminho);
   } catch {
     return NextResponse.json({ error: "Arquivo indisponível no disco." }, { status: 410 });
   }
@@ -54,8 +55,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
     linkId: null,
   });
   const disposition = inline ? "inline" : "attachment";
-  return new NextResponse(new Uint8Array(conteudo), {
+  return new NextResponse(arquivo.abrir(), {
     headers: {
+      "Content-Length": String(arquivo.tamanho),
       "Content-Type": upload.mimeType || "application/octet-stream",
       "Content-Disposition": `${disposition}; filename="${encodeURIComponent(upload.nomeArquivo)}"`,
       "X-Content-Type-Options": "nosniff",

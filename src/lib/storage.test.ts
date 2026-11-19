@@ -13,6 +13,7 @@ const {
   copiarArquivo,
   lerArquivo,
   removerArquivo,
+  arquivoParaStream,
   SUFIXO_GRAVACAO_PARCIAL,
 } = await import("@/lib/storage");
 
@@ -39,6 +40,50 @@ describe("storage — copiarArquivo (stream, sem carregar o arquivo na memória)
 
   it("recusa destino fora do base", async () => {
     await expect(copiarArquivo("teste-copia/x.bin", "../../fora.bin")).rejects.toThrow();
+  });
+});
+
+describe("storage — arquivoParaStream (download sem carregar o arquivo na memória)", () => {
+  async function lerTudo(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+    const partes: Buffer[] = [];
+    const leitor = stream.getReader();
+    for (;;) {
+      const { done, value } = await leitor.read();
+      if (done) break;
+      partes.push(Buffer.from(value));
+    }
+    return Buffer.concat(partes);
+  }
+
+  it("devolve o tamanho do disco e um stream com o conteúdo inteiro", async () => {
+    const conteudo = Buffer.from(`stream-${Date.now()}`.repeat(5000));
+    const rel = `teste-stream/${Date.now()}-a.bin`;
+    await salvarArquivo(rel, conteudo);
+    try {
+      const arquivo = await arquivoParaStream(rel);
+      expect(arquivo.tamanho).toBe(conteudo.length);
+      expect((await lerTudo(arquivo.abrir())).equals(conteudo)).toBe(true);
+    } finally {
+      await removerArquivo(rel);
+    }
+  });
+
+  it("arquivo que não existe lança antes de abrir o stream (a rota responde 410)", async () => {
+    await expect(arquivoParaStream("teste-stream/nao-existe.bin")).rejects.toThrow();
+  });
+
+  it("pasta no lugar do arquivo lança", async () => {
+    const rel = `teste-stream/${Date.now()}-pasta/x.bin`;
+    await salvarArquivo(rel, Buffer.from("x"));
+    try {
+      await expect(arquivoParaStream(rel.replace(/\/x\.bin$/, ""))).rejects.toThrow();
+    } finally {
+      await removerArquivo(rel);
+    }
+  });
+
+  it("caminho fora do base lança", async () => {
+    await expect(arquivoParaStream("../../fora.bin")).rejects.toThrow();
   });
 });
 
