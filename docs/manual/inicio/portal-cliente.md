@@ -3,7 +3,7 @@ titulo: Portal do cliente (Meus projetos)
 descricao: Visão externa, somente leitura, onde o cliente acompanha seus projetos.
 resumo: O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.
 tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas]
-palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação]
+palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação, andamento, fase, linha do tempo]
 sinonimos: [área do cliente, portal externo, acompanhamento de projeto]
 ---
 
@@ -44,9 +44,28 @@ dos projetos contratados com o escritório.
    - **Situação** (etiqueta);
    - **nº de disciplinas**;
    - **Prazo** final;
-   - **barra de progresso (%)**.
-3. Clicar em um cartão abre o **detalhe do projeto** (`/portal/{projeto}`), com as disciplinas,
-   as **Entregas** e os **Documentos** que o cliente envia ao escritório.
+   - **barra de progresso (%)** — a mesma conta do **Andamento** (veja abaixo).
+3. Clicar em um cartão abre o **detalhe do projeto** (`/portal/{projeto}`), com o **Andamento**, a
+   **Linha do tempo**, as **Entregas** e os **Documentos** que o cliente envia ao escritório.
+
+## Andamento e linha do tempo
+
+O card **Andamento** mostra cada disciplina com as suas fases (EP, BS, EX…), cada uma numa situação:
+
+- **Não iniciada** — o trabalho da fase ainda não começou;
+- **Em andamento** — a fase está sendo feita, revisada ou analisada pelo escritório;
+- **Concluída** (com a data) — a fase foi aprovada pelo escritório **e** o cliente já recebeu pranchas dela
+  (em **Compartilhado** ou **Liberado para obra**). Fase aprovada sem prancha enviada continua em andamento.
+
+O **% concluído** soma o peso das fases concluídas (o mesmo peso que divide o valor da disciplina). Disciplina
+sem fases conta como concluída ou não, inteira.
+
+O portal **não mostra datas previstas** — só o que já aconteceu. O prazo do contrato continua no topo.
+
+A **Linha do tempo** lista, do mais novo para o mais antigo, o que chegou ao cliente: pranchas compartilhadas,
+pranchas liberadas para obra e fases concluídas, agrupadas por dia e disciplina. Mostra só o que está hoje nas
+**Entregas**: quando uma revisão nova substitui a anterior, o envio antigo sai da lista. Aparecem os 10 mais
+recentes; **Mostrar tudo** abre o resto.
 
 ## Pranchas e entregas
 
@@ -94,7 +113,8 @@ Regras:
 
 - Cliente sem projetos → "Nenhum projeto ainda.".
 - Conta sem vínculo de cliente → mensagem orientando contatar o escritório.
-- Projeto sem prancha nas pastas do cliente → "Nenhuma prancha compartilhada ainda.".
+- Projeto sem prancha nas pastas do cliente → "Nenhuma prancha compartilhada ainda." nas Entregas e "Ainda não há
+  entregas neste projeto." na Linha do tempo.
 
 ## Regras de negócio e escopo
 
@@ -111,6 +131,7 @@ Regras:
 | "Sua conta ainda não está vinculada…" | Conta sem `clienteId` | O escritório vincula a conta ao cadastro do cliente |
 | "Nenhum projeto ainda." | Cliente sem projetos cadastrados | Aguardar o cadastro do projeto |
 | "Aceite o termo de uso para continuar." ao baixar | Há uma versão nova do termo de uso | Sair e entrar de novo e aceitar o termo |
+| "Não foi possível carregar o andamento e as entregas agora." | Falha ao ler as entregas | Clicar em **Tentar de novo**; se continuar, falar com o escritório |
 | "Arquivo indisponível." ao baixar | A prancha saiu das pastas do cliente ou foi bloqueada | Recarregar a página; se continuar, falar com o escritório |
 
 ## Funcionalidades relacionadas

@@ -2,27 +2,27 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { formatarData } from "@/lib/utils";
 import { notFound, redirect } from "next/navigation";
-import { CalendarDays, Download, FileStack, MapPin, FolderOpen } from "lucide-react";
+import { CalendarDays, Download, FileStack, MapPin } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
+import { andamentoDoPortal } from "@/modules/portal/andamento-queries";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
+import { AndamentoCard } from "@/components/portal/andamento-card";
+import { LinhaDoTempoCard } from "@/components/portal/linha-do-tempo-card";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { ArvoreEntregas } from "@/components/arquivos/arquivos-publico-view";
-import { conteudoDoAlcance } from "@/modules/projetos/arquivos/link-publico";
-import { alcanceDoPortal, conteudoTemZip } from "@/modules/projetos/arquivos/link-publico-regras";
+import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
+import { conteudoTemZip } from "@/modules/projetos/arquivos/link-publico-regras";
 import { Button } from "@/components/ui/button";
-import { SITUACAO_PROJETO_LABEL, STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
+import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LimiteErroEntregas } from "@/components/portal/limite-erro-entregas";
 
 export const metadata: Metadata = { title: "Projeto" };
-
-const fmt = (d: string | null) => (d ? formatarData(d) : "—");
 
 export default async function PortalProjetoPage({
   params,
@@ -51,7 +51,7 @@ export default async function PortalProjetoPage({
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {projeto.prazoContrato && (
             <span className="flex items-center gap-1.5">
-              <CalendarDays className="size-4" /> Prazo: {fmt(projeto.prazoContrato)}
+              <CalendarDays className="size-4" /> Prazo: {formatarData(projeto.prazoContrato)}
             </span>
           )}
           {projeto.endereco && (
@@ -62,35 +62,11 @@ export default async function PortalProjetoPage({
         </div>
       )}
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Disciplinas ({projeto.progresso}% concluído)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {projeto.disciplinas.length === 0 ? (
-            <EmptyState icon={FolderOpen} title="Nenhuma disciplina cadastrada." />
-          ) : (
-            <ul className="divide-y text-sm">
-              {projeto.disciplinas.map((d) => (
-                <li key={d.id} className="flex items-center justify-between gap-2 py-2.5">
-                  <span className="font-medium">{d.nome}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-xs text-muted-foreground">Prazo: {fmt(d.prazo)}</span>
-                    <Badge variant="outline" className={STATUS_CHIP[d.status]}>
-                      {STATUS_LABEL[d.status]}
-                    </Badge>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Entregas carregam à parte: enquanto isso o esqueleto; um erro aqui fica só neste card. */}
+      {/* Andamento, linha do tempo e entregas saem da MESMA leitura das Entregas: enquanto isso os esqueletos;
+          um erro aqui fica só neste bloco. */}
       <LimiteErroEntregas>
-        <Suspense fallback={<EntregasCarregando />}>
-          <EntregasDoProjeto projeto={projeto} />
+        <Suspense fallback={<AndamentoEEntregasCarregando />}>
+          <AndamentoEEntregas projeto={projeto} />
         </Suspense>
       </LimiteErroEntregas>
 
@@ -101,13 +77,23 @@ export default async function PortalProjetoPage({
 
 type ProjetoDoPortal = NonNullable<Awaited<ReturnType<typeof projetoDoCliente>>>;
 
+async function AndamentoEEntregas({ projeto }: { projeto: ProjetoDoPortal }) {
+  const { andamento, linha, conteudo } = await andamentoDoPortal(projeto);
+  return (
+    <div className="space-y-6">
+      <AndamentoCard andamento={andamento} />
+      <LinhaDoTempoCard itens={linha} />
+      <EntregasDoProjeto projetoId={projeto.id} entregas={conteudo} />
+    </div>
+  );
+}
+
 /** Card "Entregas": as pastas do cliente pelo mesmo núcleo do link público. */
-async function EntregasDoProjeto({ projeto }: { projeto: ProjetoDoPortal }) {
-  const entregas = await conteudoDoAlcance(alcanceDoPortal(projeto));
+function EntregasDoProjeto({ projetoId, entregas }: { projetoId: string; entregas: ConteudoPublico | null }) {
   const totalEntregas = entregas
     ? entregas.situacoes.reduce((n, s) => n + s.total, 0) + entregas.arts.length
     : 0;
-  const base = `/api/portal/projetos/${projeto.id}/arquivos`;
+  const base = `/api/portal/projetos/${projetoId}/arquivos`;
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
@@ -135,21 +121,30 @@ async function EntregasDoProjeto({ projeto }: { projeto: ProjetoDoPortal }) {
   );
 }
 
-function EntregasCarregando() {
+function CardCarregando({ titulo, linhas }: { titulo: string; linhas: string[] }) {
   return (
     <Card aria-busy="true">
       <CardHeader className="pb-2">
-        <CardTitle className="text-base">Entregas</CardTitle>
+        <CardTitle className="text-base">{titulo}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        <span role="status" className="sr-only">
-          Carregando as entregas…
-        </span>
-        <Skeleton className="h-5 w-1/3" />
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-full" />
-        <Skeleton className="h-9 w-2/3" />
+        {linhas.map((largura, i) => (
+          <Skeleton key={i} className={`h-9 ${largura}`} />
+        ))}
       </CardContent>
     </Card>
+  );
+}
+
+function AndamentoEEntregasCarregando() {
+  return (
+    <div className="space-y-6">
+      <span role="status" className="sr-only">
+        Carregando o andamento e as entregas…
+      </span>
+      <CardCarregando titulo="Andamento" linhas={["w-full", "w-full", "w-2/3"]} />
+      <CardCarregando titulo="Linha do tempo" linhas={["w-full", "w-1/2"]} />
+      <CardCarregando titulo="Entregas" linhas={["w-1/3", "w-full", "w-full", "w-2/3"]} />
+    </div>
   );
 }

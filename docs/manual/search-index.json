@@ -319,7 +319,10 @@
         "acompanhar projeto",
         "progresso",
         "prazo",
-        "situação"
+        "situação",
+        "andamento",
+        "fase",
+        "linha do tempo"
       ],
       "sinonimos": [
         "área do cliente",
