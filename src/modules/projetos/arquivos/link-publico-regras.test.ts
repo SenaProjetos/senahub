@@ -3,6 +3,7 @@ import {
   abreNoNavegador,
   alcanceDoPortal,
   conteudoTemZip,
+  contentDisposition,
   ehBackupDoModelo,
   faseLiberada,
   filtrarPorFases,
@@ -279,5 +280,39 @@ describe("conteudoTemZip", () => {
   it("um arquivo liberado em qualquer pasta basta", () => {
     expect(conteudoTemZip({ situacoes: [{ disciplinas: [disc(true)] }, { disciplinas: [disc(false)] }], disciplinas: [] })).toBe(true);
     expect(conteudoTemZip({ situacoes: [], disciplinas: [disc(false)] })).toBe(true);
+  });
+});
+
+describe("contentDisposition", () => {
+  it("nome ASCII simples: filename igual nos dois campos", () => {
+    expect(contentDisposition("attachment", "planta.pdf")).toBe(`attachment; filename="planta.pdf"; filename*=UTF-8''planta.pdf`);
+  });
+
+  it("acento e espaço chegam intactos pelo filename* e o filename de reserva fica em ASCII", () => {
+    const h = contentDisposition("attachment", "Memória de cálculo R01.pdf");
+    expect(h).toBe(`attachment; filename="Memoria de calculo R01.pdf"; filename*=UTF-8''Mem%C3%B3ria%20de%20c%C3%A1lculo%20R01.pdf`);
+    const codificado = h.split("filename*=UTF-8''")[1];
+    expect(decodeURIComponent(codificado)).toBe("Memória de cálculo R01.pdf");
+  });
+
+  it("inline mantém o tipo", () => {
+    expect(contentDisposition("inline", "a.pdf").startsWith("inline; ")).toBe(true);
+  });
+
+  it("aspas, barra invertida e quebra de linha não escapam do filename de reserva", () => {
+    const h = contentDisposition("attachment", 'a"b\\c\r\nd.pdf');
+    const reserva = /filename="([^"]*)"/.exec(h)?.[1];
+    expect(reserva).toBe("a_b_c__d.pdf");
+    expect(h).not.toMatch(/[\r\n]/);
+  });
+
+  it("caracteres fora do attr-char do RFC 5987 são codificados no filename*", () => {
+    const h = contentDisposition("attachment", "it's (1)*.pdf");
+    expect(h.split("filename*=UTF-8''")[1]).toBe("it%27s%20%281%29%2A.pdf");
+  });
+
+  it("nome sem nenhum caractere ASCII ainda tem filename de reserva", () => {
+    const reserva = /filename="([^"]*)"/.exec(contentDisposition("attachment", "图纸.pdf"))?.[1];
+    expect(reserva).toBe("__.pdf");
   });
 });

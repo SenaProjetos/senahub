@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { contentDisposition } from "@/modules/projetos/arquivos/link-publico-regras";
 import { artLiberadaNoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import { acessoAoProjetoDoPortal } from "@/modules/portal/acesso";
 import { arquivoParaStream } from "@/lib/storage";
@@ -41,7 +42,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
     headers: {
       "Content-Length": String(arquivo.tamanho),
       "Content-Type": "application/pdf",
-      "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${encodeURIComponent(art.nome)}"`,
+      "Content-Disposition": contentDisposition(inline ? "inline" : "attachment", art.nome),
     },
   });
 }

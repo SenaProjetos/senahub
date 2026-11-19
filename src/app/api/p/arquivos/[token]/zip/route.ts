@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { contentDisposition } from "@/modules/projetos/arquivos/link-publico-regras";
 import { ZipArchive } from "archiver";
 import { uploadsDoLinkParaZip } from "@/modules/projetos/arquivos/link-publico";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
@@ -87,7 +88,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   return new NextResponse(stream, {
     headers: {
       "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(nome)}"`,
+      "Content-Disposition": contentDisposition("attachment", nome),
     },
   });
 }

@@ -203,7 +203,24 @@ export function abreNoNavegador(nomeArquivo: string, pediuInline: boolean): bool
   return pediuInline && nomeArquivo.toLowerCase().endsWith(".pdf");
 }
 
-type DisciplinaComArquivos = { pastas: { extensoes: { arquivos: { bloqueado: boolean }[] }[] }[] };
+/**
+ * `Content-Disposition` de download que preserva o nome: `filename*=UTF-8''…` (RFC 6266/5987) leva o nome
+ * exato, com acento e espaço; `filename="…"` é a reserva em ASCII para cliente antigo (acento tirado, o que
+ * não é ASCII imprimível, aspas e barra invertida viram `_`).
+ */
+export function contentDisposition(tipo: "inline" | "attachment", nomeArquivo: string): string {
+  const reserva = nomeArquivo
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\x20-\x7e]|["\\]/g, "_");
+  const codificado = encodeURIComponent(nomeArquivo).replace(
+    /['()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `${tipo}; filename="${reserva}"; filename*=UTF-8''${codificado}`;
+}
+
+type DisciplinaComArquivos ={ pastas: { extensoes: { arquivos: { bloqueado: boolean }[] }[] }[] };
 
 /**
  * O conteúdo tem algum arquivo que o .zip "Baixar tudo" entregaria? ART não entra no pacote e revisão
