@@ -220,6 +220,36 @@ Segue o acompanhamento do projeto **{{projeto}}**. Já enviamos a você:
 Sena Projetos`,
   },
   {
+    slug: "resumo-andamento-portal",
+    grupo: "Projetos",
+    label: "Resumo diário do portal (cliente)",
+    descricao:
+      "Enviado às 7h a cada conta do portal do cliente, um por projeto, só quando o projeto andou no dia anterior (pranchas compartilhadas, liberadas para obra, fases concluídas). Ligado e desligado em Configurações → Portal do cliente; o cliente pode desligar em Meus projetos.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome da conta do portal", exemplo: "Mariana" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      { nome: "periodo", descricao: "Dia (ou dias, se o servidor ficou fora) do resumo", exemplo: "18/11/2026" },
+      {
+        nome: "lista",
+        descricao: "O que andou, uma linha por item da linha do tempo. Montada pelo sistema.",
+        exemplo: "- **Estrutural** · 8 pranchas compartilhadas com você\n- **Hidráulica** · Fase BS concluída",
+      },
+      { nome: "url", descricao: "Link do projeto no portal", exemplo: "https://app/portal/abc" },
+    ],
+    assuntoPadrao: "Novidades em {{projeto}} — {{periodo}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+Em {{periodo}}, o projeto **{{projeto}}** andou:
+
+{{lista}}
+
+[Abrir no portal]({{url}})
+
+Para não receber mais este resumo, desligue em Meus projetos, no portal.
+
+Sena Projetos`,
+  },
+  {
     slug: "holerite",
     grupo: "RH",
     label: "Holerite",

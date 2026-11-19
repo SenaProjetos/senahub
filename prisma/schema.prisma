@@ -318,6 +318,8 @@ model User {
 
   nomenclaturaVersoesPublicadas NomenclaturaVersao[]
 
+  /// Resumo diário do portal recebido (uma linha por projeto, dia e canal).
+  avisosPortal AvisoPortalEnviado[]
   geracoesModeloFederado GeracaoModeloFederado[] @relation("GeracaoFederadoAutor")
 
   @@index([tipo, setor])
@@ -1324,6 +1326,8 @@ model Projeto {
   /// grava os dois SEMPRE juntos, nunca um sem o outro, com teste dedicado provando isso.
   negociacaoId String?
   negociacao   Negociacao? @relation(fields: [negociacaoId], references: [id])
+  /// Resumo diário do portal já enviado (uma linha por conta, dia e canal).
+  avisosPortal AvisoPortalEnviado[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2175,6 +2179,24 @@ model AvisoFinanceiroEnviado {
 
   @@unique([lancamentoId, tipo, destino, vencimento])
   @@map("aviso_financeiro_enviado")
+}
+
+/// Resumo diário do portal do cliente já enviado (spec 2026-11-19-portal-resumo-diario-design.md). RESERVADO antes do
+/// envio e apagado se ele falha — a chave única impede que duas rodadas mandem o mesmo resumo. `canal` = `email` | `sino`
+/// (separados para a falha do e-mail não repetir o sino). Um e-mail que cobre vários dias tem uma linha por dia.
+model AvisoPortalEnviado {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projetoId String
+  projeto   Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  dia       DateTime @db.Date
+  canal     String
+  enviadoEm DateTime @default(now())
+
+  @@unique([userId, projetoId, dia, canal])
+  @@index([projetoId])
+  @@map("aviso_portal_enviado")
 }
 
 enum TipoInvestimento {

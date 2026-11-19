@@ -25,6 +25,7 @@ import {
   processarImportacaoCusto,
   alertasPrazoApontamento,
   dispararAvisosAgendados,
+  resumoDiarioPortal,
 } from "@/lib/jobs-handlers";
 import {
   alertasPrazoDisciplina,
@@ -448,6 +449,13 @@ export async function startJobs(): Promise<PgBoss> {
         const r = await avisarEtapasProximas();
         if (r.avisadas > 0) console.log(`[cronograma] ${r.avisadas} etapa(s) por começar avisada(s).`);
       },
+    },
+    {
+      fila: "portal-resumo-diario",
+      // Diário 07:00 (spec 2026-11-19-portal-resumo-diario, D2): o que andou ontem em cada projeto, por e-mail e sino
+      // às contas do portal do cliente. Dia sem andamento não manda nada; cada dia é avaliado uma vez.
+      cron: "0 7 * * *",
+      handler: resumoDiarioPortal,
     },
     {
       fila: "ciclo-documental-integridade",

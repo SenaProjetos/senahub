@@ -42,6 +42,7 @@ npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: re
 npm run smoke:portal-entregas      # entregas no portal do cliente: mesmo núcleo do link (portal = link projeto todo por situação), descrição da revisão, download bloqueado, outro projeto/cliente/revisão sem marca nunca saem, ART
 npm run smoke:portal-financeiro     # financeiro do portal do cliente: de quem é o recebível (lançamento × projeto), o que fica fora (previsão, cancelado, acessório, transferência, licitação), líquido da retenção
 npm run smoke:portal-andamento      # andamento e linha do tempo do portal: fase concluída só com prancha nas Entregas, data do controle × do evento, prancha retirada sai, lista = detalhe
+npm run smoke:portal-resumo         # resumo diário do portal (sem SMTP): 1 e-mail + 1 sino por conta e projeto, dia avaliado uma vez, reserva contra duplicado, dias perdidos num e-mail, opt-out, falha libera, quem não recebe, 1ª rodada
 npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
@@ -887,7 +888,7 @@ a calculadora. A memória exportada (`/api/estudos/[id]/memoria?formato=pdf|docx
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`, `etapa_proxima`, `atividade_concluida`.
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`, `etapa_proxima`, `atividade_concluida`, `portal_resumo` (só o e-mail do resumo diário do portal; o cliente desliga em Meus projetos).
 
 ## Gotchas
 

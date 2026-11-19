@@ -1,6 +1,7 @@
 import "server-only";
 import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
 import { avisarContasAPagar, enviarCobrancasAoCliente, reservarAvisoInterno } from "@/modules/financeiro/avisos/service";
+import { rodarResumoDiario } from "@/modules/portal/resumo-service";
 import { addDays, differenceInCalendarDays, subMonths, getISOWeek } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { notificar, notificarMuitos } from "@/lib/notificar";
@@ -235,6 +236,22 @@ export async function alertaCobrancaCliente(): Promise<number> {
     console.log(`[avisos] cobrança ao cliente enviadas=${r.enviadas} já-enviadas=${r.duplicadas} sem-email=${r.semEmail} licitação=${r.licitacao} falhas=${r.falhas}`);
   }
   return r.enviadas;
+}
+
+/**
+ * Resumo diário do portal (spec 2026-11-19-portal-resumo-diario): e-mail + sino às contas do portal do cliente, um por
+ * projeto que andou. Sem SMTP, só o sino.
+ */
+export async function resumoDiarioPortal(): Promise<void> {
+  const r = await rodarResumoDiario({
+    enviar: smtpConfigurado() ? (para, vars) => enviarEmailTemplate(para, "resumo-andamento-portal", vars) : null,
+    notificar: (id, n) => notificar(id, n, { push: false }),
+  });
+  if (r.emails + r.sinos + r.duplicados + r.falhas > 0) {
+    console.log(
+      `[portal] resumo diário dias=${r.dias.join(",")} e-mails=${r.emails} sinos=${r.sinos} duplicados=${r.duplicados} sem-email=${r.semEmail} opt-out=${r.optOut} falhas=${r.falhas}`,
+    );
+  }
 }
 
 /** M9: sino de contas a pagar vencendo (D-3 e D-1) para quem lançou a conta. */
