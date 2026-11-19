@@ -76,7 +76,7 @@ describe("zipEmStream", () => {
         { caminho: grande, nome: "1.bin" },
         { caminho: grande, nome: "2.bin" },
       ],
-      abrir,
+      { abrir },
     ).getReader();
     await leitor.read();
     await leitor.cancel();
@@ -84,5 +84,23 @@ describe("zipEmStream", () => {
     expect(abertos.length).toBe(1);
     // Aberto e parado no meio prenderia o arquivo no Windows (renomear, substituir, lixeira) até reiniciar o servidor.
     expect(abertos.every((rs) => rs.destroyed)).toBe(true);
+  });
+
+  it("avisa 'completo' só quando o cliente leu o pacote inteiro", async () => {
+    const fins: string[] = [];
+    await lerTudo(zipEmStream([{ caminho: path.join(dir, "a.txt"), nome: "a.txt" }], { aoFim: (f) => fins.push(f) }));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(fins).toEqual(["completo"]);
+  });
+
+  it("avisa 'interrompido' quando o cliente cancela no meio", async () => {
+    const fins: string[] = [];
+    const leitor = zipEmStream([{ caminho: path.join(dir, "grande.bin"), nome: "grande.bin" }], {
+      aoFim: (f) => fins.push(f),
+    }).getReader();
+    await leitor.read();
+    await leitor.cancel();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(fins).toEqual(["interrompido"]);
   });
 });

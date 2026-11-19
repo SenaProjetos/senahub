@@ -72,7 +72,9 @@ export async function logAudit(input: AuditInput): Promise<void> {
         entidade: input.entidade,
         entidadeId: input.entidadeId,
         detalhe: input.detalhe ? (sanitize(input.detalhe) as object) : undefined,
-        ip: input.ip ?? (await getClientIp()),
+        // `undefined` = ler da requisição agora; `null`/texto = já lido (gravação depois da resposta, ex.: fim
+        // do .zip, quando não há mais requisição para ler).
+        ip: input.ip !== undefined ? input.ip : await getClientIp(),
       },
     });
   } catch (err) {

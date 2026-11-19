@@ -39,27 +39,36 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   }
   if (entradas.length === 0) return NextResponse.json({ error: "Arquivos indisponíveis no disco." }, { status: 410 });
 
-  await logAudit({
-    modulo: "uploads",
-    acao: "download-link-publico-zip",
-    resultado: "sucesso",
-    entidade: "Projeto",
-    detalhe: { linkId: pacote.linkId, disciplinaId, fase, ext, situacao, ...(foraDoPacote.length > 0 ? { foraDoPacote } : {}) },
-    ip: await getClientIp(),
-  });
-  // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita
-  // (engole e loga), e o servidor é um processo longo — a gravação termina em segundo plano.
-  void registrarAcessoUploads({
-    uploadIds: entradas.map((e) => e.uploadId),
-    tipo: "download",
-    origem: "link_publico",
-    userId: null,
-    linkId: pacote.linkId,
-    via: "zip",
-  });
-
+  // Auditoria e histórico só quando o pacote termina de sair: um download cancelado não conta como baixado.
+  // O IP é lido agora, ainda dentro da requisição.
+  const ip = await getClientIp();
+  const detalhe = { linkId: pacote.linkId, disciplinaId, fase, ext, situacao, ...(foraDoPacote.length > 0 ? { foraDoPacote } : {}) };
   // `entradas` já passou por `separarPorExistencia` (e por `resolverCaminho`).
-  const stream = zipEmStream(entradas.map((e) => ({ caminho: resolverCaminho(e.caminho), nome: e.nome })));
+  const stream = zipEmStream(
+    entradas.map((e) => ({ caminho: resolverCaminho(e.caminho), nome: e.nome })),
+    {
+      aoFim: (fim) => {
+        // Sem await: os serviços nunca rejeitam (engolem e logam), e o servidor é um processo longo.
+        void logAudit({
+          modulo: "uploads",
+          acao: "download-link-publico-zip",
+          resultado: fim === "completo" ? "sucesso" : "falha",
+          entidade: "Projeto",
+          detalhe: fim === "completo" ? detalhe : { ...detalhe, interrompido: true },
+          ip,
+        });
+        if (fim !== "completo") return;
+        void registrarAcessoUploads({
+          uploadIds: entradas.map((e) => e.uploadId),
+          tipo: "download",
+          origem: "link_publico",
+          userId: null,
+          linkId: pacote.linkId,
+          via: "zip",
+        });
+      },
+    },
+  );
 
   // O nome do arquivo acompanha a pasta pedida, senão três downloads diferentes chegam na
   // pasta de Downloads do cliente com o mesmo nome.

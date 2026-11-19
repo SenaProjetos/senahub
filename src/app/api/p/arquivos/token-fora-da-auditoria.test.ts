@@ -29,7 +29,8 @@ describe("rotas do link público de arquivos", () => {
     const semLinkId: string[] = [];
     for (const f of arquivos) {
       const src = readFileSync(f, "utf8");
-      const detalhes = [...src.matchAll(/detalhe:\s*\{([^}]*)\}/g)].map((m) => m[1]);
+      // `detalhe: { … }` direto no logAudit, ou `const detalhe = { … }` montado antes (o .zip grava no fim do envio).
+      const detalhes = [...src.matchAll(/detalhe(?::|\s*=)\s*\{([^}]*)\}/g)].map((m) => m[1]);
       if (detalhes.some((d) => /\btoken\b/.test(d))) comToken.push(path.relative(RAIZ, f));
       if (!detalhes.some((d) => /\blinkId\b/.test(d))) semLinkId.push(path.relative(RAIZ, f));
     }
