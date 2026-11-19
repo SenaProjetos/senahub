@@ -454,6 +454,15 @@ export async function conteudoDoAlcance(link: AlcanceArquivos): Promise<Conteudo
   return conteudo ? marcarAusentesNoDisco(await marcarBloqueados(conteudo)) : null;
 }
 
+/**
+ * O mesmo conteúdo, sem os selos de bloqueio e de ausência no disco. Os selos nunca tiram arquivo da lista, então
+ * quem só CONTA o que está nas Entregas (o progresso da lista de projetos do portal) evita a consulta de bloqueios e
+ * o acesso ao disco de cada arquivo. Nunca use para montar a página ou o download.
+ */
+export function conteudoDoAlcanceSemSelos(link: AlcanceArquivos): Promise<ConteudoPublico | null> {
+  return montarConteudo(link);
+}
+
 /** Todo arquivo do conteúdo (pastas do cliente + disciplinas), para as marcas que pedem consulta. */
 function arquivosDoConteudo(c: ConteudoPublico): ArquivoPublicoEmPasta[] {
   return [...c.situacoes.flatMap((s) => s.disciplinas), ...c.disciplinas].flatMap((d) =>

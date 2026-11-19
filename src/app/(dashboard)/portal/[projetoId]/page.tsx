@@ -51,12 +51,12 @@ export default async function PortalProjetoPage({
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {projeto.prazoContrato && (
             <span className="flex items-center gap-1.5">
-              <CalendarDays className="size-4" /> Prazo: {formatarData(projeto.prazoContrato)}
+              <CalendarDays className="size-4" aria-hidden /> Prazo: {formatarData(projeto.prazoContrato)}
             </span>
           )}
           {projeto.endereco && (
             <span className="flex min-w-0 items-center gap-1.5">
-              <MapPin className="size-4 shrink-0" /> <span className="truncate">{projeto.endereco}</span>
+              <MapPin className="size-4 shrink-0" aria-hidden /> <span className="truncate">{projeto.endereco}</span>
             </span>
           )}
         </div>

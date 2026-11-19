@@ -77,6 +77,11 @@ describe("andamentoDoProjeto", () => {
     expect(a.disciplinas[0].fases[0]).toEqual({ faseId: "f-ep", sigla: "EP", situacao: "nao_iniciada", concluidaEm: null });
   });
 
+  it("aguardando com prancha já nas Entregas é Em andamento, não Não iniciada", () => {
+    const a = andamentoDoProjeto([disc("d1", [fase("EP", "aguardando")])], [marca("doc1", "d1", "f-ep", "compartilhado", null)]);
+    expect(a.disciplinas[0].fases[0].situacao).toBe("em_andamento");
+  });
+
   it("aprovada sem prancha nas Entregas segue Em andamento", () => {
     const a = andamentoDoProjeto([disc("d1", [fase("EP", "aprovado", { entregueEm: d("2026-10-05T12:00:00Z") })])], []);
     expect(a.disciplinas[0].fases[0].situacao).toBe("em_andamento");

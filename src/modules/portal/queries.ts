@@ -1,6 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { andamentoDoPortal } from "./andamento-queries";
+import { progressoDoPortal } from "./andamento-queries";
 
 /**
  * Cliente vinculado ao usuário do portal. `ativo = false` = cliente desativado no cadastro: o portal inteiro
@@ -17,7 +17,8 @@ export async function clienteDoUsuario(userId: string): Promise<{ clienteId: str
 
 /**
  * Projetos do cliente (read-only). Escopo ESTRITO por clienteId do próprio usuário; cliente desativado não vê nada.
- * O progresso é o MESMO do detalhe (`andamentoDoPortal`): fases concluídas para o cliente, não o status interno.
+ * O progresso é o MESMO do detalhe (`progressoDoPortal` = `andamentoDoPortal` sem datas): fases concluídas para o
+ * cliente, não o status interno.
  */
 export async function projetosDoCliente(clienteId: string) {
   const projetos = await prisma.projeto.findMany({
@@ -35,7 +36,6 @@ export async function projetosDoCliente(clienteId: string) {
   const itens = [];
   // Um por vez: cada um lê as Entregas do projeto, e clientes têm poucos projetos.
   for (const p of projetos) {
-    const { andamento } = await andamentoDoPortal(p);
     itens.push({
       id: p.id,
       codigo: p.codigo,
@@ -43,7 +43,7 @@ export async function projetosDoCliente(clienteId: string) {
       situacao: p.situacao,
       prazoContrato: p.prazoContrato ? p.prazoContrato.toISOString().slice(0, 10) : null,
       totalDisciplinas: p._count.disciplinas,
-      progresso: andamento.percentual,
+      progresso: await progressoDoPortal(p),
     });
   }
   return itens;

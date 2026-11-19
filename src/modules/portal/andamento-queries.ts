@@ -1,7 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { conteudoDoAlcance, type ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
+import { conteudoDoAlcance, conteudoDoAlcanceSemSelos, type ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
 import { alcanceDoPortal } from "@/modules/projetos/arquivos/link-publico-regras";
 import { ROTULO_SITUACAO, type Situacao } from "@/modules/uploads/revisao-marcada";
 import {
@@ -38,7 +38,9 @@ const SITUACAO_DO_CONTROLE = { enviado_cliente: "compartilhado", liberado_obra: 
 /**
  * Data em que cada documento entrou em cada pasta do cliente. Dentro do ciclo documental: o controle ativo da
  * revisão marcada. Fora dele: o evento `situacao_marcada` mais recente daquela pasta e revisão. Nenhum dos dois
- * (marcação antiga) = sem data — não inventamos.
+ * (marcação antiga) = sem data — não inventamos. Controle de origem `migracao` não conta: a migração para o ciclo
+ * gravou o dia em que rodou, não o da marcação (cai no evento, se houver).
+ * O evento é casado pelo RÓTULO da pasta (`ROTULO_SITUACAO`), que é o que `atualizarStatusDocumento` grava.
  */
 async function datasDasMarcacoes(
   pares: { documentoId: string; revisaoId: string | null; numero: number | null; situacao: Situacao }[],
@@ -49,10 +51,10 @@ async function datasDasMarcacoes(
   const revisaoIds = [...new Set(pares.map((p) => p.revisaoId).filter((x): x is string => x != null))];
   const controles = await prisma.controleRevisao.findMany({
     where: { revisaoId: { in: revisaoIds }, removidoEm: null, tipo: { in: ["enviado_cliente", "liberado_obra"] } },
-    select: { revisaoId: true, tipo: true, aplicadoEm: true },
+    select: { revisaoId: true, tipo: true, aplicadoEm: true, origem: true },
   });
   const porControle = new Map(
-    controles.map((c) => [`${c.revisaoId}:${SITUACAO_DO_CONTROLE[c.tipo as keyof typeof SITUACAO_DO_CONTROLE]}`, c.aplicadoEm]),
+    controles.filter((c) => c.origem !== "migracao").map((c) => [`${c.revisaoId}:${SITUACAO_DO_CONTROLE[c.tipo as keyof typeof SITUACAO_DO_CONTROLE]}`, c.aplicadoEm]),
   );
 
   const documentoIds = [...new Set(pares.map((p) => p.documentoId))];
@@ -82,6 +84,7 @@ async function datasDasMarcacoes(
 export async function entradaDoAndamento(
   projetoId: string,
   conteudo: ConteudoPublico | null,
+  opcoes: { semDatas?: boolean } = {},
 ): Promise<{ disciplinas: DisciplinaEntrada[]; marcas: MarcaEntrada[] }> {
   const linhas = await prisma.disciplina.findMany({
     where: { projetoId },
@@ -133,7 +136,8 @@ export async function entradaDoAndamento(
       pares.set(chave, { documentoId: u.documentoId, revisaoId: u.revisaoId, numero: u.revisao?.numero ?? null, situacao: p.situacao });
     }
   }
-  const datas = await datasDasMarcacoes([...pares.values()]);
+  // As datas só mudam QUANDO a fase concluiu, nunca SE concluiu: o percentual dispensa essas consultas.
+  const datas = opcoes.semDatas ? new Map<string, Date>() : await datasDasMarcacoes([...pares.values()]);
   return { disciplinas, marcas: marcasDoConteudo(conteudo, documentoDoUpload, datas) };
 }
 
@@ -147,4 +151,14 @@ export async function andamentoDoPortal(projeto: {
   const { disciplinas, marcas } = await entradaDoAndamento(projeto.id, conteudo);
   const andamento = andamentoDoProjeto(disciplinas, marcas);
   return { andamento, linha: linhaDoTempo(disciplinas, marcas, andamento), conteudo };
+}
+
+/**
+ * Só o percentual (lista `/portal`): o mesmo cálculo do detalhe, sem os selos das Entregas nem as datas, que não
+ * mudam o que está concluído.
+ */
+export async function progressoDoPortal(projeto: { id: string; codigo: string; nome: string }): Promise<number> {
+  const conteudo = await conteudoDoAlcanceSemSelos(alcanceDoPortal(projeto));
+  const { disciplinas, marcas } = await entradaDoAndamento(projeto.id, conteudo, { semDatas: true });
+  return andamentoDoProjeto(disciplinas, marcas).percentual;
 }

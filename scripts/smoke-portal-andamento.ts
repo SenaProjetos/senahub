@@ -12,7 +12,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
-import { andamentoDoPortal } from "../src/modules/portal/andamento-queries";
+import { andamentoDoPortal, progressoDoPortal } from "../src/modules/portal/andamento-queries";
 import { projetosDoCliente } from "../src/modules/portal/queries";
 
 async function main() {
@@ -114,6 +114,12 @@ async function main() {
       data: { revisaoId: b.rev.id, tipo: "enviado_cliente", motivo: "smoke", aplicadoPorId: usuario.id, aplicadoEm: new Date("2026-10-07T15:00:00Z") },
     });
 
+    // A migração para o ciclo criou controles com a data do dia em que rodou (origem "migracao"): essa data não é a
+    // da marcação e não vale — fica a do evento.
+    await prisma.controleRevisao.create({
+      data: { revisaoId: a.rev.id, tipo: "enviado_cliente", motivo: "smoke", origem: "migracao", automatico: true, aplicadoEm: new Date("2026-11-01T12:00:00Z") },
+    });
+
     const r1 = await andamentoDoPortal(p1);
     const fasesP1 = r1.andamento.disciplinas[0]?.fases ?? [];
     const fA = fasesP1.find((f) => f.faseId === faseA.id);
@@ -128,6 +134,8 @@ async function main() {
 
     const lista = await projetosDoCliente(cliente.id);
     check("percentual da lista igual ao do detalhe", lista.find((p) => p.id === p1.id)?.progresso === r1.andamento.percentual);
+    check("progresso sem datas (lista) igual ao do detalhe", (await progressoDoPortal(p1)) === r1.andamento.percentual);
+    check("controle da migração não vira data de marcação", !textos.some((x) => x.startsWith("2026-11-01")));
 
     // Outro cliente: o projeto dele nunca entra na lista deste.
     const outro = await novoCliente("outro");

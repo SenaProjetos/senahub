@@ -81,7 +81,8 @@ const maisRecente = (a: Date | null, b: Date | null): Date | null => (!a ? b : !
 
 /** Situação para o cliente de uma fase (ou da disciplina sem fase) dadas as marcas dela nas Entregas. */
 function situacaoDe(status: StatusDisciplina, entregueEm: Date | null, marcas: MarcaEntrada[]): Omit<FaseAndamento, "faseId" | "sigla"> {
-  if (status === "aguardando") return { situacao: "nao_iniciada", concluidaEm: null };
+  // Fase que segue "aguardando" com prancha já entregue ao cliente não é "Não iniciada" (a linha do tempo contradiria).
+  if (status === "aguardando" && marcas.length === 0) return { situacao: "nao_iniciada", concluidaEm: null };
   if (status !== "aprovado" || marcas.length === 0) return { situacao: "em_andamento", concluidaEm: null };
   const data = maisRecente(entregueEm, maisAntiga(marcas.map((m) => m.marcadaEm)));
   return { situacao: "concluida", concluidaEm: data ? diaDeSaoPaulo(data) : null };

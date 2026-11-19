@@ -47,7 +47,8 @@ Uma consulta a mais (`andamento-queries.ts`, `server-only`) completa:
   (documentos), não arquivos (PDF + DWG da mesma prancha = 1).
 - **Data da marcação** de cada documento em cada situação:
   - dentro do ciclo documental: `ControleRevisao.aplicadoEm` do controle ativo (`removidoEm: null`) da revisão
-    marcada, tipo `enviado_cliente` (compartilhado) ou `liberado_obra`;
+    marcada, tipo `enviado_cliente` (compartilhado) ou `liberado_obra`, exceto os de origem `migracao` (a migração
+    para o ciclo gravou o dia em que rodou — cai no evento abaixo; revisão final);
   - fora do ciclo: o `DocumentoEvento` `situacao_marcada` mais recente do documento com `detalhe.pasta` = rótulo da
     situação e `detalhe.revisao` = número da revisão marcada;
   - nenhum dos dois (marcação antiga, sem evento): **sem data**. Conta para concluir a fase, não entra na linha do
@@ -57,7 +58,7 @@ Uma consulta a mais (`andamento-queries.ts`, `server-only`) completa:
 
 | Situação | Quando |
 |---|---|
-| Não iniciada | `status = aguardando` |
+| Não iniciada | `status = aguardando` e nenhuma prancha da fase nas Entregas (com prancha, é Em andamento — revisão final) |
 | Concluída | `status = aprovado` **e** ao menos um documento da mesma fase (mesmo `etapaId` = `faseId` do documento) da mesma disciplina está nas Entregas, em qualquer das duas situações |
 | Em andamento | qualquer outro caso (inclui `em_andamento`, `entregue`, `em_revisao`, aprovada sem prancha enviada, e prancha compartilhada antes da aprovação) |
 
@@ -100,8 +101,8 @@ Uma consulta a mais (`andamento-queries.ts`, `server-only`) completa:
   portal) e serve os três cards. Andamento, Linha do tempo e Entregas ficam no mesmo `Suspense` e no mesmo
   `LimiteErroEntregas`: falhou a leitura, só esse bloco cai; o topo (nome, prazo do contrato, endereço) e "Documentos
   recebidos" seguem.
-- **Lista `/portal`**: o percentual de cada projeto passa a vir da mesma função (uma leitura das Entregas por projeto
-  do cliente — clientes têm poucos projetos).
+- **Lista `/portal`**: o percentual de cada projeto passa a vir da mesma função (`progressoDoPortal`: as Entregas sem
+  os selos de bloqueio/disco e sem as datas, que não mudam o que está concluído), dentro de um `Suspense` com esqueleto.
 
 ## Fora do escopo
 
