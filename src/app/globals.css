@@ -49,6 +49,7 @@
   --color-success-text: var(--success-text);
   --color-warning-text: var(--warning-text);
   --color-info-text: var(--info-text);
+  --color-destructive-text: var(--destructive-text);
   /* Status de disciplina (identidade do sistema) */
   --color-status-aguardando: var(--status-aguardando);
   --color-status-andamento: var(--status-andamento);
@@ -107,6 +108,8 @@
   --success-text: #387059;
   --warning-text: #816124;
   --info-text: #286e84;
+  /* Texto vermelho sobre fundo vermelho claro (selo "perigo"): o --destructive dava 4,47:1, abaixo do AA. */
+  --destructive-text: #8f3d3d;
   --status-aguardando: #6a5bb8;
   --status-andamento: #2e7d96;
   --status-revisao: #b0507a;
@@ -164,6 +167,7 @@
   --success-text: #62a587;
   --warning-text: #c29a4b;
   --info-text: #52a3b9;
+  --destructive-text: #e09a9a;
   --status-aguardando: #8b7fc7;
   --status-andamento: #4e9bb0;
   --status-revisao: #c76e94;

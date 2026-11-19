@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import {
   CHAVE_STATUS,
   CORES_STATUS,
@@ -82,4 +83,44 @@ describe("cor da badge", () => {
     for (const c of cores) expect(CORES_STATUS).toContain(c);
     expect(new Set(chaves)).toEqual(new Set(Object.values(CHAVE_STATUS)));
   });
+});
+
+describe("classeDoStatus — contraste AA do selo 'perigo' (Download bloqueado, bloqueio do ciclo)", () => {
+  // Lê os tokens do tema direto do globals.css: o selo é texto de 10 px, precisa de 4,5:1 nos dois temas,
+  // sobre o card, o fundo da página e o fundo de linha (muted).
+  const css = readFileSync(path.resolve(__dirname, "..", "..", "app", "globals.css"), "utf8");
+  const bloco = (seletor: string) => {
+    const i = css.indexOf(`${seletor} {`);
+    return css.slice(i, css.indexOf("}", i));
+  };
+  const token = (b: string, nome: string) => {
+    const m = new RegExp(`--${nome}:\\s*(#[0-9a-f]{6})`, "i").exec(b);
+    if (!m) throw new Error(`token --${nome} não achado`);
+    return m[1];
+  };
+  const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const lum = (c: number[]) => {
+    const [r, g, b] = c.map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contraste = (a: number[], b: number[]) => {
+    const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m);
+    return (x + 0.05) / (y + 0.05);
+  };
+
+  for (const [tema, seletor] of [["claro", ":root"], ["escuro", ".dark"]] as const) {
+    it(`tema ${tema}: texto do selo ≥ 4,5:1`, () => {
+      const b = bloco(seletor);
+      const classe = classeDoStatus("perigo");
+      const texto = /\btext-([a-z-]+)/.exec(classe)![1];
+      const fundo = /\bbg-([a-z-]+)\/(\d+)/.exec(classe)!;
+      const alfa = Number(fundo[2]) / 100;
+      for (const base of ["card", "background", "muted"]) {
+        const sob = rgb(token(b, base));
+        const tinta = rgb(token(b, fundo[1]));
+        const mistura = tinta.map((t, i) => t * alfa + sob[i] * (1 - alfa));
+        expect(contraste(rgb(token(b, texto)), mistura), `${tema} sobre ${base}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
 });

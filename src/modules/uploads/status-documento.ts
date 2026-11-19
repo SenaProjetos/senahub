@@ -91,6 +91,8 @@ export function statusAoDesaprovar(p: {
  *
  * `atencao` é a etiqueta âmbar ("Em revisão"): o `text-warning` sobre fundo claro fica em ~3:1, abaixo do AA
  * para texto de 10 px — no claro o texto é o `foreground` sobre o fundo âmbar; no escuro, o próprio âmbar.
+ * `perigo` usa o `destructive-text` (vermelho mais escuro no claro, mais claro no escuro): o `text-destructive`
+ * ficava em 4,47:1 / 4,01:1. O teste de contraste lê os tokens do globals.css.
  */
 const CLASSE_DA_COR: Record<string, string> = {
   neutro: "border-border bg-muted text-muted-foreground",
@@ -101,7 +103,7 @@ const CLASSE_DA_COR: Record<string, string> = {
   aprovado: "border-status-aprovado/40 bg-status-aprovado/10 text-status-aprovado",
   info: "border-info bg-info text-info-foreground",
   primario: "border-primary bg-primary text-primary-foreground",
-  perigo: "border-destructive/40 bg-destructive/10 text-destructive",
+  perigo: "border-destructive/40 bg-destructive/10 text-destructive-text",
   atencao: "border-warning/50 bg-warning/15 text-foreground dark:bg-warning/10 dark:text-warning",
 };
 

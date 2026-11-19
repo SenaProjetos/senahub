@@ -92,13 +92,7 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
           )}
           {arquivo.bloqueado && (
             <span
-              // Texto no `foreground` (o vermelho fica no contorno e no fundo): o `text-destructive` sobre o próprio
-              // fundo dava 4,47:1 no claro e 4,01:1 no escuro, abaixo do AA para 10 px.
-              className={cn(
-                "shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none",
-                classeDoStatus(COR_CONTROLE.bloqueio),
-                "text-foreground",
-              )}
+              className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_CONTROLE.bloqueio))}
               title="Esta revisão está bloqueada para download. Fale com a equipe do projeto."
             >
               Download bloqueado
