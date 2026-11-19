@@ -587,7 +587,9 @@ async function sobreviveAoRecorte(upload: LinhaRegras): Promise<boolean> {
  */
 export async function uploadLiberadoNoLink(token: string, uploadId: string) {
   const alcance = await alcanceDoToken(token);
-  return alcance ? uploadLiberadoNoAlcance(alcance, uploadId) : null;
+  const upload = alcance ? await uploadLiberadoNoAlcance(alcance, uploadId) : null;
+  // `linkId` vai para a auditoria e o histórico no lugar do token (a chave de acesso do cliente).
+  return upload && alcance ? { ...upload, linkId: alcance.linkId } : null;
 }
 
 /** O `uploadId` está liberado neste alcance? Mesma regra da página — ver `uploadLiberadoNoLink`. */
@@ -641,7 +643,8 @@ export async function uploadLiberadoNoAlcance(link: AlcanceArquivos, uploadId: s
  */
 export async function artLiberadaNoLink(token: string, id: string) {
   const alcance = await alcanceDoToken(token);
-  return alcance ? artLiberadaNoAlcance(alcance, id) : null;
+  const art = alcance ? await artLiberadaNoAlcance(alcance, id) : null;
+  return art && alcance ? { ...art, linkId: alcance.linkId } : null;
 }
 
 /** A ART (ou versão) `id` está liberada neste alcance? Ver `artLiberadaNoLink`. */

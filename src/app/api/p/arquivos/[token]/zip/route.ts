@@ -43,7 +43,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     acao: "download-link-publico-zip",
     resultado: "sucesso",
     entidade: "Projeto",
-    detalhe: { token, disciplinaId, fase, ext, situacao, ...(foraDoPacote.length > 0 ? { foraDoPacote } : {}) },
+    detalhe: { linkId: pacote.linkId, disciplinaId, fase, ext, situacao, ...(foraDoPacote.length > 0 ? { foraDoPacote } : {}) },
     ip: await getClientIp(),
   });
   // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita

@@ -17,9 +17,11 @@ import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { alcanceDoPortal } from "../src/modules/projetos/arquivos/link-publico-regras";
 import {
   artLiberadaNoAlcance,
+  artLiberadaNoLink,
   conteudoDoAlcance,
   conteudoPublicoPorToken,
   uploadLiberadoNoAlcance,
+  uploadLiberadoNoLink,
   uploadsDoAlcanceParaZip,
   type ConteudoPublico,
 } from "../src/modules/projetos/arquivos/link-publico";
@@ -159,6 +161,10 @@ async function main() {
       "ART do projeto aparece",
       (comArt?.arts.some((x) => x.id === art.id) ?? false) && (await artLiberadaNoAlcance(alcance, art.id)) !== null,
     );
+
+    // A rota do link grava o linkId na auditoria e no histórico, nunca o token.
+    check("download pelo link traz o linkId do link", (await uploadLiberadoNoLink(link.token, a.up.id))?.linkId === link.id);
+    check("ART pelo link traz o linkId do link", (await artLiberadaNoLink(link.token, art.id))?.linkId === link.id);
   } finally {
     for (const id of projetos) await prisma.projeto.delete({ where: { id } });
     for (const id of clientes) await prisma.cliente.delete({ where: { id } });

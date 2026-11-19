@@ -28,7 +28,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string; 
     resultado: "sucesso",
     entidade: "Art",
     entidadeId: id,
-    detalhe: { token },
+    detalhe: { linkId: art.linkId },
     ip: await getClientIp(),
   });
 

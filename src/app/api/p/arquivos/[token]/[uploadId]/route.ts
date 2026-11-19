@@ -36,21 +36,20 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string; 
     resultado: "sucesso",
     entidade: "Upload",
     entidadeId: upload.id,
-    detalhe: { token },
+    detalhe: { linkId: upload.linkId },
     ip: await getClientIp(),
   });
 
   // Só PDF abre no navegador: outro tipo inline (HTML, SVG) rodaria na origem do sistema.
   const inline = abreNoNavegador(upload.nomeArquivo, new URL(req.url).searchParams.get("disposition") === "inline");
   // Guarda o id do link, nunca o token: o histórico é lido por colaboradores e o token é a chave
-  // de acesso do cliente. O link já foi validado acima — aqui só se resolve quem ele é.
-  const link = await prisma.linkPublicoArquivos.findUnique({ where: { token }, select: { id: true } });
+  // de acesso do cliente.
   await registrarAcessoUploads({
     uploadIds: [upload.id],
     tipo: inline ? "visualizacao" : "download",
     origem: "link_publico",
     userId: null,
-    linkId: link?.id ?? null,
+    linkId: upload.linkId,
   });
   const disposition = inline ? "inline" : "attachment";
   return new NextResponse(arquivo.abrir(), {
