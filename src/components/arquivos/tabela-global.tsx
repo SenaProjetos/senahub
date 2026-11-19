@@ -22,7 +22,7 @@ import { useAcoesDocumento } from "@/components/projetos/arquivos/use-acoes-docu
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { copiarTexto } from "@/lib/clipboard";
 import { acimaDoTeto, motivoAcimaDoTeto } from "@/lib/lote";
-import { formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { formatarBytes, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { MAX_ARQUIVOS_ZIP } from "@/modules/arquivos/arvore-global";
 import { carregarDocumentosPorIds } from "@/modules/arquivos/actions";
 import {
@@ -51,12 +51,6 @@ import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
  * continua marcado quando o filtro muda, e "Selecionados (N)" mostra o conjunto inteiro — que não
  * está todo carregado, então vem do servidor, por id, com o escopo recalculado lá.
  */
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
-
 export type ProjetoDaLinha = { id: string; codigo: string; nome: string };
 
 /** Resultado da visão "Selecionados", com a chave da seleção que o gerou. */
@@ -362,7 +356,7 @@ export function TabelaGlobalArquivos({
                         <span title={`${formatarDataHora(linha.atualizadoEm)} por ${linha.autor}`}>
                           {formatarData(linha.atualizadoEm)}
                         </span>
-                        <span className="block">{fmtBytes(linha.tamanhoTotal)}</span>
+                        <span className="block">{formatarBytes(linha.tamanhoTotal)}</span>
                       </TableCell>
                       <TableCell className="text-right">
                         {menu.itens.length > 0 && (
@@ -533,7 +527,7 @@ function CartaoGlobal({
       </div>
 
       <p className="pl-6 text-[11px] text-muted-foreground">
-        {formatarData(linha.atualizadoEm)} · {fmtBytes(linha.tamanhoTotal)} · {linha.autor}
+        {formatarData(linha.atualizadoEm)} · {formatarBytes(linha.tamanhoTotal)} · {linha.autor}
       </p>
     </>
   );

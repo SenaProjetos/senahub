@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { VisualizarDocumentoDialog } from "@/components/certidoes/visualizar-documento-dialog";
-import { formatarData } from "@/lib/utils";
+import { formatarBytes, formatarData } from "@/lib/utils";
 
 const SEM_DISCIPLINA = "__geral";
 
@@ -32,12 +32,6 @@ type RespostaUpload = {
   hashSha256?: string | null;
   error?: string;
 };
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 function ehPdf(nome: string) {
   return nome.toLowerCase().endsWith(".pdf");
@@ -201,7 +195,7 @@ export function PadroesView({
                               </div>
                               <p className="truncate text-xs text-muted-foreground">
                                 {i.descricao ? `${i.descricao} · ` : ""}
-                                {i.arquivoNome} · {i.autor} · {formatarData(i.data)} · {fmtBytes(i.tamanho)}
+                                {i.arquivoNome} · {i.autor} · {formatarData(i.data)} · {formatarBytes(i.tamanho)}
                               </p>
                             </div>
                             {ehPdf(i.arquivoNome) && (

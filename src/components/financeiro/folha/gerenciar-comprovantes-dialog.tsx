@@ -12,13 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { formatarData } from "@/lib/utils";
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+import { formatarBytes, formatarData } from "@/lib/utils";
 
 type Anexo = { id: string; nome: string; tamanho: number; createdAt: Date };
 
@@ -121,7 +115,7 @@ export function GerenciarComprovantesDialog({
               {anexos.map((a) => (
                 <li key={a.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
                   <span className="min-w-0 truncate">
-                    {a.nome} <span className="font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
+                    {a.nome} <span className="font-mono text-xs text-muted-foreground">{formatarBytes(a.tamanho)}</span>
                     <span className="block text-xs text-muted-foreground">{formatarData(a.createdAt)}</span>
                   </span>
                   <span className="flex shrink-0 items-center">

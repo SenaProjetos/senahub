@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, XCircle, Loader2, Clock, FileText, RotateCcw } from "lucide-react";
 import { precisaChunk, enviarEmChunks } from "@/lib/upload-grande";
 import { limiteLabelDoPacote } from "@/modules/uploads/limites";
+import { formatarBytes } from "@/lib/utils";
 
 /**
  * Upload de UM arquivo com progresso + painel de progresso por arquivo,
@@ -153,12 +154,6 @@ export function patchLinhaEnvio(lista: LinhaEnvio[], i: number, patch: Partial<L
   return copia;
 }
 
-function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
-
 function IconeStatus({ status }: { status: StatusEnvio }) {
   if (status === "ok") return <CheckCircle2 className="size-3.5 shrink-0 text-success" />;
   if (status === "erro") return <XCircle className="size-3.5 shrink-0 text-destructive" />;
@@ -247,7 +242,7 @@ export function PainelProgressoEnvio({
                   <span className="min-w-0 flex-1 truncate text-xs" title={l.nome}>
                     {l.nome}
                   </span>
-                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{fmtBytes(l.tamanho)}</span>
+                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{formatarBytes(l.tamanho)}</span>
                   <IconeStatus status={l.status} />
                 </div>
                 {(l.status === "enviando" || l.status === "pendente") && (

@@ -11,7 +11,7 @@ import { validarArquivo } from "@/modules/uploads/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { copiarTexto } from "@/lib/clipboard";
 import { acimaDoTeto, motivoAcimaDoTeto } from "@/lib/lote";
-import { formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { formatarBytes, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { MAX_ARQUIVOS_ZIP } from "@/modules/arquivos/arvore-global";
 import {
   ACAO_LOTE_APROVAR,
@@ -37,12 +37,6 @@ const PACOTE_LABEL: Record<string, string> = {
   A: "Pranchas e arquivos",
   B: "Backup do modelo",
 };
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 const PDF_INLINE = (url: string) => `${url}?disposition=inline`;
 
@@ -233,7 +227,7 @@ export function AprovacoesView({ pendentes }: { pendentes: PendenteAprovacao[] }
                       </div>
                       <p className="truncate text-xs text-muted-foreground">
                         {a.disciplina} · {PACOTE_LABEL[a.pacote] ?? a.pacote} · {a.autor} · {formatarDataHora(a.criadoEm)} ·{" "}
-                        {fmtBytes(a.tamanho)}
+                        {formatarBytes(a.tamanho)}
                       </p>
                     </div>
                     {inline && (

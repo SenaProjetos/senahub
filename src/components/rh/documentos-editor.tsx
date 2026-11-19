@@ -20,17 +20,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PreviewPdfButton } from "@/components/pdf/preview-pdf-button";
 import { dataCurta } from "@/lib/dias-iso";
+import { formatarBytes } from "@/lib/utils";
 
 export type DocumentoItem = {
   id: string; tipo: string; nome: string; nomeArquivo: string; mime: string; tamanho: number; criadoEm: string;
   validadeEm: string | null; conferido: boolean; enviadoPelaPessoa: boolean;
 };
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 function hojeLocal() {
   const d = new Date();
@@ -145,7 +140,7 @@ export function DocumentosEditor({
             </span>
           )}
           {!d.conferido && <span className="text-xs text-warning">aguardando conferência do RH</span>}
-          <span className="font-mono text-xs text-muted-foreground">{fmtBytes(d.tamanho)}</span>
+          <span className="font-mono text-xs text-muted-foreground">{formatarBytes(d.tamanho)}</span>
         </span>
         <span className="flex shrink-0 items-center">
           <PreviewPdfButton visivel={d.mime === "application/pdf"} url={`/api/rh/funcionarios/documentos/${d.id}/download?disposition=inline`} titulo={d.nome} />

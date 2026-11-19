@@ -28,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { EmptyState } from "@/components/ui/empty-state";
 import { VisualizarDocumentoDialog } from "@/components/certidoes/visualizar-documento-dialog";
 import { useSetParams } from "@/lib/use-set-param";
-import { cn, formatarData } from "@/lib/utils";
+import { cn, formatarBytes, formatarData } from "@/lib/utils";
 
 /** Corpo da rota de upload: metadata em caso de sucesso, `error` em caso de falha. */
 type RespostaUpload = {
@@ -44,12 +44,6 @@ type DisciplinaCatalogo = { id: string; nome: string; categoria: string | null }
 
 /** Valor do seletor de pasta no celular para "todas" (o Select não aceita valor vazio). */
 const TODAS = "__todas";
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 function plural(n: number) {
   return `${n} ${n === 1 ? "norma" : "normas"}`;
@@ -244,7 +238,7 @@ export function NormasView({
                             </td>
                             <td className="px-4 py-2 text-right align-top font-mono text-xs">{n.ano}</td>
                             <td className="hidden px-4 py-2 align-top text-xs text-muted-foreground lg:table-cell">
-                              {n.autor} · {formatarData(n.data)} · {fmtBytes(n.tamanho)}
+                              {n.autor} · {formatarData(n.data)} · {formatarBytes(n.tamanho)}
                             </td>
                             <td className="px-4 py-2 text-right align-top whitespace-nowrap">
                               <AcoesNorma

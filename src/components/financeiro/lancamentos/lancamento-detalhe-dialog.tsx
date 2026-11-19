@@ -15,12 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+import { formatarBytes } from "@/lib/utils";
 
 export function LancamentoDetalheDialog({
   lancamento,
@@ -135,7 +130,7 @@ export function LancamentoDetalheDialog({
               <ul className="divide-y rounded-sm border text-sm">
                 {l.anexos.map((a) => (
                   <li key={a.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
-                    <span className="min-w-0 truncate">{a.nome} <span className="font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span></span>
+                    <span className="min-w-0 truncate">{a.nome} <span className="font-mono text-xs text-muted-foreground">{formatarBytes(a.tamanho)}</span></span>
                     <span className="flex items-center">
                       <Button size="icon" variant="ghost" aria-label="Baixar" render={<a href={`/api/financeiro/lancamentos/anexo/${a.id}`} />}>
                         <Download className="size-3.5" />

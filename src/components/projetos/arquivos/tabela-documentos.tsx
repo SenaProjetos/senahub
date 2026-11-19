@@ -34,18 +34,12 @@ import { CartaoPasta, LinhaPasta, useNavegacaoPastas } from "@/components/projet
 import type { LinhaDoc } from "@/modules/uploads/documentos-agrupados";
 import type { NivelPasta, PastaNaLista } from "@/modules/uploads/pastas-da-lista";
 import { ACAO_DETALHES, documentoParaAcoes, type DocumentoParaAcoes } from "@/modules/uploads/acoes-documento";
-import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { cn, formatarBytes, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { ROTULO_SITUACAO, marcasVisiveis } from "@/modules/uploads/revisao-marcada";
 
 /** Colunas opcionais da tabela, na ordem em que aparecem — o nome da pasta atravessa todas. */
 const COLUNAS_OPCIONAIS = ["numero", "fase", "sub", "tipo", "validado", "status", "revisao", "extensao", "papel", "responsavel", "data", "tamanho"];
-
-function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 function estadoValidacao(arquivos: LinhaDoc["arquivos"]): "validado" | "pendente" | "parcial" | null {
   const validaveis = arquivos.filter((a) => a.validado !== null);
@@ -328,7 +322,7 @@ function CartaoDocumento({
             {formatarData(linha.atualizadoEm)}
           </span>
         )}
-        {colunas.has("tamanho") && <span> · {fmtBytes(linha.tamanhoTotal)}</span>}
+        {colunas.has("tamanho") && <span> · {formatarBytes(linha.tamanhoTotal)}</span>}
         {colunas.has("responsavel") && <span> · {linha.autor}</span>}
       </p>
     </>
@@ -824,7 +818,7 @@ export function TabelaDocumentos({
               )}
               {colunas.has("tamanho") && (
                 <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {fmtBytes(l.tamanhoTotal)}
+                  {formatarBytes(l.tamanhoTotal)}
                 </TableCell>
               )}
               <TableCell className="text-right">

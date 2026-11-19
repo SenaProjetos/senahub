@@ -8,7 +8,7 @@ import { Download, ExternalLink, FolderKanban, Trash2, ShieldX, Inbox } from "lu
 import type { PedidoExclusaoPendente } from "@/modules/uploads/queries";
 import { aprovarSolicitacaoExclusao, recusarSolicitacaoExclusao } from "@/modules/uploads/actions";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { formatarBytes, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,12 +28,6 @@ import { copiarTexto } from "@/lib/clipboard";
 import { acimaDoTeto, motivoAcimaDoTeto } from "@/lib/lote";
 import { ACAO_LOTE_EXCLUIR, ACAO_LOTE_MANTER, itensDeLotePedidosExclusao } from "@/modules/arquivos/acoes-lote";
 import { Copy, FolderOpen } from "lucide-react";
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 /**
  * Fila de pedidos de exclusão de arquivo (quem não pode excluir pediu; o admin decide).
@@ -257,7 +251,7 @@ export function PedidosExclusaoView({ pedidos }: { pedidos: PedidoExclusaoPenden
                       )}
                     </div>
                     <p className="truncate text-xs text-muted-foreground">
-                      {p.disciplina} · {fmtBytes(p.tamanho)} · pedido por {p.solicitante} ·{" "}
+                      {p.disciplina} · {formatarBytes(p.tamanho)} · pedido por {p.solicitante} ·{" "}
                       {formatarDataHora(p.criadoEm)}
                     </p>
                   </div>

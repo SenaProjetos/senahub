@@ -63,7 +63,7 @@ import { detectarNovasRevisoes, mensagemNovasRevisoes, type ArquivoExistente } f
 import { gruposRevisaoAgrupada } from "@/modules/uploads/revisao-agrupada";
 import { enviarArquivoComProgresso, ErroEnvio } from "@/components/projetos/upload-progresso";
 import { CorrecaoNomeUpload, type DadosCorrecaoNomeUpload } from "@/components/projetos/arquivos/correcao-nome-upload";
-import { cn, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
+import { cn, formatarBytes, formatarData, formatarDataHora, rotuloRevisao } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -89,11 +89,6 @@ export { VersaoToggle };
 function separarExt(nome: string): { base: string; ext: string } {
   const i = nome.lastIndexOf(".");
   return i > 0 ? { base: nome.slice(0, i), ext: nome.slice(i) } : { base: nome, ext: "" };
-}
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 export { IconeArquivo };
 
@@ -322,7 +317,7 @@ function LinhaArquivo({
         >
           {a.autor} · {formatarDataHora(a.enviadoEm)}
         </span>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(a.tamanho)}</span>
         {onRenomear && !historico && (
           <button
             type="button"
@@ -1144,7 +1139,7 @@ export function LixeiraPasta({ itens, abertoInicial = false }: { itens: LixeiraI
             >
               expira em {it.diasRestantes}d
             </span>
-            <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(it.tamanho)}</span>
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(it.tamanho)}</span>
             <button
               type="button"
               className="shrink-0 text-muted-foreground hover:text-primary disabled:opacity-50"
@@ -1732,7 +1727,7 @@ function PainelProgresso({
                   {l.nome}
                 </span>
                 <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                  {fmtBytes(l.file.size)}
+                  {formatarBytes(l.file.size)}
                 </span>
                 <IconeStatus status={l.status} />
               </div>

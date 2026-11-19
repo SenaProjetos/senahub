@@ -12,13 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
-import { brl, formatarData } from "@/lib/utils";
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+import { brl, formatarBytes, formatarData } from "@/lib/utils";
 
 /** Sobe UM arquivo para /api/documentos e devolve a `meta` p/ a action criar o registro. */
 async function subirArquivo(file: File, propostaId: string, clienteId: string): Promise<MetaDocumento> {
@@ -150,7 +144,7 @@ export function PropostaExtras({
                   <span className="min-w-0 truncate">
                     {d.nome}
                     {d.totalVersoes > 1 && <span className="ml-1 font-mono text-xs text-muted-foreground">v{d.atual?.numero}</span>}{" "}
-                    <span className="font-mono text-xs text-muted-foreground">{d.atual ? fmtBytes(d.atual.tamanho) : "—"}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{d.atual ? formatarBytes(d.atual.tamanho) : "—"}</span>
                   </span>
                   <span className="flex items-center">
                     {d.atual && (

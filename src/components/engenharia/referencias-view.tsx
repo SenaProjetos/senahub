@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { VisualizarDocumentoDialog } from "@/components/certidoes/visualizar-documento-dialog";
-import { formatarData } from "@/lib/utils";
+import { formatarBytes, formatarData } from "@/lib/utils";
 
 /** Corpo da rota de upload: metadata em caso de sucesso, `error` em caso de falha. */
 type RespostaUpload = {
@@ -31,12 +31,6 @@ type RespostaUpload = {
 };
 
 const TODOS = "__todos";
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 type FormState = {
   id: string | null;
@@ -246,7 +240,7 @@ export function ReferenciasView({
                         </td>
                         <td className="px-4 py-2 text-xs text-muted-foreground">
                           {r.autor} · {formatarData(r.data)}
-                          {r.tamanho != null && <> · {fmtBytes(r.tamanho)}</>}
+                          {r.tamanho != null && <> · {formatarBytes(r.tamanho)}</>}
                         </td>
                         <td className="px-4 py-2 text-right whitespace-nowrap">
                           {r.downloadUrl && (

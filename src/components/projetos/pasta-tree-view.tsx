@@ -27,7 +27,7 @@ import {
   moverArquivoDePasta,
 } from "@/modules/projetos/pastas/actions";
 import { IconeArquivo } from "@/components/projetos/icone-arquivo";
-import { cn } from "@/lib/utils";
+import { cn, formatarBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -50,12 +50,6 @@ export type ArquivoPasta = {
   data: string;
   downloadUrl: string;
 };
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 function contarArquivos(no: PastaArvoreNo<ArquivoPasta>): number {
   return no.arquivos.length + no.filhos.reduce((s, f) => s + contarArquivos(f), 0);
@@ -339,7 +333,7 @@ function LinhaArquivoPasta({
           {a.nome}
         </span>
       )}
-      <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
+      <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(a.tamanho)}</span>
       {podeAdmin && opcoesPasta.length > 0 && (
         mover ? (
           <Select<string> value="" onValueChange={(v) => v && moverPara(v)} disabled={pending}>

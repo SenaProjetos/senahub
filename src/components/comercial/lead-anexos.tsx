@@ -9,17 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { enviarEmChunks, precisaChunk } from "@/lib/upload-grande";
+import { formatarBytes } from "@/lib/utils";
 
 /** Mesmo teto da rota `/api/comercial/anexos` — recusar aqui poupa o envio inteiro para ouvir "não". */
 const TETO_ANEXO = 500 * 1024 * 1024;
 
 export type AnexoLead = { id: string; nome: string; nomeArquivo: string; tamanho: number };
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 /**
  * Anexos do lead (proposta, e-mail de solicitação da arquitetura, referências).
@@ -104,7 +99,7 @@ export function LeadAnexos({ leadId, anexos }: { leadId: string; anexos: AnexoLe
               <span className="inline-flex min-w-0 items-center gap-1.5">
                 <FileText className="size-3.5 shrink-0 text-muted-foreground" />
                 <span className="truncate" title={a.nomeArquivo}>{a.nome}</span>
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(a.tamanho)}</span>
+                <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(a.tamanho)}</span>
               </span>
               <span className="flex shrink-0 items-center">
                 <Button

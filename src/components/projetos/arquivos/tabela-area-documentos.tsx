@@ -44,7 +44,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useEnvioArrasto } from "@/components/projetos/arquivos/zona-envio-arrasto";
-import { formatarData, rotuloRevisao } from "@/lib/utils";
+import { formatarBytes, formatarData, rotuloRevisao } from "@/lib/utils";
 
 /**
  * Base Arquitetônica, Recebidos do cliente e Geral no formato de TABELA (reunião de 29/09/2026: "converter para a
@@ -70,12 +70,6 @@ const DESTINO_DO_ENVIO: Record<AreaDocumento, string> = {
 };
 
 const ROTULO_ENVIAR: Record<AreaDocumento, string> = { recebidos: "Enviar", base: "Enviar", geral: "Novo" };
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
 
 export function TabelaAreaDocumentos({
   area,
@@ -394,7 +388,7 @@ export function TabelaAreaDocumentos({
                         </TableCell>
                       )}
                       <TableCell className="text-right font-mono text-xs tabular-nums text-muted-foreground">
-                        {d.atual ? fmtBytes(d.atual.tamanho) : "—"}
+                        {d.atual ? formatarBytes(d.atual.tamanho) : "—"}
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatarData(d.atual?.criadoEm ?? d.criadoEm)}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{d.autor}</TableCell>
@@ -425,7 +419,7 @@ export function TabelaAreaDocumentos({
                               </div>
                             </TableCell>
                             {colunaCategoria && <TableCell />}
-                            <TableCell className="text-right font-mono text-xs tabular-nums">{fmtBytes(v.tamanho)}</TableCell>
+                            <TableCell className="text-right font-mono text-xs tabular-nums">{formatarBytes(v.tamanho)}</TableCell>
                             <TableCell className="whitespace-nowrap text-xs">{formatarData(v.criadoEm)}</TableCell>
                             <TableCell />
                             <TableCell>
@@ -462,7 +456,7 @@ export function TabelaAreaDocumentos({
                   <span className="min-w-0 flex-1 truncate" title={f.name}>
                     {f.name}
                   </span>
-                  <span className="shrink-0 font-mono text-xs text-muted-foreground">{fmtBytes(f.size)}</span>
+                  <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(f.size)}</span>
                   <Button
                     size="icon"
                     variant="ghost"

@@ -9,12 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-
-function fmtBytes(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+import { formatarBytes } from "@/lib/utils";
 
 /** Documentos do projeto no portal do cliente: lista + envio do próprio cliente. */
 export function PortalDocumentos({ projetoId, docs }: { projetoId: string; docs: DocumentoItem[] }) {
@@ -69,7 +64,7 @@ export function PortalDocumentos({ projetoId, docs }: { projetoId: string; docs:
                   <span className="min-w-0 truncate">{d.nome}</span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">{d.atual ? fmtBytes(d.atual.tamanho) : "—"}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{d.atual ? formatarBytes(d.atual.tamanho) : "—"}</span>
                   {d.atual && (
                     <Button size="icon" variant="ghost" aria-label={`Baixar ${d.nome}`} render={<a href={d.atual.downloadUrl} />}>
                       <Download className="size-3.5" />
