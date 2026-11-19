@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { salvarPreferencia } from "@/modules/usuarios/preferencias/actions";
+import { salvarResumoPorEmail } from "@/modules/portal/resumo-actions";
 
 /**
  * Opção do cliente no rodapé de Meus projetos: receber ou não o e-mail do resumo diário (`notif_portal_resumo`).
@@ -17,7 +17,7 @@ export function ResumoEmailToggle({ ligado }: { ligado: boolean }) {
   function alternar(valor: boolean) {
     setMarcado(valor);
     startTransition(async () => {
-      const r = await salvarPreferencia({ chave: "notif_portal_resumo", valor });
+      const r = await salvarResumoPorEmail({ quer: valor });
       if (r.ok) {
         toast.success(valor ? "Você vai receber o resumo por e-mail." : "Você não vai mais receber o resumo por e-mail.");
       } else {

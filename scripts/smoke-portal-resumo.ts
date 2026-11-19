@@ -14,7 +14,14 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { CHAVE_CONFIG_RESUMO, type ConfigResumo } from "../src/modules/portal/resumo-diario";
-import { getConfigResumo, rodarResumoDiario, salvarConfigResumo, type EnviarEmailResumo } from "../src/modules/portal/resumo-service";
+import {
+  definirResumoPorEmail,
+  getConfigResumo,
+  rodarResumoDiario,
+  salvarConfigResumo,
+  type EnviarEmailResumo,
+} from "../src/modules/portal/resumo-service";
+import { querResumoPorEmail } from "../src/modules/portal/queries";
 
 type Email = { para: string; vars: Parameters<EnviarEmailResumo>[1] };
 type Sino = { userId: string; titulo: string; corpo: string; href: string };
@@ -102,7 +109,11 @@ async function main() {
     emails.push({ para, vars });
     return true;
   };
+  let sinoQueFalha: string | null = null;
+  let aoNotificar: (() => Promise<void>) | null = null;
   const notificar = async (userId: string, n: { titulo: string; corpo: string; href: string }) => {
+    if (aoNotificar) await aoNotificar();
+    if (userId === sinoQueFalha) throw new Error("sino caiu");
     sinos.push({ userId, ...n });
   };
   const limpar = () => {
@@ -156,16 +167,14 @@ async function main() {
 
     // 5. Opt-out: sino sim, e-mail não.
     await prisma.avisoPortalEnviado.deleteMany({ where: { projetoId: p1.id } });
-    await prisma.userPreference.upsert({
-      where: { userId: conta.id },
-      create: { userId: conta.id, dados: { notif_portal_resumo: false } },
-      update: { dados: { notif_portal_resumo: false } },
-    });
+    await definirResumoPorEmail(conta.id, false);
+    check("preferência do cliente gravada: não quer e-mail", (await querResumoPorEmail(conta.id)) === false);
     limpar();
     await config({});
     r = await rodar([p1.id]);
     check("opt-out: sino sim, e-mail não", emails.length === 0 && sinos.length === 1 && r.optOut === 1);
-    await prisma.userPreference.delete({ where: { userId: conta.id } });
+    await definirResumoPorEmail(conta.id, true);
+    check("preferência do cliente religada", (await querResumoPorEmail(conta.id)) === true);
 
     // 6. Falha no envio libera a reserva do e-mail (o sino fica).
     await prisma.avisoPortalEnviado.deleteMany({ where: { projetoId: p1.id } });
@@ -176,6 +185,47 @@ async function main() {
     falharEnvio = false;
     const reservasEmail = await prisma.avisoPortalEnviado.count({ where: { projetoId: p1.id, canal: "email" } });
     check("falha no envio libera a reserva", r.falhas === 1 && reservasEmail === 0 && sinos.length === 1);
+
+    // 6b. Rodada que caiu no meio: o dia 19 já reservado não impede o dia novo (18) de sair.
+    await prisma.avisoPortalEnviado.deleteMany({ where: { projetoId: p1.id } });
+    limpar();
+    await config({});
+    await rodar([p1.id]); // reserva o 19
+    limpar();
+    await config({ ultimoDia: "2026-11-17" });
+    r = await rodar([p1.id]);
+    check("dia já reservado não segura o dia novo", emails.length === 1 && emails[0].vars.periodo === "18/11/2026" && sinos.length === 1);
+
+    // 6c. Sino que lança: a reserva do sino é devolvida e a rodada segue (e avança).
+    await prisma.avisoPortalEnviado.deleteMany({ where: { projetoId: p1.id } });
+    limpar();
+    sinoQueFalha = conta.id;
+    await config({});
+    r = await rodar([p1.id]);
+    sinoQueFalha = null;
+    const reservasSino = await prisma.avisoPortalEnviado.count({ where: { projetoId: p1.id, canal: "sino" } });
+    check("sino que falha devolve a reserva e não derruba a rodada", r.falhas >= 1 && reservasSino === 0 && (await getConfigResumo()).ultimoDia === "2026-11-19");
+
+    // 6d. Desligar durante a rodada: o fim da rodada não religa.
+    await prisma.avisoPortalEnviado.deleteMany({ where: { projetoId: p1.id } });
+    limpar();
+    await config({});
+    aoNotificar = async () => {
+      aoNotificar = null;
+      await salvarConfigResumo({ ...(await getConfigResumo()), ativo: false });
+    };
+    await rodar([p1.id]);
+    aoNotificar = null;
+    const depois = await getConfigResumo();
+    check("desligar durante a rodada não é desfeito", depois.ativo === false && depois.ultimoDia === "2026-11-19");
+
+    // 6e. Nome com símbolo: o assunto recebe o nome como está (sem barras).
+    const pSimbolo = await novoProjeto(cliente.id, "*sol*");
+    await marcar(pSimbolo.disciplinaId, "s", "2026-11-19T15:00:00Z");
+    limpar();
+    await config({});
+    await rodar([pSimbolo.id]);
+    check("nome do projeto sem barras de escape", emails[0]?.vars.projeto === pSimbolo.nome && !emails[0]?.vars.projeto.includes("\\"));
 
     // 7. Sem SMTP: só sino.
     await prisma.avisoPortalEnviado.deleteMany({ where: { projetoId: p1.id } });

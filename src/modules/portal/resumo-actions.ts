@@ -5,7 +5,7 @@ import { z } from "zod";
 import { defineAction } from "@/lib/with-action";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { somarDiasIso } from "./resumo-diario";
-import { getConfigResumo, salvarConfigResumo } from "./resumo-service";
+import { definirResumoPorEmail, getConfigResumo, salvarConfigResumo } from "./resumo-service";
 
 /**
  * Liga ou desliga o resumo diário do portal (Configurações → Portal do cliente). Ligar quando estava desligado começa
@@ -29,5 +29,23 @@ export const salvarResumoPortal = defineAction(
     await salvarConfigResumo(i.ativo ? { ativo: true, desde: hoje, ultimoDia: somarDiasIso(hoje, -1) } : { ...atual, ativo: false });
     revalidatePath("/configuracoes/portal");
     return { ok: true };
+  },
+);
+
+/**
+ * O cliente liga ou desliga o e-mail do resumo para SI (Meus projetos). Ação própria, em vez da genérica
+ * `salvarPreferencia`: grava só `notif_portal_resumo`, com valor booleano, e fica na auditoria.
+ */
+export const salvarResumoPorEmail = defineAction(
+  {
+    modulo: "portal",
+    acao: "salvar-resumo-por-email",
+    entidade: "UserPreference",
+    schema: z.object({ quer: z.boolean() }),
+    entidadeId: (data) => (data as { userId: string }).userId,
+  },
+  async (i, ctx) => {
+    await definirResumoPorEmail(ctx.user.id, i.quer);
+    return { userId: ctx.user.id };
   },
 );

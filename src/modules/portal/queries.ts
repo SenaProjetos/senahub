@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { progressoDoPortal } from "./andamento-queries";
 
 /**
@@ -51,8 +52,7 @@ export async function projetosDoCliente(clienteId: string) {
 
 /** O cliente quer o resumo diário por e-mail? Sem preferência gravada = sim (`notif_portal_resumo`). */
 export async function querResumoPorEmail(userId: string): Promise<boolean> {
-  const p = await prisma.userPreference.findUnique({ where: { userId }, select: { dados: true } });
-  return (p?.dados as Record<string, unknown> | null)?.notif_portal_resumo !== false;
+  return (await filtrarPorCategoria([userId], "portal_resumo")).length === 1;
 }
 
 /** Detalhe read-only de um projeto — só retorna se pertencer ao cliente, e com o cliente ativo. */

@@ -42,8 +42,9 @@ consegue abrir; despejar o histórico inteiro no primeiro dia.
   dia já avaliado por uma rodada (ver Configuração): **cada dia é avaliado uma vez só**, mesmo sem novidade.
 - `periodoDoResumo(dias)`: `"18/11/2026"` para um dia, `"15/11/2026 a 18/11/2026"` para vários.
 - `listaEmMarkdown(porDia)`: uma linha por item, `- **Estrutural** · 8 pranchas compartilhadas com você`; com mais de
-  um dia, um subtítulo por dia (`**18/11/2026**`) antes das linhas dele, do mais antigo para o mais novo. Todo texto
-  vindo do banco (disciplina, e no template `projeto` e `nome`) é escapado para Markdown.
+  um dia, um subtítulo por dia (`**18/11/2026**`) antes das linhas dele, do mais antigo para o mais novo. O texto da
+  lista (disciplina) é escapado para Markdown. `projeto` e `nome` vão como estão (revisão final): o assunto é texto
+  puro — escapar mostraria as barras — e os dois são cadastrados pelo escritório.
 - `assuntoDoResumo(projeto, dia)` e o corpo vêm do template (abaixo); a regra só monta as variáveis.
 
 ### Quem recebe
@@ -63,7 +64,8 @@ o e-mail também serve de convite para quem ainda não entrou).
 canal])`, `canal` = `email` | `sino`, FKs com `onDelete: Cascade` (User e Projeto). Mesmo padrão do
 `AvisoFinanceiroEnviado`: **reserva → envia → se falhar, libera** a reserva (`deleteMany`). P2002 na reserva = outra
 rodada já tem, não é erro. Canais separados para que a falha do e-mail não repita o sino. Um e-mail que cobre vários
-dias reserva uma linha por dia (todas ou nenhuma). Chamada minha: e-mail que falhou NÃO é reenviado em outro dia (o
+dias reserva uma linha por dia; dia já reservado fica fora sem segurar os outros (revisão final: rodada que caiu no
+meio não pode perder o dia novo). Chamada minha: e-mail que falhou NÃO é reenviado em outro dia (o
 dia já foi avaliado); fica no log e o sino daquele dia já foi entregue.
 
 ### O job

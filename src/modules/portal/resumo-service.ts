@@ -16,7 +16,6 @@ import { andamentoDoPortal } from "./andamento-queries";
 import {
   CHAVE_CONFIG_RESUMO,
   diasParaAvaliar,
-  escaparMarkdown,
   itensDosDias,
   listaEmMarkdown,
   normalizarConfigResumo,
@@ -65,22 +64,36 @@ const dataDoDia = (d: string) => new Date(`${d}T00:00:00.000Z`);
 /** Fim do dia `d` em São Paulo (UTC−3, sem horário de verão): meia-noite do dia seguinte = 03:00Z. */
 const fimDoDiaSp = (d: string) => new Date(`${somarDiasIso(d, 1)}T03:00:00.000Z`);
 
-/** Reserva uma linha por dia; qualquer P2002 desfaz as desta chamada e devolve `false` (todas ou nenhuma). */
-async function reservar(userId: string, projetoId: string, dias: readonly string[], canal: Canal): Promise<boolean> {
-  const feitos: string[] = [];
+/**
+ * Reserva uma linha por dia e devolve os dias que ficaram com ESTA rodada. Dia já reservado (P2002 — outra rodada,
+ * ou uma rodada anterior que caiu no meio) fica de fora sem segurar os outros: o dia novo sai mesmo assim.
+ * Queda do processo entre a reserva e o envio perde aquele envio (uma vez, sem repetir) — escolha consciente.
+ */
+async function reservar(userId: string, projetoId: string, dias: readonly string[], canal: Canal): Promise<string[]> {
+  const meus: string[] = [];
   for (const d of dias) {
     try {
       await prisma.avisoPortalEnviado.create({ data: { userId, projetoId, dia: dataDoDia(d), canal } });
-      feitos.push(d);
+      meus.push(d);
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
-        await liberar(userId, projetoId, feitos, canal);
-        return false;
-      }
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue;
       throw e;
     }
   }
-  return true;
+  return meus;
+}
+
+const soDosDias = <T>(porDia: ReadonlyMap<string, T>, dias: readonly string[]) => new Map([...porDia].filter(([d]) => dias.includes(d)));
+
+/** Opção do cliente em Meus projetos: grava SÓ `notif_portal_resumo` (as outras preferências ficam como estão). */
+export async function definirResumoPorEmail(userId: string, quer: boolean): Promise<void> {
+  const pref = await prisma.userPreference.findUnique({ where: { userId }, select: { dados: true } });
+  const dados = { ...((pref?.dados as Record<string, unknown> | null) ?? {}), notif_portal_resumo: quer };
+  await prisma.userPreference.upsert({
+    where: { userId },
+    create: { userId, dados: dados as Prisma.InputJsonObject },
+    update: { dados: dados as Prisma.InputJsonObject },
+  });
 }
 
 async function liberar(userId: string, projetoId: string, dias: readonly string[], canal: Canal): Promise<void> {
@@ -137,58 +150,88 @@ export async function rodarResumoDiario(o: {
   const app = (process.env.APP_URL ?? "").replace(/\/+$/, "");
   for (const p of projetos) {
     r.projetos += 1;
-    const { linha } = await andamentoDoPortal(p);
-    const porDia = itensDosDias(linha, r.dias);
-    if (porDia.size === 0) continue;
-
-    const contas = p.cliente?.usuarios ?? [];
-    const querEmail = new Set(await filtrarPorCategoria(contas.map((c) => c.id), CATEGORIA_RESUMO));
-    for (const conta of contas) {
-      // Conta criada depois do fim do dia não recebe aquele dia.
-      const daConta = new Map([...porDia].filter(([d]) => conta.createdAt.getTime() < fimDoDiaSp(d).getTime()));
-      if (daConta.size === 0) continue;
-      const dias = [...daConta.keys()];
-
-      if (await reservar(conta.id, p.id, dias, "sino")) {
-        await o.notificar(conta.id, { titulo: `Novidades em ${p.nome}`, corpo: textoDoSino(daConta), href: `/portal/${p.id}` });
-        r.sinos += 1;
-      } else {
-        r.duplicados += 1;
-      }
-
-      if (!o.enviar) continue;
-      if (!conta.email) {
-        r.semEmail += 1;
-        continue;
-      }
-      if (!querEmail.has(conta.id)) {
-        r.optOut += 1;
-        continue;
-      }
-      if (!(await reservar(conta.id, p.id, dias, "email"))) {
-        r.duplicados += 1;
-        continue;
-      }
-      try {
-        const saiu = await o.enviar(conta.email, {
-          nome: escaparMarkdown(primeiroNome(conta.name)),
-          projeto: escaparMarkdown(p.nome),
-          periodo: periodoDoResumo(dias),
-          lista: listaEmMarkdown(daConta),
-          url: `${app}/portal/${p.id}`,
-        });
-        if (!saiu) throw new Error("o e-mail não saiu");
-        r.emails += 1;
-      } catch (e) {
-        // Não é reenviado em outro dia (o dia já foi avaliado): fica no log; o sino já foi entregue.
-        await liberar(conta.id, p.id, dias, "email");
-        r.falhas += 1;
-        console.error("[portal] resumo diário: e-mail falhou:", e);
-      }
+    // Um projeto com problema não pode travar os outros todo dia: conta como falha, fica no log e a rodada segue.
+    try {
+      await resumirProjeto(p, r, o, app);
+    } catch (e) {
+      r.falhas += 1;
+      console.error(`[portal] resumo diário: projeto ${p.codigo} falhou:`, e);
     }
   }
 
-  // Só no fim: rodada que cai no meio é refeita, e as reservas impedem o duplicado.
-  await salvarConfigResumo({ ...cfg, ultimoDia: ontem });
+  // Só no fim: rodada que cai no meio é refeita, e as reservas impedem o duplicado. Relê a configuração e mexe só
+  // em `ultimoDia`: quem desligou durante a rodada não é desfeito.
+  await salvarConfigResumo({ ...(await getConfigResumo()), ultimoDia: ontem });
   return r;
+}
+
+type ProjetoDoResumo = {
+  id: string;
+  codigo: string;
+  nome: string;
+  cliente: { usuarios: { id: string; name: string; email: string | null; createdAt: Date }[] } | null;
+};
+
+async function resumirProjeto(
+  p: ProjetoDoResumo,
+  r: ResultadoResumo,
+  o: { enviar: EnviarEmailResumo | null; notificar: NotificarSino },
+  app: string,
+): Promise<void> {
+  const { linha } = await andamentoDoPortal(p);
+  const porDia = itensDosDias(linha, r.dias);
+  if (porDia.size === 0) return;
+
+  const contas = p.cliente?.usuarios ?? [];
+  const querEmail = new Set(await filtrarPorCategoria(contas.map((c) => c.id), CATEGORIA_RESUMO));
+  for (const conta of contas) {
+    // Conta criada depois do fim do dia não recebe aquele dia.
+    const daConta = new Map([...porDia].filter(([d]) => conta.createdAt.getTime() < fimDoDiaSp(d).getTime()));
+    if (daConta.size === 0) continue;
+    const dias = [...daConta.keys()];
+
+    const diasSino = await reservar(conta.id, p.id, dias, "sino");
+    if (diasSino.length < dias.length) r.duplicados += 1;
+    if (diasSino.length > 0) {
+      try {
+        await o.notificar(conta.id, { titulo: `Novidades em ${p.nome}`, corpo: textoDoSino(soDosDias(daConta, diasSino)), href: `/portal/${p.id}` });
+        r.sinos += 1;
+      } catch (e) {
+        await liberar(conta.id, p.id, diasSino, "sino");
+        r.falhas += 1;
+        console.error("[portal] resumo diário: sino falhou:", e);
+      }
+    }
+
+    if (!o.enviar) continue;
+    if (!conta.email) {
+      r.semEmail += 1;
+      continue;
+    }
+    if (!querEmail.has(conta.id)) {
+      r.optOut += 1;
+      continue;
+    }
+    const diasEmail = await reservar(conta.id, p.id, dias, "email");
+    if (diasEmail.length < dias.length) r.duplicados += 1;
+    if (diasEmail.length === 0) continue;
+    try {
+      // Nome e projeto vão como estão: o assunto é texto puro (escapar mostraria as barras) e os dois são cadastrados
+      // pelo escritório. A lista, que vira Markdown, é escapada em `listaEmMarkdown`.
+      const saiu = await o.enviar(conta.email, {
+        nome: primeiroNome(conta.name),
+        projeto: p.nome,
+        periodo: periodoDoResumo(diasEmail),
+        lista: listaEmMarkdown(soDosDias(daConta, diasEmail)),
+        url: `${app}/portal/${p.id}`,
+      });
+      if (!saiu) throw new Error("o e-mail não saiu");
+      r.emails += 1;
+    } catch (e) {
+      // Não é reenviado em outro dia (o dia já foi avaliado): fica no log; o sino já foi entregue.
+      await liberar(conta.id, p.id, diasEmail, "email");
+      r.falhas += 1;
+      console.error("[portal] resumo diário: e-mail falhou:", e);
+    }
+  }
 }
