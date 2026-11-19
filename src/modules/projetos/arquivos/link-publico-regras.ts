@@ -204,6 +204,16 @@ export function abreNoNavegador(nomeArquivo: string, pediuInline: boolean): bool
 }
 
 /**
+ * `Content-Type` da resposta de download. Abrindo no navegador (`abreNoNavegador` = só `.pdf`) é sempre
+ * `application/pdf`: o `mimeType` do upload vem do navegador de quem enviou, e um `text/html` abriria como
+ * página na origem do sistema.
+ */
+export function contentTypeDoDownload(mimeType: string | null, inline: boolean): string {
+  if (inline) return "application/pdf";
+  return mimeType || "application/octet-stream";
+}
+
+/**
  * `Content-Disposition` de download que preserva o nome: `filename*=UTF-8''…` (RFC 6266/5987) leva o nome
  * exato, com acento e espaço; `filename="…"` é a reserva em ASCII para cliente antigo (acento tirado, o que
  * não é ASCII imprimível, aspas e barra invertida viram `_`).

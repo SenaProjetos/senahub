@@ -4,6 +4,7 @@ import {
   alcanceDoPortal,
   conteudoTemZip,
   contentDisposition,
+  contentTypeDoDownload,
   ehBackupDoModelo,
   faseLiberada,
   filtrarPorFases,
@@ -319,5 +320,18 @@ describe("contentDisposition", () => {
   it("nome sem nenhum caractere ASCII ainda tem filename de reserva", () => {
     const reserva = /filename="([^"]*)"/.exec(contentDisposition("attachment", "图纸.pdf"))?.[1];
     expect(reserva).toBe("__.pdf");
+  });
+});
+
+describe("contentTypeDoDownload", () => {
+  it("abrindo no navegador é sempre PDF, mesmo com mime HTML gravado no upload", () => {
+    expect(contentTypeDoDownload("text/html", true)).toBe("application/pdf");
+    expect(contentTypeDoDownload(null, true)).toBe("application/pdf");
+  });
+
+  it("download usa o mime do upload, ou octet-stream sem mime", () => {
+    expect(contentTypeDoDownload("image/vnd.dwg", false)).toBe("image/vnd.dwg");
+    expect(contentTypeDoDownload("", false)).toBe("application/octet-stream");
+    expect(contentTypeDoDownload(null, false)).toBe("application/octet-stream");
   });
 });

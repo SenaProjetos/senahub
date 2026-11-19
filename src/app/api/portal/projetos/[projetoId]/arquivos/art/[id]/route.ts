@@ -43,6 +43,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
   const headers = {
     "Content-Length": String(arquivo.tamanho),
     "Content-Type": "application/pdf",
+    "X-Content-Type-Options": "nosniff",
     "Content-Disposition": contentDisposition(inline ? "inline" : "attachment", art.nome),
   };
   return new NextResponse(arquivo.abrir(), { headers });

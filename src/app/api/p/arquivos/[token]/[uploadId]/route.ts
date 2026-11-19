@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { abreNoNavegador, contentDisposition } from "@/modules/projetos/arquivos/link-publico-regras";
+import { abreNoNavegador, contentDisposition, contentTypeDoDownload } from "@/modules/projetos/arquivos/link-publico-regras";
 import { uploadLiberadoNoLink } from "@/modules/projetos/arquivos/link-publico";
 import { motivoBloqueioDosUploads } from "@/modules/uploads/ciclo/service";
 import { arquivoParaStream } from "@/lib/storage";
@@ -56,7 +56,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string; 
   // (no Windows, o arquivo travado).
   const headers = {
     "Content-Length": String(arquivo.tamanho),
-    "Content-Type": upload.mimeType || "application/octet-stream",
+    "Content-Type": contentTypeDoDownload(upload.mimeType, inline),
     "Content-Disposition": contentDisposition(disposition, upload.nomeArquivo),
     "X-Content-Type-Options": "nosniff",
   };
