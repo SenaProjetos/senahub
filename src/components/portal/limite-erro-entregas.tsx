@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, useTransition, type ReactNode } from "react";
+import { Component, createRef, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangle, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  * mensagem, e Disciplinas e Documentos continuam na tela (sem isto o erro subiria ao `error.tsx` e
  * levaria a página inteira).
  */
-export class LimiteErroEntregas extends Component<{ children: ReactNode }, { erro: boolean }> {
-  state = { erro: false };
+export class LimiteErroEntregas extends Component<{ children: ReactNode }, { erro: boolean; tentou: boolean }> {
+  state = { erro: false, tentou: false };
+  private alerta = createRef<HTMLParagraphElement>();
 
   static getDerivedStateFromError() {
     return { erro: true };
@@ -23,6 +24,11 @@ export class LimiteErroEntregas extends Component<{ children: ReactNode }, { err
     console.error("[portal] erro no card Entregas:", error, (error as { digest?: string })?.digest ?? "");
   }
 
+  componentDidUpdate(_: unknown, antes: { erro: boolean }) {
+    // A nova tentativa também falhou: o foco (que estava no botão desmontado) volta para a mensagem.
+    if (this.state.erro && !antes.erro && this.state.tentou) this.alerta.current?.focus();
+  }
+
   render() {
     if (!this.state.erro) return this.props.children;
     return (
@@ -31,11 +37,11 @@ export class LimiteErroEntregas extends Component<{ children: ReactNode }, { err
           <CardTitle className="text-base">Entregas</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <p role="alert" className="flex items-start gap-2 text-sm text-muted-foreground">
+          <p ref={this.alerta} tabIndex={-1} role="alert" className="flex items-start gap-2 text-sm text-muted-foreground outline-none">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
             Não foi possível carregar as entregas agora. Tente de novo; se continuar, fale com a equipe do projeto.
           </p>
-          <TentarDeNovo aoTentar={() => this.setState({ erro: false })} />
+          <TentarDeNovo aoTentar={() => this.setState({ erro: false, tentou: true })} />
         </CardContent>
       </Card>
     );
@@ -47,18 +53,21 @@ function TentarDeNovo({ aoTentar }: { aoTentar: () => void }) {
   const router = useRouter();
   const [pendente, startTransition] = useTransition();
   return (
+    // Não desabilita durante a busca (tiraria o foco de quem usa teclado); o texto avisa o andamento.
     <Button
       size="sm"
       variant="outline"
-      disabled={pendente}
-      onClick={() =>
+      aria-busy={pendente}
+      onClick={() => {
+        if (pendente) return;
         startTransition(() => {
           router.refresh();
           aoTentar();
-        })
-      }
+        });
+      }}
     >
-      <RotateCw className={pendente ? "size-4 animate-spin" : "size-4"} aria-hidden /> Tentar de novo
+      <RotateCw className={pendente ? "size-4 motion-safe:animate-spin" : "size-4"} aria-hidden />
+      {pendente ? "Carregando…" : "Tentar de novo"}
     </Button>
   );
 }
