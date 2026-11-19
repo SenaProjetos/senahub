@@ -2,6 +2,82 @@
 
 Todas as mudanças relevantes do SenaHub. Formato baseado em Conventional Commits; versionamento SemVer.
 
+## [1.34.0](https://github.com/SenaProjetos/senahub/compare/v1.33.0...v1.34.0) (2026-11-19)
+
+
+### ✨ Funcionalidades
+
+* **arquivos:** descrição da revisão e selo de download bloqueado na árvore do cliente ([deefde1](https://github.com/SenaProjetos/senahub/commit/deefde1ff43e6267c80826af282c15ff93ecb46c))
+* **ciclo-documental:** enviar apontamentos devolve a revisão em análise para ajustes ([5bffa62](https://github.com/SenaProjetos/senahub/commit/5bffa62373916e16076537bc353d2c49ee996ff1))
+* **coordenacao:** abas Modelo 3D e Sobreposição 2D na Coordenação ([6d28338](https://github.com/SenaProjetos/senahub/commit/6d283386d6b87a70c72e5e74db8642d3a9fd264e))
+* **coordenacao:** alinhar camadas da sobreposição 2D ([764ae1c](https://github.com/SenaProjetos/senahub/commit/764ae1c274b95d2b5cb1615106b776d5aa162ad2))
+* **coordenacao:** apontar interferência na sobreposição 2D ([fad3c5f](https://github.com/SenaProjetos/senahub/commit/fad3c5fca9feecde227ba0e9b17ef7203016ff2e))
+* **coordenacao:** conta do alinhamento da sobreposição 2D ([4ed6dc8](https://github.com/SenaProjetos/senahub/commit/4ed6dc80449b106a53d41c2c56f94f031b8fe07b))
+* **coordenacao:** cortina e cruzamentos na sobreposição 2D ([4ed8ff4](https://github.com/SenaProjetos/senahub/commit/4ed8ff40245fc45ac09883646767765d330bbc4d))
+* **coordenacao:** regras da sobreposição 2D (arquivo vigente, SENA_ARQ, pino) ([b58c0b8](https://github.com/SenaProjetos/senahub/commit/b58c0b8f90dce268bae30291a52e93378fddcee1))
+* **coordenacao:** serviço e ações da sobreposição 2D ([ee85074](https://github.com/SenaProjetos/senahub/commit/ee8507417498a168e7b5100186aa8e26708426f0))
+* **coordenacao:** tabelas da sobreposição 2D ([6a7d527](https://github.com/SenaProjetos/senahub/commit/6a7d527f2d2def05708aee8ffb2b193a2799bec8))
+* **coordenacao:** tela da sobreposição 2D com camadas PDF e DWG ([82419d0](https://github.com/SenaProjetos/senahub/commit/82419d0f80274b8b43a51d01481b420b5e89293a))
+* **coordenacao:** tingir pixels e alinhamento efetivo da camada na sobreposição ([e531232](https://github.com/SenaProjetos/senahub/commit/e5312326e3f03b2335c461259af09b09e1054c23))
+* **ferramentas:** calculadora Corrente e Demanda em tela larga ([201a2b3](https://github.com/SenaProjetos/senahub/commit/201a2b390b63f5f90b458cf5975a40e2bd5c2e06))
+* **planejamento:** início real pelo ponto e término real pendente no Gantt de Controle ([bc9895c](https://github.com/SenaProjetos/senahub/commit/bc9895ca8d7bcdf88e4afc00d053d779d2015b85))
+* **portal:** card Entregas carrega à parte, com esqueleto e erro no próprio card ([b31efcb](https://github.com/SenaProjetos/senahub/commit/b31efcb0f39108559c4f7fb785fba9468d77f484))
+* **portal:** card Entregas com "Tentar de novo" no erro e descrição no vazio ([16d17be](https://github.com/SenaProjetos/senahub/commit/16d17be012520e79bead04385b0e70cb39be08ed))
+* **portal:** entregas do projeto na página do cliente ([209f14f](https://github.com/SenaProjetos/senahub/commit/209f14f97cd59c3985f8fbe021335c188c10ae22))
+* **portal:** rotas autenticadas de download das entregas do cliente ([349975e](https://github.com/SenaProjetos/senahub/commit/349975e34c481fa310fb632613dfa2f71aa9cdaa))
+* **rh:** ausência e férias de quem é do RH só um administrador decide ([da16e18](https://github.com/SenaProjetos/senahub/commit/da16e18592dc4b02ec354c78e23d729a627a5bee))
+* **rh:** RH lança abono/atestado pela pessoa; abono e férias decididos uma vez e nunca pelo próprio ([ab6227f](https://github.com/SenaProjetos/senahub/commit/ab6227fd2bd90dd6572f58cb142e41ee66404507))
+
+
+### 🐛 Correções
+
+* **arquivos:** .zip cancelado fecha o arquivo em leitura ([6016c58](https://github.com/SenaProjetos/senahub/commit/6016c58b96a152ef053a3f221c8d1dc533fb02bb))
+* **arquivos:** .zip do portal e do link respeita o ritmo do cliente e para ao cancelar ([728ec6f](https://github.com/SenaProjetos/senahub/commit/728ec6f7a00da40a2b9157684bc0e0a0514a8b69))
+* **arquivos:** .zip do portal e do link só registra o que entrou no pacote ([f14c274](https://github.com/SenaProjetos/senahub/commit/f14c2744e0423b7ef01697ccc53f2c8b290be460))
+* **arquivos:** "Em revisão" uma vez só e selo "Download bloqueado" no AA ([8e2d5dc](https://github.com/SenaProjetos/senahub/commit/8e2d5dc4e8d6b3df9a9c6db367b237cbe69fbf7c))
+* **arquivos:** ajustes da auditoria das entregas do portal ([65adb19](https://github.com/SenaProjetos/senahub/commit/65adb194a2d4526ee31d0937e62377474d610cb7))
+* **arquivos:** arquivo ausente no disco aparece como "Indisponível", sem botões ([363ba1a](https://github.com/SenaProjetos/senahub/commit/363ba1a3d8e3148edd296a0b2b272b5b65285947))
+* **arquivos:** descrição da revisão em linha própria, legível no celular ([a7d357b](https://github.com/SenaProjetos/senahub/commit/a7d357be15df2d69702271749f14a1e93fc1d30c))
+* **arquivos:** explicação do "Download bloqueado" em texto visível ([4a6912d](https://github.com/SenaProjetos/senahub/commit/4a6912d7f1b4f6b15bfddf63174f7c3f4bd75cb3))
+* **arquivos:** nome do arquivo com acento e espaço chega intacto no download ([c2692b9](https://github.com/SenaProjetos/senahub/commit/c2692b9094a04916110b57eeef005cc89a7c341c))
+* **arquivos:** PDF aberto no navegador sai sempre como application/pdf ([cd4ff62](https://github.com/SenaProjetos/senahub/commit/cd4ff62b930ef8eaabd669dc8eed934b9ce7ddae))
+* **arquivos:** tamanho do arquivo com vírgula decimal no portal e no link ([9b49e5e](https://github.com/SenaProjetos/senahub/commit/9b49e5ec9bfe8d7d9851dd76315c25a4fc443996))
+* **coordenacao:** achados da conferência em tela da sobreposição 2D ([b783332](https://github.com/SenaProjetos/senahub/commit/b783332831801c9839044810445f8d8659b918de))
+* **coordenacao:** correções da auditoria da sobreposição 2D (parte 1) ([f31bcb7](https://github.com/SenaProjetos/senahub/commit/f31bcb702015dc234c9edd07d214df92e34af94c))
+* **coordenacao:** correções da auditoria da sobreposição 2D (parte 2) ([1fd6d31](https://github.com/SenaProjetos/senahub/commit/1fd6d3171d40db99a2f1ce5676bf94ab1897212d))
+* **coordenacao:** só a primeira camada ganha alinhamento automático na sobreposição ([da6489c](https://github.com/SenaProjetos/senahub/commit/da6489cafbd319c89f38a06967827fdc459ad701))
+* **coordenacao:** sobreposição lê a folha PDF com o /Rotate da página ([01b44aa](https://github.com/SenaProjetos/senahub/commit/01b44aa960f1dd040b932d3ed46d523677100240))
+* **ferramentas:** rótulos de CASOS e engastes do 5B conferidos contra a Tabela 2.3 de Libanio ([ebc4bc8](https://github.com/SenaProjetos/senahub/commit/ebc4bc86b9627e3f0712401abf5823ffb3c1ecd3))
+* **link-publico:** auditoria do download grava o linkId, nunca o token ([a8c062f](https://github.com/SenaProjetos/senahub/commit/a8c062f28e102efae9cd4b82ecb993d388dae31c))
+* **link-publico:** link de seleção só serve upload do próprio projeto ([f5c8c8d](https://github.com/SenaProjetos/senahub/commit/f5c8c8d8f4135ab05110b247e0d84bb2e150ab3e))
+* **link-publico:** página do link de seleção só lista upload do próprio projeto ([7c2514f](https://github.com/SenaProjetos/senahub/commit/7c2514f55da4127b0cf50de4b942bf370f1595ca))
+* **pdf:** busca não repete a marca curta da digitação anterior ([a26b98a](https://github.com/SenaProjetos/senahub/commit/a26b98a4427e140c76e51430db2dddca87608b59))
+* **pdf:** camada de texto recebe a escala que o pdf.js espera ([9a21e4c](https://github.com/SenaProjetos/senahub/commit/9a21e4caec6170bace844c29f3edec7eb0ca443c))
+* **pdf:** cores da marca de busca viram tokens ([01a43bb](https://github.com/SenaProjetos/senahub/commit/01a43bb77ec0ab3a5e6eaecf066949d49272166a))
+* **pdf:** falha ao desenhar a página deixa de ser silenciosa ([862ffac](https://github.com/SenaProjetos/senahub/commit/862ffac7ace65612600276d048759fd0fa6445da))
+* **pdf:** falha de desenho libera o canvas, não trava a busca e não deixa aviso velho ([3dc276b](https://github.com/SenaProjetos/senahub/commit/3dc276b535b634a86e1b3210c50d110b720979cc))
+* **pdf:** visualizador respeita o /Rotate da prancha e desenha o ponto do traço-ponto ([1aac563](https://github.com/SenaProjetos/senahub/commit/1aac563283bb74eb9ec2a32f105cd61190fabcdd))
+* **portal:** .zip só com arquivo baixável, inline só para PDF e descrição em duas linhas ([6752a70](https://github.com/SenaProjetos/senahub/commit/6752a708705d068e10e192d8fd7ca4d2db2e01d5))
+* **portal:** "Tentar de novo" não perde o foco e avisa o andamento ([ed0368e](https://github.com/SenaProjetos/senahub/commit/ed0368eb0bed625ea430b10689e56c90214f1f31))
+* **portal:** cliente desativado fica fora do portal inteiro ([5ca84f9](https://github.com/SenaProjetos/senahub/commit/5ca84f95dd0509e1473515bbb099493606bb689a))
+* **portal:** cliente desativado no cadastro não baixa entregas ([8d4c8ac](https://github.com/SenaProjetos/senahub/commit/8d4c8ac50b1a61d2b10acc3f984c102a523e9f9f))
+* **portal:** envio de documento cobra termo e senha e não deixa arquivo órfão ([b266f94](https://github.com/SenaProjetos/senahub/commit/b266f942e152a1f9767de29f02dd31908c63b7be))
+* **rh,storage:** férias com até 30 dias por período; gravação nunca deixa arquivo pela metade ([c64f5ef](https://github.com/SenaProjetos/senahub/commit/c64f5ef15b3e1bcd4f908037e8d02e5d01da963b))
+* **rh:** atestado só para quem decide; férias e ausência sem sobreposição ([d377921](https://github.com/SenaProjetos/senahub/commit/d3779215e270f2c3d4d1a09bd971386648d4b705))
+* **ui:** selo "perigo" no AA em todas as telas, com token destructive-text ([8db294d](https://github.com/SenaProjetos/senahub/commit/8db294da835976adb617517cca0d615bb1b6f950)), closes [#8f3d3](https://github.com/SenaProjetos/senahub/issues/8f3d3) [#e09a9](https://github.com/SenaProjetos/senahub/issues/e09a9)
+
+
+### ⚡ Performance
+
+* **arquivos:** conferência do disco em lotes e cabeçalhos validados antes do stream ([bc50d32](https://github.com/SenaProjetos/senahub/commit/bc50d32f55fa57177243453ffb3c173d51b3558e))
+* **arquivos:** download do portal e do link em stream, com Content-Length ([f90a37c](https://github.com/SenaProjetos/senahub/commit/f90a37ca66c203ae5e80ac294d923a670af48ca6))
+
+
+### ♻️ Refatorações
+
+* **arquivos:** árvore de entregas recebe a base das URLs ([3dc9885](https://github.com/SenaProjetos/senahub/commit/3dc988596ae722a05b7f89d38aa2f12ae1baddee))
+* **arquivos:** núcleo do link público por alcance, sem token ([25a3312](https://github.com/SenaProjetos/senahub/commit/25a33124258735e4dc70604957b1b0d412360a12))
+
 ## [1.33.0](https://github.com/SenaProjetos/senahub/compare/v1.32.0...v1.33.0) (2026-11-16)
 
 
