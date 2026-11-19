@@ -29,6 +29,8 @@ import {
 } from "../src/modules/projetos/arquivos/link-publico";
 import { uploadsComBloqueioDeDownload } from "../src/modules/uploads/ciclo/service";
 import { acessoDoUsuarioAoProjetoDoPortal } from "../src/modules/portal/acesso";
+import { clienteDoUsuario, projetoDoCliente, projetosDoCliente } from "../src/modules/portal/queries";
+import { escopoProjeto } from "../src/modules/projetos/queries";
 import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
 
 type Arquivo = ConteudoPublico["situacoes"][number]["disciplinas"][number]["pastas"][number]["extensoes"][number]["arquivos"][number];
@@ -222,6 +224,22 @@ async function main() {
     await prisma.cliente.update({ where: { id: cliente.id }, data: { ativo: false } });
     const inativo = await acesso(p1.id);
     check("cliente desativado → 404, mesmo com a conta ativa", !inativo.ok && inativo.status === 404);
+    // O resto do portal segue a mesma regra: telas, envio de documento e o escopo de projeto do cliente.
+    check("cliente desativado: conta lida como inativa", (await clienteDoUsuario(portal.id))?.ativo === false);
+    check("cliente desativado: lista de projetos vazia", (await projetosDoCliente(cliente.id)).length === 0);
+    check("cliente desativado: projeto não abre", (await projetoDoCliente(cliente.id, p1.id)) === null);
+    const viewer = { id: portal.id, tipo: "externo" as const, superUsuario: false, escopoGlobalPerfil: false };
+    check(
+      "cliente desativado: escopo de projeto do cliente vazio",
+      (await prisma.projeto.count({ where: { id: p1.id, ...escopoProjeto(viewer) } })) === 0,
+    );
+    await prisma.cliente.update({ where: { id: cliente.id }, data: { ativo: true } });
+    check("cliente reativado: conta lida como ativa", (await clienteDoUsuario(portal.id))?.ativo === true);
+    check("cliente reativado: projeto abre de novo", (await projetoDoCliente(cliente.id, p1.id)) !== null);
+    check(
+      "cliente reativado: escopo de projeto volta",
+      (await prisma.projeto.count({ where: { id: p1.id, ...escopoProjeto(viewer) } })) === 1,
+    );
   } finally {
     for (const id of usuarios) await prisma.user.delete({ where: { id } });
     for (const id of projetos) await prisma.projeto.delete({ where: { id } });

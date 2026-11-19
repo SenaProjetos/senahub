@@ -15,10 +15,23 @@ function progresso(ds: { status: StatusDisciplina }[]): number {
   return Math.round((ds.reduce((s, d) => s + PESO[d.status], 0) / ds.length) * 100);
 }
 
-/** Projetos do cliente (read-only). Escopo ESTRITO por clienteId do próprio usuário. */
+/**
+ * Cliente vinculado ao usuário do portal. `ativo = false` = cliente desativado no cadastro: o portal inteiro
+ * fica fechado para ele, mesmo com a conta de usuário ativa (decisão do dono, 2026-11-18).
+ */
+export async function clienteDoUsuario(userId: string): Promise<{ clienteId: string; ativo: boolean } | null> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { clienteId: true, cliente: { select: { ativo: true } } },
+  });
+  if (!u?.clienteId) return null;
+  return { clienteId: u.clienteId, ativo: u.cliente?.ativo ?? false };
+}
+
+/** Projetos do cliente (read-only). Escopo ESTRITO por clienteId do próprio usuário; cliente desativado não vê nada. */
 export async function projetosDoCliente(clienteId: string) {
   const projetos = await prisma.projeto.findMany({
-    where: { clienteId },
+    where: { clienteId, cliente: { ativo: true } },
     orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
     select: {
       id: true,
@@ -40,10 +53,10 @@ export async function projetosDoCliente(clienteId: string) {
   }));
 }
 
-/** Detalhe read-only de um projeto — só retorna se pertencer ao cliente. */
+/** Detalhe read-only de um projeto — só retorna se pertencer ao cliente, e com o cliente ativo. */
 export async function projetoDoCliente(clienteId: string, projetoId: string) {
   const p = await prisma.projeto.findFirst({
-    where: { id: projetoId, clienteId },
+    where: { id: projetoId, clienteId, cliente: { ativo: true } },
     select: {
       id: true,
       codigo: true,

@@ -5,8 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
-import { projetosDoCliente } from "@/modules/portal/queries";
+import { clienteDoUsuario, projetosDoCliente } from "@/modules/portal/queries";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,21 +21,24 @@ export default async function PortalPage() {
   const user = await requireUser();
   if (user.tipo === "interno") redirect("/");
 
-  const u = await prisma.user.findUnique({ where: { id: user.id }, select: { clienteId: true } });
-  if (!u?.clienteId) {
+  const cliente = await clienteDoUsuario(user.id);
+  // Sem cliente vinculado, ou cliente desativado no cadastro: o portal fica fechado (decisão do dono, 2026-11-18).
+  if (!cliente || !cliente.ativo) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-2xl font-extrabold tracking-tight">Portal do cliente</h2>
+      <div className="space-y-6">
+        <CabecalhoPagina titulo="Portal do cliente" descricao="Acompanhe o andamento dos seus projetos." />
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Sua conta ainda não está vinculada a um cliente. Contate o escritório.
+            {cliente
+              ? "O acesso deste cliente ao portal está suspenso. Fale com o escritório."
+              : "Sua conta ainda não está vinculada a um cliente. Contate o escritório."}
           </CardContent>
         </Card>
       </div>
     );
   }
 
-  const projetos = await projetosDoCliente(u.clienteId);
+  const projetos = await projetosDoCliente(cliente.clienteId);
 
   return (
     <div className="space-y-6">

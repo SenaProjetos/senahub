@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { salvarArquivo, nomeArquivoLimpo } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
+import { clienteDoUsuario } from "@/modules/portal/queries";
 
 /**
  * Upload do cliente logado (portal) para um projeto SEU. Cria
@@ -17,8 +18,10 @@ export async function POST(req: Request) {
   const user = session.user;
   if (user.tipo === "interno") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
-  const u = await prisma.user.findUnique({ where: { id: user.id }, select: { clienteId: true } });
-  if (!u?.clienteId) return NextResponse.json({ error: "Usuário sem cliente vinculado." }, { status: 403 });
+  const cliente = await clienteDoUsuario(user.id);
+  if (!cliente) return NextResponse.json({ error: "Usuário sem cliente vinculado." }, { status: 403 });
+  // Cliente desativado no cadastro: mesma resposta de projeto alheio (decisão do dono, 2026-11-18).
+  if (!cliente.ativo) return NextResponse.json({ error: "Projeto não encontrado." }, { status: 404 });
 
   let form: FormData;
   try {
@@ -29,7 +32,7 @@ export async function POST(req: Request) {
 
   const projetoId = String(form.get("projetoId") ?? "");
   // Escopo: o projeto tem que ser do cliente do próprio usuário.
-  const projeto = await prisma.projeto.findFirst({ where: { id: projetoId, clienteId: u.clienteId }, select: { id: true } });
+  const projeto = await prisma.projeto.findFirst({ where: { id: projetoId, clienteId: cliente.clienteId }, select: { id: true } });
   if (!projeto) return NextResponse.json({ error: "Projeto não encontrado." }, { status: 404 });
 
   const file = form.get("file");
@@ -40,12 +43,12 @@ export async function POST(req: Request) {
 
   const nome = nomeArquivoLimpo(file.name || "arquivo");
   const ext = nome.includes(".") ? nome.slice(nome.lastIndexOf(".")) : "";
-  const rel = `documentos/${u.clienteId}/${randomBytes(12).toString("hex")}${ext}`;
+  const rel = `documentos/${cliente.clienteId}/${randomBytes(12).toString("hex")}${ext}`;
   const salvo = await salvarArquivo(rel, Buffer.from(await file.arrayBuffer()));
 
   const doc = await prisma.documento.create({
     data: {
-      clienteId: u.clienteId,
+      clienteId: cliente.clienteId,
       projetoId: projeto.id,
       origem: "recebido_cliente",
       canal: "portal",

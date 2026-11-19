@@ -4,8 +4,7 @@ import { formatarData } from "@/lib/utils";
 import { notFound, redirect } from "next/navigation";
 import { CalendarDays, Download, FileStack, MapPin, FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
-import { projetoDoCliente } from "@/modules/portal/queries";
+import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
@@ -32,11 +31,12 @@ export default async function PortalProjetoPage({
 }) {
   const user = await requireUser();
   if (user.tipo === "interno") redirect("/");
-  const u = await prisma.user.findUnique({ where: { id: user.id }, select: { clienteId: true } });
-  if (!u?.clienteId) redirect("/portal");
+  const cliente = await clienteDoUsuario(user.id);
+  // Sem cliente, ou cliente desativado: a lista explica (portal fechado).
+  if (!cliente || !cliente.ativo) redirect("/portal");
 
   const { projetoId } = await params;
-  const projeto = await projetoDoCliente(u.clienteId, projetoId);
+  const projeto = await projetoDoCliente(cliente.clienteId, projetoId);
   if (!projeto) notFound();
   const recebidos = await recebidosDoProjeto(projetoId);
 
