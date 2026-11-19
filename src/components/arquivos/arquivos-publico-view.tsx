@@ -87,7 +87,6 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
           {arquivo.bloqueado && (
             <span
               className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_CONTROLE.bloqueio))}
-              title="Esta revisão está bloqueada para download. Fale com a equipe do projeto."
             >
               Download bloqueado
             </span>
@@ -102,6 +101,12 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
         </span>
         {arquivo.emRevisao && (
           <span className="max-w-full text-xs break-words text-muted-foreground">Motivo: {arquivo.emRevisao}</span>
+        )}
+        {/* A explicação de cada selo vai em texto visível (no toque e no teclado não há `title`). */}
+        {arquivo.bloqueado && (
+          <span className="max-w-full text-xs break-words text-muted-foreground">
+            Esta revisão está bloqueada para download. Fale com a equipe do projeto.
+          </span>
         )}
         {semArquivo && (
           <span className="max-w-full text-xs break-words text-muted-foreground">
