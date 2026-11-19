@@ -3,7 +3,7 @@ import { ZipArchive } from "archiver";
 import { uploadsDoLinkParaZip } from "@/modules/projetos/arquivos/link-publico";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 import { prisma } from "@/lib/prisma";
-import { resolverCaminho } from "@/lib/storage";
+import { resolverCaminho, separarPorExistencia } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 
@@ -28,15 +28,22 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
   if (!pacote) return NextResponse.json({ error: "Arquivos indisponíveis." }, { status: 404 });
   // Ciclo documental: revisão com bloqueio de download fica fora do pacote (I7).
   const bloqueados = await uploadsComBloqueioDeDownload(prisma, pacote.entradas.map((e) => e.uploadId));
-  const entradas = pacote.entradas.filter((e) => !bloqueados.has(e.uploadId));
-  if (entradas.length === 0) return NextResponse.json({ error: "Arquivos indisponíveis." }, { status: 404 });
+  const liberadas = pacote.entradas.filter((e) => !bloqueados.has(e.uploadId));
+  if (liberadas.length === 0) return NextResponse.json({ error: "Arquivos indisponíveis." }, { status: 404 });
+  // Só entra (e só é registrado como baixado) o que está no disco; o que sumiu fica de fora e no log.
+  const { presentes: entradas, ausentes } = await separarPorExistencia(liberadas);
+  const foraDoPacote = ausentes.map((e) => e.uploadId);
+  if (foraDoPacote.length > 0) {
+    console.warn(`[zip] ${foraDoPacote.length} arquivo(s) fora do pacote (ausentes no disco):`, foraDoPacote);
+  }
+  if (entradas.length === 0) return NextResponse.json({ error: "Arquivos indisponíveis no disco." }, { status: 410 });
 
   await logAudit({
     modulo: "uploads",
     acao: "download-link-publico-zip",
     resultado: "sucesso",
     entidade: "Projeto",
-    detalhe: { token, disciplinaId, fase, ext, situacao },
+    detalhe: { token, disciplinaId, fase, ext, situacao, ...(foraDoPacote.length > 0 ? { foraDoPacote } : {}) },
     ip: await getClientIp(),
   });
   // Sem await: um pacote grande não pode atrasar o início do download. O serviço nunca rejeita
@@ -60,13 +67,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
         console.error("[zip] erro no archiver:", err);
         controller.error(err);
       });
-      for (const e of entradas) {
-        try {
-          archive.file(resolverCaminho(e.caminho), { name: e.nome });
-        } catch {
-          // arquivo ausente no disco — ignora
-        }
-      }
+      // `entradas` já passou por `separarPorExistencia` (e por `resolverCaminho`).
+      for (const e of entradas) archive.file(resolverCaminho(e.caminho), { name: e.nome });
       void archive.finalize();
     },
   });

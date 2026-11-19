@@ -14,6 +14,7 @@ const {
   lerArquivo,
   removerArquivo,
   arquivoParaStream,
+  separarPorExistencia,
   SUFIXO_GRAVACAO_PARCIAL,
 } = await import("@/lib/storage");
 
@@ -84,6 +85,39 @@ describe("storage — arquivoParaStream (download sem carregar o arquivo na mem�
 
   it("caminho fora do base lança", async () => {
     await expect(arquivoParaStream("../../fora.bin")).rejects.toThrow();
+  });
+});
+
+describe("storage — separarPorExistencia (o .zip só registra o que entrou)", () => {
+  it("separa o que está no disco do que sumiu, mantendo a ordem e os campos", async () => {
+    const rel = `teste-existe/${Date.now()}-a.bin`;
+    await salvarArquivo(rel, Buffer.from("a"));
+    try {
+      const itens = [
+        { uploadId: "u1", caminho: rel },
+        { uploadId: "u2", caminho: "teste-existe/sumiu.bin" },
+        { uploadId: "u3", caminho: rel },
+        { uploadId: "u4", caminho: "../../fora.bin" },
+      ];
+      const { presentes, ausentes } = await separarPorExistencia(itens);
+      expect(presentes.map((i) => i.uploadId)).toEqual(["u1", "u3"]);
+      expect(ausentes.map((i) => i.uploadId)).toEqual(["u2", "u4"]);
+    } finally {
+      await removerArquivo(rel);
+    }
+  });
+
+  it("pasta no lugar do arquivo conta como ausente", async () => {
+    const rel = `teste-existe/${Date.now()}-pasta/x.bin`;
+    await salvarArquivo(rel, Buffer.from("x"));
+    try {
+      const pasta = rel.slice(0, rel.lastIndexOf("/"));
+      const { presentes, ausentes } = await separarPorExistencia([{ caminho: pasta }]);
+      expect(presentes).toEqual([]);
+      expect(ausentes).toEqual([{ caminho: pasta }]);
+    } finally {
+      await removerArquivo(rel);
+    }
   });
 });
 

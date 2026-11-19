@@ -133,6 +133,27 @@ export async function existeArquivo(relativo: string): Promise<boolean> {
   }
 }
 
+/**
+ * Separa os itens cujo `caminho` é um arquivo no disco dos que não são (sumiu, virou pasta ou cai fora do
+ * base). Mantém a ordem. Para montar um pacote (.zip) só com o que existe e registrar só o que entrou.
+ */
+export async function separarPorExistencia<T extends { caminho: string }>(
+  itens: T[],
+): Promise<{ presentes: T[]; ausentes: T[] }> {
+  const presentes: T[] = [];
+  const ausentes: T[] = [];
+  for (const item of itens) {
+    let eArquivo = false;
+    try {
+      eArquivo = (await fs.stat(resolverCaminho(item.caminho))).isFile();
+    } catch {
+      eArquivo = false;
+    }
+    (eArquivo ? presentes : ausentes).push(item);
+  }
+  return { presentes, ausentes };
+}
+
 /** Remove um arquivo do disco. Best-effort: ignora se já não existe. */
 export async function removerArquivo(relativo: string): Promise<void> {
   try {
