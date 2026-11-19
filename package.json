@@ -89,6 +89,7 @@
     "smoke:pendencias-ciclo": "tsx --tsconfig tsconfig.server.json scripts/smoke-pendencias-ciclo.ts",
     "smoke:pastas-cliente": "tsx --tsconfig tsconfig.server.json scripts/smoke-pastas-cliente.ts",
     "smoke:portal-entregas": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-entregas.ts",
+    "smoke:portal-andamento": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-andamento.ts",
     "smoke:portal-financeiro": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-financeiro.ts",
     "smoke:vinculo-projeto-ficha": "tsx --tsconfig tsconfig.server.json scripts/smoke-vinculo-projeto-ficha.ts",
     "smoke:apagar-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-apagar-eap.ts",

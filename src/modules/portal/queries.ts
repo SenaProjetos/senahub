@@ -1,19 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import type { StatusDisciplina } from "@/generated/prisma/client";
-
-const PESO: Record<StatusDisciplina, number> = {
-  aguardando: 0,
-  em_andamento: 0.4,
-  em_revisao: 0.6,
-  entregue: 0.85,
-  aprovado: 1,
-};
-
-function progresso(ds: { status: StatusDisciplina }[]): number {
-  if (ds.length === 0) return 0;
-  return Math.round((ds.reduce((s, d) => s + PESO[d.status], 0) / ds.length) * 100);
-}
+import { andamentoDoPortal } from "./andamento-queries";
 
 /**
  * Cliente vinculado ao usuário do portal. `ativo = false` = cliente desativado no cadastro: o portal inteiro
@@ -28,7 +15,10 @@ export async function clienteDoUsuario(userId: string): Promise<{ clienteId: str
   return { clienteId: u.clienteId, ativo: u.cliente?.ativo ?? false };
 }
 
-/** Projetos do cliente (read-only). Escopo ESTRITO por clienteId do próprio usuário; cliente desativado não vê nada. */
+/**
+ * Projetos do cliente (read-only). Escopo ESTRITO por clienteId do próprio usuário; cliente desativado não vê nada.
+ * O progresso é o MESMO do detalhe (`andamentoDoPortal`): fases concluídas para o cliente, não o status interno.
+ */
 export async function projetosDoCliente(clienteId: string) {
   const projetos = await prisma.projeto.findMany({
     where: { clienteId, cliente: { ativo: true } },
@@ -39,36 +29,31 @@ export async function projetosDoCliente(clienteId: string) {
       nome: true,
       situacao: true,
       prazoContrato: true,
-      disciplinas: { select: { status: true } },
+      _count: { select: { disciplinas: true } },
     },
   });
-  return projetos.map((p) => ({
-    id: p.id,
-    codigo: p.codigo,
-    nome: p.nome,
-    situacao: p.situacao,
-    prazoContrato: p.prazoContrato ? p.prazoContrato.toISOString().slice(0, 10) : null,
-    totalDisciplinas: p.disciplinas.length,
-    progresso: progresso(p.disciplinas),
-  }));
+  const itens = [];
+  // Um por vez: cada um lê as Entregas do projeto, e clientes têm poucos projetos.
+  for (const p of projetos) {
+    const { andamento } = await andamentoDoPortal(p);
+    itens.push({
+      id: p.id,
+      codigo: p.codigo,
+      nome: p.nome,
+      situacao: p.situacao,
+      prazoContrato: p.prazoContrato ? p.prazoContrato.toISOString().slice(0, 10) : null,
+      totalDisciplinas: p._count.disciplinas,
+      progresso: andamento.percentual,
+    });
+  }
+  return itens;
 }
 
 /** Detalhe read-only de um projeto — só retorna se pertencer ao cliente, e com o cliente ativo. */
 export async function projetoDoCliente(clienteId: string, projetoId: string) {
   const p = await prisma.projeto.findFirst({
     where: { id: projetoId, clienteId, cliente: { ativo: true } },
-    select: {
-      id: true,
-      codigo: true,
-      nome: true,
-      situacao: true,
-      prazoContrato: true,
-      endereco: true,
-      disciplinas: {
-        orderBy: { ordem: "asc" },
-        select: { id: true, disciplinaTextoLegado: true, status: true, prazo: true },
-      },
-    },
+    select: { id: true, codigo: true, nome: true, situacao: true, prazoContrato: true, endereco: true },
   });
   if (!p) return null;
   return {
@@ -78,12 +63,5 @@ export async function projetoDoCliente(clienteId: string, projetoId: string) {
     situacao: p.situacao,
     endereco: p.endereco,
     prazoContrato: p.prazoContrato ? p.prazoContrato.toISOString().slice(0, 10) : null,
-    progresso: progresso(p.disciplinas),
-    disciplinas: p.disciplinas.map((d) => ({
-      id: d.id,
-      nome: d.disciplinaTextoLegado,
-      status: d.status,
-      prazo: d.prazo ? d.prazo.toISOString().slice(0, 10) : null,
-    })),
   };
 }

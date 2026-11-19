@@ -41,6 +41,7 @@ npm run smoke:pendencias-ciclo     # pendências documentais: assinatura lida do
 npm run smoke:pastas-cliente       # pastas Compartilhado/Liberado para obra: revisão marcada na lista/árvore, contagem, validação desfeita
 npm run smoke:portal-entregas      # entregas no portal do cliente: mesmo núcleo do link (portal = link projeto todo por situação), descrição da revisão, download bloqueado, outro projeto/cliente/revisão sem marca nunca saem, ART
 npm run smoke:portal-financeiro     # financeiro do portal do cliente: de quem é o recebível (lançamento × projeto), o que fica fora (previsão, cancelado, acessório, transferência, licitação), líquido da retenção
+npm run smoke:portal-andamento      # andamento e linha do tempo do portal: fase concluída só com prancha nas Entregas, data do controle × do evento, prancha retirada sai, lista = detalhe
 npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
