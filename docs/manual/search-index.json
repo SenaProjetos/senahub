@@ -322,7 +322,9 @@
         "situação",
         "andamento",
         "fase",
-        "linha do tempo"
+        "linha do tempo",
+        "resumo",
+        "e-mail"
       ],
       "sinonimos": [
         "área do cliente",

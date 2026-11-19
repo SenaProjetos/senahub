@@ -20,6 +20,7 @@ import {
   Shapes,
   Building2,
   FileQuestion,
+  Send,
 } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +111,12 @@ const GRUPOS: Grupo[] = [
         icon: ClipboardList,
         titulo: "Modelos de formulário",
         descricao: "Formulários de briefing do cliente: tipos de pergunta, ordem e um modelo por perfil de cliente.",
+      },
+      {
+        href: "/configuracoes/portal",
+        icon: Send,
+        titulo: "Portal do cliente",
+        descricao: "Resumo diário por e-mail aos clientes do portal quando um projeto anda.",
       },
       {
         href: "/configuracoes/feriados",

@@ -3,7 +3,7 @@ titulo: Portal do cliente (Meus projetos)
 descricao: Visão externa, somente leitura, onde o cliente acompanha seus projetos.
 resumo: O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.
 tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas]
-palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação, andamento, fase, linha do tempo]
+palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação, andamento, fase, linha do tempo, resumo, e-mail]
 sinonimos: [área do cliente, portal externo, acompanhamento de projeto]
 ---
 
@@ -87,6 +87,17 @@ arquivo mostra a **revisão** (R00, R01…) e, quando houver, **o que mudou** ne
 
 Só aparecem aqui as pranchas que o escritório colocou nas pastas do cliente. Revisões em andamento ou em
 análise interna não aparecem. Os mesmos arquivos são os que um link de arquivos do projeto mostraria.
+
+## Resumo por e-mail
+
+Nos dias em que um projeto anda, o cliente recebe **às 7h do dia seguinte** um e-mail (um por projeto) com o que
+chegou: pranchas compartilhadas, pranchas liberadas para obra e fases concluídas — as mesmas linhas da **Linha do
+tempo** — e o botão **Abrir no portal**. Dia sem novidade não manda nada. O mesmo resumo aparece no sino do portal.
+
+- Para não receber o e-mail, desmarque **Receber por e-mail o resumo dos dias em que um projeto andar**, no rodapé de
+  **Meus projetos**. O aviso no sino continua.
+- Se o servidor ficou fora alguns dias, o cliente recebe um e-mail só com os dias que faltaram.
+- O escritório liga e desliga o resumo em Configurações → **Portal do cliente**.
 
 ## Financeiro
 

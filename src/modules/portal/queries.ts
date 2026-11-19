@@ -49,6 +49,12 @@ export async function projetosDoCliente(clienteId: string) {
   return itens;
 }
 
+/** O cliente quer o resumo diário por e-mail? Sem preferência gravada = sim (`notif_portal_resumo`). */
+export async function querResumoPorEmail(userId: string): Promise<boolean> {
+  const p = await prisma.userPreference.findUnique({ where: { userId }, select: { dados: true } });
+  return (p?.dados as Record<string, unknown> | null)?.notif_portal_resumo !== false;
+}
+
 /** Detalhe read-only de um projeto — só retorna se pertencer ao cliente, e com o cliente ativo. */
 export async function projetoDoCliente(clienteId: string, projetoId: string) {
   const p = await prisma.projeto.findFirst({

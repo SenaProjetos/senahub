@@ -6,7 +6,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { clienteDoUsuario, projetosDoCliente } from "@/modules/portal/queries";
+import { clienteDoUsuario, projetosDoCliente, querResumoPorEmail } from "@/modules/portal/queries";
+import { ResumoEmailToggle } from "@/components/portal/resumo-email-toggle";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +41,8 @@ export default async function PortalPage() {
     );
   }
 
+  const resumoPorEmail = await querResumoPorEmail(user.id);
+
   return (
     <div className="space-y-6">
       <CabecalhoPagina titulo="Meus projetos" descricao="Acompanhe o andamento dos seus projetos." />
@@ -47,6 +50,7 @@ export default async function PortalPage() {
       <Suspense fallback={<ProjetosCarregando />}>
         <ProjetosDoCliente clienteId={cliente.clienteId} />
       </Suspense>
+      <ResumoEmailToggle ligado={resumoPorEmail} />
     </div>
   );
 }

@@ -51,6 +51,10 @@ lugar.
   resposta já dada fica guardada. **Renomear uma opção** leva junto as respostas já dadas (o aviso ao
   salvar diz quantas). Regras: a pergunta já existente só troca de tipo por um parecido; o modelo
   **arquiva** em vez de excluir; o padrão não arquiva.
+- **Portal do cliente** — liga e desliga o **resumo diário por e-mail**: às 7h, cada conta do portal recebe um
+  e-mail por projeto que andou no dia anterior (pranchas compartilhadas, liberadas para obra, fases concluídas); dia
+  sem novidade não manda nada. Vem ligado. Ao religar, o primeiro resumo é o do próprio dia (sai no dia seguinte) —
+  nada do período desligado é enviado. O texto do e-mail fica em **Modelos de e-mail** ("Resumo diário do portal").
 - **Feriados** — calendário (ponto, escala, banco de horas).
 - **Modalidades de licitação** — lista usada no cadastro de licitações.
 - **Parâmetros de licitação** — prazos de recurso, limite de aditivo, modo PNCP/reajuste,
