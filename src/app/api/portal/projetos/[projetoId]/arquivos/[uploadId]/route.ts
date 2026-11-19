@@ -55,13 +55,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ projetoId: stri
     linkId: null,
   });
   const disposition = inline ? "inline" : "attachment";
-  // Cabeçalhos antes de abrir o arquivo: se algo lançasse depois do `abrir()`, o stream ficaria aberto
-  // (no Windows, o arquivo travado).
-  const headers = {
+  // Cabeçalhos (já validados pelo `Headers`) antes de abrir o arquivo: se algo lançasse depois do `abrir()`,
+  // o stream ficaria aberto (no Windows, o arquivo travado).
+  const headers = new Headers({
     "Content-Length": String(arquivo.tamanho),
     "Content-Type": contentTypeDoDownload(upload.mimeType, inline),
     "Content-Disposition": contentDisposition(disposition, upload.nomeArquivo),
     "X-Content-Type-Options": "nosniff",
-  };
+  });
   return new NextResponse(arquivo.abrir(), { headers });
 }

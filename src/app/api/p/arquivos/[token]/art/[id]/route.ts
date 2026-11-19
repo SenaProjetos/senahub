@@ -34,13 +34,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string; 
   });
 
   const inline = new URL(req.url).searchParams.get("disposition") === "inline";
-  // Cabeçalhos antes de abrir o arquivo: se algo lançasse depois do `abrir()`, o stream ficaria aberto
-  // (no Windows, o arquivo travado).
-  const headers = {
+  // Cabeçalhos (já validados pelo `Headers`) antes de abrir o arquivo: se algo lançasse depois do `abrir()`,
+  // o stream ficaria aberto (no Windows, o arquivo travado).
+  const headers = new Headers({
     "Content-Length": String(arquivo.tamanho),
     "Content-Type": "application/pdf",
     "X-Content-Type-Options": "nosniff",
     "Content-Disposition": contentDisposition(inline ? "inline" : "attachment", art.nome),
-  };
+  });
   return new NextResponse(arquivo.abrir(), { headers });
 }

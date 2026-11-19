@@ -140,18 +140,22 @@ export async function existeArquivo(relativo: string): Promise<boolean> {
 export async function separarPorExistencia<T extends { caminho: string }>(
   itens: T[],
 ): Promise<{ presentes: T[]; ausentes: T[] }> {
-  const presentes: T[] = [];
-  const ausentes: T[] = [];
-  for (const item of itens) {
-    let eArquivo = false;
+  const eArquivo = async (item: T) => {
     try {
-      eArquivo = (await fs.stat(resolverCaminho(item.caminho))).isFile();
+      return (await fs.stat(resolverCaminho(item.caminho))).isFile();
     } catch {
-      eArquivo = false;
+      return false;
     }
-    (eArquivo ? presentes : ausentes).push(item);
+  };
+  // Em lotes de 16: uma pasta grande (ou o disco em rede) não vira centenas de `stat` em fila.
+  const existe: boolean[] = [];
+  for (let i = 0; i < itens.length; i += 16) {
+    existe.push(...(await Promise.all(itens.slice(i, i + 16).map(eArquivo))));
   }
-  return { presentes, ausentes };
+  return {
+    presentes: itens.filter((_, i) => existe[i]),
+    ausentes: itens.filter((_, i) => !existe[i]),
+  };
 }
 
 /** Remove um arquivo do disco. Best-effort: ignora se já não existe. */
