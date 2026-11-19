@@ -16,7 +16,20 @@ export type AcessoPortal =
  */
 export async function acessoAoProjetoDoPortal(projetoId: string): Promise<AcessoPortal> {
   const session = await getSession();
-  const user = session?.user ?? null;
+  return acessoDoUsuarioAoProjetoDoPortal(session?.user ?? null, projetoId);
+}
+
+/** O que a decisão lê da sessão. */
+export type UsuarioDaSessao = { id: string; tipo: "interno" | "externo"; mustChangePassword: boolean };
+
+/**
+ * A parte de `acessoAoProjetoDoPortal` que vem depois da sessão: lê o cliente da pessoa, o projeto e o termo
+ * e decide. Separada para o smoke conferir a ligação com o banco sem montar uma sessão HTTP.
+ */
+export async function acessoDoUsuarioAoProjetoDoPortal(
+  user: UsuarioDaSessao | null,
+  projetoId: string,
+): Promise<AcessoPortal> {
   const [dono, projeto] = user
     ? await Promise.all([
         prisma.user.findUnique({

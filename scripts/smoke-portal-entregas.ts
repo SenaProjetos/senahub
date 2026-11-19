@@ -4,7 +4,9 @@
  * `alcanceDoPortal`); aqui vai o SQL: descrição da revisão e selo "Download bloqueado" na árvore, a revisão
  * bloqueada fora do .zip, o portal igual ao link "projeto todo por situação", e o que nunca sai pela URL direta
  * (upload de outro projeto, de outro cliente, revisão sem marca). A trava de quem acessa (sessão, tipo,
- * cliente, termo, senha) é pura e está em `modules/portal/acesso-regras.test.ts`.
+ * cliente, termo, senha) é pura e está em `modules/portal/acesso-regras.test.ts`; aqui vai a ligação dela com o
+ * banco (`acessoDoUsuarioAoProjetoDoPortal`): projeto inexistente, de outro cliente, termo pendente, cliente
+ * desativado.
  *
  * Cria clientes + projetos + documentos throwaway e apaga tudo no final.
  *
@@ -26,6 +28,8 @@ import {
   type ConteudoPublico,
 } from "../src/modules/projetos/arquivos/link-publico";
 import { uploadsComBloqueioDeDownload } from "../src/modules/uploads/ciclo/service";
+import { acessoDoUsuarioAoProjetoDoPortal } from "../src/modules/portal/acesso";
+import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
 
 type Arquivo = ConteudoPublico["situacoes"][number]["disciplinas"][number]["pastas"][number]["extensoes"][number]["arquivos"][number];
 
@@ -48,6 +52,7 @@ async function main() {
 
   const clientes: string[] = [];
   const projetos: string[] = [];
+  const usuarios: string[] = [];
   const novoCliente = async (sufixo: string) => {
     const c = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_${sufixo}` } });
     clientes.push(c.id);
@@ -165,7 +170,43 @@ async function main() {
     // A rota do link grava o linkId na auditoria e no histórico, nunca o token.
     check("download pelo link traz o linkId do link", (await uploadLiberadoNoLink(link.token, a.up.id))?.linkId === link.id);
     check("ART pelo link traz o linkId do link", (await artLiberadaNoLink(link.token, art.id))?.linkId === link.id);
+
+    // ── quem entra: a regra pura ligada ao banco ──
+    const portal = await prisma.user.create({
+      data: { name: `${tag} portal`, email: `${tag.toLowerCase()}@smoke.local`, tipo: "externo", clienteId: cliente.id },
+    });
+    usuarios.push(portal.id);
+    const sessao = { id: portal.id, tipo: "externo" as const, mustChangePassword: false };
+    const acesso = (projetoId: string, u: typeof sessao | null = sessao) => acessoDoUsuarioAoProjetoDoPortal(u, projetoId);
+    const tipoTermo = tipoTermoPorTipo("externo");
+
+    const semTermo = await acesso(p1.id);
+    check("termo pendente → 403", !semTermo.ok && semTermo.status === 403);
+    const alheioSemTermo = await acesso(p3.id);
+    check("projeto de outro cliente → 404 (antes do termo)", !alheioSemTermo.ok && alheioSemTermo.status === 404);
+
+    await prisma.aceiteTermo.create({
+      data: { userId: portal.id, tipo: tipoTermo, versao: TERMOS[tipoTermo].versao, conteudoHash: "0".repeat(64) },
+    });
+    const liberado = await acesso(p1.id);
+    check(
+      "cliente do projeto com termo aceito entra, com o alcance do portal",
+      liberado.ok && liberado.userId === portal.id && liberado.alcance.projetoId === p1.id && liberado.alcance.linkId === null,
+    );
+    const inexistente = await acesso(`${tag}_nao_existe`);
+    check("projeto inexistente → 404", !inexistente.ok && inexistente.status === 404);
+    const alheio = await acesso(p3.id);
+    check("projeto de outro cliente → 404", !alheio.ok && alheio.status === 404);
+    const semSessao = await acesso(p1.id, null);
+    check("sem sessão → 401", !semSessao.ok && semSessao.status === 401);
+    const interno = await acesso(p1.id, { ...sessao, tipo: "interno" as never });
+    check("interno → 404", !interno.ok && interno.status === 404);
+
+    await prisma.cliente.update({ where: { id: cliente.id }, data: { ativo: false } });
+    const inativo = await acesso(p1.id);
+    check("cliente desativado → 404, mesmo com a conta ativa", !inativo.ok && inativo.status === 404);
   } finally {
+    for (const id of usuarios) await prisma.user.delete({ where: { id } });
     for (const id of projetos) await prisma.projeto.delete({ where: { id } });
     for (const id of clientes) await prisma.cliente.delete({ where: { id } });
     await prisma.$disconnect();
