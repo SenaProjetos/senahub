@@ -306,11 +306,16 @@ function ehPdf(nome: string): boolean {
  * disciplina de cada um só para a página ter como organizar a lista. Sem ART — quem
  * escolheu arquivo a arquivo não pediu o anexo automático.
  */
-async function conteudoDaSelecao(uploadIds: string[], agruparPorFase: boolean): Promise<DisciplinaPublica[]> {
+async function conteudoDaSelecao(
+  projetoId: string,
+  uploadIds: string[],
+  agruparPorFase: boolean,
+): Promise<DisciplinaPublica[]> {
   if (uploadIds.length === 0) return [];
   const [uploads, extensoes] = await Promise.all([
     prisma.upload.findMany({
-      where: { id: { in: uploadIds }, excluidoEm: null },
+      // Só uploads de disciplinas do projeto do link, como no download e no .zip.
+      where: { id: { in: uploadIds }, excluidoEm: null, disciplina: { projetoId } },
       orderBy: [{ disciplina: { ordem: "asc" } }, { nomeArquivo: "asc" }],
       select: {
         id: true,
@@ -459,7 +464,7 @@ async function montarConteudo(link: AlcanceArquivos): Promise<ConteudoPublico | 
   const projeto = link.projeto;
 
   if (link.escopo === "selecao") {
-    const disciplinas = await conteudoDaSelecao(link.uploadIds, link.agruparPorFase);
+    const disciplinas = await conteudoDaSelecao(link.projetoId, link.uploadIds, link.agruparPorFase);
     if (disciplinas.length === 0) return null;
     return { projeto, titulo: link.titulo, disciplinas, situacoes: [], arts: [] };
   }

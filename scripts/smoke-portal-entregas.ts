@@ -189,6 +189,12 @@ async function main() {
     );
     const soAlheio = await uploadsDoAlcanceParaZip({ ...selecao, uploadIds: [deP3.up.id] });
     check("seleção: .zip só com upload de outro projeto → nada", soAlheio === null);
+    // Link de seleção não tem pastas de situação: os arquivos ficam em `disciplinas`.
+    const paginaSelecao = await conteudoDoAlcance(selecao);
+    const naPagina = (paginaSelecao?.disciplinas ?? []).flatMap((d) =>
+      d.pastas.flatMap((f) => f.extensoes.flatMap((e) => e.arquivos.map((x) => x.id))),
+    );
+    check("seleção: a página lista só o upload do projeto do link", JSON.stringify(naPagina) === JSON.stringify([a.up.id]));
 
     // ── quem entra: a regra pura ligada ao banco ──
     const portal = await prisma.user.create({
