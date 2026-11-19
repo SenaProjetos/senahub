@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   ChevronRight,
   Download,
@@ -56,6 +56,42 @@ function BaixarPasta({
     >
       <FileArchive className="size-3.5" />
     </Button>
+  );
+}
+
+/**
+ * Descrição da revisão em até duas linhas, com "Ver tudo" só quando o texto é cortado (medido na tela, então
+ * vale para celular e computador). No toque não há `title`: o botão é a forma de ler o resto.
+ */
+function DescricaoRevisao({ texto }: { texto: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [aberta, setAberta] = useState(false);
+  const [cortada, setCortada] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || aberta) return;
+    const medir = () => setCortada(el.scrollHeight > el.clientHeight + 1);
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [aberta, texto]);
+  return (
+    <span className="basis-full pl-6 text-xs text-muted-foreground">
+      <span ref={ref} className={cn("block break-words", !aberta && "line-clamp-2")}>
+        {texto}
+      </span>
+      {(cortada || aberta) && (
+        <button
+          type="button"
+          className="mt-0.5 text-primary underline-offset-2 hover:underline"
+          aria-expanded={aberta}
+          onClick={() => setAberta((v) => !v)}
+        >
+          {aberta ? "Ver menos" : "Ver tudo"}
+        </button>
+      )}
+    </span>
   );
 }
 
@@ -141,12 +177,8 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
         </a>
       )}
       {/* O que mudou na revisão, numa linha própria com a largura toda: ao lado do nome, no celular,
-          sobrariam poucos caracteres. Duas linhas visíveis, o texto inteiro na dica. */}
-      {arquivo.descricaoRevisao && (
-        <span className="line-clamp-2 basis-full pl-6 text-xs text-muted-foreground" title={arquivo.descricaoRevisao}>
-          {arquivo.descricaoRevisao}
-        </span>
-      )}
+          sobrariam poucos caracteres. Duas linhas visíveis e "Ver tudo" quando o texto passa delas. */}
+      {arquivo.descricaoRevisao && <DescricaoRevisao texto={arquivo.descricaoRevisao} />}
     </li>
   );
 }
