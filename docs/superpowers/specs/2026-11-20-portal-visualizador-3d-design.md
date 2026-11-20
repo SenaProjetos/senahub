@@ -33,6 +33,8 @@ cliente nunca vê um IFC que não está nas Entregas dele.
   arquivo que está nas Entregas dele (opção 2). O realinhamento passa a registrar de qual arquivo saiu; o portal serve
   o derivado mais recente do arquivo das Entregas. Realinhamentos feitos antes disso não têm o registro e aparecem como
   o arquivo das Entregas.
+- **D5 — IFCs enviados pelo cliente também aparecem** (normalmente a base arquitetônica de referência): os IFCs do
+  card "Documentos" do portal (o que o cliente mandou), na última versão, junto com os das Entregas.
 - Aceitas como propostas: o cliente vê só os IFCs que estão nas Entregas dele (revisão vigente), todos juntos; andar em
   primeira pessoa na altura de uma pessoa, no pavimento escolhido, teclado+mouse no computador e controle na tela no
   celular, **sem colisão** nesta versão; aceitar marca "Em revisão" a revisão de cada IFC marcado (como a prancha);
@@ -55,6 +57,12 @@ cliente nunca vê um IFC que não está nas Entregas dele.
   mesma posição relativa que a equipe vê (D4, seção "Modelo realinhado" abaixo; o cliente não vê nem mexe no
   realinhamento). Modelo fora da compatibilização (`ModeloCoordenacaoOculto`) entra se estiver nas Entregas:
   a regra do cliente é a Entrega, não a Coordenação.
+- **IFCs enviados pelo cliente (D5):** os documentos que o portal já mostra no card "Documentos"
+  (`recebidosDoProjeto(projetoId)` SEM `incluirCompartilhadosDoGeral` — a mesma regra do card, nunca material interno do
+  Geral) com arquivo `.ifc`, na última versão (`DocumentoVersao`) com conversão concluída. Modelo `d:<versaoId>`, como a
+  Coordenação já trata IFC recebido. Aparecem ligados, na lista de disciplinas como "Referência enviada por você" (nome
+  do arquivo), com liga/desliga. O realinhamento de documento recebido (`realinharDocumento`) grava versão nova do MESMO
+  documento, então a última versão já é a realinhada — sem ligação nova (D4 não se aplica a eles).
 - IFC nas Entregas ainda sem conversão (fila/erro): o modelo aparece na lista como "em preparação", sem carregar; nenhum
   IFC convertido = tela explica que o modelo 3D ainda não está pronto e mostra o link de download.
 - **Onde entra:** página `/portal/[projetoId]/modelo` (link "Ver em 3D" no topo do card Entregas quando há ao menos um
@@ -75,8 +83,8 @@ têm só o original.
   nas Entregas da conta E o modelo pedido é U ou um descendente de U" — nunca outro upload.
 - **Apontamento aceito:** `uploadId` = o modelo que o cliente viu (o descendente, quando houver), que é o que a Coordenação
   mostra — mesma posição. O teste "o modelo saiu das Entregas" no aceite olha a ORIGEM (U).
-- **Upload de documento recebido** (`realinharDocumento`, modelo `d:<versaoId>`) não entra: IFC recebido do cliente não
-  está nas Entregas.
+- **Documento recebido** (`realinharDocumento`, modelo `d:<versaoId>`) não precisa da ligação: a versão realinhada é
+  versão nova do mesmo documento, e o portal já serve a última (D5).
 
 ## Explorar (etapa 1)
 
@@ -129,6 +137,9 @@ têm só o original.
 - **Revisão nova da equipe ainda não publicada:** o apontamento fica no modelo que o cliente viu (como na prancha: nunca
   cai em outra revisão); o detalhe do pedido avisa "A equipe já trabalha numa versão mais nova deste modelo." quando a
   série da Coordenação tem upload mais novo. (Chamada minha.)
+- **Marcação num IFC enviado pelo cliente:** vira apontamento 3D com `uploadId = "d:<versaoId>"` e sem disciplina (como a
+  Coordenação já faz para IFC recebido); não há revisão a marcar "Em revisão". O aceite só recusa por ela se o documento
+  saiu do card "Documentos" (excluído) — versão nova do mesmo documento não bloqueia.
 - **Revisão substituída/retirada:** se o modelo de alguma marcação saiu das Entregas desde o pedido, o aceite é recusado
   com a frase do item 5 (só recusar); o pedido sem marcações nunca bloqueia.
 - **Detalhe na coordenação:** o mesmo detalhe do pedido, com o visualizador 3D do portal em leitura (os modelos do
@@ -148,7 +159,8 @@ têm só o original.
 - Mesmas do item 5 e do CLAUDE.md: tudo por `defineAction`; status por `updateMany` condicionado; nada de `Promise.all`
   em transação; three.js e `@thatopen/fragments` só dentro do motor e atrás de `next/dynamic({ ssr: false })`; câmera
   persistida no espaço IFC (Z para cima, `viewer/coords.ts`); 390 px sem rolagem lateral; UI pt-BR.
-- A rota do `.frag` do portal nunca serve modelo que não está nas Entregas da conta (mesmo com o id certo).
+- A rota do `.frag` do portal nunca serve modelo que não está nas Entregas da conta nem no card "Documentos" dela
+  (mesmo com o id certo).
 
 ## O que fica para o construtor
 
@@ -160,7 +172,8 @@ velocidade de andar, a forma de unir pavimentos com nomes diferentes entre disci
 - Testes puros: união de pavimentos, posição de entrada no andar (altura, centro), movimento por tecla (vetores),
   conversão marcação 3D → dados do apontamento, regras do pedido de tipo modelo (substituída por marcação).
 - Smoke do banco: rota do `.frag` recusa IFC fora das Entregas, de outro cliente, bloqueado, e um upload realinhado que
-  não descende do arquivo das Entregas; serve o descendente realinhado mais recente; pedido de modelo cria,
+  não descende do arquivo das Entregas, e um IFC do Geral interno; serve o descendente realinhado mais recente e o IFC
+  enviado pelo cliente (última versão); pedido de modelo cria,
   aceita (apontamentos sem tarefa, numeração do projeto, "Em revisão" uma vez por revisão), recusa, cancela; modelo
   substituído recusa o aceite.
 - Tela: portal 1366/390 claro/escuro, explorar, andar (teclado e controle na tela), pedir; coordenação aceita e o
