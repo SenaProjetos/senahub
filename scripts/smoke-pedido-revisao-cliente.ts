@@ -38,7 +38,8 @@ import {
   MOTIVO_REVISAO_SUBSTITUIDA,
   MOTIVO_SEM_VALIDAR,
 } from "../src/modules/portal/pedido-revisao/regras";
-import { pedidosDoProjetoNoPortal } from "../src/modules/portal/pedido-revisao/queries";
+import { pedidosDoProjetoNoPortal, pedidosParaCoordenacao } from "../src/modules/portal/pedido-revisao/queries";
+import { exigirEscopoDaRevisao } from "../src/modules/uploads/ciclo/acesso";
 import { MOTIVO_SEM_ESCALA } from "../src/modules/portal/pedido-revisao/conversao";
 import { criarPendenciaNoTx } from "../src/modules/projetos/pendencias/criar-service";
 import { existeArquivo, removerArquivo, salvarArquivo } from "../src/lib/storage";
@@ -665,6 +666,48 @@ async function main() {
           (await erroDe(exigirEscopoDoPedidoModelo(sessao(semPerfil.id, false), pm3.id))) !== null,
       );
 
+      // Responsável da disciplina com arquivos:alterar_status + coordenacao:gerir, mas sem ver todas as disciplinas: a
+      // fila não lhe mostra o pedido 3D, então ele também não decide (nem baixa anexo). Coordenador só com
+      // alterar_status: não recebe o aviso do pedido 3D.
+      const pessoaCom = async (sufixo: string, perms: [string, string][]) => {
+        const u = await prisma.user.create({ data: { name: `${tag} ${sufixo}`, email: `${tag.toLowerCase()}_${sufixo}@smoke.local`, tipo: "interno" } });
+        usuarios.push(u.id);
+        for (const [recurso, acao] of perms) {
+          await prisma.permissaoUsuario.create({ data: { userId: u.id, recurso, acao, permitido: true, motivo: "smoke" } });
+        }
+        await prisma.projetoMembro.create({ data: { projetoId: p3d.id, userId: u.id, papel: "coordenador" } });
+        return u;
+      };
+      const resp = await pessoaCom("resp", [
+        ["projetos", "ver"],
+        ["arquivos", "alterar_status"],
+        ["coordenacao", "gerir"],
+        ["coordenacao", "ver"],
+      ]);
+      await prisma.disciplinaResponsavel.create({ data: { disciplinaId: p3d.disciplinaId, userId: resp.id } });
+      const semGerir = await pessoaCom("semgerir", [
+        ["projetos", "ver"],
+        ["arquivos", "alterar_status"],
+        ["arquivos", "ver_todas_disciplinas"],
+      ]);
+      await prisma.projetoMembro.create({ data: { projetoId: p3d.id, userId: coord.id, papel: "coordenador" } });
+      const filaResp = await pedidosParaCoordenacao(sessao(resp.id, false), "aguardando");
+      check(
+        "responsável de disciplina sem ver todas: pedido 3D fora da fila e recusado no aceite/recusa (passa na muralha da revisão)",
+        (await erroDe(exigirEscopoDaRevisao(sessao(resp.id, false), u.rev.id))) === null &&
+          (await erroDe(exigirEscopoDoPedidoModelo(sessao(resp.id, false), pm3.id))) !== null &&
+          !filaResp.some((v) => v.id === pm3.id),
+      );
+      const sinosAud: string[][] = [];
+      await avisarPedidoNovo(pm3.id, async (ids) => {
+        sinosAud.push(ids);
+      });
+      check(
+        "aviso do pedido 3D: só coordenador com coordenacao:gerir e todas as disciplinas",
+        JSON.stringify(sinosAud[0]) === JSON.stringify([coord.id]) && !sinosAud.flat().includes(semGerir.id) && !sinosAud.flat().includes(resp.id),
+        sinosAud,
+      );
+
       // ── aceite ──
       // A imagem da vista: a 1ª marcação com o PNG no disco, a 2ª com um caminho que sumiu (fica sem imagem).
       const pngMarca = `portal/pedidos/${pm3.id}/marcacoes/${gravadas3d[0].id}.png`;
@@ -776,6 +819,24 @@ async function main() {
       const pRet = await pedirModelo([marca3d(u3.up.id, "vai para a lixeira")]);
       const pSub = await pedirModelo([marca3d(u4.up.id, "ganha revisão nova"), marca3d(u2.up.id, "segue nas Entregas")]);
       const pDoc = await pedirModelo([marca3d(base2.modeloId, "o cliente exclui o documento")]);
+      // U5 segue nas Entregas, mas o realinhado R5 (o que o cliente viu) vai para a lixeira.
+      const u5 = await ifc("realinhadolixeira", { compartilhar: true, converter: true });
+      const r5 = await prisma.upload.create({
+        data: {
+          disciplinaId: p3d.disciplinaId,
+          nomeArquivo: `${tag}-realinhadolixeira.ifc`,
+          caminho: `smoke/${tag}-realinhadolixeira-r1.ifc`,
+          tamanho: 10,
+          hashSha256: "0".repeat(64),
+          autorId: coord.id,
+          versao: 2,
+          origem: "ferramenta",
+          realinhadoDeId: u5.up.id,
+        },
+      });
+      await prisma.conversaoModelo.create({ data: { uploadId: r5.id, status: "concluido", caminhoFrag: `smoke/${tag}-r5.frag`, concluidoEm: new Date() } });
+      const pR5 = await pedirModelo([marca3d(r5.id, "o realinhado vai para a lixeira")]);
+      await prisma.upload.update({ where: { id: r5.id }, data: { excluidoEm: new Date() } });
       await prisma.upload.update({ where: { id: u3.up.id }, data: { excluidoEm: new Date() } });
       await prisma.documentoRevisao.update({ where: { id: u4.rev.id }, data: { estado: "arquivado" } });
       await prisma.documentoRevisao.create({ data: { documentoId: u4.doc.id, numero: 2, createdById: coord.id, estado: "publicado" } });
@@ -785,13 +846,16 @@ async function main() {
         ret: await erroDe(aceitarPedidoModeloNoBanco({ id: pRet.id, quem: { id: coord.id }, resposta: null })),
         sub: await erroDe(aceitarPedidoModeloNoBanco({ id: pSub.id, quem: { id: coord.id }, resposta: null })),
         doc: await erroDe(aceitarPedidoModeloNoBanco({ id: pDoc.id, quem: { id: coord.id }, resposta: null })),
+        r5: await erroDe(aceitarPedidoModeloNoBanco({ id: pR5.id, quem: { id: coord.id }, resposta: null })),
       };
       const vistas3d = await pedidosDoProjetoNoPortal(p3d.id, cliente.id);
       check(
-        "modelo saiu das Entregas / recebido excluído: aceite recusado",
+        "modelo saiu das Entregas / recebido excluído / realinhado servido na lixeira: aceite recusado",
         erros3d.ret === MOTIVO_PRANCHA_RETIRADA &&
           erros3d.sub === MOTIVO_REVISAO_SUBSTITUIDA &&
           erros3d.doc === MOTIVO_PRANCHA_RETIRADA &&
+          erros3d.r5 === MOTIVO_PRANCHA_RETIRADA &&
+          vistas3d.find((v) => v.id === pR5.id)?.indisponivel === "retirada" &&
           (await contarApontamentos()) === antesRecusa &&
           (await prisma.pedidoRevisaoCliente.count({ where: { id: { in: [pRet.id, pSub.id, pDoc.id] }, status: "aguardando" } })) === 3 &&
           vistas3d.find((v) => v.id === pRet.id)?.indisponivel === "retirada" &&

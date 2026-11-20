@@ -21,6 +21,7 @@ import {
 } from "@/modules/uploads/ciclo/service";
 import { exigirEscopoDaRevisao } from "@/modules/uploads/ciclo/acesso";
 import { projetoVisivel } from "@/modules/planejamento/queries";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { criarPendenciaNoTx } from "@/modules/projetos/pendencias/criar-service";
 import { criarApontamentoCoordenacaoNoTx, type CameraApontamento } from "@/modules/coordenacao/apontamento-service";
 import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
@@ -54,6 +55,7 @@ import {
   ROTULO_MODELO_3D,
   apontamentoDaMarcacao,
   motivoParaNaoAceitarModelo,
+  piorSituacao,
   situacaoDaMarcacao,
 } from "./modelo-regras";
 
@@ -410,12 +412,24 @@ function revisoesDasOrigens(origens: Map<string, OrigemLida>): string[] {
   return [...new Set([...origens.values()].flatMap((o) => (o?.revisaoId ? [o.revisaoId] : [])))].sort();
 }
 
+/** O upload servido da marcação foi excluído (lixeira) ou não existe mais? */
+async function uploadServidoFora(db: Tx | typeof prisma, modeloId: string): Promise<boolean> {
+  const ref = parseModeloId(modeloId);
+  if (ref.tipo !== "upload") return false;
+  const u = await db.upload.findFirst({
+    where: { id: ref.id, excluidoEm: { not: undefined }, substituidoPorId: { not: undefined } },
+    select: { excluidoEm: true },
+  });
+  return !u || u.excluidoEm !== null;
+}
+
 async function situacoesComOrigens(
   db: Tx | typeof prisma,
   marcas: readonly MarcaComOrigem[],
   origens: Map<string, OrigemLida>,
 ): Promise<SituacaoDaRevisao[]> {
   const porOrigem = new Map<string, SituacaoDaRevisao>();
+  const servidoNaLixeira = new Map<string, boolean>();
   const porDocumento = new Map<string, SituacaoDaRevisao>();
   const situacoes: SituacaoDaRevisao[] = [];
   for (const m of marcas) {
@@ -428,7 +442,14 @@ async function situacoesComOrigens(
           : "retirada";
         porOrigem.set(m.origemUploadId, s);
       }
-      situacoes.push(s);
+      // O modelo que o cliente viu (o realinhado servido) é onde o apontamento nasce: na lixeira ou sumido = retirado,
+      // mesmo com a origem ainda nas Entregas.
+      let fora = servidoNaLixeira.get(m.modeloId);
+      if (fora === undefined) {
+        fora = await uploadServidoFora(db, m.modeloId);
+        servidoNaLixeira.set(m.modeloId, fora);
+      }
+      situacoes.push(fora ? piorSituacao([s, "retirada"]) : s);
     } else if (m.documentoRecebidoId) {
       let s = porDocumento.get(m.documentoRecebidoId);
       if (!s) {
@@ -453,8 +474,9 @@ export async function situacoesDasMarcacoesModelo(
 }
 
 /**
- * A muralha de aceitar/recusar um pedido de modelo: `projetos:ver` + projeto visível (o recebido do cliente não tem
- * disciplina) e, para cada revisão das Entregas marcada, a muralha da disciplina dona (`exigirEscopoDaRevisao`).
+ * A muralha de aceitar/recusar um pedido de modelo (e de baixar os anexos dele): `projetos:ver` + projeto visível +
+ * VER TODAS AS DISCIPLINAS — o pedido 3D atravessa disciplinas e a fila (`whereDaFila`) só o mostra a quem vê todas,
+ * então quem decide é quem enxerga o pedido — e, para cada revisão das Entregas marcada, a muralha da revisão.
  */
 export async function exigirEscopoDoPedidoModelo(user: SessionUser, pedidoId: string): Promise<void> {
   const p = await prisma.pedidoRevisaoCliente.findUnique({
@@ -466,7 +488,7 @@ export async function exigirEscopoDoPedidoModelo(user: SessionUser, pedidoId: st
     },
   });
   if (!p || p.tipo !== "modelo") throw new ActionError(MOTIVO_PEDIDO_NAO_ENCONTRADO);
-  if (!(await can(user, "projetos", "ver")) || !(await projetoVisivel(user, p.projetoId))) {
+  if (!(await can(user, "projetos", "ver")) || !(await podeVerTodasDisciplinas(user)) || !(await projetoVisivel(user, p.projetoId))) {
     throw new ActionError(MOTIVO_PEDIDO_NAO_ENCONTRADO);
   }
   for (const revisaoId of revisoesDasOrigens(await origensDasMarcacoes(prisma, p.marcacoesModelo))) {
@@ -662,6 +684,7 @@ export async function avisarPedidoNovo(
     const p = await prisma.pedidoRevisaoCliente.findUnique({
       where: { id: pedidoId },
       select: {
+        tipo: true,
         projetoId: true,
         autorId: true,
         autor: { select: { name: true } },
@@ -670,14 +693,24 @@ export async function avisarPedidoNovo(
       },
     });
     if (!p) return { avisados: 0 };
-    // Só quem abre a fila (`arquivos:alterar_status`): um link que cai em /sem-permissao não ajuda ninguém.
+    const ehModelo = p.tipo === "modelo";
+    // Só quem abre a fila (`arquivos:alterar_status`): um link que cai em /sem-permissao não ajuda ninguém. No pedido
+    // de modelo, só quem também decide (`coordenacao:gerir`) e vê todas as disciplinas (a fila só o mostra a ele).
     const quemAbre = async (ids: string[]) => {
       const pessoas = await prisma.user.findMany({
         where: { id: { in: ids }, ativo: true },
         select: { id: true, ativo: true, superUsuario: true, perfilId: true, tipo: true },
       });
       const podem: string[] = [];
-      for (const u of pessoas) if (await can(u, "arquivos", "alterar_status")) podem.push(u.id);
+      for (const u of pessoas) {
+        if (!(await can(u, "arquivos", "alterar_status"))) continue;
+        if (ehModelo) {
+          if (!(await can(u, "coordenacao", "gerir"))) continue;
+          const escopoGlobalPerfil = await can(u, "escopo", "global");
+          if (!(await podeVerTodasDisciplinas({ ...u, escopoGlobalPerfil }))) continue;
+        }
+        podem.push(u.id);
+      }
       return podem;
     };
     const membros = await prisma.projetoMembro.findMany({
