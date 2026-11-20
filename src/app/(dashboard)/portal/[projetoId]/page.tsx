@@ -9,6 +9,7 @@ import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
 import { andamentoDoPortal } from "@/modules/portal/andamento-queries";
 import { pedidosDoProjetoNoPortal, uploadsComPedidoAguardando } from "@/modules/portal/pedido-revisao/queries";
 import { modelosDoPortal } from "@/modules/portal/modelo3d/queries";
+import { temModelo3dNoPortal } from "@/modules/portal/modelo3d/regras";
 import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
@@ -115,11 +116,19 @@ async function AndamentoEEntregas({
   });
   const modeloPorUpload: Record<string, string> = {};
   for (const m of modelos ?? []) if (m.origem === "entrega" && m.origemUploadId) modeloPorUpload[m.origemUploadId] = m.modeloId;
+  // O atalho vale também quando o único modelo é um IFC que o cliente enviou.
+  const temModelo3d = temModelo3dNoPortal(modelos ?? []);
   return (
     <div className="space-y-6">
       <AndamentoCard andamento={andamento} />
       <LinhaDoTempoCard itens={linha} />
-      <EntregasDoProjeto projetoId={projeto.id} entregas={conteudo} aguardando={aguardando} modeloPorUpload={modeloPorUpload} />
+      <EntregasDoProjeto
+        projetoId={projeto.id}
+        entregas={conteudo}
+        aguardando={aguardando}
+        modeloPorUpload={modeloPorUpload}
+        temModelo3d={temModelo3d}
+      />
     </div>
   );
 }
@@ -135,19 +144,21 @@ function EntregasDoProjeto({
   entregas,
   aguardando,
   modeloPorUpload,
+  temModelo3d,
 }: {
   projetoId: string;
   entregas: ConteudoPublico | null;
   /** Uploads com pedido de revisão aguardando a equipe (selo na linha). */
   aguardando: string[];
-  /** IFC das Entregas → modelo servido no 3D. Vazio = sem "Ver em 3D". */
+  /** IFC das Entregas → modelo servido no 3D (o olho da linha). */
   modeloPorUpload: Record<string, string>;
+  /** Há modelo 3D no portal (das Entregas ou enviado pelo cliente): mostra "Ver em 3D". */
+  temModelo3d: boolean;
 }) {
   const totalEntregas = entregas
     ? entregas.situacoes.reduce((n, s) => n + s.total, 0) + entregas.arts.length
     : 0;
   const base = `/api/portal/projetos/${projetoId}/arquivos`;
-  const temModelo3d = Object.keys(modeloPorUpload).length > 0;
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">

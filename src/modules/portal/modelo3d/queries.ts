@@ -2,12 +2,12 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { rotuloRevisao } from "@/lib/utils";
 import { parseModeloId, refDocumento } from "@/modules/coordenacao/modelo-ref";
-import { recebidosDoProjeto, type DocumentoItem } from "@/modules/documentos-cliente/queries";
-import { conteudoDoAlcanceSemSelos, uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
+import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
+import { conteudoDoAlcanceSemSelos } from "@/modules/projetos/arquivos/link-publico";
 import type { AlcanceArquivos } from "@/modules/projetos/arquivos/link-publico-regras";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 import { acessoDoUsuarioAoProjetoDoPortal, type UsuarioDaSessao } from "../acesso";
-import { modeloServidoDaOrigem, type UploadDaCadeia } from "./regras";
+import { modeloServidoDaOrigem, versaoIfcDoRecebido, type UploadDaCadeia } from "./regras";
 
 export type ModeloDoPortal = {
   /** uploadId servido (a origem ou o realinhado mais recente dela) ou `d:<versaoId>` do IFC recebido. */
@@ -37,12 +37,6 @@ function situacaoDaConversao(status: string | null | undefined): ModeloDoPortal[
 
 function urlDoModelo(projetoId: string, modeloId: string): string {
   return `/api/portal/projetos/${projetoId}/modelos/${modeloId}`;
-}
-
-/** A versão IFC que o portal mostra de um documento recebido: a mais recente com arquivo `.ifc`. */
-function versaoIfcDoRecebido(d: DocumentoItem) {
-  // `versoes` vem por número decrescente.
-  return d.versoes.find((v) => ehIfc(v.nomeArquivo)) ?? null;
 }
 
 /** IFCs que estão nas Entregas do alcance: o MESMO conteúdo da página (pastas do cliente), um por upload. */
@@ -90,7 +84,7 @@ async function cadeiaDasDisciplinas(disciplinaIds: string[]): Promise<UploadDaCa
 /**
  * Os modelos 3D que o cliente vê no projeto (spec 2026-11-20, "O que o cliente vê" e D4): um por IFC das Entregas sem
  * bloqueio de download — servido pelo realinhado convertido mais recente dele, ou por ele mesmo — e um por documento
- * recebido do cliente com IFC (a última versão IFC; nunca o Geral). `null` = a pessoa não entra no projeto.
+ * recebido do cliente com IFC (a IFC mais nova já convertida, `versaoIfcDoRecebido`; nunca o Geral). `null` = a pessoa não entra no projeto.
  */
 export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string): Promise<ModeloDoPortal[] | null> {
   const acesso = await acessoDoUsuarioAoProjetoDoPortal(user, projetoId);
@@ -124,14 +118,19 @@ export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string):
     };
   });
 
-  const recebidos = (await recebidosDoProjeto(projetoId))
-    .map((d) => ({ documento: d, versao: versaoIfcDoRecebido(d) }))
-    .filter((r): r is { documento: DocumentoItem; versao: NonNullable<ReturnType<typeof versaoIfcDoRecebido>> } => r.versao !== null);
+  // A versão servida de cada recebido depende de quais já converteram: lê as conversões de TODAS as versões IFC.
+  const documentos = await recebidosDoProjeto(projetoId);
+  const versoesIfc = documentos.flatMap((d) => d.versoes.filter((v) => ehIfc(v.nomeArquivo)).map((v) => v.id));
   const conversoesRecebidos = await prisma.conversaoModelo.findMany({
-    where: { documentoVersaoId: { in: recebidos.map((r) => r.versao.id) } },
+    where: { documentoVersaoId: { in: versoesIfc } },
     select: { documentoVersaoId: true, status: true },
   });
   const statusPorVersao = new Map(conversoesRecebidos.map((c) => [c.documentoVersaoId, c.status]));
+  const concluidas = new Set(conversoesRecebidos.flatMap((c) => (c.status === "concluido" && c.documentoVersaoId ? [c.documentoVersaoId] : [])));
+  const recebidos = documentos.flatMap((d) => {
+    const versao = versaoIfcDoRecebido(d.versoes, concluidas);
+    return versao ? [{ documento: d, versao }] : [];
+  });
   for (const r of recebidos) {
     const modeloId = refDocumento(r.versao.id);
     const situacao = situacaoDaConversao(statusPorVersao.get(r.versao.id));
@@ -150,61 +149,26 @@ export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string):
   return modelos;
 }
 
-/** Teto da subida pela cadeia de realinhamento (proteção contra ciclo/dado corrompido). */
-const MAX_ELOS = 100;
-
 /**
- * A regra da rota `.frag` do portal: o projeto é da pessoa e o modelo pedido é (a) um IFC das Entregas sem bloqueio de
- * download, ou um realinhado descendente dele, ou (b) a versão IFC que o portal mostra de um documento recebido — com
- * conversão concluída. Nunca outro upload, material do Geral, outro projeto ou outro cliente. `origemUploadId` = o IFC
- * das Entregas de que o modelo saiu (é ele que entra no histórico do documento); `null` no recebido.
+ * A regra da rota `.frag` do portal: o modelo pedido é um dos que `modelosDoPortal` devolve PRONTO para esta pessoa —
+ * a mesma lista da tela, nunca uma regra paralela. Assim um realinhado antigo (substituído por outro mais novo), a
+ * origem quando já há realinhado servido, a versão IFC antiga de um recebido, a lixeira, o compartilhamento revogado,
+ * o bloqueio de download, outro projeto ou outro cliente dão 404. `origemUploadId` = o IFC das Entregas de que o modelo
+ * saiu (é ele que entra no histórico do documento); `null` no recebido.
  */
 export async function modeloPermitidoNoPortal(
   user: UsuarioDaSessao,
   projetoId: string,
   modeloId: string,
 ): Promise<{ caminhoFrag: string; concluidoEm: Date | null; origemUploadId: string | null } | null> {
-  const acesso = await acessoDoUsuarioAoProjetoDoPortal(user, projetoId);
-  if (!acesso.ok) return null;
-  const ref = parseModeloId(modeloId);
-
-  if (ref.tipo === "documento") {
-    const recebidos = await recebidosDoProjeto(projetoId);
-    if (!recebidos.some((d) => versaoIfcDoRecebido(d)?.id === ref.id)) return null;
-    const conversao = await prisma.conversaoModelo.findUnique({
-      where: { documentoVersaoId: ref.id },
-      select: { status: true, caminhoFrag: true, concluidoEm: true },
-    });
-    if (conversao?.status !== "concluido" || !conversao.caminhoFrag) return null;
-    return { caminhoFrag: conversao.caminhoFrag, concluidoEm: conversao.concluidoEm, origemUploadId: null };
-  }
-
-  // `findUnique` não passa pelo filtro da lixeira: a exclusão é conferida aqui.
-  const pedido = await prisma.upload.findUnique({
-    where: { id: ref.id },
-    select: {
-      excluidoEm: true,
-      realinhadoDeId: true,
-      nomeArquivo: true,
-      conversao: { select: { status: true, caminhoFrag: true, concluidoEm: true } },
-    },
+  const modelos = await modelosDoPortal(user, projetoId);
+  const modelo = modelos?.find((m) => m.modeloId === modeloId && m.situacao === "pronto");
+  if (!modelo) return null;
+  const ref = parseModeloId(modelo.modeloId);
+  const conversao = await prisma.conversaoModelo.findUnique({
+    where: ref.tipo === "documento" ? { documentoVersaoId: ref.id } : { uploadId: ref.id },
+    select: { status: true, caminhoFrag: true, concluidoEm: true },
   });
-  if (!pedido || pedido.excluidoEm || !ehIfc(pedido.nomeArquivo)) return null;
-  const conversao = pedido.conversao;
   if (conversao?.status !== "concluido" || !conversao.caminhoFrag) return null;
-
-  // O pedido e cada ancestral dele pela cadeia de realinhamento: algum precisa estar nas Entregas.
-  const candidatos = [ref.id];
-  let pai = pedido.realinhadoDeId;
-  while (pai && !candidatos.includes(pai) && candidatos.length < MAX_ELOS) {
-    candidatos.push(pai);
-    const linha = await prisma.upload.findUnique({ where: { id: pai }, select: { realinhadoDeId: true } });
-    pai = linha?.realinhadoDeId ?? null;
-  }
-  for (const id of candidatos) {
-    if (!(await uploadLiberadoNoAlcance(acesso.alcance, id))) continue;
-    if ((await uploadsComBloqueioDeDownload(prisma, [id])).size > 0) return null;
-    return { caminhoFrag: conversao.caminhoFrag, concluidoEm: conversao.concluidoEm, origemUploadId: id };
-  }
-  return null;
+  return { caminhoFrag: conversao.caminhoFrag, concluidoEm: conversao.concluidoEm, origemUploadId: modelo.origemUploadId };
 }

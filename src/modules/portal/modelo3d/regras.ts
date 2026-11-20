@@ -196,6 +196,30 @@ export function motivoSemModelo(situacoes: readonly ("pronto" | "preparando" | "
   return situacoes.includes("preparando") ? "preparando" : "erro";
 }
 
+const ehIfc = (nome: string) => /\.ifc$/i.test(nome);
+
+/**
+ * A versão IFC que o portal mostra de um documento recebido do cliente (spec D5, "última versão com conversão
+ * concluída"): a IFC mais nova já convertida; sem nenhuma, a IFC mais nova (aparece "em preparação" ou "erro"). Assim a
+ * versão nova ainda na fila não tira a anterior pronta da tela. `versoes` por número decrescente; `concluidas` = ids das
+ * versões com conversão concluída. Sem IFC = null.
+ */
+export function versaoIfcDoRecebido<V extends { id: string; nomeArquivo: string }>(
+  versoes: readonly V[],
+  concluidas: ReadonlySet<string>,
+): V | null {
+  const ifcs = versoes.filter((v) => ehIfc(v.nomeArquivo));
+  return ifcs.find((v) => concluidas.has(v.id)) ?? ifcs[0] ?? null;
+}
+
+/**
+ * O atalho "Ver em 3D" das Entregas aparece? Um IFC das Entregas em qualquer situação (a página explica o que falta),
+ * ou um IFC enviado pelo cliente pronto para abrir.
+ */
+export function temModelo3dNoPortal(modelos: readonly { origem: "entrega" | "cliente"; situacao: "pronto" | "preparando" | "erro" }[]): boolean {
+  return modelos.some((m) => m.origem === "entrega" || m.situacao === "pronto");
+}
+
 // ─────────────────────────────────────────────────────────────
 // Referencial da marcação 3D
 // ─────────────────────────────────────────────────────────────

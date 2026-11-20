@@ -5,7 +5,9 @@ import {
   gruposDePavimento,
   modeloServidoDaOrigem,
   motivoSemModelo,
+  temModelo3dNoPortal,
   unirPavimentos,
+  versaoIfcDoRecebido,
   visibilidadeDoPortal,
   pontoNaCena,
   pontoNoModelo,
@@ -284,5 +286,47 @@ describe("vista da marcação no referencial do próprio modelo", () => {
   it("modelo que abriu primeiro (deslocamento zero) não muda nada", () => {
     expect(vistaNoModelo(vista, [0, 0, 0])).toEqual(vista);
     expect(pontoNaCena([1, 2, 3], [0, 0, 0])).toEqual([1, 2, 3]);
+  });
+});
+
+describe("versaoIfcDoRecebido", () => {
+  const v = (id: string, nomeArquivo: string) => ({ id, nomeArquivo });
+  // Por número decrescente, como `recebidosDoProjeto` devolve.
+  const versoes = [v("v4", "base-r4.ifc"), v("v3", "base-r3.pdf"), v("v2", "base-r2.ifc"), v("v1", "base-r1.IFC")];
+
+  it("a IFC mais nova com conversão concluída", () => {
+    expect(versaoIfcDoRecebido(versoes, new Set(["v2", "v1"]))?.id).toBe("v2");
+    expect(versaoIfcDoRecebido(versoes, new Set(["v4", "v2"]))?.id).toBe("v4");
+  });
+
+  it("versão nova ainda convertendo não tira a anterior pronta", () => {
+    expect(versaoIfcDoRecebido(versoes, new Set(["v1"]))?.id).toBe("v1");
+  });
+
+  it("nenhuma IFC convertida: a IFC mais nova (aparece em preparação)", () => {
+    expect(versaoIfcDoRecebido(versoes, new Set())?.id).toBe("v4");
+  });
+
+  it("conversão de arquivo que não é IFC não conta; sem IFC = null", () => {
+    expect(versaoIfcDoRecebido(versoes, new Set(["v3"]))?.id).toBe("v4");
+    expect(versaoIfcDoRecebido([v("p", "planta.pdf")], new Set(["p"]))).toBeNull();
+    expect(versaoIfcDoRecebido([], new Set())).toBeNull();
+  });
+});
+
+describe("temModelo3dNoPortal", () => {
+  it("sem modelo nenhum: sem atalho", () => {
+    expect(temModelo3dNoPortal([])).toBe(false);
+  });
+
+  it("IFC das Entregas em qualquer situação: atalho (a página explica o que falta)", () => {
+    expect(temModelo3dNoPortal([{ origem: "entrega", situacao: "preparando" }])).toBe(true);
+    expect(temModelo3dNoPortal([{ origem: "entrega", situacao: "erro" }])).toBe(true);
+  });
+
+  it("só o IFC enviado pelo cliente: atalho quando ele está pronto", () => {
+    expect(temModelo3dNoPortal([{ origem: "cliente", situacao: "pronto" }])).toBe(true);
+    expect(temModelo3dNoPortal([{ origem: "cliente", situacao: "preparando" }])).toBe(false);
+    expect(temModelo3dNoPortal([{ origem: "cliente", situacao: "erro" }])).toBe(false);
   });
 });

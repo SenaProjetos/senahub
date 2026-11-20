@@ -78,17 +78,19 @@ export async function GET(req: Request, ctx: { params: Promise<{ uploadId: strin
     return NextResponse.json({ error: MSG.naoConvertido }, { status: 404 });
   }
 
-  // Antes do 304: reabrir a cena com o modelo em cache continua sendo uma visualização.
-  // IFC recebido do cliente (`d:`) não é documento de disciplina — fica fora deste histórico.
-  if (ref.tipo === "upload") {
-    await registrarAcessoUploads({
-      uploadIds: [ref.id],
-      tipo: "visualizacao",
-      origem: "interno",
-      userId: user.id,
-      via: "ifc",
-    });
-  }
+  // Só quando o arquivo existe e vai para o navegador (inclusive o 304: reabrir a cena com o modelo em cache continua
+  // sendo uma visualização). IFC recebido do cliente (`d:`) não é documento de disciplina — fica fora deste histórico.
+  const registrar =
+    ref.tipo === "upload"
+      ? () =>
+          registrarAcessoUploads({
+            uploadIds: [ref.id],
+            tipo: "visualizacao",
+            origem: "interno",
+            userId: user.id,
+            via: "ifc",
+          })
+      : undefined;
 
-  return servirFrag(req, dados.caminhoFrag, dados.concluidoEm, modeloId, MSG.arquivoSumiu);
+  return servirFrag(req, dados.caminhoFrag, dados.concluidoEm, modeloId, MSG.arquivoSumiu, registrar);
 }

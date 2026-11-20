@@ -3,8 +3,9 @@
  * cliente vê" e "Modelo realinhado (D4)") contra o banco de dev. As regras puras da cadeia estão em
  * `modules/portal/modelo3d/regras.test.ts`; aqui vai a ligação com o banco: o realinhamento gravando `realinhadoDeId`
  * pelo caminho real, a lista do portal (realinhado no lugar da origem, recebido do cliente incluído, interno e fora das
- * Entregas não), a regra da rota (U ou descendente de U, recebido na última versão, nunca outro projeto/cliente) e o
- * streaming do `.frag` (ETag e 304).
+ * Entregas não), a regra da rota (= a lista: o realinhado servido hoje, nunca um substituído; o recebido na IFC mais nova
+ * convertida; lixeira, compartilhamento revogado, outro projeto/cliente nunca) e o streaming do `.frag` (ETag, 304,
+ * diretório no lugar do arquivo, registro de acesso que falha).
  *
  * Cria clientes + projetos + uploads + documentos + contas throwaway e apaga tudo no final.
  *
@@ -241,8 +242,8 @@ async function main() {
     const permitidoU = await modeloPermitidoNoPortal(conta, p1.id, u.up.id);
     const permitidoR1 = await modeloPermitidoNoPortal(conta, p1.id, r.uploadId);
     check(
-      "rota: serve U, R1 e o recebido; recusa X, Y, o IFC interno e o projeto de outro cliente",
-      permitidoU?.origemUploadId === u.up.id &&
+      "rota: serve R1 (o que a lista mostra) e o recebido; recusa U (já há realinhado servido), X, Y, o IFC interno e o projeto de outro cliente",
+      permitidoU === null &&
         permitidoR1?.origemUploadId === u.up.id &&
         permitidoR1.caminhoFrag === `smoke/${tag}/r1.frag` &&
         (await pode(p1.id, refDocumento(recebido.versao.id))) &&
@@ -269,6 +270,113 @@ async function main() {
       "frag: 200 com o arquivo e ETag; 304 no If-None-Match",
       resp.status === 200 && corpo === "frag r1" && etag === `"${r.uploadId}-${p.concluidoEm?.getTime()}"` && resp304.status === 304,
       { status: resp.status, etag, corpo, s304: resp304.status },
+    );
+
+    // Diretório no lugar do .frag: 410, sem registrar acesso. Arquivo de verdade: registra.
+    let registros = 0;
+    const contar = async () => {
+      registros++;
+    };
+    const dir = `smoke/${tag}/pasta.frag`;
+    await fs.mkdir(resolverCaminho(dir), { recursive: true });
+    const respDir = await servirFrag(new Request("http://smoke.local/frag"), dir, p.concluidoEm, r.uploadId, undefined, contar);
+    const respOk = await servirFrag(new Request("http://smoke.local/frag"), p.caminhoFrag, p.concluidoEm, r.uploadId, undefined, contar);
+    await respOk.text();
+    const falha = await servirFrag(new Request("http://smoke.local/frag"), p.caminhoFrag, p.concluidoEm, r.uploadId, undefined, async () => {
+      throw new Error("registro fora do ar");
+    });
+    await falha.text();
+    await fs.rm(resolverCaminho(dir), { recursive: true, force: true });
+    check(
+      "frag: diretório no lugar do arquivo = 410 sem registro; arquivo = registro; falha no registro não derruba o download",
+      respDir.status === 410 && respOk.status === 200 && registros === 1 && falha.status === 200,
+      { dir: respDir.status, ok: respOk.status, registros, falha: falha.status },
+    );
+
+    // ── realinhado substituído: R2 (realinhamento de R1) passa a ser o servido; R1 vira 404 ──
+    const r2 = await realinharModelo({ uploadId: r.uploadId, vetor: [0, 1, 0], autorId: coord.id }, spawnFalso);
+    await esperarFila(r2.uploadId);
+    await converter({ uploadId: r2.uploadId }, "r2");
+    const listaR2 = (await modelosDoPortal(conta, p1.id)) ?? [];
+    check(
+      "realinhado substituído: a lista serve R2; a rota recusa R1 e U por URL direta",
+      listaR2.find((m) => m.origemUploadId === u.up.id)?.modeloId === r2.uploadId &&
+        (await pode(p1.id, r2.uploadId)) &&
+        !(await pode(p1.id, r.uploadId)) &&
+        !(await pode(p1.id, u.up.id)),
+      listaR2.map((m) => m.modeloId),
+    );
+    // R2 na lixeira: volta a servir R1, e R2 sai.
+    await prisma.upload.update({ where: { id: r2.uploadId }, data: { excluidoEm: new Date() } });
+    check(
+      "realinhado na lixeira: a rota recusa R2 e volta a servir R1",
+      !(await pode(p1.id, r2.uploadId)) && (await pode(p1.id, r.uploadId)),
+    );
+
+    // ── lixeira e compartilhamento revogado de um IFC das Entregas ──
+    const w = await ifc(p1.hidraulicaId, "lixeira", { compartilhar: true });
+    await converter({ uploadId: w.up.id }, "w");
+    const z = await ifc(p1.hidraulicaId, "revogado", { compartilhar: true });
+    await converter({ uploadId: z.up.id }, "z");
+    const antesW = await pode(p1.id, w.up.id);
+    const antesZ = await pode(p1.id, z.up.id);
+    await prisma.upload.update({ where: { id: w.up.id }, data: { excluidoEm: new Date() } });
+    await prisma.controleRevisao.updateMany({
+      where: { revisaoId: z.rev.id, tipo: "enviado_cliente", removidoEm: null },
+      data: { removidoEm: new Date() },
+    });
+    await prisma.documentoDisciplina.update({ where: { id: z.doc.id }, data: { revisaoCompartilhadaId: null } });
+    const listaRev = (await modelosDoPortal(conta, p1.id)) ?? [];
+    check(
+      "IFC na lixeira e compartilhamento revogado: saem da lista e a rota recusa",
+      antesW &&
+        antesZ &&
+        !(await pode(p1.id, w.up.id)) &&
+        !(await pode(p1.id, z.up.id)) &&
+        !listaRev.some((m) => m.origemUploadId === w.up.id || m.origemUploadId === z.up.id),
+      { antesW, antesZ, lista: listaRev.map((m) => m.modeloId) },
+    );
+
+    // ── versão IFC do recebido: a nova ainda sem conversão não tira a antiga; convertida, a antiga sai ──
+    const v2 = await prisma.documentoVersao.create({
+      data: {
+        documentoId: recebido.doc.id,
+        numero: 2,
+        caminho: `smoke/${tag}/base-v2.ifc`,
+        nomeArquivo: "base-v2.ifc",
+        mime: "application/octet-stream",
+        tamanho: 10,
+        hashSha256: "0".repeat(64),
+      },
+    });
+    const listaV = (await modelosDoPortal(conta, p1.id)) ?? [];
+    const comV1 =
+      listaV.find((m) => m.documentoRecebidoId === recebido.doc.id)?.modeloId === refDocumento(recebido.versao.id) &&
+      (await pode(p1.id, refDocumento(recebido.versao.id))) &&
+      !(await pode(p1.id, refDocumento(v2.id)));
+    await converter({ documentoVersaoId: v2.id }, "recebido-v2");
+    const listaV2 = (await modelosDoPortal(conta, p1.id)) ?? [];
+    check(
+      "recebido: versão IFC nova sem conversão = segue a anterior pronta; convertida, a anterior dá 404",
+      comV1 &&
+        listaV2.find((m) => m.documentoRecebidoId === recebido.doc.id)?.modeloId === refDocumento(v2.id) &&
+        (await pode(p1.id, refDocumento(v2.id))) &&
+        !(await pode(p1.id, refDocumento(recebido.versao.id))),
+      listaV2.map((m) => m.modeloId),
+    );
+
+    // ── `d:` de outro projeto: do mesmo cliente e de outro cliente ──
+    const p3 = await novoProjeto(cliente.id, "p3");
+    const doP3 = await documento(cliente.id, p3.id, "recebido_cliente", "p3base");
+    await converter({ documentoVersaoId: doP3.versao.id }, "p3base");
+    const doOutro = await documento(outro.id, p2.id, "recebido_cliente", "outrobase");
+    await converter({ documentoVersaoId: doOutro.versao.id }, "outrobase");
+    check(
+      "d: de outro projeto (mesmo cliente ou outro cliente) não sai pelo projeto da conta",
+      !(await pode(p1.id, refDocumento(doP3.versao.id))) &&
+        (await pode(p3.id, refDocumento(doP3.versao.id))) &&
+        !(await pode(p1.id, refDocumento(doOutro.versao.id))) &&
+        !(await pode(p2.id, refDocumento(doOutro.versao.id))),
     );
 
     // ── sem conversão ──
