@@ -885,7 +885,7 @@ numa página sem escala abre a calibração.
 
 O cliente pode pedir revisão de uma prancha pelo portal (Meus projetos → Entregas): escreve um comentário, marca na
 prancha com as mesmas ferramentas da equipe (alfinete, retângulo, seta, nuvem, cota e traço livre) e anexa até 5
-arquivos. O pedido não muda nada sozinho: ele espera a coordenação.
+arquivos de até 100 MB. O pedido não muda nada sozinho: ele espera a coordenação.
 
 - **Onde aparece:** menu **Pedidos do cliente** (com o número de pedidos aguardando), para quem pode liberar para obra
   e enviar ao cliente (`arquivos:alterar_status`), só dos projetos que a pessoa enxerga. Quem coordena o projeto

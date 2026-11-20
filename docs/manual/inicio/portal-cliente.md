@@ -95,7 +95,7 @@ Quando algo numa prancha precisa mudar, peça pelo portal: o pedido chega à equ
 1. Em **Entregas**, clique no olho do PDF. A prancha abre no portal, com zoom.
 2. Clique **Pedir revisão**. Escolha uma ferramenta (**Alfinete**, **Retângulo**, **Seta**, **Nuvem**, **Cota** ou
    **Traço livre**) e marque na prancha. Cada marcação pede um texto: o que mudar ali.
-3. Escreva o **comentário geral** e, se quiser, anexe até 5 arquivos (PDF, imagem PNG ou JPG, DWG ou DXF).
+3. Escreva o **comentário geral** e, se quiser, anexe até 5 arquivos de até 100 MB (PDF, imagem PNG ou JPG, DWG ou DXF).
 4. Clique **Enviar pedido**.
 
 Também dá para pedir sem marcar: **Pedir revisão** na linha do PDF, nas Entregas, abre só o comentário e os anexos.
