@@ -14,6 +14,8 @@ export function EntregasDoPortal({ base, conteudo, projetoId }: { base: string; 
   return (
     <ProvedorAcoesDoArquivo
       valor={{
+        // O olho do PDF abre o visualizador do portal (ver, dar zoom e pedir revisão com marcações).
+        hrefVer: (a) => `/portal/${projetoId}/prancha/${a.id}`,
         extras: (a) =>
           podePedir(a) ? <PedirRevisaoDialog projetoId={projetoId} uploadId={a.id} nome={a.nome} revisao={rotuloRevisao(a.versao)} /> : null,
       }}

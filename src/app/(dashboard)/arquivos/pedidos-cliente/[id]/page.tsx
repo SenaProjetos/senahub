@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
-import { pedidoParaCoordenacao } from "@/modules/portal/pedido-revisao/queries";
+import { marcacoesDoPedido, pedidoParaCoordenacao } from "@/modules/portal/pedido-revisao/queries";
+import { VisualizadorPrancha } from "@/components/portal/visualizador/visualizador-prancha";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { PedidoClienteDetalhe } from "@/components/arquivos/pedido-cliente-detalhe";
 
@@ -15,6 +16,7 @@ export default async function PedidoClientePage({ params }: { params: Promise<{ 
   const pedido = await pedidoParaCoordenacao(user, id);
   if (!pedido) notFound();
   const podeValidar = await can(user, "uploads", "validar");
+  const marcas = await marcacoesDoPedido(pedido.id);
 
   return (
     <div className="space-y-4">
@@ -23,7 +25,21 @@ export default async function PedidoClientePage({ params }: { params: Promise<{ 
         descricao={`${pedido.prancha} · ${pedido.revisao} · ${pedido.projeto.nome}`}
         trilha={[{ label: "Pedidos do cliente", href: "/arquivos/pedidos-cliente" }, { label: pedido.prancha }]}
       />
-      <PedidoClienteDetalhe pedido={pedido} podeValidar={podeValidar} />
+      <PedidoClienteDetalhe
+        pedido={pedido}
+        podeValidar={podeValidar}
+        visualizador={
+          marcas && marcas.marcacoes.length > 0 ? (
+            <VisualizadorPrancha
+              pdfUrl={`/api/uploads/${pedido.uploadId}/download?disposition=inline`}
+              uploadId={pedido.uploadId}
+              calibracoes={marcas.calibracoes}
+              leitura={marcas.marcacoes}
+              rotuloLeitura="Marcações do cliente (os números seguem a lista acima)."
+            />
+          ) : null
+        }
+      />
     </div>
   );
 }

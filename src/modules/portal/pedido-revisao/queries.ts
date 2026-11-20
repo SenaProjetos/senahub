@@ -6,6 +6,11 @@ import { rotuloRevisao } from "@/lib/utils";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { participaDoCiclo } from "@/modules/uploads/ciclo/escopo";
 import { ROTULO_STATUS_PEDIDO, revisaoAindaNasEntregas, type StatusPedido } from "./regras";
+import { acessoDoUsuarioAoProjetoDoPortal, type UsuarioDaSessao } from "@/modules/portal/acesso";
+import { uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
+import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
+import { lerMarcacao } from "@/modules/projetos/pendencias/marcacao";
+import { MODOS_CALIBRACAO, type ModoCalibracao } from "@/modules/projetos/pendencias/medicao";
 
 /**
  * Leituras do pedido de revisão do cliente. Cada view leva só o que a tela mostra: o cliente nunca recebe quem
@@ -130,3 +135,104 @@ export async function pedidoParaCoordenacao(user: SessionUser, id: string) {
 }
 
 export type PedidoDetalheView = NonNullable<Awaited<ReturnType<typeof pedidoParaCoordenacao>>>;
+
+// ─────────────────────────────────────────────────────────────
+// Visualizador da prancha (portal e detalhe da coordenação)
+// ─────────────────────────────────────────────────────────────
+
+type CalibracaoLida = { pagina: number; mmPorPonto: number; modo: ModoCalibracao };
+
+/** Calibrações da prancha por documento (revisão nova herda a escala), ou pelo upload em linha legada. */
+async function calibracoesDe(uploadId: string, documentoId: string | null): Promise<CalibracaoLida[]> {
+  const linhas = await prisma.calibracaoPrancha.findMany({
+    where: documentoId ? { documentoId } : { uploadId },
+    orderBy: { pagina: "asc" },
+    select: { pagina: true, mmPorPonto: true, modo: true },
+  });
+  return linhas.flatMap((l) => {
+    const modo = MODOS_CALIBRACAO.find((m) => m === l.modo);
+    return modo ? [{ pagina: l.pagina, mmPorPonto: l.mmPorPonto, modo }] : [];
+  });
+}
+
+const selectMarcacao = {
+  id: true,
+  ordem: true,
+  pagina: true,
+  x: true,
+  y: true,
+  texto: true,
+  marcacaoTipo: true,
+  marcacaoGeo: true,
+  medidaMm: true,
+} satisfies Prisma.MarcacaoPedidoClienteSelect;
+
+function marcaDeLeitura(m: Prisma.MarcacaoPedidoClienteGetPayload<{ select: typeof selectMarcacao }>, numero: number) {
+  return {
+    id: m.id,
+    numero,
+    pagina: m.pagina,
+    x: m.x,
+    y: m.y,
+    texto: m.texto,
+    marcacao: lerMarcacao(m.marcacaoTipo, m.marcacaoGeo),
+    medidaMm: m.medidaMm,
+  };
+}
+
+export type MarcaDeLeituraView = ReturnType<typeof marcaDeLeitura>;
+
+/**
+ * A prancha para o visualizador do portal: só PDF das Entregas da conta (mesma regra do download), sem bloqueio de
+ * download. Leva as calibrações (cota) e as marcações dos pedidos AGUARDANDO desta revisão, de qualquer conta do
+ * mesmo cliente — para ninguém pedir duas vezes a mesma coisa.
+ */
+export async function pranchaParaPortal(user: UsuarioDaSessao, projetoId: string, uploadId: string) {
+  const acesso = await acessoDoUsuarioAoProjetoDoPortal(user, projetoId);
+  if (!acesso.ok) return null;
+  const liberado = await uploadLiberadoNoAlcance(acesso.alcance, uploadId);
+  if (!liberado || !liberado.nomeArquivo.toLowerCase().endsWith(".pdf")) return null;
+  if ((await uploadsComBloqueioDeDownload(prisma, [uploadId])).size > 0) return null;
+  const up = await prisma.upload.findUnique({
+    where: { id: uploadId },
+    select: {
+      nomeArquivo: true,
+      documentoId: true,
+      revisaoId: true,
+      revisao: { select: { numero: true } },
+      disciplina: { select: { projeto: { select: { nome: true } } } },
+    },
+  });
+  if (!up) return null;
+  const aguardando = up.revisaoId
+    ? await prisma.marcacaoPedidoCliente.findMany({
+        where: { pedido: { revisaoId: up.revisaoId, status: "aguardando", projetoId } },
+        orderBy: [{ pedido: { createdAt: "asc" } }, { ordem: "asc" }],
+        select: selectMarcacao,
+      })
+    : [];
+  return {
+    nome: up.nomeArquivo,
+    revisao: up.revisao ? rotuloRevisao(up.revisao.numero) : "",
+    projetoNome: up.disciplina.projeto.nome,
+    calibracoes: await calibracoesDe(uploadId, up.documentoId),
+    aguardando: aguardando.map((m, i) => marcaDeLeitura(m, i + 1)),
+  };
+}
+
+/** Marcações de UM pedido + calibrações, para o detalhe da coordenação (escopo já conferido por quem chama). */
+export async function marcacoesDoPedido(pedidoId: string) {
+  const p = await prisma.pedidoRevisaoCliente.findUnique({
+    where: { id: pedidoId },
+    select: {
+      uploadId: true,
+      documentoId: true,
+      marcacoes: { orderBy: { ordem: "asc" }, select: selectMarcacao },
+    },
+  });
+  if (!p) return null;
+  return {
+    calibracoes: await calibracoesDe(p.uploadId, p.documentoId),
+    marcacoes: p.marcacoes.map((m, i) => marcaDeLeitura(m, i + 1)),
+  };
+}
