@@ -43,7 +43,7 @@ npm run smoke:portal-entregas      # entregas no portal do cliente: mesmo núcle
 npm run smoke:portal-financeiro     # financeiro do portal do cliente: de quem é o recebível (lançamento × projeto), o que fica fora (previsão, cancelado, acessório, transferência, licitação), líquido da retenção
 npm run smoke:portal-andamento      # andamento e linha do tempo do portal: fase concluída só com prancha nas Entregas, data do controle × do evento, prancha retirada sai, lista = detalhe
 npm run smoke:portal-resumo         # resumo diário do portal (sem SMTP): 1 e-mail + 1 sino por conta e projeto, dia avaliado uma vez, reserva contra duplicado, dias perdidos num e-mail, opt-out, falha libera, quem não recebe, 1ª rodada
-npm run smoke:pedido-revisao-cliente # pedido de revisão do cliente: só prancha das Entregas e do próprio cliente, aceite marca "Em revisão" (sem segunda marca), aceite × cancelamento e dois aceites = um vence, recusa com resposta, revisão substituída só recusa, fora do ciclo sem marca
+npm run smoke:pedido-revisao-cliente # pedido de revisão do cliente: só prancha das Entregas e do próprio cliente, aceite marca "Em revisão" (sem segunda marca), aceite × cancelamento e dois aceites = um vence, recusa com resposta, revisão substituída só recusa, fora do ciclo sem marca; no modelo 3D: marcação só em modelo do portal, imagem da vista (só o autor, PNG ≤ 2 MB, aguardando), aceite vira apontamento 3D numerado, modelo substituído/retirado só recusa
 npm run smoke:portal-modelo3d       # modelos 3D do portal: realinhamento grava a origem, lista (realinhado no lugar da origem, recebido do cliente sim, Geral e fora das Entregas não), rota só U ou descendente/recebido, sem conversão = preparando, bloqueio de download tira, ETag/304
 npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
@@ -750,6 +750,21 @@ corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. 
   da prancha escolhida (camada em DWG pede o PDF; nunca converte posição de DWG por adivinhação) + a imagem pela rota
   `/api/pendencias/anexo`; "Enviar apontamentos" é `enviarApontamentos` por prancha via `useLote` — nenhum `pendencia.create` neste
   módulo. Cruzamentos é ajuda visual (grade de `pendencias/diff.ts`), nunca cria apontamento. Smoke: `npm run smoke:sobreposicao`.
+- **Portal 3D, andar e pedido no modelo** (spec `docs/superpowers/specs/2026-11-20-portal-visualizador-3d-design.md`):
+  `/portal/[projetoId]/modelo` is its OWN viewer (`components/portal/modelo3d/`) on the same `ViewerEngine` — never
+  `coordenacao-view.tsx` (internal data would leak). `modelosDoPortal` (`modules/portal/modelo3d/queries.ts`) is the one rule
+  of what a client sees: IFCs in the account's Entregas without download block, served by their newest converted realigned
+  descendant (`Upload.realinhadoDeId`, text column with NO Prisma relation), plus the IFCs the client sent (`d:<versaoId>`);
+  the portal `.frag` route re-checks it. Walk mode (`viewer/andar.ts` + engine `iniciarAndar`) serves both viewers: eye
+  1.60 m above the floor. A 3D pedido is `PedidoRevisaoCliente.tipo = "modelo"` + `MarcacaoModeloCliente` (model, guids,
+  point and camera in IFC space but in the mark model's OWN frame — fragments' `autoCoordinate` puts every later model in
+  the first one's frame, so the screen subtracts `deslocamentoDoModelo` (pure `vistaNoModelo`/`vistaNaCena`), matching the
+  Coordenação deep link that opens the apontamento's model first —, text; view image through `/api/portal/pedidos/[id]/marcacoes/[marcacaoId]/imagem`, PNG
+  ≤ 2 MB, author only, while aguardando — `gravarImagemDaMarcacao`). Only people who see every discipline decide it
+  (`exigirEscopoDoPedidoModelo`), with `arquivos:alterar_status` + `coordenacao:gerir`; accepting creates one
+  `ApontamentoCoordenacao` per mark through `criarApontamentoCoordenacaoNoTx` (the only writer, advisory lock per project)
+  and copies the image after commit. The browser draft is per account+project (`chaveDoRascunhoModelo`) and never stores
+  images. Smokes: `smoke:pedido-revisao-cliente`, `smoke:portal-modelo3d`.
 
 **Comercial / CRM (`modules/comercial/`)** — reforma F0-F7 **concluída** em 2026-09-02 (ver
 `docs/crm/06-progresso.md`, entrada mais recente). `docs/crm/` é o registro histórico da decisão:

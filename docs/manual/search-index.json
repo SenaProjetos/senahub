@@ -302,7 +302,7 @@
     {
       "titulo": "Portal do cliente (Meus projetos)",
       "path": "inicio/portal-cliente.md",
-      "descricao": "Visão externa onde o cliente acompanha seus projetos e pede revisão das pranchas entregues.",
+      "descricao": "Visão externa onde o cliente acompanha seus projetos, vê o modelo 3D e pede revisão das pranchas e do modelo.",
       "resumo": "O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.",
       "tags": [
         "portal",
@@ -329,7 +329,17 @@
         "pedido de revisão",
         "marcação",
         "alfinete",
-        "nuvem"
+        "nuvem",
+        "modelo 3d",
+        "ver em 3d",
+        "ifc",
+        "bim",
+        "gêmeo digital",
+        "pavimento",
+        "corte horizontal",
+        "andar pelo modelo",
+        "primeira pessoa",
+        "pedir revisão no modelo"
       ],
       "sinonimos": [
         "área do cliente",
@@ -419,6 +429,12 @@
       "palavrasChave": [
         "e-mail de acompanhamento",
         "acompanhamento do cliente",
+        "pedidos do cliente",
+        "pedido no modelo 3d",
+        "apontamento 3d do cliente",
+        "andar no modelo",
+        "modo andar",
+        "coordenação 3d",
         "projeto",
         "visão geral",
         "painel do projeto",

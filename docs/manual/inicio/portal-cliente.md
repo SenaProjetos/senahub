@@ -79,6 +79,7 @@ arquivo mostra a **revisão** (R00, R01…) e, quando houver, **o que mudou** ne
 **ARTs** do projeto, com o histórico de versões.
 
 - O ícone de olho **abre a prancha no portal**, com zoom e o botão **Pedir revisão**; o de seta **baixa** o arquivo.
+  Num arquivo IFC, o olho abre o **Modelo 3D** com aquele modelo em destaque (veja abaixo).
 - O ícone de pacote ao lado de uma pasta baixa **a pasta inteira em .zip**; **Baixar tudo (.zip)** baixa todas.
 - **Em revisão** — o escritório está preparando uma revisão nova desta prancha (normalmente a pedido do
   cliente). A prancha atual continua valendo até a nova chegar.
@@ -116,6 +117,48 @@ cancele e faça outro. Cada conta tem até 20 pedidos aguardando por projeto. Se
 resposta, o pedido mostra **Revisão substituída** — confira a revisão nova; se ela sair das Entregas, **Prancha
 retirada**. Os anexos precisam ser os arquivos originais: um arquivo cujo conteúdo não corresponde à extensão é recusado. Na prancha, as marcações dos pedidos que ainda aguardam a equipe aparecem em cinza, para
 ninguém pedir a mesma coisa duas vezes.
+
+## Modelo 3D
+
+Quando a equipe compartilha modelos IFC nas Entregas, o projeto ganha o botão **Ver em 3D** no topo do card
+**Entregas**. Não precisa de programa BIM: o modelo abre no navegador, no computador ou no celular.
+
+- **Modelos:** todos os IFCs das suas Entregas abrem juntos, na mesma posição que a equipe vê. Os IFCs que **você
+  enviou** pelo card Documentos aparecem também, como "Referência enviada por você". Cada modelo tem um botão para
+  **mostrar ou esconder**. Modelo ainda em preparação aparece na lista com o aviso, sem abrir.
+- **Pavimentos:** escolha um pavimento para ver só ele, em todos os modelos ligados; **Todos** volta. A altura ao lado
+  de cada um é a do piso, a partir do pavimento mais baixo.
+- **Corte:** o **Corte horizontal** esconde o que está acima da altura escolhida.
+- **Propriedades:** clique (ou toque) num elemento para ver o nome, o tipo, o pavimento e as propriedades dele.
+- **Enquadrar** e **Vistas** (topo, frente, lados, isométrica) mudam o ponto de vista. No celular, **Modelos e corte**
+  abre o painel.
+- **Andar:** entra no pavimento escolhido (ou no mais baixo), com o olho a 1,60 m do piso. No computador, W/A/S/D ou
+  as setas andam, Q/E (ou Page Up/Page Down) sobem e descem, Shift corre, arrastar o mouse olha em volta e Esc sai. No
+  celular, o controle de direção no canto anda e arrastar o resto da tela olha. Atravessa paredes e lajes. Andando,
+  clicar num elemento continua selecionando.
+
+### Pedir revisão no modelo
+
+1. No Modelo 3D, clique **Pedir revisão**.
+2. Clique (ou toque) no elemento que você quer mudar — dá para fazer isso também andando. Cada clique vira uma
+   **marcação**: o elemento, o ponto clicado, a vista atual e uma imagem dela. Escreva o que mudar ali e clique
+   **Guardar marcação**.
+3. Escreva o **comentário geral** e, se quiser, anexe até 5 arquivos de até 100 MB (PDF, imagem PNG ou JPG, DWG ou DXF).
+4. Clique **Enviar pedido**.
+
+- As marcações são opcionais (o pedido só com comentário vale), até 50 por pedido. Na lista, **Ir para** volta à vista
+  da marcação e o lixo a exclui; o texto se edita ali mesmo.
+- O rascunho fica guardado neste navegador até o envio. As **imagens** das vistas não são guardadas: se você fechar a
+  aba, as marcações voltam sem imagem (a equipe recebe o elemento e a vista do mesmo jeito).
+- No celular, o botão **Pedido (N)** abre a lista de marcações, o comentário e o envio.
+- As marcações dos pedidos que ainda aguardam a equipe aparecem **em cinza** no modelo, para ninguém pedir a mesma
+  coisa duas vezes.
+
+O pedido aparece no card **Pedidos de revisão** como **Modelo 3D · N marcações**, e cada IFC marcado ganha o selo
+**Pedido aguardando** nas Entregas. A resposta chega como na prancha (sino e e-mail): **Aceito** — os modelos marcados
+passam a mostrar **Em revisão** e a equipe trabalha nos pontos marcados; **Recusado** — a resposta explica o motivo.
+Se um modelo marcado ganhar revisão nova antes da resposta, o pedido mostra **Modelo substituído**; se sair das
+Entregas, **Modelo retirado**. Cancelar, limite de pedidos e anexos seguem as regras da prancha.
 
 ## Resumo por e-mail
 
@@ -160,7 +203,9 @@ Regras:
 
 - Mostra **apenas** os projetos do cliente vinculado à conta (`clienteId`). Nenhum dado
   de outros clientes é exibido.
-- Tela **somente leitura** (o único envio é o do bloco Documentos).
+- Tela **somente leitura** (os envios são o do bloco Documentos e os pedidos de revisão, na prancha e no Modelo 3D).
+- O Modelo 3D mostra só os IFCs das suas Entregas (sem bloqueio de download) e os que você enviou — nunca material
+  interno da equipe.
 - Cada abertura ou download de prancha fica registrado no histórico do documento, com o nome de quem baixou
   e a marca "portal do cliente".
 

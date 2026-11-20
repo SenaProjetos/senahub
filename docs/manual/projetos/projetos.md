@@ -881,11 +881,21 @@ no texto ("Medidas: 3,53 m; 7,06 m."). Os valores ficam congelados com a escala 
 medida aparece com o seu valor na prancha, no PDF carimbado e no relatório em planilha. Arrastar
 numa página sem escala abre a calibração.
 
+### Aba Coordenação: andar pelo modelo
+
+No visualizador 3D da aba **Coordenação**, o botão **Andar** entra em primeira pessoa no pavimento marcado no filtro
+(ou no mais baixo), com o olho a 1,60 m do piso. No computador: W/A/S/D ou setas andam, Q/E (ou Page Up/Page Down)
+sobem e descem, Shift corre, arrastar o mouse olha em volta e Esc sai. No celular, o controle de direção no canto anda e
+arrastar o resto da tela olha. Não há colisão (atravessa paredes e lajes). Andando, o clique curto seleciona o elemento
+como na órbita. Entrar no andar fecha a medição; com o realinhamento aberto, o botão fica desabilitado. O mesmo modo
+existe no Modelo 3D do portal do cliente.
+
 ## Pedidos de revisão do cliente
 
 O cliente pode pedir revisão de uma prancha pelo portal (Meus projetos → Entregas): escreve um comentário, marca na
 prancha com as mesmas ferramentas da equipe (alfinete, retângulo, seta, nuvem, cota e traço livre) e anexa até 5
-arquivos de até 100 MB. O pedido não muda nada sozinho: ele espera a coordenação.
+arquivos de até 100 MB. Também pode pedir no **Modelo 3D** do portal, clicando nos elementos (veja "Pedido no modelo
+3D" abaixo). O pedido não muda nada sozinho: ele espera a coordenação.
 
 - **Onde aparece:** menu **Pedidos do cliente** (com o número de pedidos aguardando), para quem pode liberar para obra
   e enviar ao cliente (`arquivos:alterar_status`). A fila mostra só os pedidos que a pessoa pode decidir: projetos que
@@ -909,6 +919,27 @@ arquivos de até 100 MB. O pedido não muda nada sozinho: ele espera a coordena�
   nova.
 - Vários pedidos na mesma revisão são aceitos; o segundo não aplica outro "Em revisão" (o detalhe avisa "Já há pedido
   aceito nesta revisão").
+
+### Pedido no modelo 3D
+
+No Modelo 3D do portal, cada clique do cliente num elemento vira uma marcação: o elemento (IfcGuid) e o modelo, o ponto
+clicado, a vista dele (câmera) e uma imagem dessa vista, com um texto. Na fila, o pedido aparece como **Modelo 3D · N
+marcações**.
+
+- **Quem vê e decide:** o pedido no modelo cruza disciplinas, então só aparece (e só é aceito ou recusado) por quem vê
+  todas as disciplinas, com `arquivos:alterar_status` **e** `coordenacao:gerir` (quem cria apontamento 3D). Aqui
+  `uploads:validar` não se aplica: não há rascunho de apontamento na prancha. O aviso no sino vai só a essas pessoas.
+- **Abrir o pedido** mostra o comentário, as marcações (com o modelo de cada uma), os anexos e o **modelo 3D em
+  leitura**: os modelos marcados, os números no lugar clicado e **Ir para** cada vista. Quando a Coordenação já tem um
+  arquivo mais novo do mesmo modelo, o detalhe avisa "A equipe já trabalha numa versão mais nova deste modelo." — o
+  apontamento fica no modelo que o cliente viu.
+- **Aceitar…**: cada marcação vira um **apontamento 3D da coordenação** (aberto, sem tarefa, em seu nome), numerado no
+  projeto, no mesmo modelo, elementos e vista, com a imagem do cliente e o texto "Cliente (Nome): …". A revisão de cada
+  IFC das Entregas marcado fica **Em revisão** uma vez só ("Pedido do cliente: …"); IFC enviado pelo cliente não tem
+  revisão a marcar. Depois do aceite, o detalhe mostra o link **Apontamento #N** de cada marcação, que abre a
+  Coordenação na vista dela. A equipe revisa e envia aos projetistas como sempre.
+- Se um modelo marcado ganhou revisão nova, o pedido mostra **Modelo substituído**; se saiu das Entregas (ou o IFC
+  enviado pelo cliente foi excluído), **Modelo retirado**. Nos dois casos, só recusar.
 
 ## Permissões (resumo)
 
