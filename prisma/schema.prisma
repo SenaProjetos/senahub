@@ -320,6 +320,8 @@ model User {
 
   /// Resumo diário do portal recebido (uma linha por projeto, dia e canal).
   avisosPortal AvisoPortalEnviado[]
+  pedidosRevisaoCliente     PedidoRevisaoCliente[] @relation("PedidoRevisaoAutor")
+  pedidosRevisaoRespondidos PedidoRevisaoCliente[] @relation("PedidoRevisaoRespondidoPor")
   geracoesModeloFederado GeracaoModeloFederado[] @relation("GeracaoFederadoAutor")
 
   @@index([tipo, setor])
@@ -1328,6 +1330,7 @@ model Projeto {
   negociacao   Negociacao? @relation(fields: [negociacaoId], references: [id])
   /// Resumo diário do portal já enviado (uma linha por conta, dia e canal).
   avisosPortal AvisoPortalEnviado[]
+  pedidosRevisaoCliente PedidoRevisaoCliente[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2197,6 +2200,85 @@ model AvisoPortalEnviado {
   @@unique([userId, projetoId, dia, canal])
   @@index([projetoId])
   @@map("aviso_portal_enviado")
+}
+
+/// Pedido de revisão de uma prancha feito pelo CLIENTE no portal (spec 2026-11-19-portal-pedido-revisao-design.md).
+/// Nasce aguardando; a coordenação aceita (marca "Em revisão" e cria RASCUNHOS de apontamento) ou recusa com resposta;
+/// o cliente pode cancelar enquanto aguarda. Status só muda por updateMany condicionado a "aguardando"
+/// (modules/portal/pedido-revisao/service.ts). Pedido não aceito nunca vira Pendencia.
+model PedidoRevisaoCliente {
+  id              String              @id @default(cuid())
+  projetoId       String
+  projeto         Projeto             @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  documentoId     String
+  documento       DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  revisaoId       String
+  revisao         DocumentoRevisao    @relation(fields: [revisaoId], references: [id], onDelete: Cascade)
+  /// O PDF em que o cliente marcou.
+  uploadId        String
+  upload          Upload              @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  /// Conta do portal que pediu.
+  autorId         String
+  autor           User                @relation("PedidoRevisaoAutor", fields: [autorId], references: [id], onDelete: Cascade)
+  comentario      String
+  /// aguardando | aceito | recusado | cancelado
+  status          String              @default("aguardando")
+  /// Obrigatória ao recusar, opcional ao aceitar.
+  resposta        String?
+  respondidoPorId String?
+  respondidoPor   User?               @relation("PedidoRevisaoRespondidoPor", fields: [respondidoPorId], references: [id], onDelete: SetNull)
+  respondidoEm    DateTime?
+  canceladoEm     DateTime?
+  createdAt       DateTime            @default(now())
+
+  marcacoes MarcacaoPedidoCliente[]
+  anexos    AnexoPedidoCliente[]
+
+  @@index([projetoId, status])
+  @@index([status, createdAt])
+  @@index([revisaoId])
+  @@index([documentoId])
+  @@index([uploadId])
+  @@index([autorId])
+  @@index([respondidoPorId])
+  @@map("pedido_revisao_cliente")
+}
+
+/// Marcação do cliente num pedido — MESMO formato da Pendencia (x/y normalizados, marcacaoTipo/Geo, medida congelada).
+model MarcacaoPedidoCliente {
+  id           String               @id @default(cuid())
+  pedidoId     String
+  pedido       PedidoRevisaoCliente @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  ordem        Int
+  pagina       Int
+  x            Float
+  y            Float
+  texto        String
+  marcacaoTipo String?
+  marcacaoGeo  Json?
+  medidaMm     Float?
+  medidaFator  Float?
+  medidaModo   String?
+  /// Rascunho de apontamento que esta marcação virou no aceite (sem FK: o rascunho pode ser excluído).
+  pendenciaId  String?
+
+  @@index([pedidoId, ordem])
+  @@map("marcacao_pedido_cliente")
+}
+
+/// Anexo do pedido do cliente (arquivo no storage em portal/pedidos/<pedidoId>/).
+model AnexoPedidoCliente {
+  id        String               @id @default(cuid())
+  pedidoId  String
+  pedido    PedidoRevisaoCliente @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  nome      String
+  caminho   String
+  tamanho   Int
+  mime      String
+  createdAt DateTime             @default(now())
+
+  @@index([pedidoId])
+  @@map("anexo_pedido_cliente")
 }
 
 enum TipoInvestimento {
@@ -7362,6 +7444,7 @@ model Upload {
   aceite                AceiteCliente?
   solicitacoesExclusao  SolicitacaoExclusaoUpload[]
   pendencias            Pendencia[]                 @relation("UploadPendencias")
+  pedidosRevisaoCliente PedidoRevisaoCliente[]
   pendenciasVerificadas Pendencia[]                 @relation("PendenciaVerificacao")
   calibracoes           CalibracaoPrancha[]         @relation("UploadCalibracoes")
   sobreposicaoAlinhamentos SobreposicaoAlinhamento[]
@@ -7490,6 +7573,7 @@ model DocumentoDisciplina {
   listas      ListaDocumentoItem[]
   eventos     DocumentoEvento[]
   sobreposicaoCamadas SobreposicaoCamada[]
+  pedidosRevisaoCliente PedidoRevisaoCliente[]
 
   @@unique([disciplinaId, chave])
   @@index([disciplinaId])
@@ -7606,6 +7690,7 @@ model DocumentoRevisao {
   uploads             Upload[]
   pendenciasOrigem    Pendencia[] @relation("PendenciaRevisaoOrigem")
   pendenciasResolucao Pendencia[] @relation("PendenciaRevisaoResolucao")
+  pedidosCliente      PedidoRevisaoCliente[]
   /// Documentos que mostram ESTA revisão ao cliente (ponteiros em DocumentoDisciplina).
   compartilhadaEm     DocumentoDisciplina[] @relation("RevisaoCompartilhada")
   liberadaObraEm      DocumentoDisciplina[] @relation("RevisaoLiberadaObra")
