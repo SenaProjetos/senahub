@@ -9,12 +9,8 @@ import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { whereDaFila } from "./escopo";
 import { participaDoCiclo } from "@/modules/uploads/ciclo/escopo";
 import { ROTULO_STATUS_PEDIDO, revisaoNasPastas, situacaoDaRevisao, type SituacaoDaRevisao, type StatusPedido } from "./regras";
-import { ROTULO_MODELO_3D, piorSituacao, tipoDoPedido } from "./modelo-regras";
+import { ROTULO_MODELO_3D, indisponibilidade, piorSituacao, tipoDoPedido } from "./modelo-regras";
 import { situacoesDasMarcacoesModelo } from "./service";
-
-function indisponibilidade(s: SituacaoDaRevisao): "substituida" | "retirada" | null {
-  return s === "nas_entregas" ? null : s;
-}
 import { acessoDoUsuarioAoProjetoDoPortal, type UsuarioDaSessao } from "@/modules/portal/acesso";
 import { uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
@@ -193,6 +189,8 @@ export async function pedidoParaCoordenacao(user: SessionUser, id: string) {
     respondidoPor: l.respondidoPor?.name ?? null,
     listaMarcacoes,
     jaHaPedidoAceitoNaRevisao: outroAceito > 0,
+    /** O PDF do pedido de prancha foi para a lixeira: "Abrir a prancha" e o visualizador não abrem mais. */
+    pranchaNaLixeira: l.upload?.excluidoEm != null,
   };
 }
 

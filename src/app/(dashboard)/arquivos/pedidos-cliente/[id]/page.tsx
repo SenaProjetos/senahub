@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { marcacoesDoPedido, pedidoParaCoordenacao } from "@/modules/portal/pedido-revisao/queries";
 import { modeloDoPedidoParaCoordenacao } from "@/modules/portal/pedido-revisao/modelo-queries";
-import { rotuloDoPedido } from "@/modules/portal/pedido-revisao/modelo-regras";
+import { avisoSemVisualizador, rotuloDoPedido } from "@/modules/portal/pedido-revisao/modelo-regras";
 import { VisualizadorPrancha } from "@/components/portal/visualizador/visualizador-prancha";
 import { VisualizadorModeloDinamico } from "@/components/portal/modelo3d/visualizador-modelo-dinamico";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
@@ -23,9 +23,18 @@ export default async function PedidoClientePage({ params }: { params: Promise<{ 
   const ehModelo = pedido.tipo === "modelo";
   const marcas = ehModelo ? null : await marcacoesDoPedido(pedido.id);
   const modelo = ehModelo ? await modeloDoPedidoParaCoordenacao(pedido.id) : null;
-  // O 3D em leitura sai pela rota `.frag` da coordenação: só para quem vê a Coordenação.
-  const ve3d = ehModelo && (await can(user, "coordenacao", "ver"));
+  // O 3D em leitura sai pela rota `.frag` da coordenação, e os links da Coordenação abrem lá: só para quem a vê.
+  const veCoordenacao = await can(user, "coordenacao", "ver");
+  const ve3d = ehModelo && veCoordenacao;
   const titulo = rotuloDoPedido(pedido);
+  // Sem prancha nem 3D para abrir: o detalhe diz por quê (nunca um espaço vazio).
+  const aviso = avisoSemVisualizador({
+    tipo: pedido.tipo,
+    pranchaNaLixeira: pedido.pranchaNaLixeira,
+    ve3d,
+    marcacoes: ehModelo ? (modelo?.marcas.length ?? 0) : (marcas?.marcacoes.length ?? 0),
+    modelosAbriveis: modelo?.modelos.length ?? 0,
+  });
 
   return (
     <div className="space-y-4">
@@ -39,8 +48,10 @@ export default async function PedidoClientePage({ params }: { params: Promise<{ 
         poderes={poderes}
         marcasModelo={modelo?.marcas}
         versaoMaisNova={modelo?.versaoMaisNova ?? false}
+        veCoordenacao={veCoordenacao}
+        avisoSemVisualizador={aviso}
         visualizador={
-          modelo && ve3d && modelo.marcas.length > 0 && modelo.modelos.length > 0 ? (
+          aviso ? null : modelo && ve3d && modelo.marcas.length > 0 && modelo.modelos.length > 0 ? (
             <VisualizadorModeloDinamico projetoId={pedido.projeto.id} modelos={modelo.modelos} leitura={modelo.marcas} />
           ) : pedido.uploadId && marcas && marcas.marcacoes.length > 0 ? (
             <VisualizadorPrancha

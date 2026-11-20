@@ -79,6 +79,14 @@ export function motivoParaNaoAceitarModelo(p: { status: StatusPedido; situacoes:
 type Indisponivel = "substituida" | "retirada";
 
 /**
+ * A situação lida → o selo "indisponível" da fila, do detalhe e do portal (null = ainda nas Entregas). É a MESMA
+ * situação que o aceite recusa (`motivoParaNaoAceitar` / `motivoParaNaoAceitarModelo`): `fila-aceite.test.ts` compara.
+ */
+export function indisponibilidade(s: SituacaoDaRevisao): Indisponivel | null {
+  return s === "nas_entregas" ? null : s;
+}
+
+/**
  * O motivo para não aceitar que a TELA já sabe (o servidor confere tudo de novo): na prancha, `uploads:validar` (os
  * rascunhos de apontamento ficam com quem aceita); no modelo, `coordenacao:gerir` (as marcações viram apontamentos 3D).
  */
@@ -96,6 +104,32 @@ export function motivoNaTelaDoPedido(
   if (p.indisponivel === "substituida") return MOTIVO_REVISAO_SUBSTITUIDA;
   if (p.indisponivel === "retirada") return MOTIVO_PRANCHA_RETIRADA;
   return null;
+}
+
+// Detalhe do pedido na coordenação: por que não há prancha nem 3D para mostrar.
+export const AVISO_PEDIDO_SO_COMENTARIO = "Pedido sem marcações no modelo: só o comentário e os anexos.";
+export const AVISO_3D_SO_COORDENACAO = "O modelo 3D do pedido só abre para quem vê a Coordenação.";
+export const AVISO_MODELO_INDISPONIVEL = "O modelo deste pedido não está mais disponível.";
+export const MOTIVO_PRANCHA_NA_LIXEIRA = "A prancha deste pedido está na lixeira: não abre mais.";
+
+/**
+ * O que o detalhe do pedido diz no lugar do visualizador, quando não há o que abrir (null = abre a prancha ou o 3D,
+ * ou o pedido de prancha sem marcações, que só tem o link). `modelosAbriveis` = modelos marcados que ainda existem.
+ */
+export function avisoSemVisualizador(p: {
+  tipo: TipoPedido;
+  pranchaNaLixeira: boolean;
+  ve3d: boolean;
+  marcacoes: number;
+  modelosAbriveis: number;
+}): string | null {
+  if (p.tipo === "modelo") {
+    if (p.marcacoes === 0) return AVISO_PEDIDO_SO_COMENTARIO;
+    if (!p.ve3d) return AVISO_3D_SO_COORDENACAO;
+    if (p.modelosAbriveis === 0) return AVISO_MODELO_INDISPONIVEL;
+    return null;
+  }
+  return p.pranchaNaLixeira ? MOTIVO_PRANCHA_NA_LIXEIRA : null;
 }
 
 /** Como o pedido aparece na fila e no portal: a prancha pelo nome; o modelo como "Modelo 3D · N marcações". */

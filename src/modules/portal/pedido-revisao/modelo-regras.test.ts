@@ -7,7 +7,12 @@ import {
   type EstadoDaRevisao,
 } from "./regras";
 import {
+  AVISO_3D_SO_COORDENACAO,
+  AVISO_MODELO_INDISPONIVEL,
+  AVISO_PEDIDO_SO_COMENTARIO,
   LIMITE_TITULO_APONTAMENTO,
+  MOTIVO_PRANCHA_NA_LIXEIRA,
+  avisoSemVisualizador,
   MOTIVO_IMAGEM_GRANDE,
   MOTIVO_IMAGEM_NAO_PNG,
   MOTIVO_MODELO_RETIRADO,
@@ -191,5 +196,26 @@ describe("marcaModeloDeLeitura", () => {
     expect(m.camera).toBeNull();
     expect(m.guids).toEqual([]);
     expect(lerPonto([1, 2, Number.POSITIVE_INFINITY])).toBeNull();
+  });
+});
+
+describe("avisoSemVisualizador (detalhe do pedido sem prancha nem 3D)", () => {
+  const modelo = { tipo: "modelo" as const, pranchaNaLixeira: false, ve3d: true, marcacoes: 2, modelosAbriveis: 1 };
+  const prancha = { tipo: "prancha" as const, pranchaNaLixeira: false, ve3d: false, marcacoes: 2, modelosAbriveis: 0 };
+
+  it("com o que mostrar: sem aviso", () => {
+    expect(avisoSemVisualizador(modelo)).toBeNull();
+    expect(avisoSemVisualizador(prancha)).toBeNull();
+  });
+
+  it("modelo: sem marcação, sem a Coordenação ou sem modelo disponível dizem por quê", () => {
+    expect(avisoSemVisualizador({ ...modelo, marcacoes: 0 })).toBe(AVISO_PEDIDO_SO_COMENTARIO);
+    expect(avisoSemVisualizador({ ...modelo, ve3d: false })).toBe(AVISO_3D_SO_COORDENACAO);
+    expect(avisoSemVisualizador({ ...modelo, modelosAbriveis: 0 })).toBe(AVISO_MODELO_INDISPONIVEL);
+  });
+
+  it("prancha: na lixeira não abre; sem marcação, só o link", () => {
+    expect(avisoSemVisualizador({ ...prancha, pranchaNaLixeira: true })).toBe(MOTIVO_PRANCHA_NA_LIXEIRA);
+    expect(avisoSemVisualizador({ ...prancha, marcacoes: 0 })).toBeNull();
   });
 });

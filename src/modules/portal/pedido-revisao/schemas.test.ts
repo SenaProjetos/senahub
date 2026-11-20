@@ -74,3 +74,50 @@ describe("schema do pedido no modelo 3D", () => {
     expect(r.error?.issues[0]?.message).toBe(`O pedido aceita no máximo ${MAX_MARCACOES} marcações.`);
   });
 });
+
+describe("schemas do pedido: tipo errado também tem mensagem em português", () => {
+  /** Toda mensagem do resultado (nenhuma pode ser o padrão em inglês do Zod). */
+  const mensagens = (r: { success: boolean; error?: { issues: { message: string }[] } }) => r.error?.issues.map((i) => i.message) ?? [];
+  const emIngles = /invalid|expected|received|required/i;
+
+  it("prancha: id, comentário, lista e campos da marcação com tipo errado", () => {
+    const casos = [
+      { projetoId: 1, uploadId: "u", comentario: "x" },
+      { projetoId: "p", uploadId: null, comentario: "x" },
+      { projetoId: "p", uploadId: "u", comentario: 5 },
+      { projetoId: "p", uploadId: "u", comentario: "x", marcacoes: "não é lista" },
+      { projetoId: "p", uploadId: "u", comentario: "x", marcacoes: [{ ...marca, texto: 3 }] },
+      { projetoId: "p", uploadId: "u", comentario: "x", marcacoes: [{ ...marca, x: "1" }] },
+      { projetoId: "p", uploadId: "u", comentario: "x", marcacoes: ["solta"] },
+    ];
+    for (const c of casos) {
+      const r = criarPedidoSchema.safeParse(c);
+      expect(r.success).toBe(false);
+      for (const m of mensagens(r)) expect(m).not.toMatch(emIngles);
+    }
+  });
+
+  it("modelo 3D: comentário, lista, guids, texto e modelo com tipo errado", () => {
+    const casos = [
+      { projetoId: "p", comentario: null, marcacoes: [] },
+      { projetoId: "p", comentario: "x", marcacoes: {} },
+      { projetoId: "p", comentario: "x", marcacoes: [{ ...marca3d, guids: "g" }] },
+      { projetoId: "p", comentario: "x", marcacoes: [{ ...marca3d, guids: [1] }] },
+      { projetoId: "p", comentario: "x", marcacoes: [{ ...marca3d, texto: false }] },
+      { projetoId: "p", comentario: "x", marcacoes: [{ ...marca3d, modeloId: 7 }] },
+      { projetoId: "p", comentario: "x", marcacoes: [1] },
+    ];
+    for (const c of casos) {
+      const r = criarPedidoModeloSchema.safeParse(c);
+      expect(r.success).toBe(false);
+      for (const m of mensagens(r)) expect(m).not.toMatch(emIngles);
+    }
+  });
+
+  it("resposta e id com tipo errado", () => {
+    for (const r of [recusarPedidoSchema.safeParse({ id: "p", resposta: 1 }), recusarPedidoSchema.safeParse({ id: 2, resposta: "x" })]) {
+      expect(r.success).toBe(false);
+      for (const m of mensagens(r)) expect(m).not.toMatch(emIngles);
+    }
+  });
+});

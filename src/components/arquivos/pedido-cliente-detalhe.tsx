@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AlertTriangle, Box, FileText, Paperclip } from "lucide-react";
 import type { PedidoDetalheView } from "@/modules/portal/pedido-revisao/queries";
 import type { MarcaDoPedidoModelo } from "@/modules/portal/pedido-revisao/modelo-queries";
-import { rotuloDoPedido } from "@/modules/portal/pedido-revisao/modelo-regras";
+import { MOTIVO_PRANCHA_NA_LIXEIRA, rotuloDoPedido } from "@/modules/portal/pedido-revisao/modelo-regras";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { cn, formatarBytes, formatarDataHora } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
@@ -32,6 +32,8 @@ export function PedidoClienteDetalhe({
   visualizador,
   marcasModelo,
   versaoMaisNova = false,
+  veCoordenacao = false,
+  avisoSemVisualizador = null,
 }: {
   pedido: PedidoDetalheView;
   poderes: PoderesNaFila;
@@ -40,6 +42,10 @@ export function PedidoClienteDetalhe({
   marcasModelo?: MarcaDoPedidoModelo[];
   /** A série de algum modelo marcado já tem upload mais novo na Coordenação. */
   versaoMaisNova?: boolean;
+  /** `coordenacao:ver`: sem ele, os links para a Coordenação ficam fora (levariam a /sem-permissao). */
+  veCoordenacao?: boolean;
+  /** Por que não há prancha nem 3D para abrir (`avisoSemVisualizador`), no lugar do visualizador. */
+  avisoSemVisualizador?: string | null;
 }) {
   const motivo = motivoNaTela(pedido, poderes);
   const aguardando = pedido.status === "aguardando";
@@ -84,12 +90,16 @@ export function PedidoClienteDetalhe({
                       {doModelo?.apontamentoNumero != null && (
                         <>
                           {" "}
-                          <Link
-                            href={`/projetos/${pedido.projeto.id}/coordenacao?apontamento=${doModelo.apontamentoNumero}`}
-                            className="text-xs text-primary hover:underline"
-                          >
-                            Apontamento #{doModelo.apontamentoNumero}
-                          </Link>
+                          {veCoordenacao ? (
+                            <Link
+                              href={`/projetos/${pedido.projeto.id}/coordenacao?apontamento=${doModelo.apontamentoNumero}`}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              Apontamento #{doModelo.apontamentoNumero}
+                            </Link>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Apontamento #{doModelo.apontamentoNumero}</span>
+                          )}
                         </>
                       )}
                     </li>
@@ -124,12 +134,18 @@ export function PedidoClienteDetalhe({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            {pedido.uploadId && (
-              <Button size="sm" variant="outline" render={<a href={`/api/uploads/${pedido.uploadId}/download`} target="_blank" rel="noopener" />}>
-                <FileText className="size-4" /> Abrir a prancha <span className="sr-only">(abre em nova aba)</span>
-              </Button>
-            )}
-            {ehModelo && (
+            {pedido.uploadId &&
+              (pedido.pranchaNaLixeira ? (
+                // Desabilitado com o motivo: o PDF foi para a lixeira e o download não o serve mais.
+                <Button size="sm" variant="outline" disabled title={MOTIVO_PRANCHA_NA_LIXEIRA} aria-describedby="motivo-sem-prancha">
+                  <FileText className="size-4" /> Abrir a prancha
+                </Button>
+              ) : (
+                <Button size="sm" variant="outline" render={<a href={`/api/uploads/${pedido.uploadId}/download`} target="_blank" rel="noopener" />}>
+                  <FileText className="size-4" /> Abrir a prancha <span className="sr-only">(abre em nova aba)</span>
+                </Button>
+              ))}
+            {ehModelo && veCoordenacao && (
               <Button size="sm" variant="outline" render={<Link href={`/projetos/${pedido.projeto.id}/coordenacao`} />}>
                 <Box className="size-4" /> Abrir a Coordenação
               </Button>
@@ -142,6 +158,11 @@ export function PedidoClienteDetalhe({
               />
             )}
           </div>
+          {pedido.uploadId && pedido.pranchaNaLixeira && (
+            <p id="motivo-sem-prancha" className="text-xs text-muted-foreground">
+              {MOTIVO_PRANCHA_NA_LIXEIRA}
+            </p>
+          )}
           {aguardando && motivo && (
             <p id="motivo-nao-aceitar" className="text-xs text-muted-foreground">
               {motivo}
@@ -151,6 +172,9 @@ export function PedidoClienteDetalhe({
       </Card>
 
       {visualizador}
+      {!visualizador && avisoSemVisualizador && avisoSemVisualizador !== MOTIVO_PRANCHA_NA_LIXEIRA && (
+        <p className="rounded-lg border bg-card px-3 py-2 text-sm text-muted-foreground">{avisoSemVisualizador}</p>
+      )}
 
     </div>
   );
