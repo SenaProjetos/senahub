@@ -1,0 +1,124 @@
+import { describe, expect, it } from "vitest";
+import {
+  MOTIVO_JA_RESPONDIDO,
+  MOTIVO_RECUSA_SEM_RESPOSTA,
+  MOTIVO_REVISAO_SUBSTITUIDA,
+  MOTIVO_SEM_VALIDAR,
+  itensDoPedido,
+  motivoDoAnexo,
+  motivoEmRevisao,
+  motivoParaNaoAceitar,
+  motivoParaNaoCancelar,
+  motivoParaNaoRecusar,
+  revisaoAindaNasEntregas,
+  textoDoRascunho,
+  type EstadoDaRevisao,
+} from "./regras";
+
+const publicada: EstadoDaRevisao = { estado: "publicado", participa: true, uploadSubstituido: false, arquivada: false };
+
+describe("motivoParaNaoAceitar", () => {
+  it("aguardando, quem valida e revisão publicada: pode", () => {
+    expect(motivoParaNaoAceitar({ status: "aguardando", podeValidar: true, revisao: publicada })).toBeNull();
+  });
+  it("já aceito: já respondido (antes de qualquer outra regra)", () => {
+    expect(motivoParaNaoAceitar({ status: "aceito", podeValidar: false, revisao: { ...publicada, arquivada: true } })).toBe(
+      MOTIVO_JA_RESPONDIDO,
+    );
+  });
+  it("sem validar arquivos: recusa", () => {
+    expect(motivoParaNaoAceitar({ status: "aguardando", podeValidar: false, revisao: publicada })).toBe(MOTIVO_SEM_VALIDAR);
+  });
+  it("revisão arquivada: substituída", () => {
+    expect(
+      motivoParaNaoAceitar({
+        status: "aguardando",
+        podeValidar: true,
+        revisao: { ...publicada, estado: "arquivado", arquivada: true },
+      }),
+    ).toBe(MOTIVO_REVISAO_SUBSTITUIDA);
+  });
+  it("fora do ciclo com o arquivo substituído: substituída", () => {
+    expect(
+      motivoParaNaoAceitar({
+        status: "aguardando",
+        podeValidar: true,
+        revisao: { estado: null, participa: false, uploadSubstituido: true, arquivada: false },
+      }),
+    ).toBe(MOTIVO_REVISAO_SUBSTITUIDA);
+  });
+  it("fora do ciclo com o arquivo vigente: pode", () => {
+    expect(
+      motivoParaNaoAceitar({
+        status: "aguardando",
+        podeValidar: true,
+        revisao: { estado: null, participa: false, uploadSubstituido: false, arquivada: false },
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("revisaoAindaNasEntregas", () => {
+  it("no ciclo, só publicada", () => {
+    expect(revisaoAindaNasEntregas(publicada)).toBe(true);
+    expect(revisaoAindaNasEntregas({ ...publicada, estado: "em_andamento" })).toBe(false);
+  });
+});
+
+describe("motivoParaNaoRecusar / motivoParaNaoCancelar", () => {
+  it("recusa exige resposta", () => {
+    expect(motivoParaNaoRecusar({ status: "aguardando", resposta: "  " })).toBe(MOTIVO_RECUSA_SEM_RESPOSTA);
+    expect(motivoParaNaoRecusar({ status: "aguardando", resposta: "Não cabe" })).toBeNull();
+    expect(motivoParaNaoRecusar({ status: "cancelado", resposta: "x" })).toBe(MOTIVO_JA_RESPONDIDO);
+  });
+  it("cancelar só aguardando", () => {
+    expect(motivoParaNaoCancelar({ status: "recusado" })).toBe(MOTIVO_JA_RESPONDIDO);
+    expect(motivoParaNaoCancelar({ status: "aguardando" })).toBeNull();
+  });
+});
+
+describe("motivoEmRevisao", () => {
+  it("prefixo e corte em 500 com reticências", () => {
+    const m = motivoEmRevisao("a".repeat(600));
+    expect(m.startsWith("Pedido do cliente: ")).toBe(true);
+    expect(m).toHaveLength(500);
+    expect(m.endsWith("…")).toBe(true);
+  });
+  it("curto fica inteiro, sem espaços nas pontas", () => {
+    expect(motivoEmRevisao("  Mudar a porta  ")).toBe("Pedido do cliente: Mudar a porta");
+  });
+});
+
+describe("textoDoRascunho", () => {
+  it("primeiro nome e menção ao pedido quando há anexos", () => {
+    expect(textoDoRascunho({ nomeAutor: "Mariana Souza", texto: "Ajustar cota", temAnexos: true })).toBe(
+      "Cliente (Mariana): Ajustar cota (ver pedido do cliente)",
+    );
+  });
+  it("sem anexos, sem a menção; nome vazio vira Cliente", () => {
+    expect(textoDoRascunho({ nomeAutor: "", texto: "Ajustar", temAnexos: false })).toBe("Cliente: Ajustar");
+  });
+});
+
+describe("motivoDoAnexo", () => {
+  it("extensão fora da lista recusa; maiúscula passa", () => {
+    expect(motivoDoAnexo({ nome: "x.exe", jaTem: 0 })).not.toBeNull();
+    expect(motivoDoAnexo({ nome: "planta.PDF", jaTem: 0 })).toBeNull();
+  });
+  it("sexto anexo recusa", () => {
+    expect(motivoDoAnexo({ nome: "a.png", jaTem: 5 })).not.toBeNull();
+    expect(motivoDoAnexo({ nome: "a.png", jaTem: 4 })).toBeNull();
+  });
+});
+
+describe("itensDoPedido", () => {
+  it("aguardando: aceitar desabilitado com o motivo e recusar", () => {
+    const itens = itensDoPedido({ status: "aguardando", podeAceitar: MOTIVO_SEM_VALIDAR, podeRecusar: true });
+    const aceitar = itens.find((i) => i.id === "aceitar");
+    expect(aceitar && aceitar.tipo === "acao" && aceitar.desabilitado).toBe(MOTIVO_SEM_VALIDAR);
+    expect(itens.some((i) => i.id === "recusar")).toBe(true);
+  });
+  it("respondido: sem itens", () => {
+    expect(itensDoPedido({ status: "recusado", podeAceitar: null, podeRecusar: true })).toEqual([]);
+  });
+});
