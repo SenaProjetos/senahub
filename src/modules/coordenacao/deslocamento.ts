@@ -233,6 +233,8 @@ async function realinharUpload(
       mimeType: upload.mimeType,
       versao: novaVersao,
       origem: "ferramenta",
+      // De qual arquivo saiu: o portal serve o realinhado no lugar do IFC das Entregas (D4).
+      realinhadoDeId: upload.id,
       autorId,
     },
   });

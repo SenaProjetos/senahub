@@ -7440,6 +7440,10 @@ model Upload {
   /// uma segunda auto-relação custaria heap de `tsc` (ver o caso de `Lancamento.acessorioDeId`).
   substituidoPorId String?
   substituidoEm    DateTime?
+  /// Upload de que este saiu por realinhamento/georreferenciamento da Coordenação (`origem: ferramenta`). Realinhar
+  /// um realinhado encadeia. O portal serve o descendente convertido mais recente do IFC das Entregas. Escalar de
+  /// propósito, como `substituidoPorId` (auto-relação custaria heap de `tsc`). Nulo em realinhamento antigo.
+  realinhadoDeId   String?
 
   aceite                AceiteCliente?
   solicitacoesExclusao  SolicitacaoExclusaoUpload[]
@@ -7458,6 +7462,7 @@ model Upload {
   @@index([documentoId])
   @@index([revisaoId])
   @@index([substituidoPorId])
+  @@index([realinhadoDeId])
   @@map("upload")
 }
 

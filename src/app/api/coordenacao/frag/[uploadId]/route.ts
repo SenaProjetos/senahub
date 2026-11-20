@@ -1,11 +1,8 @@
-import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
-import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { can } from "@/lib/permissions";
-import { resolverCaminho } from "@/lib/storage";
+import { servirFrag } from "@/lib/frag-stream";
 import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
 import { MENSAGEM_ACESSO_MODELO as MSG, veModelosDoProjeto } from "@/modules/coordenacao/acesso";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
@@ -93,27 +90,5 @@ export async function GET(req: Request, ctx: { params: Promise<{ uploadId: strin
     });
   }
 
-  const etag = `"${modeloId}-${dados.concluidoEm?.getTime() ?? 0}"`;
-  if (req.headers.get("if-none-match") === etag) {
-    return new NextResponse(null, { status: 304, headers: { ETag: etag } });
-  }
-
-  let caminhoAbs: string;
-  let tamanho: number;
-  try {
-    caminhoAbs = resolverCaminho(dados.caminhoFrag);
-    tamanho = (await stat(caminhoAbs)).size;
-  } catch {
-    return NextResponse.json({ error: MSG.arquivoSumiu }, { status: 410 });
-  }
-
-  const stream = Readable.toWeb(createReadStream(caminhoAbs)) as ReadableStream;
-  return new NextResponse(stream, {
-    headers: {
-      "Content-Type": "application/octet-stream",
-      "Content-Length": String(tamanho),
-      ETag: etag,
-      "Cache-Control": "private, max-age=0, must-revalidate",
-    },
-  });
+  return servirFrag(req, dados.caminhoFrag, dados.concluidoEm, modeloId, MSG.arquivoSumiu);
 }

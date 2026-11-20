@@ -158,6 +158,8 @@ export async function gravarGeorrefUpload(
       mimeType: upload.mimeType,
       versao: novaVersao,
       origem: "ferramenta",
+      // De qual arquivo saiu: o portal serve o georreferenciado no lugar do IFC das Entregas (D4).
+      realinhadoDeId: upload.id,
       autorId: input.autorId,
     },
   });

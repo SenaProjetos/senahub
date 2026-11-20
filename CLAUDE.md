@@ -44,6 +44,7 @@ npm run smoke:portal-financeiro     # financeiro do portal do cliente: de quem �
 npm run smoke:portal-andamento      # andamento e linha do tempo do portal: fase concluída só com prancha nas Entregas, data do controle × do evento, prancha retirada sai, lista = detalhe
 npm run smoke:portal-resumo         # resumo diário do portal (sem SMTP): 1 e-mail + 1 sino por conta e projeto, dia avaliado uma vez, reserva contra duplicado, dias perdidos num e-mail, opt-out, falha libera, quem não recebe, 1ª rodada
 npm run smoke:pedido-revisao-cliente # pedido de revisão do cliente: só prancha das Entregas e do próprio cliente, aceite marca "Em revisão" (sem segunda marca), aceite × cancelamento e dois aceites = um vence, recusa com resposta, revisão substituída só recusa, fora do ciclo sem marca
+npm run smoke:portal-modelo3d       # modelos 3D do portal: realinhamento grava a origem, lista (realinhado no lugar da origem, recebido do cliente sim, Geral e fora das Entregas não), rota só U ou descendente/recebido, sem conversão = preparando, bloqueio de download tira, ETag/304
 npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
