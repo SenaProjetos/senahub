@@ -5,7 +5,9 @@ import {
   PITCH_MAXIMO_RAD,
   VELOCIDADE_M_S,
   alvoDoOlhar,
+  elementosDoPiso,
   entradaDoAndar,
+  maisBaixoParaAndar,
   olhar,
   passoDoAndar,
   pisoDeEntrada,
@@ -136,5 +138,54 @@ describe("pisoDeEntrada", () => {
 
   it("sem nada na cena, null", () => {
     expect(pisoDeEntrada([], [])).toBeNull();
+  });
+});
+
+describe("elementosDoPiso (fundações fora do piso)", () => {
+  it("num pavimento misto, tira sapatas, estacas e afins (maiúscula ou minúscula)", () => {
+    const els = [
+      { localId: 1, category: "IFCSLAB" },
+      { localId: 2, category: "IfcFooting" },
+      { localId: 3, category: "IFCPILE" },
+      { localId: 4, category: "IFCDEEPFOUNDATION" },
+      { localId: 5, category: "ifccaissonfoundation" },
+      { localId: 6, category: "IFCCOLUMN" },
+    ];
+    const r = elementosDoPiso(els);
+    expect(r.soFundacao).toBe(false);
+    expect(r.elementos.map((e) => e.localId)).toEqual([1, 6]);
+  });
+
+  it("pavimento só de fundação fica com todos (é o piso dele)", () => {
+    const els = [
+      { localId: 1, category: "IFCFOOTING" },
+      { localId: 2, category: "IFCPILE" },
+    ];
+    const r = elementosDoPiso(els);
+    expect(r.soFundacao).toBe(true);
+    expect(r.elementos.map((e) => e.localId)).toEqual([1, 2]);
+  });
+
+  it("sem categoria conta como elemento comum", () => {
+    const r = elementosDoPiso([{ localId: 1, category: null }, { localId: 2 }]);
+    expect(r.soFundacao).toBe(false);
+    expect(r.elementos).toHaveLength(2);
+  });
+});
+
+describe("maisBaixoParaAndar", () => {
+  it("pula o pavimento só de fundação", () => {
+    const fundacao = { nome: "FUNDAÇÃO", pisoY: -2, soFundacao: true };
+    const terreo = { nome: "TÉRREO", pisoY: 0, soFundacao: false };
+    const superior = { nome: "SUPERIOR", pisoY: 3, soFundacao: false };
+    expect(maisBaixoParaAndar([superior, fundacao, terreo])).toBe(terreo);
+  });
+
+  it("só fundação: o mais baixo deles; piso desconhecido não entra; vazio = null", () => {
+    const a = { pisoY: -2, soFundacao: true };
+    const b = { pisoY: -1, soFundacao: true };
+    expect(maisBaixoParaAndar([b, a])).toBe(a);
+    expect(maisBaixoParaAndar([{ pisoY: Number.POSITIVE_INFINITY, soFundacao: false }, b])).toBe(b);
+    expect(maisBaixoParaAndar([])).toBeNull();
   });
 });

@@ -98,6 +98,44 @@ export function alvoDoOlhar(e: EstadoAndar): Vec3 {
   return [e.pos[0] - Math.sin(e.yaw) * cp, e.pos[1] + Math.sin(e.pitch), e.pos[2] - Math.cos(e.yaw) * cp];
 }
 
+/** Categorias IFC de fundação: ficam fora do piso do pavimento (sapata e estaca descem abaixo da laje). */
+const CATEGORIAS_FUNDACAO: ReadonlySet<string> = new Set([
+  "IFCFOOTING",
+  "IFCPILE",
+  "IFCDEEPFOUNDATION",
+  "IFCCAISSONFOUNDATION",
+]);
+
+/** A categoria IFC (qualquer caixa) é de fundação. */
+export function ehFundacao(categoria: string | null | undefined): boolean {
+  return !!categoria && CATEGORIAS_FUNDACAO.has(categoria.toUpperCase());
+}
+
+/**
+ * A regra ÚNICA do piso de um pavimento (andar e alturas do portal): os elementos que entram no `pisoDoPavimento` do
+ * motor. Sem as fundações; se o pavimento só tem fundação (ou nada sobra), ficam todos e `soFundacao` = true. Elemento
+ * sem categoria conta como comum.
+ */
+export function elementosDoPiso<T extends { category?: string | null }>(
+  elementos: readonly T[],
+): { elementos: T[]; soFundacao: boolean } {
+  const semFundacao = elementos.filter((e) => !ehFundacao(e.category));
+  if (semFundacao.length > 0) return { elementos: semFundacao, soFundacao: false };
+  return { elementos: [...elementos], soFundacao: elementos.length > 0 };
+}
+
+/**
+ * O pavimento onde o andar entra sem escolha: o de piso conhecido mais baixo, pulando os só de fundação; se todos são só
+ * de fundação, o mais baixo deles; sem piso conhecido, null.
+ */
+export function maisBaixoParaAndar<T extends { pisoY: number; soFundacao?: boolean }>(pavimentos: readonly T[]): T | null {
+  const conhecidos = pavimentos.filter((p) => Number.isFinite(p.pisoY));
+  const comuns = conhecidos.filter((p) => !p.soFundacao);
+  let melhor: T | null = null;
+  for (const p of comuns.length > 0 ? comuns : conhecidos) if (!melhor || p.pisoY < melhor.pisoY) melhor = p;
+  return melhor;
+}
+
 /**
  * Piso onde o andar começa quando nenhum pavimento foi escolhido: o pavimento mais baixo com piso conhecido; sem
  * pavimento, o fundo da caixa da cena; sem nada na cena, null.

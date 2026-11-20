@@ -13,7 +13,7 @@ import {
 } from "@/modules/portal/modelo3d/regras";
 import type { SelecaoInfo, ViewerEngine } from "@/modules/coordenacao/viewer/engine";
 import { VISTAS_PADRAO } from "@/modules/coordenacao/viewer/vistas";
-import { pisoDeEntrada } from "@/modules/coordenacao/viewer/andar";
+import { elementosDoPiso, maisBaixoParaAndar, pisoDeEntrada } from "@/modules/coordenacao/viewer/andar";
 import { CamadaAndar } from "@/components/coordenacao/controle-andar";
 import { cn } from "@/lib/utils";
 import { useAlturaRestante } from "@/lib/use-altura-restante";
@@ -42,10 +42,13 @@ type DadosDoModelo = { pavimentos: PavimentoDoModelo[]; todosIds: number[]; pavi
 async function abrirNaCena(engine: ViewerEngine, m: ModeloDoPortal): Promise<DadosDoModelo> {
   await engine.carregarModelo(m.modeloId, m.url as string);
   const indice = await engine.indiceDoModelo(m.modeloId);
+  const categoria = new Map(indice.map((e) => [e.localId, e.category]));
   const pavimentos: PavimentoDoModelo[] = [];
   for (const g of gruposDePavimento(indice)) {
-    const pisoY = await engine.pisoDoPavimento(m.modeloId, g.localIds);
-    pavimentos.push({ modeloId: m.modeloId, nome: g.nome, pisoY, localIds: g.localIds });
+    // Piso sem as fundações (regra única com o andar, `elementosDoPiso`).
+    const piso = elementosDoPiso(g.localIds.map((localId) => ({ localId, category: categoria.get(localId) })));
+    const pisoY = await engine.pisoDoPavimento(m.modeloId, piso.elementos.map((e) => e.localId));
+    pavimentos.push({ modeloId: m.modeloId, nome: g.nome, pisoY, localIds: g.localIds, soFundacao: piso.soFundacao });
   }
   return {
     pavimentos,
@@ -157,12 +160,12 @@ export function VisualizadorModelo({
   );
   const pavimentoAtivo = pavimentos.find((p) => p.chave === pavimentoSel) ?? null;
 
-  // Modo andar: entra no pavimento escolhido ou, sem escolha, no mais baixo (a lista vem de baixo para cima), no centro
-  // dele em planta; sem pavimento algum, no fundo da cena.
+  // Modo andar: entra no pavimento escolhido ou, sem escolha, no mais baixo que não é só de fundação, no centro dele em
+  // planta; sem pavimento algum, no fundo da cena.
   const alternarAndar = async () => {
     if (!engine) return;
     if (engine.andando) return void engine.sairAndar();
-    const pav = pavimentoAtivo ?? pavimentos.find((p) => !ehSemPavimento(p) && Number.isFinite(p.pisoY)) ?? null;
+    const pav = pavimentoAtivo ?? maisBaixoParaAndar(pavimentos.filter((p) => !ehSemPavimento(p)));
     const piso = pav && Number.isFinite(pav.pisoY) ? pav.pisoY : pisoDeEntrada([], engine.caixasDosModelos());
     if (piso === null) return;
     const caixa = pav ? await engine.caixaDosElementos(pav.porModelo) : null;

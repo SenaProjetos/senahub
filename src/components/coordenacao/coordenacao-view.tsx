@@ -39,7 +39,7 @@ import { type ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
 import { CamadaAndar } from "@/components/coordenacao/controle-andar";
 import type { PavimentosDoFiltro } from "@/components/coordenacao/filtros-painel";
-import { pisoDeEntrada } from "@/modules/coordenacao/viewer/andar";
+import { elementosDoPiso, maisBaixoParaAndar, pisoDeEntrada } from "@/modules/coordenacao/viewer/andar";
 import type { Vec3 } from "@/modules/coordenacao/viewer/coords";
 import { chavePavimento, SEM_PAVIMENTO } from "@/modules/coordenacao/filtros";
 import { BcfImportDialog } from "@/components/coordenacao/bcf-import-dialog";
@@ -74,27 +74,40 @@ const Viewer3D = dynamic(() => import("@/components/coordenacao/viewer-3d"), {
 
 type DraftInfo = { uploadId: string; disciplinaId: string | null; guids: string[]; camera: CameraApontamento };
 
-/** Piso de um conjunto de elementos (o menor `pisoDoPavimento` entre os modelos); sem caixa válida, `+Infinity`. */
-async function pisoDosElementos(engine: ViewerEngine, porModelo: ReadonlyMap<string, readonly number[]>): Promise<number> {
-  let piso = Number.POSITIVE_INFINITY;
+/**
+ * Piso de um pavimento (elementos de vários modelos): o menor `pisoDoPavimento` entre os modelos, sem as fundações
+ * (`elementosDoPiso`, a mesma regra do portal, com os modelos juntos); sem caixa válida, `+Infinity`.
+ */
+async function pisoDosElementos(
+  engine: ViewerEngine,
+  porModelo: ReadonlyMap<string, readonly number[]>,
+): Promise<{ pisoY: number; soFundacao: boolean }> {
+  const elementos: { modeloId: string; localId: number; category: string | null }[] = [];
   for (const [modeloId, ids] of porModelo) {
-    if (ids.length > 0) piso = Math.min(piso, await engine.pisoDoPavimento(modeloId, [...ids]));
+    if (ids.length === 0) continue;
+    const categoria = new Map((await engine.indiceDoModelo(modeloId)).map((e) => [e.localId, e.category]));
+    for (const localId of ids) elementos.push({ modeloId, localId, category: categoria.get(localId) ?? null });
   }
-  return piso;
+  const piso = elementosDoPiso(elementos);
+  const idsDoPiso = new Map<string, number[]>();
+  for (const e of piso.elementos) idsDoPiso.set(e.modeloId, [...(idsDoPiso.get(e.modeloId) ?? []), e.localId]);
+  let pisoY = Number.POSITIVE_INFINITY;
+  for (const [modeloId, ids] of idsDoPiso) pisoY = Math.min(pisoY, await engine.pisoDoPavimento(modeloId, ids));
+  return { pisoY, soFundacao: piso.soFundacao };
 }
 
 /**
  * Onde o modo andar entra: o piso (Y do three) e a caixa do pavimento (o centro em planta). O pavimento é o dos marcados
- * no filtro (o mais baixo deles; a caixa de todos); sem filtro, o pavimento mais baixo dos modelos na cena, unido pelo
- * nome entre as disciplinas como no filtro; sem pavimento algum, o fundo da cena (e o centro dos modelos).
+ * no filtro (o mais baixo deles; a caixa de todos); sem filtro, o pavimento mais baixo dos modelos na cena que não é só de
+ * fundação, unido pelo nome entre as disciplinas como no filtro; sem pavimento algum, o fundo da cena (e o centro dos modelos).
  */
 async function entradaDoAndarInterno(
   engine: ViewerEngine,
   filtro: PavimentosDoFiltro | null,
 ): Promise<{ pisoY: number; caixa: { min: Vec3; max: Vec3 } | null } | null> {
   if (filtro) {
-    const piso = await pisoDosElementos(engine, filtro.porModelo);
-    if (Number.isFinite(piso)) return { pisoY: piso, caixa: await engine.caixaDosElementos(filtro.porModelo) };
+    const { pisoY } = await pisoDosElementos(engine, filtro.porModelo);
+    if (Number.isFinite(pisoY)) return { pisoY, caixa: await engine.caixaDosElementos(filtro.porModelo) };
   }
   const grupos = new Map<string, Map<string, number[]>>();
   for (const modeloId of engine.modelosCarregados) {
@@ -108,11 +121,9 @@ async function entradaDoAndarInterno(
       ids.push(e.localId);
     }
   }
-  let maisBaixo: { pisoY: number; porModelo: Map<string, number[]> } | null = null;
-  for (const porModelo of grupos.values()) {
-    const piso = await pisoDosElementos(engine, porModelo);
-    if (Number.isFinite(piso) && (!maisBaixo || piso < maisBaixo.pisoY)) maisBaixo = { pisoY: piso, porModelo };
-  }
+  const pavimentos: { pisoY: number; soFundacao: boolean; porModelo: Map<string, number[]> }[] = [];
+  for (const porModelo of grupos.values()) pavimentos.push({ ...(await pisoDosElementos(engine, porModelo)), porModelo });
+  const maisBaixo = maisBaixoParaAndar(pavimentos);
   if (maisBaixo) return { pisoY: maisBaixo.pisoY, caixa: await engine.caixaDosElementos(maisBaixo.porModelo) };
   const fundo = pisoDeEntrada([], engine.caixasDosModelos());
   return fundo === null ? null : { pisoY: fundo, caixa: null };
@@ -308,7 +319,7 @@ export function CoordenacaoView({
     pavimentosFiltroRef.current = sel;
     const engine = engineRef.current;
     if (!sel || sel.chave === antes?.chave || !engine?.andando) return;
-    void pisoDosElementos(engine, sel.porModelo).then((piso) => engine.trocarPisoDoAndar(piso));
+    void pisoDosElementos(engine, sel.porModelo).then((piso) => engine.trocarPisoDoAndar(piso.pisoY));
   }, []);
 
   useEffect(() => {

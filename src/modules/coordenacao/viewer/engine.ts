@@ -2056,6 +2056,8 @@ export class ViewerEngine {
       return;
     }
     if (this.realinhar) this.sairRealinhamento();
+    // Medindo, o clique curto marcaria ponto em vez de selecionar e o cartão da medição cobriria a ajuda do andar.
+    if (this.medicao) this.sairMedicao();
     const box = this.bboxGlobal();
     const cam = this.camera.position;
     const caixa =

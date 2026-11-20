@@ -52,8 +52,11 @@ export function modeloServidoDaOrigem(
 export type PavimentoDoModelo = {
   modeloId: string;
   nome: string | null;
+  /** Piso pela regra de `elementosDoPiso` (sem fundações, salvo pavimento só de fundação). */
   pisoY: number;
   localIds: number[];
+  /** Neste modelo o pavimento só tem fundação (o piso saiu de sapatas/estacas). */
+  soFundacao?: boolean;
 };
 
 export type PavimentoUnido = {
@@ -61,6 +64,8 @@ export type PavimentoUnido = {
   nome: string;
   pisoY: number;
   porModelo: Map<string, number[]>;
+  /** Em todos os modelos o pavimento só tem fundação — o andar não entra nele sem escolha. */
+  soFundacao: boolean;
 };
 
 const NOME_SEM_PAVIMENTO = "Sem pavimento";
@@ -84,12 +89,14 @@ export function ehSemPavimento(p: Pick<PavimentoUnido, "chave">): boolean {
 
 /**
  * Une pavimentos de vários modelos por nome normalizado (sem acento/caixa/espaço extra).
- * Piso = o menor `pisoY`; ordem crescente de piso; sem nome → "Sem pavimento", sempre por último.
+ * Piso = o menor `pisoY` das partes que não são só de fundação (se todas são, o menor de todas) — a mesma regra de
+ * `elementosDoPiso` com os modelos juntos; ordem crescente de piso; sem nome → "Sem pavimento", sempre por último.
  */
 export function unirPavimentos(
   lista: readonly PavimentoDoModelo[],
 ): PavimentoUnido[] {
   const porChave = new Map<string, PavimentoUnido>();
+  const pisoDeTodas = new Map<string, number>();
 
   for (const p of lista) {
     const normalizado = p.nome ? normalizarNome(p.nome) : "";
@@ -101,17 +108,26 @@ export function unirPavimentos(
       item = {
         chave,
         nome: semNome ? NOME_SEM_PAVIMENTO : (p.nome as string).trim().replace(/\s+/g, " "),
-        pisoY: p.pisoY,
+        pisoY: Number.POSITIVE_INFINITY,
         porModelo: new Map(),
+        soFundacao: true,
       };
       porChave.set(chave, item);
-    } else if (p.pisoY < item.pisoY) {
-      item.pisoY = p.pisoY;
+    }
+    pisoDeTodas.set(chave, Math.min(pisoDeTodas.get(chave) ?? Number.POSITIVE_INFINITY, p.pisoY));
+    if (!p.soFundacao) {
+      if (item.soFundacao) item.pisoY = p.pisoY;
+      else item.pisoY = Math.min(item.pisoY, p.pisoY);
+      item.soFundacao = false;
     }
 
     const ids = item.porModelo.get(p.modeloId);
     if (ids) ids.push(...p.localIds);
     else item.porModelo.set(p.modeloId, [...p.localIds]);
+  }
+
+  for (const item of porChave.values()) {
+    if (item.soFundacao) item.pisoY = pisoDeTodas.get(item.chave) ?? Number.POSITIVE_INFINITY;
   }
 
   const todos = [...porChave.values()];

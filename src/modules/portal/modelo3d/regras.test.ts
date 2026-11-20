@@ -110,6 +110,25 @@ describe("unirPavimentos", () => {
     expect(r[0].nome).toBe("Térreo");
   });
 
+  it("pavimento só de fundação num modelo não puxa o piso do mesmo pavimento do outro", () => {
+    const r = unirPavimentos([
+      { modeloId: "m1", nome: "Térreo", pisoY: -1.8, localIds: [1], soFundacao: true },
+      { modeloId: "m2", nome: "TÉRREO", pisoY: 0, localIds: [2] },
+    ]);
+    expect(r[0].pisoY).toBe(0);
+    expect(r[0].soFundacao).toBe(false);
+    expect(r[0].porModelo.get("m1")).toEqual([1]);
+  });
+
+  it("só de fundação em todos os modelos: piso = o menor e soFundacao", () => {
+    const r = unirPavimentos([
+      { modeloId: "m1", nome: "Fundação", pisoY: -2, localIds: [1], soFundacao: true },
+      { modeloId: "m2", nome: "FUNDACAO", pisoY: -2.5, localIds: [2], soFundacao: true },
+    ]);
+    expect(r[0].pisoY).toBe(-2.5);
+    expect(r[0].soFundacao).toBe(true);
+  });
+
   it("ignora espaços internos repetidos", () => {
     const r = unirPavimentos([
       { modeloId: "m1", nome: "1º   Pavimento", pisoY: 3, localIds: [1] },
@@ -190,6 +209,7 @@ describe("visibilidadeDoPortal", () => {
     chave: "terreo",
     nome: "Térreo",
     pisoY: 0,
+    soFundacao: false,
     porModelo: new Map<string, number[]>([
       ["A", [1]],
       ["B", [7]],
