@@ -3,6 +3,7 @@ import {
   descendentesDe,
   gruposDePavimento,
   modeloServidoDaOrigem,
+  motivoSemModelo,
   unirPavimentos,
   visibilidadeDoPortal,
   type UploadDaCadeia,
@@ -217,5 +218,18 @@ describe("visibilidadeDoPortal", () => {
 
   it("desligado que não está carregado não muda nada", () => {
     expect(visibilidadeDoPortal({ carregados: ["A"], desligados: new Set(["Z"]), pavimento: null, todosIds })).toBe("tudo");
+  });
+});
+
+describe("motivoSemModelo", () => {
+  it("nenhum IFC = vazio; algum pronto = nada a explicar", () => {
+    expect(motivoSemModelo([])).toBe("vazio");
+    expect(motivoSemModelo(["erro", "pronto"])).toBeNull();
+  });
+
+  it("todos com erro = erro; algum preparando = preparando", () => {
+    expect(motivoSemModelo(["erro", "erro"])).toBe("erro");
+    expect(motivoSemModelo(["erro", "preparando"])).toBe("preparando");
+    expect(motivoSemModelo(["preparando"])).toBe("preparando");
   });
 });

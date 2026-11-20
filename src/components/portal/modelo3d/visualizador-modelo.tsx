@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Box, Info, Maximize, SlidersHorizontal } from "lucide-react";
+import { Box, Info, Maximize, RotateCw, SlidersHorizontal } from "lucide-react";
 import type { ModeloDoPortal } from "@/modules/portal/modelo3d/queries";
 import {
   gruposDePavimento,
@@ -48,6 +48,12 @@ async function abrirNaCena(engine: ViewerEngine, m: ModeloDoPortal): Promise<Dad
     todosIds: indice.map((e) => e.localId),
     pavimentoPorLocalId: new Map(indice.map((e) => [e.localId, e.pavimentoNome])),
   };
+}
+
+/** O motivo da falha (vindo da rota), quando ele diz mais que a frase padrão. */
+function estadoFalha(estado: EstadoNaCena | undefined): string | null {
+  if (estado?.tipo !== "falhou" || estado.erro === "Não foi possível abrir o modelo.") return null;
+  return estado.erro;
 }
 
 function mensagemDeErro(e: unknown): string {
@@ -224,6 +230,22 @@ export function VisualizadorModelo({
   const alturaDoCorte = faixaY ? (faixaY.max - faixaY.min) * corte.posicao : null;
   const algumCarregando = [...estados.values()].some((e) => e.tipo === "carregando" || e.tipo === "fila");
   const nenhumNaCena = carregados.length === 0;
+  const falhas = prontos.filter((m) => estados.get(m.modeloId)?.tipo === "falhou");
+  // Nada na cena, nada abrindo e algum modelo falhou: o aviso vai no meio da tela (no celular o painel fica na folha).
+  const mostrarFalha = nenhumNaCena && !algumCarregando && falhas.length > 0;
+  // O motivo da rota só quando é um só (vários modelos com o mesmo motivo contam como um).
+  const motivosDaFalha = [
+    ...new Set(falhas.map((m) => estadoFalha(estados.get(m.modeloId))).filter((x): x is string => x !== null)),
+  ];
+  // Um por vez, como na carga inicial, e enquadra o conjunto no fim (o motor só enquadra o primeiro que entra).
+  const tentarFalhasDeNovo = () => {
+    if (!engine) return;
+    const eng = engine;
+    void (async () => {
+      for (const m of falhas) await abrir(eng, m, () => false);
+      await eng.enquadrar();
+    })();
+  };
 
   const painel = (
     <PainelModelo
@@ -281,6 +303,18 @@ export function VisualizadorModelo({
             >
               Abrindo o modelo 3D…
             </p>
+          )}
+          {mostrarFalha && (
+            <div
+              role="alert"
+              className="absolute left-1/2 top-1/2 flex w-[min(22rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 rounded-md border bg-background/95 px-4 py-3 text-center text-sm shadow-sm backdrop-blur"
+            >
+              <p className="font-medium text-destructive-text">Não foi possível abrir o modelo.</p>
+              {motivosDaFalha.length === 1 && <p className="text-xs text-muted-foreground">{motivosDaFalha[0]}</p>}
+              <Button size="sm" variant="outline" onClick={tentarFalhasDeNovo}>
+                <RotateCw className="size-4" /> Tentar de novo
+              </Button>
+            </div>
           )}
           {selecao && (
             <Button

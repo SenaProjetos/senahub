@@ -164,3 +164,13 @@ export function visibilidadeDoPortal(o: {
   }
   return mapa;
 }
+
+/**
+ * Por que a página 3D não tem modelo para abrir: `vazio` = nenhum IFC; `erro` = todos os que não estão prontos falharam
+ * na conversão; `preparando` = algum ainda está na fila/convertendo. `null` = há modelo pronto.
+ */
+export function motivoSemModelo(situacoes: readonly ("pronto" | "preparando" | "erro")[]): "vazio" | "preparando" | "erro" | null {
+  if (situacoes.length === 0) return "vazio";
+  if (situacoes.includes("pronto")) return null;
+  return situacoes.includes("preparando") ? "preparando" : "erro";
+}

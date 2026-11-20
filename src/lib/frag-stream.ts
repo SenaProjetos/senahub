@@ -9,7 +9,7 @@ const MENSAGEM_ARQUIVO_SUMIU = "O arquivo convertido deste modelo não está mai
 /**
  * Serve um `.frag` (modelo convertido para o visualizador 3D) em streaming, com ETag por conversão: `chave` é o
  * modeloId e `concluidoEm` muda ao reconverter, então o cache do navegador cai sozinho. `If-None-Match` igual → 304.
- * Arquivo fora do disco → 410. Quem chama já decidiu o acesso (rota da Coordenação e rota do portal).
+ * Arquivo fora do disco → 410 (sem cache). Quem chama já decidiu o acesso (rota da Coordenação e rota do portal).
  */
 export async function servirFrag(
   req: Request,
@@ -29,7 +29,8 @@ export async function servirFrag(
     caminhoAbs = resolverCaminho(caminhoFrag);
     tamanho = (await stat(caminhoAbs)).size;
   } catch {
-    return NextResponse.json({ error: mensagemArquivoSumiu }, { status: 410 });
+    // `no-store`: o 410 é guardável por padrão no HTTP, e "Tentar de novo" leria a falha do cache do navegador.
+    return NextResponse.json({ error: mensagemArquivoSumiu }, { status: 410, headers: { "Cache-Control": "no-store" } });
   }
 
   const stream = Readable.toWeb(createReadStream(caminhoAbs)) as ReadableStream;

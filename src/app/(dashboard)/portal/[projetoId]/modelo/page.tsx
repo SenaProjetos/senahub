@@ -5,6 +5,7 @@ import { Box, Download } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
 import { modelosDoPortal } from "@/modules/portal/modelo3d/queries";
+import { motivoSemModelo } from "@/modules/portal/modelo3d/regras";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { VisualizadorModeloDinamico } from "@/components/portal/modelo3d/visualizador-modelo-dinamico";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,21 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Modelo 3D" };
+
+const TEXTO_SEM_MODELO = {
+  vazio: {
+    titulo: "Este projeto ainda não tem modelo 3D.",
+    descricao: "Quando a equipe compartilhar um modelo IFC nas Entregas, ele aparece aqui.",
+  },
+  preparando: {
+    titulo: "O modelo 3D ainda não está pronto.",
+    descricao: "O arquivo IFC está sendo preparado para ver no navegador. Enquanto isso, você pode baixá-lo nas Entregas.",
+  },
+  erro: {
+    titulo: "O modelo 3D não pôde ser preparado.",
+    descricao: "Fale com a equipe do projeto. Enquanto isso, você pode baixar o arquivo IFC nas Entregas.",
+  },
+} as const;
 
 /** Modelo 3D do portal do cliente: os IFCs das Entregas (e os enviados pelo cliente) juntos, para explorar. */
 export default async function ModeloDoPortalPage({
@@ -33,7 +49,8 @@ export default async function ModeloDoPortalPage({
   if (!modelos) notFound();
   const { modelo } = await searchParams;
   const foco = typeof modelo === "string" ? modelo : null;
-  const algumPronto = modelos.some((m) => m.situacao === "pronto");
+  const motivo = motivoSemModelo(modelos.map((m) => m.situacao));
+  const texto = motivo ? TEXTO_SEM_MODELO[motivo] : null;
   const daEntrega = modelos.filter((m) => m.origem === "entrega" && m.origemUploadId);
 
   return (
@@ -47,19 +64,15 @@ export default async function ModeloDoPortalPage({
           { label: "Modelo 3D" },
         ]}
       />
-      {algumPronto ? (
+      {!texto ? (
         <VisualizadorModeloDinamico projetoId={projetoId} modelos={modelos} foco={foco} />
       ) : (
         <Card>
           <CardContent>
             <EmptyState
               icon={Box}
-              title={modelos.length > 0 ? "O modelo 3D ainda não está pronto." : "Este projeto ainda não tem modelo 3D."}
-              description={
-                modelos.length > 0
-                  ? "O arquivo IFC está sendo preparado para ver no navegador. Enquanto isso, você pode baixá-lo nas Entregas."
-                  : "Quando a equipe compartilhar um modelo IFC nas Entregas, ele aparece aqui."
-              }
+              title={texto.titulo}
+              description={texto.descricao}
               action={
                 <div className="flex flex-wrap justify-center gap-2">
                   {daEntrega.map((m) => (
