@@ -70,6 +70,7 @@ export function PreferenciasView({
   notifCicloDocumental: notifCicloDocumentalInicial,
   notifEtapaProxima: notifEtapaProximaInicial,
   notifAtividadeConcluida: notifAtividadeConcluidaInicial,
+  notifPedidoRevisaoCliente: notifPedidoRevisaoClienteInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -103,6 +104,7 @@ export function PreferenciasView({
   notifCicloDocumental: boolean;
   notifEtapaProxima: boolean;
   notifAtividadeConcluida: boolean;
+  notifPedidoRevisaoCliente: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -137,6 +139,7 @@ export function PreferenciasView({
   const [notifCicloDocumental, setNotifCicloDocumental] = useState(notifCicloDocumentalInicial);
   const [notifEtapaProxima, setNotifEtapaProxima] = useState(notifEtapaProximaInicial);
   const [notifAtividadeConcluida, setNotifAtividadeConcluida] = useState(notifAtividadeConcluidaInicial);
+  const [notifPedidoRevisaoCliente, setNotifPedidoRevisaoCliente] = useState(notifPedidoRevisaoClienteInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -354,6 +357,13 @@ export function PreferenciasView({
       descricao: "Para quem valida o cronograma: um responsável marcou uma atividade da EAP como concluída e falta você validar o percentual.",
       valor: notifAtividadeConcluida,
       set: setNotifAtividadeConcluida,
+    },
+    {
+      chave: "notif_pedido_revisao_cliente",
+      titulo: "Pedidos de revisão do cliente",
+      descricao: "Um cliente pediu, pelo portal, revisão de uma prancha de projeto que você coordena.",
+      valor: notifPedidoRevisaoCliente,
+      set: setNotifPedidoRevisaoCliente,
     },
   ];
 

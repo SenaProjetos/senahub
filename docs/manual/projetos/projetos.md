@@ -881,6 +881,31 @@ no texto ("Medidas: 3,53 m; 7,06 m."). Os valores ficam congelados com a escala 
 medida aparece com o seu valor na prancha, no PDF carimbado e no relatório em planilha. Arrastar
 numa página sem escala abre a calibração.
 
+## Pedidos de revisão do cliente
+
+O cliente pode pedir revisão de uma prancha pelo portal (Meus projetos → Entregas): escreve um comentário, marca na
+prancha com as mesmas ferramentas da equipe (alfinete, retângulo, seta, nuvem, cota e traço livre) e anexa até 5
+arquivos. O pedido não muda nada sozinho: ele espera a coordenação.
+
+- **Onde aparece:** menu **Pedidos do cliente** (com o número de pedidos aguardando), para quem pode liberar para obra
+  e enviar ao cliente (`arquivos:alterar_status`), só dos projetos que a pessoa enxerga. Quem coordena o projeto
+  recebe um aviso no sino (sem coordenador, os gestores); dá para desligar em Preferências → **Pedidos de revisão do
+  cliente**.
+- **Abrir o pedido** mostra o comentário, as marcações (lista numerada e a prancha com os desenhos), os anexos e o botão
+  **Abrir a prancha**.
+- **Aceitar…** (resposta opcional): a revisão publicada fica **Em revisão**, com o motivo "Pedido do cliente: …", e cada
+  marcação vira um **rascunho de apontamento** seu, no mesmo ponto da prancha, com o texto "Cliente (Nome): …". Você
+  revisa os rascunhos no visualizador e manda na rodada de sempre (**Enviar apontamentos**). Os projetistas só ficam
+  sabendo pela rodada. Aceitar exige também validar arquivos (`uploads:validar`), porque os rascunhos ficam com quem
+  aceita.
+- **Recusar…** exige a resposta, que vai para o cliente.
+- O cliente recebe sino e e-mail com a resposta. Ele pode cancelar enquanto o pedido aguarda.
+- Se a prancha ganhou revisão nova depois do pedido, o pedido mostra **Revisão substituída** e só pode ser recusado:
+  os rascunhos nunca caem numa revisão diferente da que o cliente marcou. Peça na resposta que ele confira a revisão
+  nova.
+- Vários pedidos na mesma revisão são aceitos; o segundo não aplica outro "Em revisão" (o detalhe avisa "Já há pedido
+  aceito nesta revisão").
+
 ## Permissões (resumo)
 
 | Ação | Permissão |
@@ -892,6 +917,7 @@ numa página sem escala abre a calibração.
 | Ver downloads e visualizações no histórico do documento | `arquivos:ver_acessos` |
 | Ver a aba **Resultados** (previsto × apontado) | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
 | Ver o custo em R$ na aba Resultados | acesso ao financeiro (`financeiro:ver` ou sócio) |
+| Ver e responder pedidos de revisão do cliente | `arquivos:alterar_status` (aceitar exige também `uploads:validar`) |
 
 ## Erros possíveis e soluções
 

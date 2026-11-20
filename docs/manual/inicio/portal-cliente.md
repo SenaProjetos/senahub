@@ -78,7 +78,7 @@ Dentro de cada pasta, as pranchas ficam por disciplina, fase (EP, BS, EX…) e f
 arquivo mostra a **revisão** (R00, R01…) e, quando houver, **o que mudou** nela. Abaixo das pastas ficam as
 **ARTs** do projeto, com o histórico de versões.
 
-- O ícone de olho **abre o PDF no navegador**; o de seta **baixa** o arquivo.
+- O ícone de olho **abre a prancha no portal**, com zoom e o botão **Pedir revisão**; o de seta **baixa** o arquivo.
 - O ícone de pacote ao lado de uma pasta baixa **a pasta inteira em .zip**; **Baixar tudo (.zip)** baixa todas.
 - **Em revisão** — o escritório está preparando uma revisão nova desta prancha (normalmente a pedido do
   cliente). A prancha atual continua valendo até a nova chegar.
@@ -87,6 +87,34 @@ arquivo mostra a **revisão** (R00, R01…) e, quando houver, **o que mudou** ne
 
 Só aparecem aqui as pranchas que o escritório colocou nas pastas do cliente. Revisões em andamento ou em
 análise interna não aparecem. Os mesmos arquivos são os que um link de arquivos do projeto mostraria.
+
+## Pedir revisão de uma prancha
+
+Quando algo numa prancha precisa mudar, peça pelo portal: o pedido chega à equipe com o lugar exato.
+
+1. Em **Entregas**, clique no olho do PDF. A prancha abre no portal, com zoom.
+2. Clique **Pedir revisão**. Escolha uma ferramenta (**Alfinete**, **Retângulo**, **Seta**, **Nuvem**, **Cota** ou
+   **Traço livre**) e marque na prancha. Cada marcação pede um texto: o que mudar ali.
+3. Escreva o **comentário geral** e, se quiser, anexe até 5 arquivos (PDF, imagem PNG ou JPG, DWG ou DXF).
+4. Clique **Enviar pedido**.
+
+Também dá para pedir sem marcar: **Pedir revisão** na linha do PDF, nas Entregas, abre só o comentário e os anexos.
+
+- As marcações ficam guardadas neste navegador até o envio: fechar a aba não perde o trabalho. **Descartar** apaga.
+- **Cota** só funciona quando a equipe já definiu a escala da prancha; sem ela, o botão fica desabilitado. O valor da
+  cota é recalculado pelo sistema ao enviar.
+- No celular, o botão **Pedido (N)** abre a lista de marcações, o comentário e o envio.
+
+O pedido aparece no card **Pedidos de revisão** e a prancha ganha o selo **Pedido aguardando** nas Entregas. Quando
+a equipe responde, chega um aviso no sino e um e-mail:
+
+- **Aceito** — a prancha passa a mostrar **Em revisão** e a equipe prepara a revisão nova.
+- **Recusado** — a resposta da equipe explica o motivo.
+
+Enquanto o pedido aguarda, qualquer conta da sua empresa pode **Cancelar pedido**. Pedido enviado não se edita:
+cancele e faça outro. Se a prancha ganhar revisão nova antes da resposta, o pedido mostra **Revisão substituída** —
+confira a revisão nova. Na prancha, as marcações dos pedidos que ainda aguardam a equipe aparecem em cinza, para
+ninguém pedir a mesma coisa duas vezes.
 
 ## Resumo por e-mail
 

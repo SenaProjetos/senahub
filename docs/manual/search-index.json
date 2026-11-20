@@ -302,7 +302,7 @@
     {
       "titulo": "Portal do cliente (Meus projetos)",
       "path": "inicio/portal-cliente.md",
-      "descricao": "Visão externa, somente leitura, onde o cliente acompanha seus projetos.",
+      "descricao": "Visão externa onde o cliente acompanha seus projetos e pede revisão das pranchas entregues.",
       "resumo": "O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.",
       "tags": [
         "portal",
@@ -324,7 +324,12 @@
         "fase",
         "linha do tempo",
         "resumo",
-        "e-mail"
+        "e-mail",
+        "pedir revisão",
+        "pedido de revisão",
+        "marcação",
+        "alfinete",
+        "nuvem"
       ],
       "sinonimos": [
         "área do cliente",
@@ -338,6 +343,8 @@
       "descricao": "Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.",
       "resumo": "Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.",
       "tags": [
+        "pedidos do cliente",
+        "pedido de revisão",
         "resultados",
         "horas previstas x apontadas",
         "projetos",

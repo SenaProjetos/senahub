@@ -6,6 +6,8 @@ import { CalendarDays, Download, FileStack, MapPin } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
 import { andamentoDoPortal } from "@/modules/portal/andamento-queries";
+import { pedidosDoProjetoNoPortal } from "@/modules/portal/pedido-revisao/queries";
+import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
 import { AndamentoCard } from "@/components/portal/andamento-card";
@@ -66,7 +68,7 @@ export default async function PortalProjetoPage({
           um erro aqui fica só neste bloco. */}
       <LimiteErroEntregas>
         <Suspense fallback={<AndamentoEEntregasCarregando />}>
-          <AndamentoEEntregas projeto={projeto} />
+          <AndamentoEEntregas projeto={projeto} clienteId={cliente.clienteId} />
         </Suspense>
       </LimiteErroEntregas>
 
@@ -77,19 +79,31 @@ export default async function PortalProjetoPage({
 
 type ProjetoDoPortal = NonNullable<Awaited<ReturnType<typeof projetoDoCliente>>>;
 
-async function AndamentoEEntregas({ projeto }: { projeto: ProjetoDoPortal }) {
+async function AndamentoEEntregas({ projeto, clienteId }: { projeto: ProjetoDoPortal; clienteId: string }) {
   const { andamento, linha, conteudo } = await andamentoDoPortal(projeto);
+  const pedidos = await pedidosDoProjetoNoPortal(projeto.id, clienteId);
+  const aguardando = [...new Set(pedidos.filter((p) => p.status === "aguardando").map((p) => p.uploadId))];
   return (
     <div className="space-y-6">
       <AndamentoCard andamento={andamento} />
       <LinhaDoTempoCard itens={linha} />
-      <EntregasDoProjeto projetoId={projeto.id} entregas={conteudo} />
+      <EntregasDoProjeto projetoId={projeto.id} entregas={conteudo} aguardando={aguardando} />
+      <PedidosRevisaoCard pedidos={pedidos} projetoId={projeto.id} />
     </div>
   );
 }
 
 /** Card "Entregas": as pastas do cliente pelo mesmo núcleo do link público. */
-function EntregasDoProjeto({ projetoId, entregas }: { projetoId: string; entregas: ConteudoPublico | null }) {
+function EntregasDoProjeto({
+  projetoId,
+  entregas,
+  aguardando,
+}: {
+  projetoId: string;
+  entregas: ConteudoPublico | null;
+  /** Uploads com pedido de revisão aguardando a equipe (selo na linha). */
+  aguardando: string[];
+}) {
   const totalEntregas = entregas
     ? entregas.situacoes.reduce((n, s) => n + s.total, 0) + entregas.arts.length
     : 0;
@@ -107,7 +121,7 @@ function EntregasDoProjeto({ projetoId, entregas }: { projetoId: string; entrega
       <CardContent className="p-2 pt-0">
         {entregas && totalEntregas > 0 ? (
           <div className="divide-y">
-            <EntregasDoPortal base={base} conteudo={entregas} projetoId={projetoId} />
+            <EntregasDoPortal base={base} conteudo={entregas} projetoId={projetoId} aguardando={aguardando} />
           </div>
         ) : (
           <EmptyState

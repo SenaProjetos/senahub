@@ -1,4 +1,5 @@
 import type { AcaoItem } from "@/components/ui/acoes";
+import { escaparMarkdown } from "@/modules/portal/resumo-diario";
 
 /**
  * Regras puras do pedido de revisão do cliente (spec 2026-11-19-portal-pedido-revisao-design.md). O pedido nasce
@@ -104,4 +105,30 @@ export function itensDoPedido(p: { status: StatusPedido; podeAceitar: string | n
   ];
   if (p.podeRecusar) itens.push({ tipo: "acao", id: "recusar", rotulo: "Recusar…" });
   return itens;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Avisos (sino e e-mail)
+// ─────────────────────────────────────────────────────────────
+
+/** Sino da coordenação quando o cliente pede revisão. */
+export function textoPedidoNovo(p: { projetoCodigo: string; autorNome: string; prancha: string }): { titulo: string; corpo: string } {
+  return { titulo: "Pedido de revisão do cliente", corpo: `${p.projetoCodigo} — ${p.autorNome} pediu revisão de ${p.prancha}.` };
+}
+
+/** "aceito" | "recusado" — como a situação entra na frase do e-mail ("foi **aceito** pela equipe"). */
+export function situacaoDaResposta(status: "aceito" | "recusado"): string {
+  return status;
+}
+
+/** Sino de quem pediu quando a equipe responde. */
+export function textoResposta(p: { status: "aceito" | "recusado"; prancha: string }): { titulo: string; corpo: string } {
+  return p.status === "aceito"
+    ? { titulo: "Pedido de revisão aceito", corpo: `A equipe aceitou seu pedido de revisão de ${p.prancha}.` }
+    : { titulo: "Pedido de revisão recusado", corpo: `A equipe respondeu seu pedido de revisão de ${p.prancha}.` };
+}
+
+/** A resposta da equipe no e-mail (Markdown escapado); sem resposta, linha vazia. */
+export function linhaRespostaEmail(resposta: string | null): string {
+  return resposta?.trim() ? `Resposta da equipe: ${escaparMarkdown(resposta.trim())}` : "";
 }

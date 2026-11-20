@@ -2,6 +2,12 @@ import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/with-action";
+import { notificar, notificarMuitos } from "@/lib/notificar";
+import { smtpConfigurado } from "@/lib/mail";
+import { enviarEmailTemplate } from "@/lib/email-templates";
+import { whereAudiencia } from "@/lib/audiencias";
+import { formatarCodigo } from "@/modules/projetos/numbering";
+import { destinatariosDaConclusao } from "@/modules/planejamento/conclusao-aviso";
 import { acessoDoUsuarioAoProjetoDoPortal, type UsuarioDaSessao } from "@/modules/portal/acesso";
 import { uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import {
@@ -25,6 +31,10 @@ import {
   motivoParaNaoCancelar,
   motivoParaNaoRecusar,
   motivoDoAnexo,
+  linhaRespostaEmail,
+  situacaoDaResposta,
+  textoPedidoNovo,
+  textoResposta,
   type EstadoDaRevisao,
   type StatusPedido,
 } from "./regras";
@@ -333,4 +343,98 @@ export async function anexoParaBaixar(
   const pode =
     user.tipo === "externo" ? (await acessoDoUsuarioAoProjetoDoPortal(user, projetoId)).ok : await podeCoordenar(projetoId);
   return pode ? { nome: anexo.nome, caminho: anexo.caminho, mime: anexo.mime, projetoId } : null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Avisos — depois da escrita, e nunca a derrubam
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Pedido novo: sino para a coordenação do projeto (membros com papel de coordenação; sem nenhum, os gestores — mesma
+ * regra de `destinatariosDaConclusao`), categoria `pedido_revisao_cliente`. `notificar` entra como parâmetro para o
+ * smoke rodar sem disparar nada.
+ */
+export async function avisarPedidoNovo(
+  pedidoId: string,
+  notificar: (ids: string[], n: { titulo: string; corpo: string; href: string }, o: { categoria: string }) => Promise<void> = notificarMuitos,
+): Promise<{ avisados: number }> {
+  try {
+    const p = await prisma.pedidoRevisaoCliente.findUnique({
+      where: { id: pedidoId },
+      select: {
+        projetoId: true,
+        autorId: true,
+        autor: { select: { name: true } },
+        projeto: { select: { codigo: true } },
+        upload: { select: { nomeArquivo: true } },
+      },
+    });
+    if (!p) return { avisados: 0 };
+    const coord = await prisma.projetoMembro.findMany({
+      where: { projetoId: p.projetoId, papel: { contains: "coord", mode: "insensitive" } },
+      select: { userId: true },
+    });
+    const gestores = coord.length > 0 ? [] : await prisma.user.findMany({ where: whereAudiencia("global"), select: { id: true } });
+    const destino = destinatariosDaConclusao({
+      coordenadores: coord.map((c) => c.userId),
+      gestores: gestores.map((g) => g.id),
+      autorId: p.autorId,
+    });
+    if (destino.length === 0) return { avisados: 0 };
+    const texto = textoPedidoNovo({ projetoCodigo: formatarCodigo(p.projeto.codigo), autorNome: p.autor.name, prancha: p.upload.nomeArquivo });
+    await notificar(destino, { ...texto, href: `/arquivos/pedidos-cliente/${pedidoId}` }, { categoria: "pedido_revisao_cliente" });
+    return { avisados: destino.length };
+  } catch (e) {
+    console.error("[pedido-revisao] aviso do pedido novo falhou:", e);
+    return { avisados: 0 };
+  }
+}
+
+type EnviarEmail = (to: string, slug: string, vars: Record<string, string>) => Promise<boolean>;
+
+/**
+ * Resposta (aceito/recusado): sino + e-mail para quem pediu, sem esperar o resumo diário. Sem SMTP, só o sino. O
+ * e-mail não tem opção de desligar: é a resposta a uma ação da própria pessoa.
+ */
+export async function avisarResposta(
+  pedidoId: string,
+  deps: {
+    notificar: (userId: string, n: { titulo: string; corpo: string; href: string }) => Promise<void>;
+    enviarEmail: EnviarEmail | null;
+  } = { notificar, enviarEmail: smtpConfigurado() ? enviarEmailTemplate : null },
+): Promise<{ sino: boolean; email: boolean }> {
+  let sino = false;
+  let email = false;
+  try {
+    const p = await prisma.pedidoRevisaoCliente.findUnique({
+      where: { id: pedidoId },
+      select: {
+        status: true,
+        resposta: true,
+        projetoId: true,
+        autorId: true,
+        autor: { select: { name: true, email: true } },
+        projeto: { select: { nome: true } },
+        upload: { select: { nomeArquivo: true } },
+      },
+    });
+    if (!p || (p.status !== "aceito" && p.status !== "recusado")) return { sino, email };
+    const href = `/portal/${p.projetoId}`;
+    await deps.notificar(p.autorId, { ...textoResposta({ status: p.status, prancha: p.upload.nomeArquivo }), href });
+    sino = true;
+    if (deps.enviarEmail && p.autor.email) {
+      const app = (process.env.APP_URL ?? "").replace(/\/+$/, "");
+      email = await deps.enviarEmail(p.autor.email, "pedido-revisao-respondido", {
+        nome: p.autor.name.trim().split(/\s+/)[0] ?? "",
+        projeto: p.projeto.nome,
+        prancha: p.upload.nomeArquivo,
+        situacao: situacaoDaResposta(p.status),
+        resposta: linhaRespostaEmail(p.resposta),
+        url: `${app}${href}`,
+      });
+    }
+  } catch (e) {
+    console.error("[pedido-revisao] aviso da resposta falhou:", e);
+  }
+  return { sino, email };
 }

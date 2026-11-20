@@ -874,6 +874,18 @@ The request closes (`fecharSeAtendido`) on fill and in `rotinasRhDiarias`.
   people who confirmed 12+ months ago (never-confirmed = RH batch only).
 - F6 `rh/gestao/` — `/rh/gestao` composes existing reads; pure signals in `sinais.ts`; climate hidden below 3 answers.
 
+**Pedido de revisão do cliente** (`modules/portal/pedido-revisao/`, spec `docs/superpowers/specs/2026-11-19-portal-pedido-revisao-design.md`):
+o cliente pede revisão de um PDF das Entregas do portal (visualizador `/portal/[projetoId]/prancha/[uploadId]`, 6 ferramentas de
+marcação, rascunho no `localStorage`) e a coordenação decide em `/arquivos/pedidos-cliente` (`arquivos:alterar_status`; aceitar
+também `uploads:validar`). `PedidoRevisaoCliente` + `MarcacaoPedidoCliente` (mesmo formato da `Pendencia`) + `AnexoPedidoCliente`;
+o pedido aguardando NUNCA é `Pendencia`. Status `aguardando → aceito | recusado | cancelado` só por `updateMany` condicionado a
+`aguardando` (`service.ts`). Aceitar = uma transação: trava a linha da revisão, recusa se ela saiu das Entregas
+(`revisaoAindaNasEntregas`), aplica `em_revisao` pelo serviço do ciclo (sem avisar projetistas; nunca um segundo) e cria um RASCUNHO
+de apontamento por marcação via `criarPendenciaNoTx` (`pendencias/criar-service.ts`, o único escritor de `Pendencia` nova, também de
+`criarPendencia`). A cota é recalculada no servidor pela `CalibracaoPrancha` (sem escala = recusa). As ações do cliente não têm
+permissão de catálogo: o serviço confere conta externa + `uploadLiberadoNoAlcance`. Anexos depois de criar o pedido, um por
+requisição (`/api/portal/pedidos/[id]/anexos`, até 5, linha do pedido travada). Smoke: `npm run smoke:pedido-revisao-cliente`.
+
 **Estudos (levantamento de cargas por projeto)** (`modules/estudos/`, aba `/projetos/[id]/estudos`, spec
 `docs/superpowers/specs/2026-11-02-lote5d-estudos-design.md`): `EstudoProjeto` guarda o estudo inteiro como UM documento JSON
 (`conteudo`: ambientes → cargas + condições, validado por `conteudo.ts`) com `versao` como trava otimista (`salvarEstudo` =
@@ -889,7 +901,7 @@ a calculadora. A memória exportada (`/api/estudos/[id]/memoria?formato=pdf|docx
 
 **Cross-module pages (not their own module folder):** `/recursos` = resource-allocation matrix built from `modules/planejamento/queries.ts` (`matrizRecursos`, `cargaSemanalPorRecurso`) + `modules/rh/habilidades/queries.ts`, gated `recursos:ver`/`recursos:gerir`.
 
-**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`, `etapa_proxima`, `atividade_concluida`, `portal_resumo` (só o e-mail do resumo diário do portal; o cliente desliga em Meus projetos).
+**Notificação categories:** `lib/notificar.ts` `notificar()`/`notificarMuitos()` accept an optional `categoria` param. Users may opt out per category; `filtrarPorCategoria()` in `modules/usuarios/preferencias/queries.ts` filters recipients before fan-out. Categories include `prazo_disciplina`, `inadimplencia`, `certidao`, `licitacao`, `digest_semanal`, `risco_projeto`, `lembrete_ponto`, `coordenacao`, `aprovacao_arquivo`, `aprovacao_disciplina`, `input_cliente`, `conta_a_pagar`, `impacto_ausencia`, `lifecycle_rh`, `desenvolvimento`, `documento_validade`, `ciclo_documental`, `etapa_proxima`, `atividade_concluida`, `portal_resumo` (só o e-mail do resumo diário do portal; o cliente desliga em Meus projetos), `pedido_revisao_cliente` (pedido de revisão novo do portal, para a coordenação do projeto).
 
 ## Gotchas
 

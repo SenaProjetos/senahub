@@ -8,7 +8,14 @@ import { prisma } from "@/lib/prisma";
 import { exigirEscopoDaRevisao } from "@/modules/uploads/ciclo/acesso";
 import { marcacaoSchema } from "@/modules/projetos/pendencias/marcacao-schema";
 import { LIMITE_COMENTARIO, LIMITE_RESPOSTA, LIMITE_TEXTO_MARCACAO, MAX_MARCACOES } from "./regras";
-import { aceitarPedidoNoBanco, cancelarPedidoNoBanco, criarPedidoNoBanco, recusarPedidoNoBanco } from "./service";
+import {
+  aceitarPedidoNoBanco,
+  avisarPedidoNovo,
+  avisarResposta,
+  cancelarPedidoNoBanco,
+  criarPedidoNoBanco,
+  recusarPedidoNoBanco,
+} from "./service";
 
 /**
  * Ações do pedido de revisão do cliente. As do CLIENTE (criar, cancelar) não têm permissão de catálogo: o portal não
@@ -53,6 +60,7 @@ export const criarPedidoRevisao = defineAction(
       comentario: input.comentario,
       marcacoes: input.marcacoes ?? [],
     });
+    await avisarPedidoNovo(criado.id);
     revalidatePath(`/portal/${input.projetoId}`);
     return { id: criado.id };
   },
@@ -95,6 +103,7 @@ export const aceitarPedidoRevisao = defineAction(
     await exigirEscopoDoPedido(user, input.id);
     const podeValidar = await can(user, "uploads", "validar");
     const r = await aceitarPedidoNoBanco({ id: input.id, quem: { id: user.id, podeValidar }, resposta: input.resposta ?? null });
+    await avisarResposta(input.id);
     revalidatePath("/arquivos/pedidos-cliente", "layout");
     return { id: input.id, ...r };
   },
@@ -114,6 +123,7 @@ export const recusarPedidoRevisao = defineAction(
   async (input, { user }) => {
     await exigirEscopoDoPedido(user, input.id);
     await recusarPedidoNoBanco({ id: input.id, quem: { id: user.id }, resposta: input.resposta });
+    await avisarResposta(input.id);
     revalidatePath("/arquivos/pedidos-cliente", "layout");
     return { id: input.id };
   },

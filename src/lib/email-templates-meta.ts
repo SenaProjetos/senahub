@@ -250,6 +250,35 @@ Para não receber mais este resumo, desligue em Meus projetos, no portal.
 Sena Projetos`,
   },
   {
+    slug: "pedido-revisao-respondido",
+    grupo: "Projetos",
+    label: "Resposta ao pedido de revisão (cliente)",
+    descricao:
+      "Enviado à conta do portal que pediu revisão de uma prancha, assim que a equipe aceita ou recusa o pedido. Não tem opção de desligar: é a resposta a uma ação do próprio cliente.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome de quem pediu", exemplo: "Mariana" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      { nome: "prancha", descricao: "Arquivo da prancha", exemplo: "260507-ARQ-EX-3001-PLA.pdf" },
+      { nome: "situacao", descricao: "aceito ou recusado", exemplo: "aceito" },
+      {
+        nome: "resposta",
+        descricao: "A resposta da equipe, já com o rótulo; vazia quando a equipe não escreveu. Montada pelo sistema.",
+        exemplo: "Resposta da equipe: vamos ajustar na próxima revisão.",
+      },
+      { nome: "url", descricao: "Link do projeto no portal", exemplo: "https://app/portal/abc" },
+    ],
+    assuntoPadrao: "Seu pedido de revisão foi {{situacao}} — {{projeto}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+Seu pedido de revisão da prancha **{{prancha}}**, no projeto **{{projeto}}**, foi **{{situacao}}** pela equipe.
+
+{{resposta}}
+
+[Ver no portal]({{url}})
+
+Sena Projetos`,
+  },
+  {
     slug: "holerite",
     grupo: "RH",
     label: "Holerite",

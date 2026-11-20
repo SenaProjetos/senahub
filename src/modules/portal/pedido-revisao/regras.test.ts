@@ -5,6 +5,10 @@ import {
   MOTIVO_REVISAO_SUBSTITUIDA,
   MOTIVO_SEM_VALIDAR,
   itensDoPedido,
+  linhaRespostaEmail,
+  situacaoDaResposta,
+  textoPedidoNovo,
+  textoResposta,
   motivoDoAnexo,
   motivoEmRevisao,
   motivoParaNaoAceitar,
@@ -120,5 +124,21 @@ describe("itensDoPedido", () => {
   });
   it("respondido: sem itens", () => {
     expect(itensDoPedido({ status: "recusado", podeAceitar: null, podeRecusar: true })).toEqual([]);
+  });
+});
+
+describe("textos dos avisos", () => {
+  it("pedido novo: título e corpo para a coordenação", () => {
+    expect(textoPedidoNovo({ projetoCodigo: "260507", autorNome: "Mariana Souza", prancha: "ARQ-3001.pdf" })).toEqual({
+      titulo: "Pedido de revisão do cliente",
+      corpo: "260507 — Mariana Souza pediu revisão de ARQ-3001.pdf.",
+    });
+  });
+  it("resposta: aceito e recusado, com a resposta escapada para o e-mail", () => {
+    expect(situacaoDaResposta("aceito")).toBe("aceito");
+    expect(situacaoDaResposta("recusado")).toBe("recusado");
+    expect(textoResposta({ status: "recusado", prancha: "ARQ-3001.pdf" }).titulo).toBe("Pedido de revisão recusado");
+    expect(linhaRespostaEmail("Use *outra* cor")).toBe("Resposta da equipe: Use \\*outra\\* cor");
+    expect(linhaRespostaEmail(null)).toBe("");
   });
 });

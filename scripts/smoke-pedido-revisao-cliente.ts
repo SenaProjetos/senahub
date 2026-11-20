@@ -16,6 +16,8 @@ import {
   MOTIVO_ANEXO_SO_AUTOR,
   aceitarPedidoNoBanco,
   anexoParaBaixar,
+  avisarPedidoNovo,
+  avisarResposta,
   cancelarPedidoNoBanco,
   gravarAnexoNoBanco,
   motivoParaAnexar,
@@ -284,6 +286,51 @@ async function main() {
     );
     const ligadas = await prisma.marcacaoPedidoCliente.findMany({ where: { pedidoId: pm.id }, orderBy: { ordem: "asc" }, select: { pendenciaId: true } });
     check("pendenciaId gravado", JSON.stringify(ligadas.map((l) => l.pendenciaId)) === JSON.stringify(rascunhos.map((r) => r.id)));
+
+    // ── avisos (sem disparar nada: notificador e e-mail falsos) ──
+    const sinos: { ids: string[]; titulo: string; href?: string; categoria?: string }[] = [];
+    const notificarMuitosFalso = async (ids: string[], n: { titulo: string; href?: string }, o?: { categoria?: string }) => {
+      sinos.push({ ids, titulo: n.titulo, href: n.href, categoria: o?.categoria });
+    };
+    const semCoord = await avisarPedidoNovo(pm.id, notificarMuitosFalso);
+    const gestoresIds = sinos[0]?.ids ?? [];
+    await prisma.projetoMembro.create({ data: { projetoId: p1.id, userId: coord.id, papel: "coordenador" } });
+    sinos.length = 0;
+    const comCoord = await avisarPedidoNovo(pm.id, notificarMuitosFalso);
+    check(
+      "pedido novo avisa a coordenação (ou gestores sem coordenador)",
+      semCoord.avisados > 0 &&
+        gestoresIds.length > 0 &&
+        comCoord.avisados === 1 &&
+        JSON.stringify(sinos[0]?.ids) === JSON.stringify([coord.id]) &&
+        sinos[0]?.categoria === "pedido_revisao_cliente" &&
+        sinos[0]?.href === `/arquivos/pedidos-cliente/${pm.id}`,
+      { semCoord, comCoord, sinos },
+    );
+    const sinoCliente: { id: string; titulo: string }[] = [];
+    const emails: { to: string; slug: string; vars: Record<string, string> }[] = [];
+    const resp = await avisarResposta(p5.id, {
+      notificar: async (id: string, n: { titulo: string }) => {
+        sinoCliente.push({ id, titulo: n.titulo });
+      },
+      enviarEmail: async (to: string, slug: string, vars: Record<string, string>) => {
+        emails.push({ to, slug, vars });
+        return true;
+      },
+    });
+    check(
+      "resposta avisa quem pediu (sino e e-mail)",
+      resp.sino &&
+        resp.email &&
+        sinoCliente[0]?.id === conta.id &&
+        sinoCliente[0]?.titulo === "Pedido de revisão recusado" &&
+        emails[0]?.slug === "pedido-revisao-respondido" &&
+        emails[0]?.vars.situacao === "recusado" &&
+        emails[0]?.vars.resposta.includes("conforme o contrato"),
+      { resp, sinoCliente, emails },
+    );
+    const semSmtp = await avisarResposta(p5.id, { notificar: async () => {}, enviarEmail: null });
+    check("sem SMTP: só o sino", semSmtp.sino && !semSmtp.email);
 
     // ── anexos (o arquivo em disco é da rota; aqui só o registro) ──
     const p8 = await pedir(a.up.id);
