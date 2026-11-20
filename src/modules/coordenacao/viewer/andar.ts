@@ -111,6 +111,37 @@ export function ehFundacao(categoria: string | null | undefined): boolean {
   return !!categoria && CATEGORIAS_FUNDACAO.has(categoria.toUpperCase());
 }
 
+/** Abaixo disto o pavimento não tem bases para votar: o piso é a menor base. */
+const MINIMO_DE_BASES_PARA_MODA = 3;
+
+/**
+ * Piso de um pavimento pelas bases dos elementos (o menor Y da caixa de cada um, já sem fundações): a cota MAIS FREQUENTE,
+ * em faixas de `passo` (5 cm) centradas nos múltiplos do passo (±2,5 cm, então ruído de ±2 cm cai junto). Empate = a faixa
+ * mais baixa; o piso é a menor base dentro da faixa vencedora. Com menos de 3 bases, a menor. Sem base válida, +Infinity.
+ * Assim os arranques dos pilares e os baldrames (poucos, mais baixos) não puxam o piso para baixo do nível do pavimento.
+ */
+export function pisoPelaCotaMaisFrequente(basesY: readonly number[], passo = 0.05): number {
+  const bases = basesY.filter(Number.isFinite);
+  if (bases.length === 0) return Number.POSITIVE_INFINITY;
+  if (bases.length < MINIMO_DE_BASES_PARA_MODA) return Math.min(...bases);
+  const faixas = new Map<number, { contagem: number; menor: number }>();
+  for (const y of bases) {
+    const faixa = Math.round(y / passo);
+    const f = faixas.get(faixa);
+    if (f) {
+      f.contagem += 1;
+      f.menor = Math.min(f.menor, y);
+    } else faixas.set(faixa, { contagem: 1, menor: y });
+  }
+  let vencedora: { faixa: number; contagem: number; menor: number } | null = null;
+  for (const [faixa, f] of faixas) {
+    if (!vencedora || f.contagem > vencedora.contagem || (f.contagem === vencedora.contagem && faixa < vencedora.faixa)) {
+      vencedora = { faixa, ...f };
+    }
+  }
+  return vencedora!.menor;
+}
+
 /**
  * A regra ÚNICA do piso de um pavimento (andar e alturas do portal): os elementos que entram no `pisoDoPavimento` do
  * motor. Sem as fundações; se o pavimento só tem fundação (ou nada sobra), ficam todos e `soFundacao` = true. Elemento

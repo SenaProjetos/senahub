@@ -46,6 +46,7 @@ import { cameraDaVistaParaCaixa, vistaDoEixo, type VistaPadrao } from "@/modules
 import {
   ALTURA_OLHO_M,
   alvoDoOlhar,
+  pisoPelaCotaMaisFrequente,
   entradaDoAndar,
   olhar,
   passoDoAndar,
@@ -933,17 +934,16 @@ export class ViewerEngine {
   }
 
   /**
-   * Piso de um pavimento no mundo do viewer: o menor Y (altura, metros) das caixas dos elementos dele. Nunca o
-   * atributo Elevation do IFC — a unidade dele muda de arquivo para arquivo. Sem caixa válida = `+Infinity` (quem
-   * ordena põe o pavimento por último).
+   * Piso de um pavimento no mundo do viewer (Y, metros): a cota mais frequente das bases dos elementos informados
+   * (`pisoPelaCotaMaisFrequente` sobre o menor Y da caixa de cada um; quem chama já tirou as fundações com
+   * `elementosDoPiso`). Nunca o atributo Elevation do IFC — a unidade dele muda de arquivo para arquivo. Sem caixa válida =
+   * `+Infinity` (quem ordena põe o pavimento por último).
    */
   async pisoDoPavimento(modeloId: string, localIds: number[]): Promise<number> {
     const caixas = await this.bboxesDoModelo(modeloId, localIds);
-    let piso = Number.POSITIVE_INFINITY;
-    for (const caixa of caixas) {
-      if (!caixa.isEmpty() && Number.isFinite(caixa.min.y) && caixa.min.y < piso) piso = caixa.min.y;
-    }
-    return piso;
+    const bases: number[] = [];
+    for (const caixa of caixas) if (!caixa.isEmpty()) bases.push(caixa.min.y);
+    return pisoPelaCotaMaisFrequente(bases);
   }
 
   /**

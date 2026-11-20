@@ -10,6 +10,7 @@ import {
   maisBaixoParaAndar,
   olhar,
   passoDoAndar,
+  pisoPelaCotaMaisFrequente,
   pisoDeEntrada,
   type EstadoAndar,
 } from "@/modules/coordenacao/viewer/andar";
@@ -187,5 +188,30 @@ describe("maisBaixoParaAndar", () => {
     expect(maisBaixoParaAndar([b, a])).toBe(a);
     expect(maisBaixoParaAndar([{ pisoY: Number.POSITIVE_INFINITY, soFundacao: false }, b])).toBe(b);
     expect(maisBaixoParaAndar([])).toBeNull();
+  });
+});
+
+describe("pisoPelaCotaMaisFrequente", () => {
+  it("poucos arranques a −1,10 e muitas paredes/pilares a 0,00 → 0,00", () => {
+    expect(pisoPelaCotaMaisFrequente([-1.1, -1.1, 0, 0, 0, 0, 0, 2.88])).toBe(0);
+  });
+
+  it("empate fica com a faixa mais baixa", () => {
+    expect(pisoPelaCotaMaisFrequente([3, 3, 0, 0, 1.5])).toBe(0);
+    expect(pisoPelaCotaMaisFrequente([0, 0, 3, 3])).toBe(0);
+  });
+
+  it("com menos de 3 bases, o menor", () => {
+    expect(pisoPelaCotaMaisFrequente([2, -1])).toBe(-1);
+    expect(pisoPelaCotaMaisFrequente([5])).toBe(5);
+  });
+
+  it("ruído de ±2 cm cai na mesma faixa; o piso é a menor base dela", () => {
+    expect(pisoPelaCotaMaisFrequente([-0.02, 0.01, 0.02, -0.01, 1.2, 1.2, 1.21])).toBe(-0.02);
+  });
+
+  it("ignora base inválida; sem nenhuma, +Infinity", () => {
+    expect(pisoPelaCotaMaisFrequente([Number.NaN, Number.POSITIVE_INFINITY, 0, 0, 0])).toBe(0);
+    expect(pisoPelaCotaMaisFrequente([])).toBe(Number.POSITIVE_INFINITY);
   });
 });
