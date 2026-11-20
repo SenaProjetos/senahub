@@ -6,7 +6,8 @@ import { defineAction, ActionError } from "@/lib/with-action";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { exigirEscopoDaRevisao } from "@/modules/uploads/ciclo/acesso";
-import { LIMITE_COMENTARIO, LIMITE_RESPOSTA } from "./regras";
+import { marcacaoSchema } from "@/modules/projetos/pendencias/marcacao-schema";
+import { LIMITE_COMENTARIO, LIMITE_RESPOSTA, LIMITE_TEXTO_MARCACAO, MAX_MARCACOES } from "./regras";
 import { aceitarPedidoNoBanco, cancelarPedidoNoBanco, criarPedidoNoBanco, recusarPedidoNoBanco } from "./service";
 
 /**
@@ -18,21 +19,40 @@ import { aceitarPedidoNoBanco, cancelarPedidoNoBanco, criarPedidoNoBanco, recusa
 
 const id = z.string().min(1).max(64);
 
+/** Marcação do cliente: mesmo formato da `Pendencia` (x/y normalizados + forma) e as dimensões da página (cota). */
+const marcacaoDoPedidoSchema = z.object({
+  pagina: z.number().int().min(1).max(10000),
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  texto: z.string().max(LIMITE_TEXTO_MARCACAO + 200),
+  marcacao: marcacaoSchema.nullable(),
+  paginaPt: z.object({ w: z.number().positive().max(100000), h: z.number().positive().max(100000) }).nullish(),
+});
+
+const criarPedidoSchema = z.object({
+  projetoId: id,
+  uploadId: id,
+  comentario: z.string().max(LIMITE_COMENTARIO + 200),
+  marcacoes: z.array(marcacaoDoPedidoSchema).max(MAX_MARCACOES).optional(),
+});
+
 export const criarPedidoRevisao = defineAction(
   {
     modulo: "portal",
     acao: "pedido-revisao-criar",
     entidade: "PedidoRevisaoCliente",
-    schema: z.object({
-      projetoId: id,
-      uploadId: id,
-      comentario: z.string().max(LIMITE_COMENTARIO + 200),
-    }),
+    schema: criarPedidoSchema,
     entidadeId: (data) => (data as { id: string }).id,
   },
   async (input, { user }) => {
     if (user.tipo !== "externo") throw new ActionError("Só o cliente pede revisão pelo portal.");
-    const criado = await criarPedidoNoBanco({ autor: user, projetoId: input.projetoId, uploadId: input.uploadId, comentario: input.comentario });
+    const criado = await criarPedidoNoBanco({
+      autor: user,
+      projetoId: input.projetoId,
+      uploadId: input.uploadId,
+      comentario: input.comentario,
+      marcacoes: input.marcacoes ?? [],
+    });
     revalidatePath(`/portal/${input.projetoId}`);
     return { id: criado.id };
   },

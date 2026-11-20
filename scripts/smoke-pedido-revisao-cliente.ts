@@ -29,6 +29,8 @@ import {
   MOTIVO_SEM_VALIDAR,
 } from "../src/modules/portal/pedido-revisao/regras";
 import { pedidosDoProjetoNoPortal } from "../src/modules/portal/pedido-revisao/queries";
+import { MOTIVO_SEM_ESCALA } from "../src/modules/portal/pedido-revisao/conversao";
+import { criarPendenciaNoTx } from "../src/modules/projetos/pendencias/criar-service";
 
 async function erroDe(p: Promise<unknown>): Promise<string | null> {
   try {
@@ -227,6 +229,61 @@ async function main() {
       doCliente.length,
     );
     check("portal: outro cliente não vê os pedidos", (await pedidosDoProjetoNoPortal(p1.id, outro.id)).length === 0);
+
+    // ── marcações: viram rascunhos de apontamento no aceite ──
+    const c = await prancha(p1.disciplinaId, "c", { ciclo: true, compartilhar: true });
+    await prisma.calibracaoPrancha.create({ data: { documentoId: c.doc.id, pagina: 1, modo: "escala", escalaDenominador: 50, mmPorPonto: 2, autorId: coord.id } });
+    const ja = await prisma.$transaction((tx) =>
+      criarPendenciaNoTx(tx, {
+        upload: { id: c.up.id, documentoId: c.doc.id, disciplinaId: p1.disciplinaId, projetoId: p1.id },
+        autorId: coord.id,
+        dados: { pagina: 1, x: 0.5, y: 0.5, texto: "da equipe", marcacao: null, medida: null },
+      }),
+    );
+    const paginaPt = { w: 1000, h: 500 };
+    const marcacoes = [
+      { pagina: 1, x: 0.1, y: 0.2, texto: "Porta aqui", marcacao: null },
+      { pagina: 1, x: 0.3, y: 0.3, texto: "Área da varanda", marcacao: { tipo: "nuvem" as const, pontos: [{ dx: 0.1, dy: 0.05 }] } },
+      {
+        pagina: 1,
+        x: 0.4,
+        y: 0.4,
+        texto: "Rabisco",
+        marcacao: { tipo: "livre" as const, pontos: [], tracos: [[{ dx: 0, dy: 0 }, { dx: 0.05, dy: 0.02 }]], estilos: [{ cor: "azul" as const, espessura: 4 }] },
+      },
+      { pagina: 1, x: 0.6, y: 0.1, texto: "Cota errada", marcacao: { tipo: "medida" as const, pontos: [{ dx: 0.1, dy: 0 }] }, paginaPt },
+    ];
+    check(
+      "cota sem calibração recusada (nada gravado)",
+      (await erroDe(criarPedidoNoBanco({ autor: conta, projetoId: p1.id, uploadId: a.up.id, comentario: "x", marcacoes: [marcacoes[3]] }))) ===
+        MOTIVO_SEM_ESCALA,
+    );
+    const pm = await criarPedidoNoBanco({ autor: conta, projetoId: p1.id, uploadId: c.up.id, comentario: "Várias coisas", marcacoes });
+    const gravadas = await prisma.marcacaoPedidoCliente.findMany({ where: { pedidoId: pm.id }, orderBy: { ordem: "asc" } });
+    check("cota recalculada no servidor pela calibração", Math.round(gravadas[3]?.medidaMm ?? 0) === 200 && gravadas[3]?.medidaFator === 2, gravadas[3]);
+    check("pedido com marcações aguardando não cria apontamento", (await prisma.pendencia.count({ where: { documentoId: c.doc.id } })) === 1);
+    const aceiteM = await aceitarPedidoNoBanco({ id: pm.id, quem, resposta: null });
+    const rascunhos = await prisma.pendencia.findMany({ where: { documentoId: c.doc.id, id: { not: ja.id } }, orderBy: { numero: "asc" } });
+    check(
+      "aceite cria rascunhos não publicados da coordenação com número seguindo o documento",
+      aceiteM.rascunhos === 4 &&
+        rascunhos.length === 4 &&
+        rascunhos.every((r) => r.publicadoEm === null && r.autorId === coord.id && r.uploadId === c.up.id && r.status === "aberta") &&
+        JSON.stringify(rascunhos.map((r) => r.numero)) === "[2,3,4,5]",
+      rascunhos.map((r) => [r.numero, r.publicadoEm, r.autorId === coord.id]),
+    );
+    check(
+      "rascunho no mesmo ponto e com a mesma geometria",
+      rascunhos.every((r, i) => r.x === gravadas[i].x && r.y === gravadas[i].y && r.pagina === gravadas[i].pagina) &&
+        rascunhos[0].marcacaoTipo === null &&
+        rascunhos[1].marcacaoTipo === "nuvem" &&
+        JSON.stringify(rascunhos[1].marcacaoGeo) === JSON.stringify(gravadas[1].marcacaoGeo) &&
+        JSON.stringify(rascunhos[2].marcacaoGeo) === JSON.stringify(gravadas[2].marcacaoGeo) &&
+        rascunhos[3].medidaMm === gravadas[3].medidaMm &&
+        rascunhos[1].texto === "Cliente (Mariana): Área da varanda",
+    );
+    const ligadas = await prisma.marcacaoPedidoCliente.findMany({ where: { pedidoId: pm.id }, orderBy: { ordem: "asc" }, select: { pendenciaId: true } });
+    check("pendenciaId gravado", JSON.stringify(ligadas.map((l) => l.pendenciaId)) === JSON.stringify(rascunhos.map((r) => r.id)));
 
     // ── anexos (o arquivo em disco é da rota; aqui só o registro) ──
     const p8 = await pedir(a.up.id);

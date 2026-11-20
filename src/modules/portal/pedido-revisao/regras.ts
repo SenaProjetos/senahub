@@ -27,7 +27,9 @@ export const EXTENSOES_ANEXO = ["pdf", "png", "jpg", "jpeg", "dwg", "dxf"] as co
 export const MAX_ANEXOS = 5;
 
 export const LIMITE_COMENTARIO = 4000;
-export const LIMITE_TEXTO_MARCACAO = 2000;
+/** Cabe no texto do apontamento (1000) com "Cliente (Nome): " e "(ver pedido do cliente)". */
+export const LIMITE_TEXTO_MARCACAO = 900;
+export const MAX_MARCACOES = 50;
 export const LIMITE_RESPOSTA = 2000;
 export const LIMITE_MOTIVO_EM_REVISAO = 500;
 

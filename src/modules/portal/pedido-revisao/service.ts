@@ -10,8 +10,14 @@ import {
   estadoParaTransicao,
   uploadsComBloqueioDeDownload,
 } from "@/modules/uploads/ciclo/service";
+import { criarPendenciaNoTx } from "@/modules/projetos/pendencias/criar-service";
+import { colunasDaMarcacao } from "@/modules/projetos/pendencias/marcacao-schema";
+import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
+import { congelarMarcacao, dadosDoRascunho, type MarcacaoCongelada, type MarcacaoDoPedido } from "./conversao";
 import {
   LIMITE_COMENTARIO,
+  LIMITE_TEXTO_MARCACAO,
+  MAX_MARCACOES,
   LIMITE_RESPOSTA,
   MOTIVO_JA_RESPONDIDO,
   motivoEmRevisao,
@@ -60,11 +66,52 @@ export async function pranchaDoPedido(autor: UsuarioDaSessao, projetoId: string,
   return { projetoId, uploadId: upload.id, documentoId: upload.documentoId, revisaoId: upload.revisaoId };
 }
 
+/** Marcação como vem da tela: a do pedido + as dimensões da página em pontos (só a cota usa, para medir). */
+export type MarcacaoRecebida = MarcacaoDoPedido & { paginaPt?: { w: number; h: number } | null };
+
+/**
+ * Congela as marcações: textos conferidos e a cota recalculada pela calibração da prancha (por documento; linha
+ * legada sem documento, pelo upload). Qualquer marcação inválida recusa o pedido inteiro, sem gravar nada.
+ */
+async function congelarMarcacoes(
+  marcacoes: readonly MarcacaoRecebida[],
+  prancha: { documentoId: string; uploadId: string },
+): Promise<MarcacaoCongelada[]> {
+  if (marcacoes.length > MAX_MARCACOES) throw new ActionError(`O pedido aceita no máximo ${MAX_MARCACOES} marcações.`);
+  if (marcacoes.length === 0) return [];
+  const calibracoes = await prisma.calibracaoPrancha.findMany({
+    where: { OR: [{ documentoId: prancha.documentoId }, { uploadId: prancha.uploadId }] },
+    select: { pagina: true, mmPorPonto: true, modo: true, documentoId: true },
+  });
+  const daPagina = (pagina: number) => {
+    const c = calibracoes.find((x) => x.pagina === pagina && x.documentoId) ?? calibracoes.find((x) => x.pagina === pagina);
+    const modo = MODOS_CALIBRACAO.find((m) => m === c?.modo);
+    return c && modo ? { mmPorPonto: c.mmPorPonto, modo } : null;
+  };
+  const congeladas: MarcacaoCongelada[] = [];
+  for (const m of marcacoes) {
+    const texto = textoObrigatorio(
+      m.texto,
+      LIMITE_TEXTO_MARCACAO,
+      "Escreva o que mudar em cada marcação.",
+      `O texto de uma marcação passa de ${LIMITE_TEXTO_MARCACAO} caracteres.`,
+    );
+    const r = congelarMarcacao(
+      { pagina: m.pagina, x: m.x, y: m.y, texto, marcacao: m.marcacao },
+      { calibracao: daPagina(m.pagina), paginaPt: m.paginaPt ?? null },
+    );
+    if ("erro" in r) throw new ActionError(r.erro);
+    congeladas.push(r);
+  }
+  return congeladas;
+}
+
 export async function criarPedidoNoBanco(p: {
   autor: UsuarioDaSessao;
   projetoId: string;
   uploadId: string;
   comentario: string;
+  marcacoes?: readonly MarcacaoRecebida[];
 }): Promise<{ id: string }> {
   const comentario = textoObrigatorio(
     p.comentario,
@@ -73,8 +120,26 @@ export async function criarPedidoNoBanco(p: {
     `O comentário passa de ${LIMITE_COMENTARIO} caracteres.`,
   );
   const prancha = await pranchaDoPedido(p.autor, p.projetoId, p.uploadId);
+  const marcacoes = await congelarMarcacoes(p.marcacoes ?? [], prancha);
   const criado = await prisma.pedidoRevisaoCliente.create({
-    data: { ...prancha, autorId: p.autor.id, comentario },
+    data: {
+      ...prancha,
+      autorId: p.autor.id,
+      comentario,
+      marcacoes: {
+        create: marcacoes.map((m, ordem) => ({
+          ordem,
+          pagina: m.pagina,
+          x: m.x,
+          y: m.y,
+          texto: m.texto,
+          ...colunasDaMarcacao(m.marcacao),
+          medidaMm: m.medida?.mm ?? null,
+          medidaFator: m.medida?.fator ?? null,
+          medidaModo: m.medida?.modo ?? null,
+        })),
+      },
+    },
     select: { id: true },
   });
   return criado;
@@ -130,7 +195,20 @@ export async function aceitarPedidoNoBanco(p: {
   return prisma.$transaction(async (tx) => {
     const pedido = await tx.pedidoRevisaoCliente.findUnique({
       where: { id: p.id },
-      select: { id: true, status: true, revisaoId: true, uploadId: true, comentario: true },
+      select: {
+        id: true,
+        status: true,
+        revisaoId: true,
+        uploadId: true,
+        comentario: true,
+        autor: { select: { name: true } },
+        upload: { select: { documentoId: true, disciplinaId: true, disciplina: { select: { projetoId: true } } } },
+        marcacoes: {
+          orderBy: { ordem: "asc" },
+          select: { id: true, pagina: true, x: true, y: true, texto: true, marcacaoTipo: true, marcacaoGeo: true, medidaMm: true, medidaFator: true, medidaModo: true },
+        },
+        _count: { select: { anexos: true } },
+      },
     });
     if (!pedido) throw new ActionError(MOTIVO_PEDIDO_NAO_ENCONTRADO);
     await tx.$queryRaw`SELECT id FROM documento_revisao WHERE id = ${pedido.revisaoId} FOR UPDATE`;
@@ -159,7 +237,23 @@ export async function aceitarPedidoNoBanco(p: {
         emRevisao = true;
       }
     }
-    return { emRevisao, jaEstavaEmRevisao, rascunhos: 0 };
+
+    // Cada marcação vira um RASCUNHO de apontamento de quem aceitou, no mesmo PDF, pelo caminho único de criação.
+    const upload = {
+      id: pedido.uploadId,
+      documentoId: pedido.upload.documentoId,
+      disciplinaId: pedido.upload.disciplinaId,
+      projetoId: pedido.upload.disciplina.projetoId,
+    };
+    for (const m of pedido.marcacoes) {
+      const criada = await criarPendenciaNoTx(tx, {
+        upload,
+        autorId: p.quem.id,
+        dados: dadosDoRascunho(m, { nomeAutor: pedido.autor.name, temAnexos: pedido._count.anexos > 0 }),
+      });
+      await tx.marcacaoPedidoCliente.update({ where: { id: m.id }, data: { pendenciaId: criada.id } });
+    }
+    return { emRevisao, jaEstavaEmRevisao, rascunhos: pedido.marcacoes.length };
   });
 }
 

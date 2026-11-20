@@ -20,17 +20,12 @@ import {
   STATUS_ABERTOS,
   TIPOS_PENDENCIA,
 } from "@/modules/projetos/pendencias/helpers";
-import {
-  CORES_RABISCO,
-  MAX_MEDIDAS,
-  MAX_PONTOS_RABISCO,
-  MAX_TRACOS_RABISCO,
-  TIPOS_MARCACAO,
-} from "@/modules/projetos/pendencias/marcacao";
 import { papeisSobre } from "@/modules/projetos/pendencias/papeis-pendencia";
 import { podeAcessarPrancha } from "@/modules/projetos/pendencias/acesso-prancha";
 import { MOTIVO_NAO_PARTICIPA, podeParticiparDaConversa } from "@/modules/projetos/pendencias/problemas";
 import { MODOS_CALIBRACAO } from "@/modules/projetos/pendencias/medicao";
+import { marcacaoSchema, medidaSchema } from "@/modules/projetos/pendencias/marcacao-schema";
+import { criarPendenciaNoTx } from "@/modules/projetos/pendencias/criar-service";
 import { extrairMencoes } from "@/modules/chat/mencoes";
 import { buscarPendenciasParaReferencia, possiveisReincidencias } from "@/modules/projetos/pendencias/queries";
 import { registrarEventoUploads } from "@/modules/uploads/historico/service";
@@ -67,9 +62,6 @@ const classificacaoSchema = {
   tipo: z.enum(TIPOS_PENDENCIA).nullish(),
 };
 
-/** Offset de marcação (fração da página a partir da âncora). */
-const offsetMarcacao = z.object({ dx: z.number().min(-1).max(1), dy: z.number().min(-1).max(1) });
-
 const criarSchema = z.object({
   uploadId: z.string().min(1),
   pagina: z.number().int().min(1),
@@ -83,46 +75,11 @@ const criarSchema = z.object({
   // sendo a âncora (início do arrasto) e os pontos são OFFSETS a partir dela. Ausente = pino.
   // Rabisco (`livre`) manda os traços em `tracos` (e a cor/espessura de cada um em `estilos`) — e
   // só ele manda. Medida com várias medidas manda `medidas`, cada uma com o valor congelado.
-  marcacao: z
-    .object({
-      tipo: z.enum(TIPOS_MARCACAO),
-      pontos: z.array(offsetMarcacao).max(2),
-      tracos: z.array(z.array(offsetMarcacao).min(2)).min(1).max(MAX_TRACOS_RABISCO).optional(),
-      estilos: z
-        .array(z.object({ cor: z.enum(CORES_RABISCO), espessura: z.number().min(1).max(12) }))
-        .max(MAX_TRACOS_RABISCO)
-        .optional(),
-      medidas: z
-        .array(z.object({ de: offsetMarcacao, ate: offsetMarcacao, mm: z.number().positive().finite() }))
-        .min(1)
-        .max(MAX_MEDIDAS)
-        .optional(),
-    })
-    .superRefine((m, ctx) => {
-      if ((m.tipo === "livre") !== Boolean(m.tracos)) {
-        ctx.addIssue({ code: "custom", message: "Desenho inválido." });
-      }
-      if (m.estilos && (m.tipo !== "livre" || m.estilos.length !== m.tracos?.length)) {
-        ctx.addIssue({ code: "custom", message: "Desenho inválido." });
-      }
-      if (m.medidas && m.tipo !== "medida") {
-        ctx.addIssue({ code: "custom", message: "Desenho inválido." });
-      }
-      if (m.tracos && m.tracos.reduce((n, t) => n + t.length, 0) > MAX_PONTOS_RABISCO) {
-        ctx.addIssue({ code: "custom", message: "Desenho grande demais. Divida em mais de um apontamento." });
-      }
-    })
-    .nullish(),
+  marcacao: marcacaoSchema.nullish(),
   // Medição (item 28) — valor CONGELADO no momento da criação, junto do fator e do modo que
   // o produziram. Só o cliente sabe as dimensões visuais em pontos da página, então o cálculo
   // nasce lá; guardar o fator é o que permite explicar a medida depois de uma recalibração.
-  medida: z
-    .object({
-      mm: z.number().positive().finite(),
-      fator: z.number().positive().finite(),
-      modo: z.enum(MODOS_CALIBRACAO),
-    })
-    .nullish(),
+  medida: medidaSchema.nullish(),
   // Âncora textual (item 3): o cliente monta a partir do texto da página, porque só ele tem
   // o PDF renderizado. Opcional — prancha sem texto perto do clique simplesmente não manda.
   ancora: z
@@ -359,49 +316,24 @@ export const criarPendencia = defineAction(
     });
     if (maisNova) throw new ActionError("Existe versão mais recente deste arquivo — aponte na versão atual.");
 
-    const pend = await prisma.$transaction(async (tx) => {
-      // Numeração por DOCUMENTO (não por versão): o número acompanha o apontamento através
-      // das revisões. Escopar por `uploadId` reiniciaria a contagem a cada versão nova e
-      // criaria dois "#1" dentro do mesmo documento. Fallback p/ uploadId cobre linha
-      // legada sem pai (documentoId nulo).
-      const escopoNumero = upload.documentoId ? { documentoId: upload.documentoId } : { uploadId: upload.id };
-      const max = await tx.pendencia.aggregate({ where: escopoNumero, _max: { numero: true } });
-      return tx.pendencia.create({
-        data: {
-          uploadId: upload.id,
-          documentoId: upload.documentoId,
-          disciplinaId: upload.disciplinaId,
-          projetoId: upload.disciplina.projetoId,
-          numero: (max._max.numero ?? 0) + 1,
+    const pend = await prisma.$transaction((tx) =>
+      criarPendenciaNoTx(tx, {
+        upload: { id: upload.id, documentoId: upload.documentoId, disciplinaId: upload.disciplinaId, projetoId: upload.disciplina.projetoId },
+        autorId: user.id,
+        dados: {
           pagina: input.pagina,
           x: input.x,
           y: input.y,
           texto: input.texto,
-          status: "aberta",
-          autorId: user.id,
-          ancoraTexto: input.ancora?.texto ?? null,
-          ancoraOffset: input.ancora?.offset ?? null,
-          ancoraDx: input.ancora?.dx ?? null,
-          ancoraDy: input.ancora?.dy ?? null,
+          marcacao: input.marcacao ?? null,
+          medida: input.medida ?? null,
+          ancora: input.ancora ?? null,
           severidade: input.severidade ?? null,
           tipo: input.tipo ?? null,
           prazo: input.prazo ? new Date(`${input.prazo}T12:00:00`) : null,
-          // Pino simples não grava geometria — `null` mantém a linha idêntica à de antes do item 9.
-          marcacaoTipo: input.marcacao && input.marcacao.tipo !== "ponto" ? input.marcacao.tipo : null,
-          marcacaoGeo:
-            input.marcacao && input.marcacao.tipo !== "ponto"
-              ? input.marcacao.tipo === "livre"
-                ? { pontos: [], tracos: input.marcacao.tracos, estilos: input.marcacao.estilos }
-                : input.marcacao.medidas
-                  ? { pontos: input.marcacao.pontos, medidas: input.marcacao.medidas }
-                  : { pontos: input.marcacao.pontos }
-              : undefined,
-          medidaMm: input.medida?.mm ?? null,
-          medidaFator: input.medida?.fator ?? null,
-          medidaModo: input.medida?.modo ?? null,
         },
-      });
-    });
+      }),
+    );
     revalidarViewer(upload.disciplina.projetoId, upload.id);
     // Só consulta candidatos quando o texto realmente tem "@algumacoisa" — criar pendência é
     // a interação mais quente do viewer, e a esmagadora maioria dos textos não menciona ninguém.
