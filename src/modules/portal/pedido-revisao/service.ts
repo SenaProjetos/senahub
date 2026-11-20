@@ -6,6 +6,8 @@ import { notificar, notificarMuitos } from "@/lib/notificar";
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import { whereAudiencia } from "@/lib/audiencias";
+import { can } from "@/lib/permissions";
+import { removerArquivo } from "@/lib/storage";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { destinatariosDaConclusao } from "@/modules/planejamento/conclusao-aviso";
 import { acessoDoUsuarioAoProjetoDoPortal, type UsuarioDaSessao } from "@/modules/portal/acesso";
@@ -31,6 +33,8 @@ import {
   motivoParaNaoCancelar,
   motivoParaNaoRecusar,
   motivoDoAnexo,
+  motivoDoLimiteDePedidos,
+  revisaoNasPastas,
   linhaRespostaEmail,
   situacaoDaResposta,
   textoPedidoNovo,
@@ -130,6 +134,10 @@ export async function criarPedidoNoBanco(p: {
     `O comentário passa de ${LIMITE_COMENTARIO} caracteres.`,
   );
   const prancha = await pranchaDoPedido(p.autor, p.projetoId, p.uploadId);
+  const limite = motivoDoLimiteDePedidos(
+    await prisma.pedidoRevisaoCliente.count({ where: { autorId: p.autor.id, projetoId: p.projetoId, status: "aguardando" } }),
+  );
+  if (limite) throw new ActionError(limite);
   const marcacoes = await congelarMarcacoes(p.marcacoes ?? [], prancha);
   const criado = await prisma.pedidoRevisaoCliente.create({
     data: {
@@ -185,10 +193,11 @@ export async function estadoDaRevisaoDoPedido(
     select: { revisaoCompartilhadaId: true, revisaoLiberadaObraId: true },
   });
   return {
-    nasPastasDoCliente: doc?.revisaoCompartilhadaId === r.id || doc?.revisaoLiberadaObraId === r.id,
+    ...revisaoNasPastas(doc, r.id),
     estado: r.estado,
     participa: estadoParaTransicao(r).participa,
-    uploadSubstituido: !up || up.substituidoPorId !== null || up.excluidoEm !== null,
+    uploadSubstituido: up?.substituidoPorId != null,
+    uploadExcluido: !up || up.excluidoEm !== null,
     arquivada: r.estado === "arquivado",
   };
 }
@@ -377,11 +386,25 @@ export async function avisarPedidoNovo(
       },
     });
     if (!p) return { avisados: 0 };
-    const coord = await prisma.projetoMembro.findMany({
+    // Só quem abre a fila (`arquivos:alterar_status`): um link que cai em /sem-permissao não ajuda ninguém.
+    const quemAbre = async (ids: string[]) => {
+      const pessoas = await prisma.user.findMany({
+        where: { id: { in: ids }, ativo: true },
+        select: { id: true, ativo: true, superUsuario: true, perfilId: true, tipo: true },
+      });
+      const podem: string[] = [];
+      for (const u of pessoas) if (await can(u, "arquivos", "alterar_status")) podem.push(u.id);
+      return podem;
+    };
+    const membros = await prisma.projetoMembro.findMany({
       where: { projetoId: p.projetoId, papel: { contains: "coord", mode: "insensitive" } },
       select: { userId: true },
     });
-    const gestores = coord.length > 0 ? [] : await prisma.user.findMany({ where: whereAudiencia("global"), select: { id: true } });
+    const coord = (await quemAbre(membros.map((m) => m.userId))).map((userId) => ({ userId }));
+    const gestores =
+      coord.length > 0
+        ? []
+        : (await quemAbre((await prisma.user.findMany({ where: whereAudiencia("global"), select: { id: true } })).map((g) => g.id))).map((id) => ({ id }));
     const destino = destinatariosDaConclusao({
       coordenadores: coord.map((c) => c.userId),
       gestores: gestores.map((g) => g.id),
@@ -444,4 +467,29 @@ export async function avisarResposta(
     console.error("[pedido-revisao] aviso da resposta falhou:", e);
   }
   return { sino, email };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Purga do PDF (lixeira): o banco leva os pedidos em cascata, o disco não
+// ─────────────────────────────────────────────────────────────
+
+/** Caminhos dos anexos dos pedidos destes uploads — lidos ANTES de apagar o upload (depois a cascata já os levou). */
+export async function caminhosDosAnexosDosUploads(uploadIds: readonly string[]): Promise<string[]> {
+  if (uploadIds.length === 0) return [];
+  const anexos = await prisma.anexoPedidoCliente.findMany({
+    where: { pedido: { uploadId: { in: [...uploadIds] } } },
+    select: { caminho: true },
+  });
+  return anexos.map((a) => a.caminho);
+}
+
+/** Apaga do disco os anexos de pedidos que a purga levou. Nunca lança: falha vira log, a purga segue. */
+export async function removerArquivosDosAnexos(caminhos: readonly string[]): Promise<void> {
+  for (const c of caminhos) {
+    try {
+      await removerArquivo(c);
+    } catch (e) {
+      console.error("[pedido-revisao] anexo não removido do disco:", c, e);
+    }
+  }
 }

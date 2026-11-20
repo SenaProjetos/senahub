@@ -1,6 +1,4 @@
-"use client";
-
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { AlertTriangle, FileText, Paperclip } from "lucide-react";
 import type { PedidoDetalheView } from "@/modules/portal/pedido-revisao/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -8,9 +6,8 @@ import { cn, formatarBytes, formatarDataHora } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DecisaoPedidoDialog, type ModoDecisao } from "@/components/arquivos/decisao-pedido-dialog";
-import { motivoNaTela } from "@/components/arquivos/pedidos-cliente-view";
-import { SeloRevisaoSubstituida, SeloStatusPedido } from "@/components/arquivos/selos-pedido";
+import { DecisaoPedidoBotoes } from "@/components/arquivos/decisao-pedido-botoes";
+import { SeloIndisponivel, SeloStatusPedido, motivoNaTela } from "@/components/arquivos/selos-pedido";
 
 function Aviso({ children }: { children: ReactNode }) {
   return (
@@ -23,7 +20,8 @@ function Aviso({ children }: { children: ReactNode }) {
 
 /**
  * Detalhe de um pedido do cliente para a coordenação: comentário, marcações, anexos, a prancha e as decisões.
- * `visualizador` é o lugar da prancha com as marcações (etapa 2); sem ele, o link para abrir o PDF.
+ * `visualizador` é o lugar da prancha com as marcações (etapa 2); sem ele, o link para abrir o PDF. Server Component:
+ * só os botões de decisão são do cliente.
  */
 export function PedidoClienteDetalhe({
   pedido,
@@ -34,7 +32,6 @@ export function PedidoClienteDetalhe({
   podeValidar: boolean;
   visualizador?: ReactNode;
 }) {
-  const [modo, setModo] = useState<ModoDecisao | null>(null);
   const motivo = motivoNaTela(pedido, podeValidar);
   const aguardando = pedido.status === "aguardando";
 
@@ -47,7 +44,7 @@ export function PedidoClienteDetalhe({
               {pedido.prancha} <span className="font-mono text-sm font-normal text-muted-foreground">{pedido.revisao}</span>
             </CardTitle>
             <SeloStatusPedido status={pedido.status} rotulo={pedido.rotuloStatus} />
-            {pedido.revisaoSubstituida && <SeloRevisaoSubstituida />}
+            {pedido.indisponivel && <SeloIndisponivel tipo={pedido.indisponivel} />}
           </div>
           <p className="text-xs text-muted-foreground">
             <span className="font-mono">{formatarCodigo(pedido.projeto.codigo)}</span> · {pedido.projeto.nome} · pedido por{" "}
@@ -55,7 +52,7 @@ export function PedidoClienteDetalhe({
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          {pedido.revisaoSubstituida && <Aviso>{motivo ?? "A prancha ganhou revisão nova depois deste pedido."}</Aviso>}
+          {pedido.indisponivel && <Aviso>{motivoNaTela(pedido, true)}</Aviso>}
           {aguardando && pedido.jaHaPedidoAceitoNaRevisao && <Aviso>Já há pedido aceito nesta revisão.</Aviso>}
           <p className="text-sm whitespace-pre-wrap break-words">{pedido.comentario}</p>
 
@@ -101,20 +98,10 @@ export function PedidoClienteDetalhe({
               <FileText className="size-4" /> Abrir a prancha <span className="sr-only">(abre em nova aba)</span>
             </Button>
             {aguardando && (
-              <>
-                <Button
-                  size="sm"
-                  onClick={() => setModo("aceitar")}
-                  disabled={motivo !== null}
-                  title={motivo ?? undefined}
-                  aria-describedby={motivo ? "motivo-nao-aceitar" : undefined}
-                >
-                  Aceitar…
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setModo("recusar")}>
-                  Recusar…
-                </Button>
-              </>
+              <DecisaoPedidoBotoes
+                pedido={{ id: pedido.id, prancha: pedido.prancha, revisao: pedido.revisao, autorNome: pedido.autorNome }}
+                motivoNaoAceitar={motivo}
+              />
             )}
           </div>
           {aguardando && motivo && (
@@ -127,12 +114,6 @@ export function PedidoClienteDetalhe({
 
       {visualizador}
 
-      <DecisaoPedidoDialog
-        key={modo ?? "fechado"}
-        pedido={pedido}
-        modo={modo}
-        onFechar={() => setModo(null)}
-      />
     </div>
   );
 }

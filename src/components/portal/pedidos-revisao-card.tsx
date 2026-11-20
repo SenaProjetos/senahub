@@ -1,40 +1,13 @@
-"use client";
-
-import { useTransition } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import { Paperclip } from "lucide-react";
 import type { PedidoPortalView } from "@/modules/portal/pedido-revisao/queries";
-import { cancelarPedidoRevisao } from "@/modules/portal/pedido-revisao/actions";
 import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useConfirm } from "@/components/ui/confirm-dialog";
-import { SeloRevisaoSubstituida, SeloStatusPedido } from "@/components/arquivos/selos-pedido";
+import { SeloIndisponivel, SeloStatusPedido } from "@/components/arquivos/selos-pedido";
+import { CancelarPedidoBotao } from "@/components/portal/cancelar-pedido-botao";
 
 function LinhaPedido({ p, projetoId }: { p: PedidoPortalView; projetoId: string }) {
-  const router = useRouter();
-  const confirm = useConfirm();
-  const [pendente, startTransition] = useTransition();
-
-  async function cancelar() {
-    const ok = await confirm({
-      title: "Cancelar o pedido?",
-      description: `O pedido de revisão de ${p.prancha} sai da fila da equipe. Para pedir de novo, faça outro pedido.`,
-      confirmLabel: "Cancelar pedido",
-      variant: "destructive",
-    });
-    if (!ok) return;
-    startTransition(async () => {
-      const r = await cancelarPedidoRevisao({ id: p.id });
-      if (r.ok) {
-        toast.success("Pedido cancelado.");
-        router.refresh();
-      } else toast.error(r.error);
-    });
-  }
-
   return (
     <li className="space-y-1 py-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -43,7 +16,7 @@ function LinhaPedido({ p, projetoId }: { p: PedidoPortalView; projetoId: string 
         </span>
         <span className="shrink-0 font-mono text-xs text-muted-foreground">{p.revisao}</span>
         <SeloStatusPedido status={p.status} rotulo={p.rotuloStatus} />
-        {p.revisaoSubstituida && <SeloRevisaoSubstituida />}
+        {p.indisponivel && <SeloIndisponivel tipo={p.indisponivel} />}
       </div>
       <p className="text-xs text-muted-foreground">
         Pedido por {p.autorNome} em {formatarData(p.criadoEm)}
@@ -67,26 +40,28 @@ function LinhaPedido({ p, projetoId }: { p: PedidoPortalView; projetoId: string 
           <span className="font-medium">Resposta da equipe:</span> <span className="whitespace-pre-wrap">{p.resposta}</span>
         </p>
       )}
-      {p.revisaoSubstituida && (
-        <p className="text-xs text-muted-foreground">A prancha ganhou revisão nova depois deste pedido. Confira a revisão nova nas Entregas.</p>
+      {p.indisponivel && (
+        <p className="text-xs text-muted-foreground">
+          {p.indisponivel === "substituida"
+            ? "A prancha ganhou revisão nova depois deste pedido. Confira a revisão nova nas Entregas."
+            : "Esta prancha saiu das suas Entregas. A equipe vai responder o pedido."}
+        </p>
       )}
       {p.status === "aguardando" && (
         <div className="flex flex-wrap gap-2 pt-1">
-          {!p.revisaoSubstituida && (
+          {!p.indisponivel && (
             <Button size="sm" variant="outline" render={<Link href={`/portal/${projetoId}/prancha/${p.uploadId}`} />}>
               Ver na prancha
             </Button>
           )}
-          <Button size="sm" variant="ghost" onClick={() => void cancelar()} disabled={pendente}>
-            {pendente ? "Cancelando…" : "Cancelar pedido"}
-          </Button>
+          <CancelarPedidoBotao id={p.id} prancha={p.prancha} />
         </div>
       )}
     </li>
   );
 }
 
-/** Card "Pedidos de revisão" do projeto no portal. Sem pedidos, some. */
+/** Card "Pedidos de revisão" do projeto no portal (Server Component; só o cancelar é do cliente). Sem pedidos, some. */
 export function PedidosRevisaoCard({ pedidos, projetoId }: { pedidos: PedidoPortalView[]; projetoId: string }) {
   if (pedidos.length === 0) return null;
   return (

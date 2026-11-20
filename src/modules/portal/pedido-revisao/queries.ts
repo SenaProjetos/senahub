@@ -4,8 +4,15 @@ import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/session";
 import { rotuloRevisao } from "@/lib/utils";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { can } from "@/lib/permissions";
+import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
+import { whereDaFila } from "./escopo";
 import { participaDoCiclo } from "@/modules/uploads/ciclo/escopo";
-import { ROTULO_STATUS_PEDIDO, revisaoAindaNasEntregas, type StatusPedido } from "./regras";
+import { ROTULO_STATUS_PEDIDO, revisaoNasPastas, situacaoDaRevisao, type SituacaoDaRevisao, type StatusPedido } from "./regras";
+
+function indisponibilidade(s: SituacaoDaRevisao): "substituida" | "retirada" | null {
+  return s === "nas_entregas" ? null : s;
+}
 import { acessoDoUsuarioAoProjetoDoPortal, type UsuarioDaSessao } from "@/modules/portal/acesso";
 import { uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
@@ -36,14 +43,15 @@ const selectLinha = {
 
 type Linha = Prisma.PedidoRevisaoClienteGetPayload<{ select: typeof selectLinha }>;
 
-/** A revisão do pedido ainda é a das Entregas? Mesma regra do aceite (`revisaoAindaNasEntregas`), lida da linha. */
-function aindaNasEntregas(l: Linha): boolean {
-  return revisaoAindaNasEntregas({
+/** Onde está a revisão do pedido — mesma regra do aceite (`situacaoDaRevisao`), lida da linha. */
+function situacaoDaLinha(l: Linha): SituacaoDaRevisao {
+  return situacaoDaRevisao({
     estado: l.revisao.estado,
     participa: participaDoCiclo({ chave: l.documento.chave, extensoes: [] }),
-    uploadSubstituido: l.upload.substituidoPorId !== null || l.upload.excluidoEm !== null,
+    uploadSubstituido: l.upload.substituidoPorId !== null,
+    uploadExcluido: l.upload.excluidoEm !== null,
     arquivada: l.revisao.estado === "arquivado",
-    nasPastasDoCliente: l.documento.revisaoCompartilhadaId === l.revisaoId || l.documento.revisaoLiberadaObraId === l.revisaoId,
+    ...revisaoNasPastas(l.documento, l.revisaoId),
   });
 }
 
@@ -64,8 +72,11 @@ function baseDaView(l: Linha) {
     autorNome: l.autor.name,
     marcacoes: l._count.marcacoes,
     anexos: l.anexos.map((a) => ({ id: a.id, nome: a.nome, tamanho: a.tamanho })),
-    /** Só faz sentido enquanto aguarda: a prancha ganhou revisão nova e o pedido não pode mais ser aceito. */
-    revisaoSubstituida: status === "aguardando" && !aindaNasEntregas(l),
+    /**
+     * Só enquanto aguarda: a prancha ganhou revisão nova ("substituida") ou saiu das Entregas ("retirada") e o pedido
+     * não pode mais ser aceito. Null = nas Entregas (ou pedido já respondido).
+     */
+    indisponivel: status === "aguardando" ? indisponibilidade(situacaoDaLinha(l)) : null,
   };
 }
 
@@ -84,6 +95,16 @@ export async function pedidosDoProjetoNoPortal(projetoId: string, clienteId: str
 
 export type FiltroFila = "aguardando" | "respondidos";
 
+/** A muralha de aceitar/recusar aplicada à leitura (`whereDaFila`). */
+async function escopoDaFila(user: SessionUser): Promise<Prisma.PedidoRevisaoClienteWhereInput> {
+  return whereDaFila({
+    podeVerProjetos: await can(user, "projetos", "ver"),
+    escopoProjeto: escopoProjeto(user),
+    userId: user.id,
+    veTodas: await podeVerTodasDisciplinas(user),
+  });
+}
+
 const selectFila = {
   ...selectLinha,
   projeto: { select: { id: true, codigo: true, nome: true } },
@@ -99,7 +120,7 @@ export type PedidoFilaView = ReturnType<typeof viewDaFila>;
 export async function pedidosParaCoordenacao(user: SessionUser, filtro: FiltroFila): Promise<PedidoFilaView[]> {
   const linhas = await prisma.pedidoRevisaoCliente.findMany({
     where: {
-      projeto: escopoProjeto(user),
+      ...(await escopoDaFila(user)),
       status: filtro === "aguardando" ? "aguardando" : { not: "aguardando" },
     },
     orderBy: { createdAt: filtro === "aguardando" ? "asc" : "desc" },
@@ -110,13 +131,13 @@ export async function pedidosParaCoordenacao(user: SessionUser, filtro: FiltroFi
 }
 
 export async function contarPedidosAguardando(user: SessionUser): Promise<number> {
-  return prisma.pedidoRevisaoCliente.count({ where: { projeto: escopoProjeto(user), status: "aguardando" } });
+  return prisma.pedidoRevisaoCliente.count({ where: { ...(await escopoDaFila(user)), status: "aguardando" } });
 }
 
 /** Detalhe de um pedido para a coordenação, com as marcações e o aviso de outro pedido já aceito na revisão. */
 export async function pedidoParaCoordenacao(user: SessionUser, id: string) {
   const l = await prisma.pedidoRevisaoCliente.findFirst({
-    where: { id, projeto: escopoProjeto(user) },
+    where: { id, ...(await escopoDaFila(user)) },
     select: {
       ...selectFila,
       respondidoPor: { select: { name: true } },
@@ -236,4 +257,14 @@ export async function marcacoesDoPedido(pedidoId: string) {
     calibracoes: await calibracoesDe(p.uploadId, p.documentoId),
     marcacoes: p.marcacoes.map((m, i) => marcaDeLeitura(m, i + 1)),
   };
+}
+
+/** PDFs com pedido de revisão aguardando a equipe (selo "Pedido aguardando" nas Entregas). Leitura leve, à parte do card. */
+export async function uploadsComPedidoAguardando(projetoId: string, clienteId: string): Promise<string[]> {
+  const linhas = await prisma.pedidoRevisaoCliente.findMany({
+    where: { projetoId, projeto: { clienteId }, status: "aguardando" },
+    distinct: ["uploadId"],
+    select: { uploadId: true },
+  });
+  return linhas.map((l) => l.uploadId);
 }

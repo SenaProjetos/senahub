@@ -32,7 +32,7 @@ export default async function PranchaDoPortalPage({ params }: { params: Promise<
         calibracoes={prancha.calibracoes}
         leitura={prancha.aguardando}
         rotuloLeitura="Em cinza: marcações de pedidos que ainda aguardam a equipe."
-        pedir={{ projetoId, voltarPara: `/portal/${projetoId}` }}
+        pedir={{ projetoId, voltarPara: `/portal/${projetoId}`, userId: user.id }}
       />
     </div>
   );

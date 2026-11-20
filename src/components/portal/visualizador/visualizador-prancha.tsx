@@ -30,7 +30,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { enviarAnexosDoPedido } from "@/components/portal/pedir-revisao-dialog";
 import { BarraFerramentas } from "./barra-ferramentas";
 import { ListaMarcacoes } from "./lista-marcacoes";
-import { gravarRascunho, lerRascunho, limparRascunho, type MarcacaoRascunho, type RascunhoPedido } from "./rascunho-local";
+import { chaveDoRascunho, gravarRascunho, lerRascunho, limparRascunho, type MarcacaoRascunho, type RascunhoPedido } from "./rascunho-local";
 
 // pdf.js é carregado dinamicamente no cliente (evita SSR e mantém o chunk fora do bundle inicial).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -234,12 +234,15 @@ export function VisualizadorPrancha({
   leitura: MarcaDeLeitura[];
   /** Legenda das marcações de leitura (ex.: "Marcações de pedidos aguardando a equipe"). */
   rotuloLeitura?: string;
-  pedir?: { projetoId: string; voltarPara: string } | null;
+  /** `userId` = a conta do portal: o rascunho no navegador é dela. */
+  pedir?: { projetoId: string; voltarPara: string; userId: string } | null;
 }) {
   const router = useRouter();
   const [pdf, setPdf] = useState<PdfDoc | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [erro, setErro] = useState<string | null>(null);
+  /** Sobe no "Tentar de novo": abre o PDF outra vez. */
+  const [tentativa, setTentativa] = useState(0);
   const [larguraAlvo, setLarguraAlvo] = useState(800);
   const colunaRef = useRef<HTMLDivElement | null>(null);
   const { ref: quadroRef, style: estiloQuadro } = useAlturaRestante<HTMLDivElement>({ folga: 16 });
@@ -252,6 +255,7 @@ export function VisualizadorPrancha({
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [folhaAberta, setFolhaAberta] = useState(false);
   const [enviando, startTransition] = useTransition();
+  const chave = chaveDoRascunho(uploadId, pedir?.userId ?? "");
   const idTextoNova = useId();
   const idLegenda = useId();
 
@@ -262,18 +266,18 @@ export function VisualizadorPrancha({
   // Rascunho guardado neste navegador: volta direto ao modo de pedido.
   useEffect(() => {
     if (!pedir) return;
-    const r = lerRascunho(uploadId);
+    const r = lerRascunho(chave);
     if (r) {
       setRascunho(r);
       setDesenhando(true);
       toast.info("Seu rascunho de pedido desta prancha foi recuperado.");
     }
-  }, [pedir, uploadId]);
+  }, [pedir, chave]);
 
   function mudarRascunho(fn: (r: RascunhoPedido) => RascunhoPedido) {
     setRascunho((r) => {
       const novo = fn(r);
-      gravarRascunho(uploadId, novo);
+      gravarRascunho(chave, novo);
       return novo;
     });
   }
@@ -305,7 +309,7 @@ export function VisualizadorPrancha({
         /* noop */
       }
     };
-  }, [pdfUrl]);
+  }, [pdfUrl, tentativa]);
 
   useEffect(() => {
     const el = colunaRef.current;
@@ -341,7 +345,7 @@ export function VisualizadorPrancha({
   }
 
   function descartar() {
-    limparRascunho(uploadId);
+    limparRascunho(chave);
     setRascunho({ comentario: "", marcacoes: [] });
     setArquivos([]);
     setDesenhando(false);
@@ -369,7 +373,7 @@ export function VisualizadorPrancha({
         return;
       }
       const falhas = await enviarAnexosDoPedido(r.data.id, arquivos);
-      limparRascunho(uploadId);
+      limparRascunho(chave);
       toast.success("Pedido enviado à equipe. A resposta aparece aqui no portal.");
       for (const f of falhas) toast.error(`${f} O pedido foi enviado sem este anexo.`);
       router.push(pedir.voltarPara);
@@ -439,9 +443,21 @@ export function VisualizadorPrancha({
           style={{ touchAction: "pan-x pan-y" }}
         >
           {erro ? (
-            <p role="alert" className="py-10 text-center text-sm text-destructive-text">
-              {erro}
-            </p>
+            <div className="flex flex-col items-center gap-3 py-10">
+              <p role="alert" className="text-center text-sm text-destructive-text">
+                {erro}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setErro(null);
+                  setTentativa((t) => t + 1);
+                }}
+              >
+                Tentar de novo
+              </Button>
+            </div>
           ) : !pdf ? (
             <p role="status" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Carregando a prancha…

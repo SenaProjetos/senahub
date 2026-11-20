@@ -888,9 +888,10 @@ prancha com as mesmas ferramentas da equipe (alfinete, retângulo, seta, nuvem, 
 arquivos de até 100 MB. O pedido não muda nada sozinho: ele espera a coordenação.
 
 - **Onde aparece:** menu **Pedidos do cliente** (com o número de pedidos aguardando), para quem pode liberar para obra
-  e enviar ao cliente (`arquivos:alterar_status`), só dos projetos que a pessoa enxerga. Quem coordena o projeto
-  recebe um aviso no sino (sem coordenador, os gestores); dá para desligar em Preferências → **Pedidos de revisão do
-  cliente**.
+  e enviar ao cliente (`arquivos:alterar_status`). A fila mostra só os pedidos que a pessoa pode decidir: projetos que
+  ela enxerga e, sem "ver todas as disciplinas", só as disciplinas de que é responsável. Quem coordena o projeto e pode
+  abrir a fila recebe um aviso no sino (sem coordenador assim, os gestores que podem); dá para desligar em Preferências
+  → **Pedidos de revisão do cliente**.
 - **Abrir o pedido** mostra o comentário, as marcações (lista numerada e a prancha com os desenhos), os anexos e o botão
   **Abrir a prancha**.
 - **Aceitar…** (resposta opcional): a revisão publicada fica **Em revisão**, com o motivo "Pedido do cliente: …", e cada
@@ -900,6 +901,9 @@ arquivos de até 100 MB. O pedido não muda nada sozinho: ele espera a coordena�
   aceita.
 - **Recusar…** exige a resposta, que vai para o cliente.
 - O cliente recebe sino e e-mail com a resposta. Ele pode cancelar enquanto o pedido aguarda.
+- Se a prancha saiu das Entregas (arquivo na lixeira, ou retirado da pasta do cliente sem revisão nova), o pedido mostra
+  **Prancha retirada** e também só pode ser recusado. Quando a lixeira apaga o arquivo de vez, os pedidos dele e os
+  anexos vão junto.
 - Se a prancha ganhou revisão nova depois do pedido, o pedido mostra **Revisão substituída** e só pode ser recusado:
   os rascunhos nunca caem numa revisão diferente da que o cliente marcou. Peça na resposta que ele confira a revisão
   nova.

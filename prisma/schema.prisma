@@ -2221,7 +2221,7 @@ model PedidoRevisaoCliente {
   autorId         String
   autor           User                @relation("PedidoRevisaoAutor", fields: [autorId], references: [id], onDelete: Cascade)
   comentario      String
-  /// aguardando | aceito | recusado | cancelado
+  /// aguardando | aceito | recusado | cancelado — CHECK no banco (migração 20261120090000), fora do schema.
   status          String              @default("aguardando")
   /// Obrigatória ao recusar, opcional ao aceitar.
   resposta        String?

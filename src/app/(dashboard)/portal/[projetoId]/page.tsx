@@ -6,7 +6,7 @@ import { CalendarDays, Download, FileStack, MapPin } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
 import { andamentoDoPortal } from "@/modules/portal/andamento-queries";
-import { pedidosDoProjetoNoPortal } from "@/modules/portal/pedido-revisao/queries";
+import { pedidosDoProjetoNoPortal, uploadsComPedidoAguardando } from "@/modules/portal/pedido-revisao/queries";
 import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
@@ -72,6 +72,16 @@ export default async function PortalProjetoPage({
         </Suspense>
       </LimiteErroEntregas>
 
+      {/* Pedidos de revisão: leitura e limite de erro próprios — uma falha aqui não leva as Entregas. */}
+      <LimiteErroEntregas
+        titulo="Pedidos de revisão"
+        mensagem="Não foi possível carregar os pedidos de revisão agora. Tente de novo; se continuar, fale com a equipe do projeto."
+      >
+        <Suspense fallback={null}>
+          <PedidosDoProjeto projetoId={projeto.id} clienteId={cliente.clienteId} />
+        </Suspense>
+      </LimiteErroEntregas>
+
       <PortalDocumentos projetoId={projeto.id} docs={recebidos} />
     </div>
   );
@@ -81,16 +91,23 @@ type ProjetoDoPortal = NonNullable<Awaited<ReturnType<typeof projetoDoCliente>>>
 
 async function AndamentoEEntregas({ projeto, clienteId }: { projeto: ProjetoDoPortal; clienteId: string }) {
   const { andamento, linha, conteudo } = await andamentoDoPortal(projeto);
-  const pedidos = await pedidosDoProjetoNoPortal(projeto.id, clienteId);
-  const aguardando = [...new Set(pedidos.filter((p) => p.status === "aguardando").map((p) => p.uploadId))];
+  // O selo "Pedido aguardando" é só um aviso: se a leitura falhar, as Entregas saem sem ele.
+  const aguardando = await uploadsComPedidoAguardando(projeto.id, clienteId).catch((e: unknown) => {
+    console.error("[portal] selo de pedido aguardando não carregou:", e);
+    return [] as string[];
+  });
   return (
     <div className="space-y-6">
       <AndamentoCard andamento={andamento} />
       <LinhaDoTempoCard itens={linha} />
       <EntregasDoProjeto projetoId={projeto.id} entregas={conteudo} aguardando={aguardando} />
-      <PedidosRevisaoCard pedidos={pedidos} projetoId={projeto.id} />
     </div>
   );
+}
+
+async function PedidosDoProjeto({ projetoId, clienteId }: { projetoId: string; clienteId: string }) {
+  const pedidos = await pedidosDoProjetoNoPortal(projetoId, clienteId);
+  return <PedidosRevisaoCard pedidos={pedidos} projetoId={projetoId} />;
 }
 
 /** Card "Entregas": as pastas do cliente pelo mesmo núcleo do link público. */

@@ -1,4 +1,5 @@
 import "server-only";
+import { caminhosDosAnexosDosUploads, removerArquivosDosAnexos } from "@/modules/portal/pedido-revisao/service";
 import { SEM_TRANSFERENCIA } from "@/modules/financeiro/natureza";
 import { avisarContasAPagar, enviarCobrancasAoCliente, reservarAvisoInterno } from "@/modules/financeiro/avisos/service";
 import { rodarResumoDiario } from "@/modules/portal/resumo-service";
@@ -1699,7 +1700,10 @@ export async function purgarLixeiraArquivos(): Promise<number> {
   const revisoesTocadas: (string | null)[] = [];
   for (const u of vencidos) {
     try {
+      // Pedidos de revisão do cliente vão em cascata com o PDF; os arquivos dos anexos, não — lidos antes do delete.
+      const anexosDePedidos = await caminhosDosAnexosDosUploads([u.id]);
       await prisma.upload.delete({ where: { id: u.id } });
+      await removerArquivosDosAnexos(anexosDePedidos);
       revisoesTocadas.push(u.revisaoId);
       // Outra linha pode dividir o caminho (envio antigo sobre arquivo da lixeira): o arquivo fica.
       await removerArquivoDeUploadSemDono(u.caminho);

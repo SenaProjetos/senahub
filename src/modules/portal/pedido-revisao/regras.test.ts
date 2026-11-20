@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_PEDIDOS_AGUARDANDO,
   MOTIVO_JA_RESPONDIDO,
+  MOTIVO_PRANCHA_RETIRADA,
+  assinaturaConfere,
+  motivoDoLimiteDePedidos,
+  situacaoDaRevisao,
   MOTIVO_RECUSA_SEM_RESPOSTA,
   MOTIVO_REVISAO_SUBSTITUIDA,
   MOTIVO_SEM_VALIDAR,
@@ -19,7 +24,7 @@ import {
   type EstadoDaRevisao,
 } from "./regras";
 
-const publicada: EstadoDaRevisao = { estado: "publicado", participa: true, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: true };
+const publicada: EstadoDaRevisao = { estado: "publicado", participa: true, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: true, uploadExcluido: false, outraNasPastas: false };
 
 describe("motivoParaNaoAceitar", () => {
   it("aguardando, quem valida e revisão publicada: pode", () => {
@@ -47,7 +52,7 @@ describe("motivoParaNaoAceitar", () => {
       motivoParaNaoAceitar({
         status: "aguardando",
         podeValidar: true,
-        revisao: { estado: null, participa: false, uploadSubstituido: true, arquivada: false, nasPastasDoCliente: true },
+        revisao: { estado: null, participa: false, uploadSubstituido: true, arquivada: false, nasPastasDoCliente: true, uploadExcluido: false, outraNasPastas: false },
       }),
     ).toBe(MOTIVO_REVISAO_SUBSTITUIDA);
   });
@@ -56,16 +61,65 @@ describe("motivoParaNaoAceitar", () => {
       motivoParaNaoAceitar({
         status: "aguardando",
         podeValidar: true,
-        revisao: { estado: null, participa: false, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: true },
+        revisao: { estado: null, participa: false, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: true, uploadExcluido: false, outraNasPastas: false },
       }),
     ).toBeNull();
+  });
+});
+
+describe("situacaoDaRevisao", () => {
+  const fora = { estado: null, participa: false, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: false, uploadExcluido: false, outraNasPastas: false };
+  it("arquivo do pedido na lixeira: retirada (não \"revisão nova\")", () => {
+    expect(situacaoDaRevisao({ ...publicada, uploadExcluido: true })).toBe("retirada");
+  });
+  it("no ciclo: publicada nas Entregas, arquivada substituída", () => {
+    expect(situacaoDaRevisao(publicada)).toBe("nas_entregas");
+    expect(situacaoDaRevisao({ ...publicada, estado: "arquivado", arquivada: true })).toBe("substituida");
+  });
+  it("fora do ciclo: outra revisão nas pastas = substituída; nenhuma = retirada", () => {
+    expect(situacaoDaRevisao({ ...fora, nasPastasDoCliente: true })).toBe("nas_entregas");
+    expect(situacaoDaRevisao({ ...fora, outraNasPastas: true })).toBe("substituida");
+    expect(situacaoDaRevisao(fora)).toBe("retirada");
+  });
+  it("aceitar prancha retirada: frase própria", () => {
+    expect(motivoParaNaoAceitar({ status: "aguardando", podeValidar: true, revisao: { ...publicada, uploadExcluido: true } })).toBe(
+      MOTIVO_PRANCHA_RETIRADA,
+    );
+  });
+});
+
+describe("assinaturaConfere", () => {
+  const b = (...n: number[]) => Uint8Array.from(n);
+  const txt = (t: string) => new TextEncoder().encode(t);
+  it("PDF, PNG, JPG e DWG pelo começo do arquivo", () => {
+    expect(assinaturaConfere("pdf", txt("%PDF-1.7"))).toBe(true);
+    expect(assinaturaConfere("png", b(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a))).toBe(true);
+    expect(assinaturaConfere("jpg", b(0xff, 0xd8, 0xff, 0xe0))).toBe(true);
+    expect(assinaturaConfere("jpeg", b(0xff, 0xd8, 0xff, 0xdb))).toBe(true);
+    expect(assinaturaConfere("dwg", txt("AC1032"))).toBe(true);
+  });
+  it("DXF de texto ou binário", () => {
+    expect(assinaturaConfere("dxf", txt("  0\r\nSECTION"))).toBe(true);
+    expect(assinaturaConfere("dxf", txt("AutoCAD Binary DXF\r\n"))).toBe(true);
+  });
+  it("conteúdo que não corresponde à extensão", () => {
+    expect(assinaturaConfere("pdf", b(0x4d, 0x5a, 0x90, 0x00))).toBe(false);
+    expect(assinaturaConfere("png", txt("%PDF-1.7"))).toBe(false);
+    expect(assinaturaConfere("dxf", b(0x4d, 0x5a, 0x00, 0x00))).toBe(false);
+  });
+});
+
+describe("motivoDoLimiteDePedidos", () => {
+  it(`até ${MAX_PEDIDOS_AGUARDANDO} aguardando por conta no projeto`, () => {
+    expect(motivoDoLimiteDePedidos(MAX_PEDIDOS_AGUARDANDO - 1)).toBeNull();
+    expect(motivoDoLimiteDePedidos(MAX_PEDIDOS_AGUARDANDO)).not.toBeNull();
   });
 });
 
 describe("revisaoAindaNasEntregas", () => {
   it("fora do ciclo, a revisão que saiu das pastas do cliente (outra revisão compartilhada) não está mais nas Entregas", () => {
     expect(
-      revisaoAindaNasEntregas({ estado: null, participa: false, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: false }),
+      revisaoAindaNasEntregas({ estado: null, participa: false, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: false, uploadExcluido: false, outraNasPastas: false }),
     ).toBe(false);
   });
   it("no ciclo, só publicada", () => {

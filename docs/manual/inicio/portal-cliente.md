@@ -112,8 +112,9 @@ a equipe responde, chega um aviso no sino e um e-mail:
 - **Recusado** — a resposta da equipe explica o motivo.
 
 Enquanto o pedido aguarda, qualquer conta da sua empresa pode **Cancelar pedido**. Pedido enviado não se edita:
-cancele e faça outro. Se a prancha ganhar revisão nova antes da resposta, o pedido mostra **Revisão substituída** —
-confira a revisão nova. Na prancha, as marcações dos pedidos que ainda aguardam a equipe aparecem em cinza, para
+cancele e faça outro. Cada conta tem até 20 pedidos aguardando por projeto. Se a prancha ganhar revisão nova antes da
+resposta, o pedido mostra **Revisão substituída** — confira a revisão nova; se ela sair das Entregas, **Prancha
+retirada**. Os anexos precisam ser os arquivos originais: um arquivo cujo conteúdo não corresponde à extensão é recusado. Na prancha, as marcações dos pedidos que ainda aguardam a equipe aparecem em cinza, para
 ninguém pedir a mesma coisa duas vezes.
 
 ## Resumo por e-mail

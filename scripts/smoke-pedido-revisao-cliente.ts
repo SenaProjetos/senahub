@@ -18,6 +18,8 @@ import {
   anexoParaBaixar,
   avisarPedidoNovo,
   avisarResposta,
+  caminhosDosAnexosDosUploads,
+  removerArquivosDosAnexos,
   cancelarPedidoNoBanco,
   gravarAnexoNoBanco,
   motivoParaAnexar,
@@ -33,6 +35,8 @@ import {
 import { pedidosDoProjetoNoPortal } from "../src/modules/portal/pedido-revisao/queries";
 import { MOTIVO_SEM_ESCALA } from "../src/modules/portal/pedido-revisao/conversao";
 import { criarPendenciaNoTx } from "../src/modules/projetos/pendencias/criar-service";
+import { existeArquivo, salvarArquivo } from "../src/lib/storage";
+import { MAX_PEDIDOS_AGUARDANDO, MOTIVO_PRANCHA_RETIRADA } from "../src/modules/portal/pedido-revisao/regras";
 
 async function erroDe(p: Promise<unknown>): Promise<string | null> {
   try {
@@ -231,7 +235,7 @@ async function main() {
     check(
       "fora do ciclo, revisão que saiu da pasta do cliente: aceite recusado e portal mostra substituída",
       (await erroDe(aceitarPedidoNoBanco({ id: pd.id, quem, resposta: null }))) === MOTIVO_REVISAO_SUBSTITUIDA &&
-        (await pedidosDoProjetoNoPortal(p1.id, cliente.id)).find((x) => x.id === pd.id)?.revisaoSubstituida === true,
+        (await pedidosDoProjetoNoPortal(p1.id, cliente.id)).find((x) => x.id === pd.id)?.indisponivel === "substituida",
     );
     await recusarPedidoNoBanco({ id: pd.id, quem, resposta: "Confira a revisão nova." });
 
@@ -399,6 +403,56 @@ async function main() {
     );
     const semSmtp = await avisarResposta(p5.id, { notificar: async () => {}, enviarEmail: null });
     check("sem SMTP: só o sino", semSmtp.sino && !semSmtp.email);
+
+    // ── quem não pode abrir a fila não recebe o sino ──
+    const semPerm = await prisma.user.create({ data: { name: `${tag} sem permissão`, email: `${tag.toLowerCase()}_semperm@smoke.local`, tipo: "interno" } });
+    usuarios.push(semPerm.id);
+    await prisma.projetoMembro.create({ data: { projetoId: p1.id, userId: semPerm.id, papel: "coordenador" } });
+    sinos.length = 0;
+    await avisarPedidoNovo(pm.id, notificarMuitosFalso);
+    check(
+      "coordenador sem arquivos:alterar_status não recebe o aviso do pedido",
+      JSON.stringify(sinos[0]?.ids) === JSON.stringify([coord.id]),
+      sinos[0]?.ids,
+    );
+
+    // ── prancha na lixeira: "retirada", não "revisão nova" ──
+    const g = await prancha(p1.disciplinaId, "g", { ciclo: true, compartilhar: true });
+    const pg = await pedir(g.up.id);
+    await prisma.upload.update({ where: { id: g.up.id }, data: { excluidoEm: new Date() } });
+    check(
+      "prancha na lixeira: aceite recusado com a frase de retirada e portal mostra retirada",
+      (await erroDe(aceitarPedidoNoBanco({ id: pg.id, quem, resposta: null }))) === MOTIVO_PRANCHA_RETIRADA &&
+        (await pedidosDoProjetoNoPortal(p1.id, cliente.id)).find((x) => x.id === pg.id)?.indisponivel === "retirada",
+    );
+
+    // ── limite de pedidos aguardando por conta no projeto ──
+    const muito = await novaConta(cliente.id, "muito");
+    const h = await prancha(p1.disciplinaId, "h", { ciclo: true, compartilhar: true });
+    for (let i = 0; i < MAX_PEDIDOS_AGUARDANDO; i++) await pedir(h.up.id, muito, `pedido ${i}`);
+    check(`conta com ${MAX_PEDIDOS_AGUARDANDO} pedidos aguardando: o próximo é recusado`, (await erroDe(pedir(h.up.id, muito))) !== null);
+    const umDeles = await prisma.pedidoRevisaoCliente.findFirstOrThrow({ where: { autorId: muito.id }, select: { id: true } });
+    await cancelarPedidoNoBanco({ id: umDeles.id, autor: muito });
+    check("cancelando um, volta a poder pedir", (await erroDe(pedir(h.up.id, muito))) === null);
+
+    // ── purga da lixeira: os arquivos dos anexos saem do disco junto ──
+    const pp = await pedir(h.up.id);
+    const caminhoAnexo = `portal/pedidos/${pp.id}/${tag}-purga.pdf`;
+    await salvarArquivo(caminhoAnexo, Buffer.from("%PDF-1.4 smoke"));
+    await gravarAnexoNoBanco({ pedidoId: pp.id, userId: conta.id, nome: "purga.pdf", caminho: caminhoAnexo, tamanho: 14, mime: "application/pdf" });
+    const caminhos = await caminhosDosAnexosDosUploads([h.up.id]);
+    await prisma.upload.delete({ where: { id: h.up.id } });
+    await removerArquivosDosAnexos(caminhos);
+    check(
+      "purga do PDF apaga os pedidos e os arquivos dos anexos",
+      caminhos.includes(caminhoAnexo) && !(await existeArquivo(caminhoAnexo)) && (await prisma.pedidoRevisaoCliente.count({ where: { id: pp.id } })) === 0,
+    );
+
+    // ── o banco recusa status fora da máquina de estados ──
+    check(
+      "status fora da máquina de estados é recusado pelo banco",
+      (await erroDe(prisma.pedidoRevisaoCliente.update({ where: { id: p5.id }, data: { status: "aprovado" } }))) !== null,
+    );
 
     // ── anexos (o arquivo em disco é da rota; aqui só o registro) ──
     const p8 = await pedir(a.up.id);

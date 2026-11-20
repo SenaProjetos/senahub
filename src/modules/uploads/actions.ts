@@ -1,5 +1,6 @@
 "use server";
 
+import { caminhosDosAnexosDosUploads, removerArquivosDosAnexos } from "@/modules/portal/pedido-revisao/service";
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -1137,8 +1138,11 @@ export const excluirUploadDefinitivo = defineAction(
       throw new ActionError("Só é possível excluir em definitivo arquivos que estão na lixeira.");
     }
 
-    // Cascata (schema): remove Pendencia, AceiteCliente e ConversaoModelo vinculados.
+    // Cascata (schema): remove Pendencia, AceiteCliente, ConversaoModelo e pedidos de revisão do cliente vinculados.
+    // Os arquivos dos anexos desses pedidos não estão no banco: lidos antes do delete e apagados depois.
+    const anexosDePedidos = await caminhosDosAnexosDosUploads([upload.id]);
     await prisma.upload.delete({ where: { id: upload.id } });
+    await removerArquivosDosAnexos(anexosDePedidos);
     // Revisão em análise que ficou sem arquivo nenhum volta para em andamento — senão trava o próximo envio.
     // Logo depois do delete, antes do resto: a falha de um passo seguinte não pode deixar a revisão presa.
     await devolverRevisoesSemArquivo([upload.revisaoId]);

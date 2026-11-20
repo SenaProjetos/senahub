@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { getSession } from "@/lib/session";
-import { extensaoSegura, limitarStream, nomeArquivoLimpo, removerArquivo, salvarStream } from "@/lib/storage";
+import { extensaoSegura, lerInicioArquivo, limitarStream, nomeArquivoLimpo, removerArquivo, salvarStream } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { ActionError } from "@/lib/with-action";
-import { TAMANHO_MAX_ANEXO as TAMANHO_MAX, TAMANHO_MAX_ANEXO_LABEL as TAMANHO_MAX_LABEL } from "@/modules/portal/pedido-revisao/regras";
+import {
+  MOTIVO_CONTEUDO_DO_ANEXO,
+  TAMANHO_MAX_ANEXO as TAMANHO_MAX,
+  TAMANHO_MAX_ANEXO_LABEL as TAMANHO_MAX_LABEL,
+  assinaturaConfere,
+  extensaoDoAnexo,
+} from "@/modules/portal/pedido-revisao/regras";
 import { acessoDoUsuarioAoProjetoDoPortal } from "@/modules/portal/acesso";
 import { prisma } from "@/lib/prisma";
 import { gravarAnexoNoBanco, motivoParaAnexar } from "@/modules/portal/pedido-revisao/service";
@@ -62,6 +68,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
       return NextResponse.json({ error: `Arquivo excede ${TAMANHO_MAX_LABEL}.` }, { status: 413 });
     }
     throw erro;
+  }
+
+  // A extensão vem do nome que o navegador mandou: confere o começo do arquivo antes de registrar.
+  const inicio = await lerInicioArquivo(salvo.caminho, 32).catch(() => Buffer.alloc(0));
+  if (!assinaturaConfere(extensaoDoAnexo(nome), new Uint8Array(inicio))) {
+    await removerArquivo(salvo.caminho);
+    return NextResponse.json({ error: MOTIVO_CONTEUDO_DO_ANEXO }, { status: 400 });
   }
 
   let anexo: { id: string };

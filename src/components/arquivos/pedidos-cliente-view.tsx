@@ -5,26 +5,18 @@ import Link from "next/link";
 import { Inbox, Info, MessageSquareText } from "lucide-react";
 import type { PedidoFilaView } from "@/modules/portal/pedido-revisao/queries";
 import {
-  MOTIVO_REVISAO_SUBSTITUIDA,
   MOTIVO_SEM_VALIDAR,
   itensDoPedido,
 } from "@/modules/portal/pedido-revisao/regras";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { cn, formatarDataHora } from "@/lib/utils";
-import { SeloRevisaoSubstituida, SeloStatusPedido } from "@/components/arquivos/selos-pedido";
+import { SeloIndisponivel, SeloStatusPedido, motivoNaTela } from "@/components/arquivos/selos-pedido";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
 import { DicaMenuContexto } from "@/components/ui/dica-menu-contexto";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DecisaoPedidoDialog, type ModoDecisao } from "@/components/arquivos/decisao-pedido-dialog";
-
-/** Motivo para não aceitar que a TELA já sabe (o servidor confere tudo de novo). */
-export function motivoNaTela(p: { revisaoSubstituida: boolean }, podeValidar: boolean): string | null {
-  if (!podeValidar) return MOTIVO_SEM_VALIDAR;
-  if (p.revisaoSubstituida) return MOTIVO_REVISAO_SUBSTITUIDA;
-  return null;
-}
 
 /** Respondido só teria "Abrir pedido", que a própria linha já faz: sem menu (ADR-0002, regra 1). */
 export function itensDaLinhaDoPedido(p: PedidoFilaView, podeValidar: boolean): AcaoItem[] {
@@ -63,7 +55,7 @@ function LinhaPedido({
             </Link>
             <span className="shrink-0 font-mono text-xs text-muted-foreground">{p.revisao}</span>
             {p.status !== "aguardando" && <SeloStatusPedido status={p.status} rotulo={p.rotuloStatus} />}
-            {p.revisaoSubstituida && <SeloRevisaoSubstituida />}
+            {p.indisponivel && <SeloIndisponivel tipo={p.indisponivel} />}
           </div>
           <p className="truncate text-xs text-muted-foreground">
             <span className="font-mono">{formatarCodigo(p.projeto.codigo)}</span> · {p.projeto.nome}
