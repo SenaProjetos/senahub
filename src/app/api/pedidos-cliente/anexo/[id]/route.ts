@@ -7,12 +7,14 @@ import { contentDisposition } from "@/modules/projetos/arquivos/link-publico-reg
 import { exigirEscopoDaRevisao } from "@/modules/uploads/ciclo/acesso";
 import { anexoParaBaixar, exigirEscopoDoPedidoModelo } from "@/modules/portal/pedido-revisao/service";
 
+const SEM_CACHE = "private, no-store";
+
 /**
  * Download de um anexo do pedido de revisão do cliente: a coordenação (`arquivos:alterar_status` + a mesma muralha de
  * aceitar/recusar — na prancha, a da disciplina da revisão, `exigirEscopoDaRevisao`; no pedido do modelo 3D, que não tem
  * revisão única, a do pedido inteiro, `exigirEscopoDoPedidoModelo`: ver todas as disciplinas + a muralha de cada revisão
  * marcada) ou uma conta do portal com acesso ao projeto do pedido. Sempre como anexo (`attachment`), nunca inline: o
- * arquivo veio de fora.
+ * arquivo veio de fora. Sem cache (`private, no-store`): o anexo é do cliente, e quem perde o acesso não o reabre do cache.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -29,13 +31,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       return false;
     }
   });
-  if (!user || !anexo) return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404 });
+  if (!user || !anexo) return NextResponse.json({ error: "Arquivo indisponível." }, { status: 404, headers: { "Cache-Control": SEM_CACHE } });
 
   let arquivo: Awaited<ReturnType<typeof arquivoParaStream>>;
   try {
     arquivo = await arquivoParaStream(anexo.caminho);
   } catch {
-    return NextResponse.json({ error: "Arquivo indisponível no disco." }, { status: 410 });
+    return NextResponse.json({ error: "Arquivo indisponível no disco." }, { status: 410, headers: { "Cache-Control": SEM_CACHE } });
   }
   await logAudit({
     modulo: "portal",
@@ -52,6 +54,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     "Content-Type": "application/octet-stream",
     "X-Content-Type-Options": "nosniff",
     "Content-Disposition": contentDisposition("attachment", anexo.nome),
+    "Cache-Control": SEM_CACHE,
   });
   return new NextResponse(arquivo.abrir(), { headers });
 }

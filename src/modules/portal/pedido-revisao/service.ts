@@ -509,14 +509,16 @@ async function disciplinaDoModelo(tx: Tx, modeloId: string, origem: OrigemLida):
   return u?.disciplinaId ?? origem?.disciplinaId ?? null;
 }
 
-export type ResultadoAceiteModelo = { apontamentos: number; emRevisao: number };
+/** `imagensNaoCopiadas` = marcações cuja imagem da vista não chegou ao apontamento (a tela avisa quem aceitou). */
+export type ResultadoAceiteModelo = { apontamentos: number; emRevisao: number; imagensNaoCopiadas: number };
 
 /**
  * Aceita um pedido de modelo, numa transação: status → aceito (`updateMany` condicionado); cada marcação vira um
  * apontamento 3D da coordenação (aberto, sem tarefa, autor = quem aceitou) no modelo que o cliente viu, numerado no
  * projeto; cada revisão das Entregas marcada fica "Em revisão" uma vez só (publicada no ciclo, sem marca ativa), sem
  * avisar os projetistas. O recebido do cliente não marca revisão. A imagem da vista é COPIADA depois da transação (o
- * arquivo do pedido fica com o pedido); se a cópia falha, o apontamento fica sem imagem.
+ * arquivo do pedido fica com o pedido); se a cópia falha, o apontamento fica sem imagem e o resultado conta quantas
+ * faltaram (`imagensNaoCopiadas`), para quem aceitou saber.
  */
 export async function aceitarPedidoModeloNoBanco(p: {
   id: string;
@@ -592,16 +594,18 @@ export async function aceitarPedidoModeloNoBanco(p: {
   });
 
   // O mesmo caminho da rota de snapshot da coordenação (`/api/coordenacao/snapshot`).
+  let imagensNaoCopiadas = 0;
   for (const c of copias) {
     const para = `coordenacao/apontamentos/${projetoId}/${c.apontamentoId}.png`;
     try {
       await copiarArquivo(c.de, para);
       await prisma.apontamentoCoordenacao.update({ where: { id: c.apontamentoId }, data: { snapshotPath: para } });
     } catch (e) {
+      imagensNaoCopiadas++;
       console.error("[pedido-revisao] imagem da marcação não copiada para o apontamento:", c.apontamentoId, e);
     }
   }
-  return resultado;
+  return { ...resultado, imagensNaoCopiadas };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -861,17 +865,23 @@ export async function avisarResposta(
 // Purga do PDF (lixeira): o banco leva os pedidos em cascata, o disco não
 // ─────────────────────────────────────────────────────────────
 
-/** Caminhos dos anexos dos pedidos destes uploads — lidos ANTES de apagar o upload (depois a cascata já os levou). */
+/**
+ * Caminhos dos arquivos dos pedidos destes uploads — os anexos e as imagens da vista das marcações 3D —, lidos ANTES
+ * de apagar o upload (depois a cascata já os levou). Pedido de modelo não tem `uploadId` (cada marcação aponta o seu
+ * modelo, sem FK) e não sai em cascata com o IFC: as imagens dele ficam com ele.
+ */
 export async function caminhosDosAnexosDosUploads(uploadIds: readonly string[]): Promise<string[]> {
   if (uploadIds.length === 0) return [];
-  const anexos = await prisma.anexoPedidoCliente.findMany({
-    where: { pedido: { uploadId: { in: [...uploadIds] } } },
-    select: { caminho: true },
+  const doPedido = { pedido: { uploadId: { in: [...uploadIds] } } };
+  const anexos = await prisma.anexoPedidoCliente.findMany({ where: doPedido, select: { caminho: true } });
+  const vistas = await prisma.marcacaoModeloCliente.findMany({
+    where: { ...doPedido, snapshotPath: { not: null } },
+    select: { snapshotPath: true },
   });
-  return anexos.map((a) => a.caminho);
+  return [...anexos.map((a) => a.caminho), ...vistas.flatMap((v) => (v.snapshotPath ? [v.snapshotPath] : []))];
 }
 
-/** Apaga do disco os anexos de pedidos que a purga levou. Nunca lança: falha vira log, a purga segue. */
+/** Apaga do disco os anexos (e imagens da vista) de pedidos que a purga levou. Nunca lança: falha vira log, a purga segue. */
 export async function removerArquivosDosAnexos(caminhos: readonly string[]): Promise<void> {
   for (const c of caminhos) {
     try {

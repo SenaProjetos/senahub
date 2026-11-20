@@ -121,15 +121,21 @@ export const aceitarPedidoRevisao = defineAction(
   async (input, { user }) => {
     const tipo = await exigirEscopoDoPedido(user, input.id);
     const resposta = input.resposta ?? null;
-    let resultado: { emRevisao: boolean; jaEstavaEmRevisao: boolean; rascunhos: number; apontamentos: number };
+    let resultado: { emRevisao: boolean; jaEstavaEmRevisao: boolean; rascunhos: number; apontamentos: number; imagensNaoCopiadas: number };
     if (tipo === "modelo") {
       if (!(await can(user, "coordenacao", "gerir"))) throw new ActionError(MOTIVO_SEM_COORDENACAO);
       const r = await aceitarPedidoModeloNoBanco({ id: input.id, quem: { id: user.id }, resposta });
-      resultado = { emRevisao: r.emRevisao > 0, jaEstavaEmRevisao: false, rascunhos: 0, apontamentos: r.apontamentos };
+      resultado = {
+        emRevisao: r.emRevisao > 0,
+        jaEstavaEmRevisao: false,
+        rascunhos: 0,
+        apontamentos: r.apontamentos,
+        imagensNaoCopiadas: r.imagensNaoCopiadas,
+      };
     } else {
       const podeValidar = await can(user, "uploads", "validar");
       const r = await aceitarPedidoNoBanco({ id: input.id, quem: { id: user.id, podeValidar }, resposta });
-      resultado = { ...r, apontamentos: 0 };
+      resultado = { ...r, apontamentos: 0, imagensNaoCopiadas: 0 };
     }
     await avisarResposta(input.id);
     revalidatePath("/arquivos/pedidos-cliente", "layout");

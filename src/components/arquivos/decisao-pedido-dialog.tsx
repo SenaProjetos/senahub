@@ -65,6 +65,14 @@ export function DecisaoPedidoDialog({
           );
         }
         toast.success(partes.join(" "));
+        // A imagem da vista é copiada depois do aceite: se faltou, quem aceitou fica sabendo (o apontamento vale sem ela).
+        if (r.data.imagensNaoCopiadas > 0) {
+          toast.warning(
+            r.data.imagensNaoCopiadas === 1
+              ? "Uma imagem da vista não foi copiada para o apontamento. O apontamento vale com o elemento e a vista."
+              : `${r.data.imagensNaoCopiadas} imagens da vista não foram copiadas para os apontamentos. Eles valem com o elemento e a vista.`,
+          );
+        }
       } else {
         const r = await recusarPedidoRevisao({ id: pedido.id, resposta });
         if (!r.ok) {

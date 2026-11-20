@@ -130,6 +130,33 @@ describe("storage — copiarArquivo (stream, sem carregar o arquivo na memória)
   it("recusa destino fora do base", async () => {
     await expect(copiarArquivo("teste-copia/x.bin", "../../fora.bin")).rejects.toThrow();
   });
+
+  it("cópia que falha não apaga nem estraga o destino que já existia, e não deixa temporário", async () => {
+    const pasta = `teste-copia/${Date.now()}-existente`;
+    const destinoRel = `${pasta}/destino.bin`;
+    const antigo = Buffer.from("conteúdo antigo do destino");
+    await salvarArquivo(destinoRel, antigo);
+    try {
+      await expect(copiarArquivo(`${pasta}/nao-existe.bin`, destinoRel)).rejects.toThrow();
+      expect((await lerArquivo(destinoRel)).equals(antigo)).toBe(true);
+      expect((await fsp.readdir(resolverCaminho(pasta))).filter((n) => n !== "destino.bin")).toEqual([]);
+    } finally {
+      await fsp.rm(resolverCaminho(pasta), { recursive: true, force: true });
+    }
+  });
+
+  it("cópia sobre destino existente troca o conteúdo inteiro, sem temporário sobrando", async () => {
+    const pasta = `teste-copia/${Date.now()}-troca`;
+    const origem = await salvarArquivo(`${pasta}/origem.bin`, Buffer.from("novo"));
+    await salvarArquivo(`${pasta}/destino.bin`, Buffer.from("antigo e mais comprido"));
+    try {
+      await copiarArquivo(origem.caminho, `${pasta}/destino.bin`);
+      expect((await lerArquivo(`${pasta}/destino.bin`)).toString()).toBe("novo");
+      expect((await fsp.readdir(resolverCaminho(pasta))).sort()).toEqual(["destino.bin", "origem.bin"]);
+    } finally {
+      await fsp.rm(resolverCaminho(pasta), { recursive: true, force: true });
+    }
+  });
 });
 
 describe("storage — arquivoParaStream (download sem carregar o arquivo na memória)", () => {

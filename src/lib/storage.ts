@@ -235,12 +235,14 @@ export async function removerArquivo(relativo: string): Promise<void> {
 
 /**
  * Copia um arquivo por STREAM (sem carregar na RAM — anexos chegam a 500 MB), calculando SHA-256 e tamanho no
- * caminho. Falhou no meio → apaga o destino parcial e relança.
+ * caminho. Grava num temporário ao lado e só renomeia no fim (como `salvarArquivo`): falhou no meio → o temporário sai,
+ * e um destino que já existia fica intacto. Relança o erro.
  */
 export async function copiarArquivo(relativoDe: string, relativoPara: string): Promise<ArquivoSalvo> {
   const de = resolverCaminho(relativoDe);
   const para = resolverCaminho(relativoPara);
   await fs.mkdir(path.dirname(para), { recursive: true });
+  const temporario = `${para}.${randomBytes(6).toString("hex")}${SUFIXO_GRAVACAO_PARCIAL}`;
   const hash = createHash("sha256");
   let tamanho = 0;
   const contador = new Transform({
@@ -251,9 +253,10 @@ export async function copiarArquivo(relativoDe: string, relativoPara: string): P
     },
   });
   try {
-    await pipeline(createReadStream(de), contador, createWriteStream(para));
+    await pipeline(createReadStream(de), contador, createWriteStream(temporario, { flags: "wx" }));
+    await renomearComEspera(temporario, para);
   } catch (erro) {
-    await fs.rm(para, { force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
+    await fs.rm(temporario, { force: true, maxRetries: 3, retryDelay: 100 }).catch(() => {});
     throw erro;
   }
   return { caminho: relativoPara, hashSha256: hash.digest("hex"), tamanho };

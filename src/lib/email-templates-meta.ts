@@ -258,7 +258,13 @@ Sena Projetos`,
     variaveis: [
       { nome: "nome", descricao: "Primeiro nome de quem pediu", exemplo: "Mariana" },
       { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
-      { nome: "prancha", descricao: "Arquivo da prancha, ou \"Modelo 3D\" no pedido feito no modelo", exemplo: "260507-ARQ-EX-3001-PLA.pdf" },
+      {
+        nome: "prancha",
+        // O valor é o nome do arquivo OU "Modelo 3D": uma frase como "da prancha {{prancha}}" leria "da prancha Modelo 3D".
+        descricao:
+          "Arquivo da prancha, ou \"Modelo 3D\" no pedido feito no modelo. Não escreva \"da prancha\" antes: use-a sozinha, como no texto padrão.",
+        exemplo: "260507-ARQ-EX-3001-PLA.pdf",
+      },
       { nome: "situacao", descricao: "aceito ou recusado", exemplo: "aceito" },
       {
         nome: "resposta",
@@ -270,7 +276,7 @@ Sena Projetos`,
     assuntoPadrao: "Seu pedido de revisão foi {{situacao}} — {{projeto}}",
     corpoPadrao: `Olá, {{nome}}.
 
-Seu pedido de revisão de **{{prancha}}**, no projeto **{{projeto}}**, foi **{{situacao}}** pela equipe.
+Seu pedido de revisão no projeto **{{projeto}}** (**{{prancha}}**) foi **{{situacao}}** pela equipe.
 
 {{resposta}}
 

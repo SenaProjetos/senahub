@@ -41,6 +41,8 @@ import {
   MOTIVO_SEM_VALIDAR,
 } from "../src/modules/portal/pedido-revisao/regras";
 import { pedidosDoProjetoNoPortal, pedidosParaCoordenacao } from "../src/modules/portal/pedido-revisao/queries";
+import { marcasAguardandoNoModelo } from "../src/modules/portal/pedido-revisao/modelo-queries";
+import { modelosDoPortal } from "../src/modules/portal/modelo3d/queries";
 import { exigirEscopoDaRevisao } from "../src/modules/uploads/ciclo/acesso";
 import { MOTIVO_SEM_ESCALA } from "../src/modules/portal/pedido-revisao/conversao";
 import { criarPendenciaNoTx } from "../src/modules/projetos/pendencias/criar-service";
@@ -666,6 +668,31 @@ async function main() {
         { noPortal, sinos3d },
       );
 
+      // ── marcações esmaecidas no 3D do portal (pedidos aguardando) ──
+      // A página passa os modelos PRONTOS que a conta vê (`modelosDoPortal`): é a mesma lista aqui.
+      const visiveisDe = async (quem: typeof conta) =>
+        ((await modelosDoPortal(quem, p3d.id)) ?? []).filter((m) => m.situacao === "pronto").map((m) => m.modeloId);
+      const textos = (l: { texto: string }[]) => l.map((m) => m.texto).sort();
+      const doPm3 = ["Parede da sala", "Pilar fora do eixo", "Sapata maior", "Viga baixa\nno corredor"].sort();
+      const daColega = await marcasAguardandoNoModelo(p3d.id, cliente.id, await visiveisDe(colega));
+      const deOutroCliente = await marcasAguardandoNoModelo(p3d.id, outro.id, await visiveisDe(colega));
+      // Bloqueio de download no U2: o modelo sai do portal e as marcações dele também.
+      const bloqueioU2 = await prisma.controleRevisao.create({
+        data: { revisaoId: u2.rev.id, tipo: "bloqueio", escopos: ["download"], motivo: "smoke", aplicadoPorId: coord.id },
+      });
+      const comBloqueio = await marcasAguardandoNoModelo(p3d.id, cliente.id, await visiveisDe(colega));
+      await prisma.controleRevisao.update({ where: { id: bloqueioU2.id }, data: { removidoEm: new Date() } });
+      const foraDaLista = await marcasAguardandoNoModelo(p3d.id, cliente.id, [x.up.id, semConv.up.id, internoGeral.modeloId]);
+      check(
+        "marcações aguardando: conta do mesmo cliente vê; outro cliente não; modelo bloqueado ou fora do portal não",
+        JSON.stringify(textos(daColega)) === JSON.stringify(doPm3) &&
+          daColega.every((m) => m.ponto !== null && m.camera !== null) &&
+          deOutroCliente.length === 0 &&
+          JSON.stringify(textos(comBloqueio)) === JSON.stringify(doPm3.filter((t) => t !== "Sapata maior")) &&
+          foraDaLista.length === 0,
+        { daColega: textos(daColega), deOutroCliente: deOutroCliente.length, comBloqueio: textos(comBloqueio), foraDaLista: foraDaLista.length },
+      );
+
       // ── muralha da coordenação ──
       const sessao = (id: string, superUsuario: boolean) =>
         ({ id, name: "smoke", email: "smoke@smoke.local", ativo: true, mustChangePassword: false, ehSocio: false, perfilId: null, perfilChave: null, escopoGlobalPerfil: false, superUsuario, tipo: "interno" }) as unknown as SessionUser;
@@ -808,14 +835,20 @@ async function main() {
         (await erroDe(imagem(gravadas3d[0].id))) === MOTIVO_IMAGEM_SO_AUTOR,
       );
       check(
-        "imagem da marcação copiada para o apontamento (a do pedido fica); a que sumiu deixa o apontamento sem imagem",
-        apontamentos3d[0]?.snapshotPath === pngApontamento &&
+        "imagem da marcação copiada para o apontamento (a do pedido fica); a que sumiu deixa o apontamento sem imagem e é contada para quem aceitou",
+        aceite3d.imagensNaoCopiadas === 1 &&
+          apontamentos3d[0]?.snapshotPath === pngApontamento &&
           (await existeArquivo(pngApontamento)) &&
           (await existeArquivo(pngMarca)) &&
           apontamentos3d[1]?.snapshotPath === null &&
           apontamentos3d[2]?.snapshotPath === `coordenacao/apontamentos/${p3d.id}/${apontamentos3d[2]?.id}.png` &&
           apontamentos3d[3]?.snapshotPath === null,
         apontamentos3d.map((a) => a.snapshotPath),
+      );
+
+      check(
+        "marcações aguardando: pedido aceito sai das esmaecidas",
+        (await marcasAguardandoNoModelo(p3d.id, cliente.id, await visiveisDe(colega))).every((m) => !ligadas3d.some((l) => l.id === m.id)),
       );
 
       const marcasEmRevisao = async (revisaoId: string) =>
