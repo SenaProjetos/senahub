@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { enfileirarConversao, enfileirarConversaoDocumento } from "@/modules/coordenacao/service";
 import { realinharModelo } from "@/modules/coordenacao/deslocamento";
+import { criarApontamentoCoordenacaoNoTx } from "@/modules/coordenacao/apontamento-service";
 import { lerGeorrefUpload, gravarGeorrefUpload } from "@/modules/coordenacao/georreferenciamento";
 import { parseModeloId } from "@/modules/coordenacao/modelo-ref";
 import { ORIGEM_MODELO_FEDERADO } from "@/modules/documentos-cliente/origens";
@@ -299,27 +300,19 @@ export const importarTopicoBcf = defineAction(
     });
     if (existente) return { id: existente.id, numero: existente.numero, duplicado: true };
 
-    const apontamento = await prisma.$transaction(async (tx) => {
-      const max = await tx.apontamentoCoordenacao.aggregate({
-        where: { projetoId: input.projetoId },
-        _max: { numero: true },
-      });
-      return tx.apontamentoCoordenacao.create({
-        data: {
-          projetoId: input.projetoId,
-          disciplinaId: input.disciplinaId ?? null,
-          uploadId: input.uploadId,
-          numero: (max._max.numero ?? 0) + 1,
-          titulo: input.titulo || "(Sem título)",
-          texto: input.texto || "Importado de BCF.",
-          guids: input.guids,
-          camera: input.camera,
-          status: "aberta",
-          autorId: user.id,
-          bcfGuid: input.bcfGuid,
-        },
-      });
-    });
+    const apontamento = await prisma.$transaction((tx) =>
+      criarApontamentoCoordenacaoNoTx(tx, {
+        projetoId: input.projetoId,
+        disciplinaId: input.disciplinaId ?? null,
+        uploadId: input.uploadId,
+        titulo: input.titulo || "(Sem título)",
+        texto: input.texto || "Importado de BCF.",
+        guids: input.guids,
+        camera: input.camera,
+        autorId: user.id,
+        bcfGuid: input.bcfGuid,
+      }),
+    );
     revalidarCoordenacao(input.projetoId);
     return { id: apontamento.id, numero: apontamento.numero, duplicado: false };
   },
@@ -329,26 +322,18 @@ export const importarTopicoBcf = defineAction(
 export const criarApontamentoCoordenacao = defineAction(
   { ...baseGerir, acao: "criar-apontamento", schema: criarApontamentoSchema, entidadeId: (d) => (d as { id: string }).id },
   async (input, { user }) => {
-    const apontamento = await prisma.$transaction(async (tx) => {
-      const max = await tx.apontamentoCoordenacao.aggregate({
-        where: { projetoId: input.projetoId },
-        _max: { numero: true },
-      });
-      return tx.apontamentoCoordenacao.create({
-        data: {
-          projetoId: input.projetoId,
-          disciplinaId: input.disciplinaId ?? null,
-          uploadId: input.uploadId,
-          numero: (max._max.numero ?? 0) + 1,
-          titulo: input.titulo,
-          texto: input.texto,
-          guids: input.guids,
-          camera: input.camera,
-          status: "aberta",
-          autorId: user.id,
-        },
-      });
-    });
+    const apontamento = await prisma.$transaction((tx) =>
+      criarApontamentoCoordenacaoNoTx(tx, {
+        projetoId: input.projetoId,
+        disciplinaId: input.disciplinaId ?? null,
+        uploadId: input.uploadId,
+        titulo: input.titulo,
+        texto: input.texto,
+        guids: input.guids,
+        camera: input.camera,
+        autorId: user.id,
+      }),
+    );
     revalidarCoordenacao(input.projetoId);
     return { id: apontamento.id, numero: apontamento.numero };
   },

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { marcacaoSchema } from "@/modules/projetos/pendencias/marcacao-schema";
 import { LIMITE_COMENTARIO, LIMITE_RESPOSTA, LIMITE_TEXTO_MARCACAO, MAX_MARCACOES } from "./regras";
+import { MAX_GUIDS_MARCACAO } from "./modelo-regras";
 
 /**
  * Schemas das ações do pedido de revisão (fora do arquivo "use server": `.superRefine` dentro de uma config de
@@ -27,6 +28,28 @@ export const criarPedidoSchema = z.object({
   uploadId: id,
   comentario: z.string().max(LIMITE_COMENTARIO, `O comentário passa de ${LIMITE_COMENTARIO} caracteres.`),
   marcacoes: z.array(marcacaoDoPedidoSchema).max(MAX_MARCACOES, `O pedido aceita no máximo ${MAX_MARCACOES} marcações.`).optional(),
+});
+
+const foraDoModelo = "Marcação fora do modelo.";
+// Zod 4: `z.number()` já recusa NaN e Infinity.
+const numero = z.number({ error: foraDoModelo });
+const ponto3d = z.tuple([numero, numero, numero], { error: foraDoModelo });
+
+/** Marcação 3D do cliente: o modelo que ele viu, os elementos (IfcGuids), o ponto e a vista — espaço IFC. */
+const marcacaoModeloSchema = z.object({
+  modeloId: z.string().min(1, foraDoModelo).max(80, foraDoModelo),
+  guids: z
+    .array(z.string().min(1, foraDoModelo).max(64, foraDoModelo))
+    .max(MAX_GUIDS_MARCACAO, `Uma marcação aceita no máximo ${MAX_GUIDS_MARCACAO} elementos.`),
+  ponto: ponto3d,
+  camera: z.object({ position: ponto3d, target: ponto3d }, { error: foraDoModelo }),
+  texto: z.string().max(LIMITE_TEXTO_MARCACAO, `O texto de uma marcação passa de ${LIMITE_TEXTO_MARCACAO} caracteres.`),
+});
+
+export const criarPedidoModeloSchema = z.object({
+  projetoId: id,
+  comentario: z.string().max(LIMITE_COMENTARIO, `O comentário passa de ${LIMITE_COMENTARIO} caracteres.`),
+  marcacoes: z.array(marcacaoModeloSchema).max(MAX_MARCACOES, `O pedido aceita no máximo ${MAX_MARCACOES} marcações.`),
 });
 
 export const cancelarPedidoSchema = z.object({ id });

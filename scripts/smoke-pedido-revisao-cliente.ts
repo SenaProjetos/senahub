@@ -2,7 +2,9 @@
  * Smoke do pedido de revisão do cliente (spec docs/superpowers/specs/2026-11-19-portal-pedido-revisao-design.md) contra
  * o banco de dev. As regras são puras e estão em `modules/portal/pedido-revisao/regras.test.ts`; aqui vai a ligação com
  * o banco: quem pode pedir (prancha nas Entregas, outro cliente), o aceite marcando "Em revisão" pelo serviço do ciclo,
- * as corridas (dois aceites, aceite × cancelamento), a recusa e a revisão substituída.
+ * as corridas (dois aceites, aceite × cancelamento), a recusa e a revisão substituída. No fim, o pedido no modelo 3D
+ * (spec 2026-11-20-portal-visualizador-3d-design.md): marcações só em modelos do portal, aceite virando apontamentos 3D
+ * da coordenação, "Em revisão" uma vez por revisão das Entregas, corridas e modelo que saiu das Entregas.
  *
  * Cria clientes + projetos + documentos + contas throwaway e apaga tudo no final.
  *
@@ -14,7 +16,11 @@ import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
 import {
   MOTIVO_ANEXO_SO_AUTOR,
+  MOTIVO_MODELO_FORA,
+  aceitarPedidoModeloNoBanco,
   aceitarPedidoNoBanco,
+  criarPedidoModeloNoBanco,
+  exigirEscopoDoPedidoModelo,
   anexoParaBaixar,
   avisarPedidoNovo,
   avisarResposta,
@@ -35,7 +41,10 @@ import {
 import { pedidosDoProjetoNoPortal } from "../src/modules/portal/pedido-revisao/queries";
 import { MOTIVO_SEM_ESCALA } from "../src/modules/portal/pedido-revisao/conversao";
 import { criarPendenciaNoTx } from "../src/modules/projetos/pendencias/criar-service";
-import { existeArquivo, salvarArquivo } from "../src/lib/storage";
+import { existeArquivo, removerArquivo, salvarArquivo } from "../src/lib/storage";
+import type { SessionUser } from "../src/lib/session";
+import { refDocumento } from "../src/modules/coordenacao/modelo-ref";
+import { criarApontamentoCoordenacaoNoTx } from "../src/modules/coordenacao/apontamento-service";
 import { MAX_PEDIDOS_AGUARDANDO, MOTIVO_PRANCHA_RETIRADA } from "../src/modules/portal/pedido-revisao/regras";
 
 async function erroDe(p: Promise<unknown>): Promise<string | null> {
@@ -62,6 +71,7 @@ async function main() {
   const clientes: string[] = [];
   const projetos: string[] = [];
   const usuarios: string[] = [];
+  const arquivosSmoke: string[] = [];
   const novoCliente = async (sufixo: string) => {
     const c = await prisma.cliente.create({ data: { tipo: "PJ", nome: `${tag}_${sufixo}` } });
     clientes.push(c.id);
@@ -482,7 +492,325 @@ async function main() {
     );
     await cancelarPedidoNoBanco({ id: p8.id, autor: conta });
     check("anexo: pedido cancelado não recebe anexo", (await erroDe(anexo(9))) === MOTIVO_ANEXO_SO_AUTOR);
+
+    {
+      // ═════════════════════════════════════════════════════════════
+      // Pedido no modelo 3D (spec 2026-11-20-portal-visualizador-3d-design.md, etapa 3)
+      // ═════════════════════════════════════════════════════════════
+      const p3d = await novoProjeto(cliente.id, "p3d");
+      /** IFC validado numa revisão publicada do pacote A; `compartilhar` = nas Entregas. */
+      const ifc = async (nome: string, o: { compartilhar: boolean; converter: boolean }) => {
+        const doc = await prisma.documentoDisciplina.create({
+          data: { disciplinaId: p3d.disciplinaId, chave: `A/${tag}-${nome}`, nomeArquivo: `${tag}-${nome}.ifc` },
+        });
+        const rev = await prisma.documentoRevisao.create({ data: { documentoId: doc.id, numero: 1, createdById: coord.id, estado: "publicado" } });
+        const up = await prisma.upload.create({
+          data: {
+            disciplinaId: p3d.disciplinaId,
+            documentoId: doc.id,
+            revisaoId: rev.id,
+            pacote: "A",
+            nomeArquivo: `${tag}-${nome}.ifc`,
+            caminho: `smoke/${tag}-${nome}.ifc`,
+            tamanho: 10,
+            hashSha256: "0".repeat(64),
+            autorId: coord.id,
+            validado: true,
+          },
+        });
+        if (o.compartilhar) {
+          await prisma.documentoDisciplina.update({ where: { id: doc.id }, data: { revisaoCompartilhadaId: rev.id } });
+          await prisma.controleRevisao.create({ data: { revisaoId: rev.id, tipo: "enviado_cliente", motivo: "smoke", aplicadoPorId: coord.id } });
+        }
+        if (o.converter) {
+          await prisma.conversaoModelo.create({ data: { uploadId: up.id, status: "concluido", caminhoFrag: `smoke/${tag}-${nome}.frag`, concluidoEm: new Date() } });
+        }
+        return { doc, rev, up };
+      };
+      /** Documento do cliente (recebido) ou do Geral (interno) com uma versão IFC convertida. */
+      const recebido = async (origem: "recebido_cliente" | "interno", nome: string) => {
+        const d = await prisma.documento.create({
+          data: {
+            clienteId: cliente.id,
+            projetoId: p3d.id,
+            origem,
+            nome: `${tag}-${nome}`,
+            exibirEmRecebidos: origem === "interno",
+            versoes: {
+              create: [
+                { numero: 1, caminho: `smoke/${tag}-${nome}.ifc`, nomeArquivo: `${nome}.ifc`, mime: "application/octet-stream", tamanho: 10, hashSha256: "0".repeat(64) },
+              ],
+            },
+          },
+          include: { versoes: true },
+        });
+        await prisma.conversaoModelo.create({
+          data: { documentoVersaoId: d.versoes[0].id, status: "concluido", caminhoFrag: `smoke/${tag}-${nome}.frag`, concluidoEm: new Date() },
+        });
+        return { doc: d, modeloId: refDocumento(d.versoes[0].id) };
+      };
+
+      // U nas Entregas + R1 realinhado dele (convertido: é o que o portal serve); U2 outro IFC nas Entregas; X fora das
+      // Entregas; S nas Entregas sem conversão; recebido do cliente e um IFC interno do Geral.
+      const u = await ifc("estrutura", { compartilhar: true, converter: true });
+      const r1 = await prisma.upload.create({
+        data: {
+          disciplinaId: p3d.disciplinaId,
+          nomeArquivo: `${tag}-estrutura.ifc`,
+          caminho: `smoke/${tag}-estrutura-r1.ifc`,
+          tamanho: 10,
+          hashSha256: "0".repeat(64),
+          autorId: coord.id,
+          versao: 2,
+          origem: "ferramenta",
+          realinhadoDeId: u.up.id,
+        },
+      });
+      await prisma.conversaoModelo.create({ data: { uploadId: r1.id, status: "concluido", caminhoFrag: `smoke/${tag}-r1.frag`, concluidoEm: new Date() } });
+      const u2 = await ifc("fundacao", { compartilhar: true, converter: true });
+      const x = await ifc("fora", { compartilhar: false, converter: true });
+      const semConv = await ifc("semconv", { compartilhar: true, converter: false });
+      const base = await recebido("recebido_cliente", "base");
+      const internoGeral = await recebido("interno", "interno");
+
+      const camera = { position: [10, 10, 10] as [number, number, number], target: [0, 0, 0] as [number, number, number] };
+      const marca3d = (modeloId: string, texto: string, guids = ["2O2Fr$t4X7Zf8NOew3FLOH"]) => ({
+        modeloId,
+        guids,
+        ponto: [1, 2, 3] as [number, number, number],
+        camera,
+        texto,
+      });
+      // JSONB reordena as chaves: compara campo a campo.
+      const mesmaCamera = (v: unknown) => {
+        const c = v as { position?: unknown; target?: unknown } | null;
+        return JSON.stringify(c?.position) === JSON.stringify(camera.position) && JSON.stringify(c?.target) === JSON.stringify(camera.target);
+      };
+      const pedirModelo = (marcacoes: ReturnType<typeof marca3d>[], autor = conta, comentario = "Revisar o modelo") =>
+        criarPedidoModeloNoBanco({ autor, projetoId: p3d.id, comentario, marcacoes });
+
+      // ── criar ──
+      const pm3 = await pedirModelo([
+        marca3d(r1.id, "Pilar fora do eixo"),
+        marca3d(r1.id, "Viga baixa\nno corredor"),
+        marca3d(u2.up.id, "Sapata maior"),
+        marca3d(base.modeloId, "Parede da sala"),
+      ]);
+      const gravadas3d = await prisma.marcacaoModeloCliente.findMany({ where: { pedidoId: pm3.id }, orderBy: { ordem: "asc" } });
+      const lido3d = await prisma.pedidoRevisaoCliente.findUnique({ where: { id: pm3.id } });
+      const soComentario = await pedirModelo([], conta, "Só um comentário geral");
+      check(
+        "pedido de modelo cria com marcações nos modelos do portal",
+        lido3d?.tipo === "modelo" &&
+          lido3d.status === "aguardando" &&
+          lido3d.uploadId === null &&
+          lido3d.revisaoId === null &&
+          lido3d.documentoId === null &&
+          JSON.stringify(pm3.marcacaoIds) === JSON.stringify(gravadas3d.map((m) => m.id)) &&
+          gravadas3d[0].modeloId === r1.id &&
+          gravadas3d[0].origemUploadId === u.up.id &&
+          gravadas3d[2].origemUploadId === u2.up.id &&
+          gravadas3d[3].modeloId === base.modeloId &&
+          gravadas3d[3].origemUploadId === null &&
+          gravadas3d[3].documentoRecebidoId === base.doc.id &&
+          mesmaCamera(gravadas3d[0].camera) &&
+          JSON.stringify(gravadas3d[0].ponto) === "[1,2,3]" &&
+          (await prisma.pedidoRevisaoCliente.findUnique({ where: { id: soComentario.id } }))?.tipo === "modelo",
+        { lido3d, gravadas3d },
+      );
+
+      // ── recusas na criação ──
+      const recusasModelo = [
+        await erroDe(pedirModelo([marca3d(u.up.id, "a origem, não a servida")])),
+        await erroDe(pedirModelo([marca3d(x.up.id, "fora das Entregas")])),
+        await erroDe(pedirModelo([marca3d(semConv.up.id, "sem conversão")])),
+        await erroDe(pedirModelo([marca3d(internoGeral.modeloId, "interno do Geral")])),
+        await erroDe(pedirModelo([marca3d(r1.id, "outro cliente")], alheia)),
+      ];
+      check(
+        "modelo que não está no portal: recusa",
+        recusasModelo.every((e) => e === MOTIVO_MODELO_FORA) &&
+          (await erroDe(pedirModelo([marca3d(r1.id, "   ")]))) !== null &&
+          (await erroDe(pedirModelo([marca3d(r1.id, "x")], conta, "  "))) !== null,
+        recusasModelo,
+      );
+
+      // ── leitura e avisos sem "undefined" ──
+      const noPortal = (await pedidosDoProjetoNoPortal(p3d.id, cliente.id)).find((v) => v.id === pm3.id);
+      const sinos3d: { corpo: string }[] = [];
+      await avisarPedidoNovo(pm3.id, async (_ids, n) => {
+        sinos3d.push({ corpo: n.corpo });
+      });
+      check(
+        "pedido de modelo no portal e no aviso: Modelo 3D, sem prancha",
+        noPortal?.tipo === "modelo" &&
+          noPortal.prancha === "Modelo 3D" &&
+          noPortal.uploadId === null &&
+          noPortal.revisao === "" &&
+          noPortal.marcacoes === 4 &&
+          noPortal.indisponivel === null &&
+          (sinos3d[0]?.corpo ?? "").includes("Modelo 3D") &&
+          !(sinos3d[0]?.corpo ?? "").includes("undefined"),
+        { noPortal, sinos3d },
+      );
+
+      // ── muralha da coordenação ──
+      const sessao = (id: string, superUsuario: boolean) =>
+        ({ id, name: "smoke", email: "smoke@smoke.local", ativo: true, mustChangePassword: false, ehSocio: false, perfilId: null, perfilChave: null, escopoGlobalPerfil: false, superUsuario, tipo: "interno" }) as unknown as SessionUser;
+      const semPerfil = await prisma.user.create({ data: { name: `${tag} sem perfil`, email: `${tag.toLowerCase()}_semperfil@smoke.local`, tipo: "interno" } });
+      usuarios.push(semPerfil.id);
+      check(
+        "muralha do pedido de modelo: quem coordena passa, sem permissão não",
+        (await erroDe(exigirEscopoDoPedidoModelo(sessao(coord.id, true), pm3.id))) === null &&
+          (await erroDe(exigirEscopoDoPedidoModelo(sessao(semPerfil.id, false), pm3.id))) !== null,
+      );
+
+      // ── aceite ──
+      // A imagem da vista: a 1ª marcação com o PNG no disco, a 2ª com um caminho que sumiu (fica sem imagem).
+      const pngMarca = `portal/pedidos/${pm3.id}/marcacoes/${gravadas3d[0].id}.png`;
+      await salvarArquivo(pngMarca, Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]));
+      arquivosSmoke.push(pngMarca);
+      await prisma.marcacaoModeloCliente.update({ where: { id: gravadas3d[0].id }, data: { snapshotPath: pngMarca } });
+      await prisma.marcacaoModeloCliente.update({ where: { id: gravadas3d[1].id }, data: { snapshotPath: `portal/pedidos/${pm3.id}/sumiu.png` } });
+      // Um apontamento da equipe já existe no projeto: os do cliente seguem a numeração.
+      await prisma.$transaction((tx) =>
+        criarApontamentoCoordenacaoNoTx(tx, {
+          projetoId: p3d.id,
+          disciplinaId: p3d.disciplinaId,
+          uploadId: r1.id,
+          titulo: "da equipe",
+          texto: "da equipe",
+          guids: [],
+          camera,
+          autorId: coord.id,
+        }),
+      );
+      const aceite3d = await aceitarPedidoModeloNoBanco({ id: pm3.id, quem: { id: coord.id }, resposta: "Vamos ver." });
+      const apontamentos3d = await prisma.apontamentoCoordenacao.findMany({
+        where: { projetoId: p3d.id, numero: { gt: 1 } },
+        orderBy: { numero: "asc" },
+      });
+      const ligadas3d = await prisma.marcacaoModeloCliente.findMany({ where: { pedidoId: pm3.id }, orderBy: { ordem: "asc" } });
+      const pngApontamento = `coordenacao/apontamentos/${p3d.id}/${apontamentos3d[0]?.id}.png`;
+      arquivosSmoke.push(pngApontamento);
+      check(
+        "aceite cria apontamentos 3D sem tarefa, numerados no projeto, no modelo que o cliente viu, autor = quem aceitou",
+        aceite3d.apontamentos === 4 &&
+          apontamentos3d.length === 4 &&
+          JSON.stringify(apontamentos3d.map((a) => a.numero)) === "[2,3,4,5]" &&
+          apontamentos3d.every((a) => a.autorId === coord.id && a.status === "aberta" && a.tarefaId === null && a.tarefaItemId === null) &&
+          JSON.stringify(apontamentos3d.map((a) => a.uploadId)) === JSON.stringify([r1.id, r1.id, u2.up.id, base.modeloId]) &&
+          JSON.stringify(apontamentos3d.map((a) => a.disciplinaId)) === JSON.stringify([p3d.disciplinaId, p3d.disciplinaId, p3d.disciplinaId, null]) &&
+          apontamentos3d[1].titulo === "Viga baixa no corredor" &&
+          apontamentos3d[0].texto === "Cliente (Mariana): Pilar fora do eixo" &&
+          mesmaCamera(apontamentos3d[0].camera) &&
+          JSON.stringify(apontamentos3d[0].guids) === JSON.stringify(["2O2Fr$t4X7Zf8NOew3FLOH"]) &&
+          JSON.stringify(ligadas3d.map((m) => m.apontamentoId)) === JSON.stringify(apontamentos3d.map((a) => a.id)) &&
+          (await prisma.pedidoRevisaoCliente.findUnique({ where: { id: pm3.id } }))?.status === "aceito",
+        { aceite3d, apontamentos3d: apontamentos3d.map((a) => [a.numero, a.uploadId, a.disciplinaId, a.titulo, a.autorId === coord.id]) },
+      );
+      check(
+        "imagem da marcação copiada para o apontamento (a do pedido fica); a que sumiu deixa o apontamento sem imagem",
+        apontamentos3d[0]?.snapshotPath === pngApontamento &&
+          (await existeArquivo(pngApontamento)) &&
+          (await existeArquivo(pngMarca)) &&
+          apontamentos3d[1]?.snapshotPath === null &&
+          apontamentos3d[3]?.snapshotPath === null,
+        apontamentos3d.map((a) => a.snapshotPath),
+      );
+
+      const marcasEmRevisao = async (revisaoId: string) =>
+        prisma.controleRevisao.count({ where: { revisaoId, tipo: "em_revisao", removidoEm: null } });
+      const pm3b = await pedirModelo([marca3d(r1.id, "Mais uma no pilar")], colega);
+      const aceite3db = await aceitarPedidoModeloNoBanco({ id: pm3b.id, quem: { id: coord.id }, resposta: null });
+      const marcaU = await prisma.controleRevisao.findFirst({ where: { revisaoId: u.rev.id, tipo: "em_revisao", removidoEm: null } });
+      check(
+        "Em revisão uma vez por revisão das Entregas, nenhuma no recebido",
+        aceite3d.emRevisao === 2 &&
+          aceite3db.emRevisao === 0 &&
+          (await marcasEmRevisao(u.rev.id)) === 1 &&
+          (await marcasEmRevisao(u2.rev.id)) === 1 &&
+          marcaU?.motivo === "Pedido do cliente: Revisar o modelo" &&
+          marcaU.origem === "pedido_cliente" &&
+          (await prisma.controleRevisao.count({ where: { revisao: { documento: { disciplina: { projetoId: p3d.id } } }, tipo: "em_revisao" } })) === 2,
+        { aceite3d, aceite3db },
+      );
+      check(
+        "pedido de modelo só com comentário: aceite sem apontamento",
+        (await aceitarPedidoModeloNoBanco({ id: soComentario.id, quem: { id: coord.id }, resposta: null })).apontamentos === 0,
+      );
+
+      // ── corridas ──
+      const contarApontamentos = () => prisma.apontamentoCoordenacao.count({ where: { projetoId: p3d.id } });
+      const antesCorrida = await contarApontamentos();
+      const pc = await pedirModelo([marca3d(u2.up.id, "corrida aceitar × cancelar")]);
+      const corrida1 = await Promise.allSettled([
+        aceitarPedidoModeloNoBanco({ id: pc.id, quem: { id: coord.id }, resposta: null }),
+        cancelarPedidoNoBanco({ id: pc.id, autor: colega }),
+      ]);
+      const finalPc = await prisma.pedidoRevisaoCliente.findUnique({ where: { id: pc.id }, select: { status: true } });
+      const depoisCorrida1 = await contarApontamentos();
+      const pd2 = await pedirModelo([marca3d(u2.up.id, "dois aceites"), marca3d(base.modeloId, "dois aceites no recebido")]);
+      const corrida2 = await Promise.allSettled([
+        aceitarPedidoModeloNoBanco({ id: pd2.id, quem: { id: coord.id }, resposta: null }),
+        aceitarPedidoModeloNoBanco({ id: pd2.id, quem: { id: coord.id }, resposta: null }),
+      ]);
+      const depoisCorrida2 = await contarApontamentos();
+      const aceitouPc = corrida1[0].status === "fulfilled";
+      check(
+        "aceitar × cancelar e dois aceites: um vence, sem apontamento órfão",
+        corrida1.filter((r) => r.status === "fulfilled").length === 1 &&
+          (finalPc?.status === "aceito") === aceitouPc &&
+          depoisCorrida1 - antesCorrida === (aceitouPc ? 1 : 0) &&
+          corrida2.filter((r) => r.status === "fulfilled").length === 1 &&
+          depoisCorrida2 - depoisCorrida1 === 2 &&
+          new Set((await prisma.apontamentoCoordenacao.findMany({ where: { projetoId: p3d.id }, select: { numero: true } })).map((a) => a.numero)).size ===
+            depoisCorrida2,
+        { corrida1: corrida1.map((r) => r.status), finalPc, corrida2: corrida2.map((r) => r.status), antesCorrida, depoisCorrida1, depoisCorrida2 },
+      );
+
+      // ── o modelo saiu das Entregas / o recebido foi excluído ──
+      const u3 = await ifc("lixeira", { compartilhar: true, converter: true });
+      const u4 = await ifc("revnova", { compartilhar: true, converter: true });
+      const base2 = await recebido("recebido_cliente", "base2");
+      const pRet = await pedirModelo([marca3d(u3.up.id, "vai para a lixeira")]);
+      const pSub = await pedirModelo([marca3d(u4.up.id, "ganha revisão nova"), marca3d(u2.up.id, "segue nas Entregas")]);
+      const pDoc = await pedirModelo([marca3d(base2.modeloId, "o cliente exclui o documento")]);
+      await prisma.upload.update({ where: { id: u3.up.id }, data: { excluidoEm: new Date() } });
+      await prisma.documentoRevisao.update({ where: { id: u4.rev.id }, data: { estado: "arquivado" } });
+      await prisma.documentoRevisao.create({ data: { documentoId: u4.doc.id, numero: 2, createdById: coord.id, estado: "publicado" } });
+      await prisma.documento.delete({ where: { id: base2.doc.id } });
+      const antesRecusa = await contarApontamentos();
+      const erros3d = {
+        ret: await erroDe(aceitarPedidoModeloNoBanco({ id: pRet.id, quem: { id: coord.id }, resposta: null })),
+        sub: await erroDe(aceitarPedidoModeloNoBanco({ id: pSub.id, quem: { id: coord.id }, resposta: null })),
+        doc: await erroDe(aceitarPedidoModeloNoBanco({ id: pDoc.id, quem: { id: coord.id }, resposta: null })),
+      };
+      const vistas3d = await pedidosDoProjetoNoPortal(p3d.id, cliente.id);
+      check(
+        "modelo saiu das Entregas / recebido excluído: aceite recusado",
+        erros3d.ret === MOTIVO_PRANCHA_RETIRADA &&
+          erros3d.sub === MOTIVO_REVISAO_SUBSTITUIDA &&
+          erros3d.doc === MOTIVO_PRANCHA_RETIRADA &&
+          (await contarApontamentos()) === antesRecusa &&
+          (await prisma.pedidoRevisaoCliente.count({ where: { id: { in: [pRet.id, pSub.id, pDoc.id] }, status: "aguardando" } })) === 3 &&
+          vistas3d.find((v) => v.id === pRet.id)?.indisponivel === "retirada" &&
+          vistas3d.find((v) => v.id === pSub.id)?.indisponivel === "substituida" &&
+          (await erroDe(recusarPedidoNoBanco({ id: pSub.id, quem: { id: coord.id }, resposta: "Confira a revisão nova." }))) === null,
+        erros3d,
+      );
+
+      // ── a prancha segue igual: os dois CHECKs do banco ──
+      check(
+        "pedido de prancha segue igual (prancha sem upload/revisão/documento e tipo desconhecido recusados pelo banco)",
+        (await prisma.pedidoRevisaoCliente.count({ where: { projetoId: p1.id, tipo: { not: "prancha" } } })) === 0 &&
+          (await erroDe(prisma.pedidoRevisaoCliente.create({ data: { projetoId: p3d.id, autorId: conta.id, comentario: "x" } }))) !== null &&
+          (await erroDe(prisma.pedidoRevisaoCliente.create({ data: { tipo: "outro", projetoId: p3d.id, autorId: conta.id, comentario: "x" } }))) !== null &&
+          (await erroDe(aceitarPedidoNoBanco({ id: pRet.id, quem, resposta: null }))) !== null,
+      );
+    }
   } finally {
+    for (const c of arquivosSmoke) await removerArquivo(c).catch(() => {});
     for (const id of projetos) await prisma.projeto.delete({ where: { id } });
     for (const id of usuarios) await prisma.user.delete({ where: { id } });
     for (const id of clientes) await prisma.cliente.delete({ where: { id } });

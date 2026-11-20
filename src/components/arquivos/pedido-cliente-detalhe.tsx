@@ -62,7 +62,8 @@ export function PedidoClienteDetalhe({
               <ol className="list-decimal space-y-1 pl-5 text-sm">
                 {pedido.listaMarcacoes.map((m) => (
                   <li key={m.id} className="break-words">
-                    {m.texto} <span className="text-xs text-muted-foreground">(página {m.pagina})</span>
+                    {m.texto}
+                    {m.pagina !== null && <span className="text-xs text-muted-foreground"> (página {m.pagina})</span>}
                   </li>
                 ))}
               </ol>
@@ -94,9 +95,11 @@ export function PedidoClienteDetalhe({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" render={<a href={`/api/uploads/${pedido.uploadId}/download`} target="_blank" rel="noopener" />}>
-              <FileText className="size-4" /> Abrir a prancha <span className="sr-only">(abre em nova aba)</span>
-            </Button>
+            {pedido.uploadId && (
+              <Button size="sm" variant="outline" render={<a href={`/api/uploads/${pedido.uploadId}/download`} target="_blank" rel="noopener" />}>
+                <FileText className="size-4" /> Abrir a prancha <span className="sr-only">(abre em nova aba)</span>
+              </Button>
+            )}
             {aguardando && (
               <DecisaoPedidoBotoes
                 pedido={{ id: pedido.id, prancha: pedido.prancha, revisao: pedido.revisao, autorNome: pedido.autorNome }}

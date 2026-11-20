@@ -49,7 +49,7 @@ function LinhaPedido({ p, projetoId }: { p: PedidoPortalView; projetoId: string 
       )}
       {p.status === "aguardando" && (
         <div className="flex flex-wrap gap-2 pt-1">
-          {!p.indisponivel && (
+          {!p.indisponivel && p.uploadId && (
             <Button size="sm" variant="outline" render={<Link href={`/portal/${projetoId}/prancha/${p.uploadId}`} />}>
               Ver na prancha
             </Button>

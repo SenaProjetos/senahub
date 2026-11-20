@@ -9,6 +9,8 @@ import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { whereDaFila } from "./escopo";
 import { participaDoCiclo } from "@/modules/uploads/ciclo/escopo";
 import { ROTULO_STATUS_PEDIDO, revisaoNasPastas, situacaoDaRevisao, type SituacaoDaRevisao, type StatusPedido } from "./regras";
+import { ROTULO_MODELO_3D, piorSituacao, tipoDoPedido } from "./modelo-regras";
+import { situacoesDasMarcacoesModelo } from "./service";
 
 function indisponibilidade(s: SituacaoDaRevisao): "substituida" | "retirada" | null {
   return s === "nas_entregas" ? null : s;
@@ -26,6 +28,7 @@ import { MODOS_CALIBRACAO, type ModoCalibracao } from "@/modules/projetos/penden
 
 const selectLinha = {
   id: true,
+  tipo: true,
   status: true,
   comentario: true,
   resposta: true,
@@ -38,13 +41,17 @@ const selectLinha = {
   revisao: { select: { numero: true, estado: true } },
   upload: { select: { nomeArquivo: true, substituidoPorId: true, excluidoEm: true } },
   anexos: { select: { id: true, nome: true, tamanho: true }, orderBy: { createdAt: "asc" } },
-  _count: { select: { marcacoes: true } },
+  _count: { select: { marcacoes: true, marcacoesModelo: true } },
+  // Só a origem de cada marcação 3D: é o que decide se o pedido de modelo ainda pode ser aceito.
+  marcacoesModelo: { select: { modeloId: true, origemUploadId: true, documentoRecebidoId: true } },
 } satisfies Prisma.PedidoRevisaoClienteSelect;
 
 type Linha = Prisma.PedidoRevisaoClienteGetPayload<{ select: typeof selectLinha }>;
 
-/** Onde está a revisão do pedido — mesma regra do aceite (`situacaoDaRevisao`), lida da linha. */
-function situacaoDaLinha(l: Linha): SituacaoDaRevisao {
+/** Onde está a revisão do pedido de prancha — mesma regra do aceite (`situacaoDaRevisao`), lida da linha. */
+function situacaoDaPrancha(l: Linha): SituacaoDaRevisao {
+  // A prancha sempre tem os três (CHECK no banco); sem eles, nada a aceitar.
+  if (!l.revisao || !l.documento || !l.upload || !l.revisaoId) return "retirada";
   return situacaoDaRevisao({
     estado: l.revisao.estado,
     participa: participaDoCiclo({ chave: l.documento.chave, extensoes: [] }),
@@ -55,29 +62,49 @@ function situacaoDaLinha(l: Linha): SituacaoDaRevisao {
   });
 }
 
-function baseDaView(l: Linha) {
+/**
+ * `situacaoModelo` = a pior situação das marcações 3D (só o pedido de modelo aguardando a calcula: lê o banco por
+ * marcação, `situacoesDasMarcacoesModelo`, a mesma leitura do aceite).
+ */
+function baseDaView(l: Linha, situacaoModelo: SituacaoDaRevisao | null) {
   const status = l.status as StatusPedido;
+  const tipo = tipoDoPedido(l.tipo);
+  const arquivo = l.upload?.nomeArquivo ?? ROTULO_MODELO_3D;
+  const situacao = tipo === "modelo" ? (situacaoModelo ?? "nas_entregas") : situacaoDaPrancha(l);
   return {
     id: l.id,
+    tipo,
     status,
     rotuloStatus: ROTULO_STATUS_PEDIDO[status],
     comentario: l.comentario,
     resposta: l.resposta,
     criadoEm: l.createdAt.toISOString(),
     respondidoEm: l.respondidoEm?.toISOString() ?? null,
-    prancha: l.documento.titulo?.trim() || l.upload.nomeArquivo,
-    arquivo: l.upload.nomeArquivo,
+    /** Nome da prancha, ou "Modelo 3D" no pedido de modelo. */
+    prancha: tipo === "modelo" ? ROTULO_MODELO_3D : l.documento?.titulo?.trim() || arquivo,
+    arquivo,
+    /** O PDF do pedido de prancha; null no pedido de modelo (cada marcação aponta o seu modelo). */
     uploadId: l.uploadId,
-    revisao: rotuloRevisao(l.revisao.numero),
+    revisao: l.revisao ? rotuloRevisao(l.revisao.numero) : "",
     autorNome: l.autor.name,
-    marcacoes: l._count.marcacoes,
+    marcacoes: l._count.marcacoes + l._count.marcacoesModelo,
     anexos: l.anexos.map((a) => ({ id: a.id, nome: a.nome, tamanho: a.tamanho })),
     /**
-     * Só enquanto aguarda: a prancha ganhou revisão nova ("substituida") ou saiu das Entregas ("retirada") e o pedido
-     * não pode mais ser aceito. Null = nas Entregas (ou pedido já respondido).
+     * Só enquanto aguarda: a prancha (ou algum modelo marcado) ganhou revisão nova ("substituida") ou saiu das Entregas
+     * ("retirada") e o pedido não pode mais ser aceito. Null = nas Entregas (ou pedido já respondido).
      */
-    indisponivel: status === "aguardando" ? indisponibilidade(situacaoDaLinha(l)) : null,
+    indisponivel: status === "aguardando" ? indisponibilidade(situacao) : null,
   };
+}
+
+/** A pior situação de cada pedido de modelo aguardando (os outros não precisam: a prancha lê da linha). */
+async function situacoesDosModelos(linhas: readonly Linha[]): Promise<Map<string, SituacaoDaRevisao>> {
+  const mapa = new Map<string, SituacaoDaRevisao>();
+  for (const l of linhas) {
+    if (l.tipo !== "modelo" || l.status !== "aguardando") continue;
+    mapa.set(l.id, piorSituacao(await situacoesDasMarcacoesModelo(prisma, l.marcacoesModelo)));
+  }
+  return mapa;
 }
 
 export type PedidoPortalView = ReturnType<typeof baseDaView>;
@@ -90,7 +117,8 @@ export async function pedidosDoProjetoNoPortal(projetoId: string, clienteId: str
     take: 100,
     select: selectLinha,
   });
-  return linhas.map(baseDaView);
+  const modelos = await situacoesDosModelos(linhas);
+  return linhas.map((l) => baseDaView(l, modelos.get(l.id) ?? null));
 }
 
 export type FiltroFila = "aguardando" | "respondidos";
@@ -110,8 +138,8 @@ const selectFila = {
   projeto: { select: { id: true, codigo: true, nome: true } },
 } satisfies Prisma.PedidoRevisaoClienteSelect;
 
-function viewDaFila(l: Prisma.PedidoRevisaoClienteGetPayload<{ select: typeof selectFila }>) {
-  return { ...baseDaView(l), projeto: l.projeto };
+function viewDaFila(l: Prisma.PedidoRevisaoClienteGetPayload<{ select: typeof selectFila }>, situacaoModelo: SituacaoDaRevisao | null) {
+  return { ...baseDaView(l, situacaoModelo), projeto: l.projeto };
 }
 
 export type PedidoFilaView = ReturnType<typeof viewDaFila>;
@@ -127,7 +155,8 @@ export async function pedidosParaCoordenacao(user: SessionUser, filtro: FiltroFi
     take: 200,
     select: selectFila,
   });
-  return linhas.map(viewDaFila);
+  const modelos = await situacoesDosModelos(linhas);
+  return linhas.map((l) => viewDaFila(l, modelos.get(l.id) ?? null));
 }
 
 export async function contarPedidosAguardando(user: SessionUser): Promise<number> {
@@ -142,16 +171,27 @@ export async function pedidoParaCoordenacao(user: SessionUser, id: string) {
       ...selectFila,
       respondidoPor: { select: { name: true } },
       marcacoes: { orderBy: { ordem: "asc" }, select: { id: true, ordem: true, pagina: true, texto: true, pendenciaId: true } },
+      marcacoesModelo: {
+        orderBy: { ordem: "asc" },
+        select: { id: true, ordem: true, texto: true, modeloId: true, origemUploadId: true, documentoRecebidoId: true, apontamentoId: true },
+      },
     },
   });
   if (!l) return null;
-  const outroAceito = await prisma.pedidoRevisaoCliente.count({
-    where: { revisaoId: l.revisaoId, status: "aceito", id: { not: l.id } },
-  });
+  // Pedido de modelo não tem uma revisão só: o aviso de "outro pedido aceito na revisão" é da prancha.
+  const outroAceito = l.revisaoId
+    ? await prisma.pedidoRevisaoCliente.count({ where: { revisaoId: l.revisaoId, status: "aceito", id: { not: l.id } } })
+    : 0;
+  const situacaoModelo = (await situacoesDosModelos([l])).get(l.id) ?? null;
+  /** Uma lista para os dois tipos: `pagina` só na prancha, `pendenciaId`/`apontamentoId` = no que a marcação virou. */
+  const listaMarcacoes =
+    tipoDoPedido(l.tipo) === "modelo"
+      ? l.marcacoesModelo.map((m) => ({ id: m.id, ordem: m.ordem, pagina: null, texto: m.texto, pendenciaId: null, apontamentoId: m.apontamentoId }))
+      : l.marcacoes.map((m) => ({ ...m, pagina: m.pagina as number | null, apontamentoId: null as string | null }));
   return {
-    ...viewDaFila(l),
+    ...viewDaFila(l, situacaoModelo),
     respondidoPor: l.respondidoPor?.name ?? null,
-    listaMarcacoes: l.marcacoes,
+    listaMarcacoes,
     jaHaPedidoAceitoNaRevisao: outroAceito > 0,
   };
 }
@@ -252,7 +292,8 @@ export async function marcacoesDoPedido(pedidoId: string) {
       marcacoes: { orderBy: { ordem: "asc" }, select: selectMarcacao },
     },
   });
-  if (!p) return null;
+  // Pedido de modelo não tem prancha (as marcações 3D têm a sua leitura).
+  if (!p?.uploadId) return null;
   return {
     calibracoes: await calibracoesDe(p.uploadId, p.documentoId),
     marcacoes: p.marcacoes.map((m, i) => marcaDeLeitura(m, i + 1)),
@@ -262,9 +303,9 @@ export async function marcacoesDoPedido(pedidoId: string) {
 /** PDFs com pedido de revisão aguardando a equipe (selo "Pedido aguardando" nas Entregas). Leitura leve, à parte do card. */
 export async function uploadsComPedidoAguardando(projetoId: string, clienteId: string): Promise<string[]> {
   const linhas = await prisma.pedidoRevisaoCliente.findMany({
-    where: { projetoId, projeto: { clienteId }, status: "aguardando" },
+    where: { projetoId, projeto: { clienteId }, status: "aguardando", tipo: "prancha" },
     distinct: ["uploadId"],
     select: { uploadId: true },
   });
-  return linhas.map((l) => l.uploadId);
+  return linhas.flatMap((l) => (l.uploadId ? [l.uploadId] : []));
 }

@@ -29,7 +29,7 @@ export default async function PedidoClientePage({ params }: { params: Promise<{ 
         pedido={pedido}
         podeValidar={podeValidar}
         visualizador={
-          marcas && marcas.marcacoes.length > 0 ? (
+          pedido.uploadId && marcas && marcas.marcacoes.length > 0 ? (
             <VisualizadorPrancha
               pdfUrl={`/api/uploads/${pedido.uploadId}/download?disposition=inline`}
               uploadId={pedido.uploadId}

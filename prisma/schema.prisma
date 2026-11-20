@@ -2209,14 +2209,17 @@ model AvisoPortalEnviado {
 model PedidoRevisaoCliente {
   id              String              @id @default(cuid())
   projetoId       String
-  projeto         Projeto             @relation(fields: [projetoId], references: [id], onDelete: Cascade)
-  documentoId     String
-  documento       DocumentoDisciplina @relation(fields: [documentoId], references: [id], onDelete: Cascade)
-  revisaoId       String
-  revisao         DocumentoRevisao    @relation(fields: [revisaoId], references: [id], onDelete: Cascade)
-  /// O PDF em que o cliente marcou.
-  uploadId        String
-  upload          Upload              @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  projeto         Projeto              @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  /// prancha | modelo — CHECK no banco (migração 20261120140000), fora do schema. Na prancha, documento, revisão e
+  /// upload são obrigatórios (outro CHECK); no modelo ficam nulos e cada marcação 3D aponta o seu modelo.
+  tipo            String               @default("prancha")
+  documentoId     String?
+  documento       DocumentoDisciplina? @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  revisaoId       String?
+  revisao         DocumentoRevisao?    @relation(fields: [revisaoId], references: [id], onDelete: Cascade)
+  /// O PDF em que o cliente marcou (só na prancha).
+  uploadId        String?
+  upload          Upload?              @relation(fields: [uploadId], references: [id], onDelete: Cascade)
   /// Conta do portal que pediu.
   autorId         String
   autor           User                @relation("PedidoRevisaoAutor", fields: [autorId], references: [id], onDelete: Cascade)
@@ -2231,8 +2234,9 @@ model PedidoRevisaoCliente {
   canceladoEm     DateTime?
   createdAt       DateTime            @default(now())
 
-  marcacoes MarcacaoPedidoCliente[]
-  anexos    AnexoPedidoCliente[]
+  marcacoes       MarcacaoPedidoCliente[]
+  marcacoesModelo MarcacaoModeloCliente[]
+  anexos          AnexoPedidoCliente[]
 
   @@index([projetoId, status])
   @@index([status, createdAt])
@@ -2264,6 +2268,35 @@ model MarcacaoPedidoCliente {
 
   @@index([pedidoId, ordem])
   @@map("marcacao_pedido_cliente")
+}
+
+/// Marcação 3D do cliente num pedido de tipo `modelo` (spec 2026-11-20-portal-visualizador-3d-design.md): o elemento
+/// clicado (GUIDs), o ponto e a vista, no espaço IFC (Z para cima). No aceite vira um ApontamentoCoordenacao.
+model MarcacaoModeloCliente {
+  id                  String               @id @default(cuid())
+  pedidoId            String
+  pedido              PedidoRevisaoCliente @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  ordem               Int
+  /// O modelo que o cliente viu: uploadId servido (a origem ou o realinhado dela) ou `d:<documentoVersaoId>`.
+  modeloId            String
+  /// O IFC das Entregas de que o modelo saiu (sem FK: a situação é conferida no aceite). Nulo no recebido.
+  origemUploadId      String?
+  /// Documento recebido do cliente (sem FK). Nulo na entrega.
+  documentoRecebidoId String?
+  /// IfcGuids dos elementos (string[], até 200).
+  guids               Json
+  /// Ponto do clique [x, y, z], espaço IFC.
+  ponto               Json
+  /// { position, target }, espaço IFC — o mesmo formato de ApontamentoCoordenacao.camera.
+  camera              Json
+  texto               String
+  /// Imagem da vista (PNG), enviada depois de criado o pedido; copiada para o apontamento no aceite.
+  snapshotPath        String?
+  /// Apontamento 3D que esta marcação virou no aceite (sem FK: o apontamento pode ser excluído).
+  apontamentoId       String?
+
+  @@index([pedidoId, ordem])
+  @@map("marcacao_modelo_cliente")
 }
 
 /// Anexo do pedido do cliente (arquivo no storage em portal/pedidos/<pedidoId>/).

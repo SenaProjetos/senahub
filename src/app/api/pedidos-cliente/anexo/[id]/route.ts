@@ -5,7 +5,7 @@ import { arquivoParaStream } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { contentDisposition } from "@/modules/projetos/arquivos/link-publico-regras";
 import { exigirEscopoDaRevisao } from "@/modules/uploads/ciclo/acesso";
-import { anexoParaBaixar } from "@/modules/portal/pedido-revisao/service";
+import { anexoParaBaixar, exigirEscopoDoPedidoModelo } from "@/modules/portal/pedido-revisao/service";
 
 /**
  * Download de um anexo do pedido de revisão do cliente: a coordenação (`arquivos:alterar_status` + a mesma muralha
@@ -16,10 +16,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   const { id } = await ctx.params;
   const session = await getSession();
   const user = session?.user ?? null;
-  const anexo = await anexoParaBaixar(user, id, async ({ revisaoId }) => {
+  const anexo = await anexoParaBaixar(user, id, async ({ revisaoId, pedidoId }) => {
     if (!user || user.tipo !== "interno" || !(await can(user, "arquivos", "alterar_status"))) return false;
     try {
-      await exigirEscopoDaRevisao(user, revisaoId);
+      // Prancha: a muralha da revisão; modelo 3D (sem revisão única): a do pedido inteiro.
+      if (revisaoId) await exigirEscopoDaRevisao(user, revisaoId);
+      else await exigirEscopoDoPedidoModelo(user, pedidoId);
       return true;
     } catch {
       return false;
