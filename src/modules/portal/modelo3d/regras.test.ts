@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   descendentesDe,
+  ehSemPavimento,
   gruposDePavimento,
   modeloServidoDaOrigem,
   motivoSemModelo,
@@ -83,6 +84,16 @@ describe("descendentesDe", () => {
     expect(descendentesDe("U", [up("U", null, 1, true)])).toEqual(new Set());
     const ciclo = [up("A", "B", 1, true), up("B", "A", 2, true)];
     expect(descendentesDe("A", ciclo).has("B")).toBe(true);
+  });
+});
+
+describe("ehSemPavimento", () => {
+  it("só o grupo dos elementos sem pavimento", () => {
+    const r = unirPavimentos([
+      { modeloId: "m1", nome: null, pisoY: -2, localIds: [1] },
+      { modeloId: "m1", nome: "Térreo", pisoY: 0, localIds: [2] },
+    ]);
+    expect(r.map(ehSemPavimento)).toEqual([false, true]);
   });
 });
 

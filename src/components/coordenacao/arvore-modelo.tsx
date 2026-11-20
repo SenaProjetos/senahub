@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { FiltrosPanel } from "@/components/coordenacao/filtros-painel";
+import { FiltrosPanel, type PavimentosDoFiltro } from "@/components/coordenacao/filtros-painel";
 
 export type ModeloCarregado = { uploadId: string; label: string };
 
@@ -36,9 +36,12 @@ const PAVIMENTO_SEM_NOME = "Sem pavimento";
 export function ArvoreModelo({
   engine,
   modelos,
+  onPavimentosChange,
 }: {
   engine: ViewerEngine | null;
   modelos: ModeloCarregado[];
+  /** Pavimentos marcados no filtro (o modo andar entra no mais baixo deles). */
+  onPavimentosChange?: (sel: PavimentosDoFiltro | null) => void;
 }) {
   const [modeloId, setModeloId] = useState<string | null>(null);
   const [elementos, setElementos] = useState<ElementoIndex[]>([]);
@@ -207,7 +210,12 @@ export function ArvoreModelo({
           )}
         </CardContent>
       </Card>
-      <FiltrosPanel engine={engine} modelos={modelos} onFiltroAtivoChange={aoMudarMultifiltro} />
+      <FiltrosPanel
+        engine={engine}
+        modelos={modelos}
+        onFiltroAtivoChange={aoMudarMultifiltro}
+        onPavimentosChange={onPavimentosChange}
+      />
     </div>
   );
 }

@@ -43,6 +43,14 @@ import {
   type PivoPlanta,
 } from "@/modules/coordenacao/realinhamento";
 import { cameraDaVistaParaCaixa, vistaDoEixo, type VistaPadrao } from "@/modules/coordenacao/viewer/vistas";
+import {
+  ALTURA_OLHO_M,
+  alvoDoOlhar,
+  entradaDoAndar,
+  olhar,
+  passoDoAndar,
+  type EstadoAndar,
+} from "@/modules/coordenacao/viewer/andar";
 import { direcoesDeTela, passoDoTeclado } from "@/modules/coordenacao/teclado-realinhamento";
 import { escolherSnap, type TipoSnap } from "@/modules/coordenacao/viewer/snap";
 import {
@@ -89,6 +97,12 @@ const LOTE_GEOMETRIAS_CLASH = 25;
 const LIMITE_TRIANGULOS_CLASH_POR_ITEM = 20_000;
 /** Lado (px CSS) do indicador de eixos no canto inferior direito. */
 const TAMANHO_GIZMO = 96;
+/** Modo andar: quanto o olhar gira por pixel arrastado (rad/px) — arrastar a largura da tela ≈ uma volta. */
+const OLHAR_RAD_POR_PX = 0.004;
+/** Modo andar: maior passo de tempo de um quadro (s) — a aba volta do segundo plano sem a câmera dar um salto. */
+const DT_MAXIMO_ANDAR = 0.1;
+/** Ao sair do andar, a órbita gira em torno de um ponto a esta distância (m) à frente do olho. */
+const DISTANCIA_ALVO_SAIDA_ANDAR = 5;
 const LOTE_PSETS = 100;
 const LIMITE_PROPRIEDADES_POR_ELEMENTO = 256;
 const LIMITE_PROPRIEDADES_POR_MODELO = 100_000;
@@ -118,6 +132,8 @@ export type CorteConfig = {
 export type EngineOpts = {
   /** Chamado após clique: item selecionado (ou null ao clicar no vazio). */
   onSelecionar?: (info: SelecaoInfo | null) => void;
+  /** Entrou ou saiu do modo andar — também quando o motor sai sozinho (Esc, vista padrão, realinhamento). */
+  onAndar?: (andando: boolean) => void;
 };
 
 /** Câmera do Apontamento — persistida em espaço IFC (Z-up, metros). */
@@ -266,6 +282,7 @@ export class ViewerEngine {
       if (this.destruido) return;
       this.raf = requestAnimationFrame(loop);
       const delta = this.clock.getDelta();
+      if (this.andar) this.quadroDoAndar(Math.min(delta, DT_MAXIMO_ANDAR));
       this.controls.update(delta);
       void this.fragments.update(); // a lib limita a taxa internamente (maxUpdateRate)
       this.renderer.render(this.scene, this.camera);
@@ -302,7 +319,8 @@ export class ViewerEngine {
     this.scene.add(model.object);
     this.modelos.set(modeloId, model);
     await this.fragments.update(true);
-    if (this.modelos.size === 1) await this.enquadrar();
+    // Andando, o modelo que entra não mexe na câmera.
+    if (this.modelos.size === 1 && !this.andar) await this.enquadrar();
   }
 
   async descarregarModelo(modeloId: string): Promise<void> {
@@ -621,6 +639,7 @@ export class ViewerEngine {
   // ── Câmera ─────────────────────────────────────────────────
 
   async enquadrar(): Promise<void> {
+    this.encerrarAndar();
     const box = this.bboxGlobal();
     if (!box) return;
     const esfera = box.getBoundingSphere(new THREE.Sphere());
@@ -632,6 +651,7 @@ export class ViewerEngine {
    * carregados, com transição animada.
    */
   async irParaVista(vista: VistaPadrao): Promise<void> {
+    this.encerrarAndar();
     const box = this.bboxGlobal();
     if (!box) return;
     const { posicao, alvo } = cameraDaVistaParaCaixa(
@@ -675,6 +695,7 @@ export class ViewerEngine {
 
   /** Restaura uma câmera gravada (espaço IFC) — usado no deep-link `?apontamento=N`. */
   async restaurarCamera(camera: CameraApontamento): Promise<void> {
+    this.encerrarAndar();
     const [px, py, pz] = ifcParaThree(camera.position);
     const [tx, ty, tz] = ifcParaThree(camera.target);
     await this.controls.setLookAt(px, py, pz, tx, ty, tz, true);
@@ -1176,6 +1197,7 @@ export class ViewerEngine {
     if (boxesA[0]) box.union(boxesA[0]);
     if (boxesB[0]) box.union(boxesB[0]);
     if (box.isEmpty()) return;
+    this.encerrarAndar();
     await this.controls.fitToBox(box, true, { paddingLeft: 1, paddingRight: 1, paddingTop: 1, paddingBottom: 1 });
   }
 
@@ -1288,6 +1310,7 @@ export class ViewerEngine {
     if (localId == null) return;
     const [box] = await this.bboxesDoModelo(modeloId, [localId]);
     if (!box) return;
+    this.encerrarAndar();
     await this.controls.fitToBox(box, true, { paddingLeft: 1, paddingRight: 1, paddingTop: 1, paddingBottom: 1 });
   }
 
@@ -1806,6 +1829,8 @@ export class ViewerEngine {
     } = {},
   ): void {
     if (this.realinhar) this.sairRealinhamento();
+    // O realinhamento troca os botões do mouse: nunca junto com o andar.
+    this.encerrarAndar();
     const box = this.bboxGlobal();
     const planeY = box ? (box.min.y + box.max.y) / 2 : 0;
     const modelo = this.modelos.get(modeloId);
@@ -1984,6 +2009,194 @@ export class ViewerEngine {
     this.ocultarSnapHover();
   }
 
+  // ── Modo andar (primeira pessoa) ────────────────────────────
+  //
+  // Câmera em primeira pessoa a 1,60 m do piso (contas puras em `andar.ts`). A camera-controls continua dona da
+  // câmera: os botões do mouse, a roda e os toques ficam em NONE (sem órbita) e cada quadro com movimento manda a
+  // posição e o alvo por `setLookAt`. Arrastar gira o olhar; o clique curto continua selecionando (regra dos 5 px do
+  // Viewer3D, que mede o mesmo arraste). Sem colisão nem gravidade.
+
+  private andar: {
+    estado: EstadoAndar;
+    teclas: ReadonlySet<string>;
+    joystick: { x: number; y: number } | null;
+    /** O estado mudou fora do quadro (olhar, troca de piso): aplicar no próximo. */
+    sujo: boolean;
+    botoesAntes: CameraControls["mouseButtons"];
+    toquesAntes: CameraControls["touches"];
+    olhando: { id: number; x: number; y: number } | null;
+    down: (e: PointerEvent) => void;
+    move: (e: PointerEvent) => void;
+    up: (e: PointerEvent) => void;
+  } | null = null;
+
+  get andando(): boolean {
+    return this.andar !== null;
+  }
+
+  /** Caixa (mundo do three) que envolve os elementos informados de cada modelo — o pavimento onde o andar entra. */
+  async caixaDosElementos(porModelo: ReadonlyMap<string, readonly number[]>): Promise<{ min: Vec3; max: Vec3 } | null> {
+    const uniao = new THREE.Box3();
+    for (const [modeloId, ids] of porModelo) {
+      for (const caixa of await this.bboxesDoModelo(modeloId, [...ids])) if (!caixa.isEmpty()) uniao.union(caixa);
+    }
+    if (uniao.isEmpty()) return null;
+    return { min: [uniao.min.x, uniao.min.y, uniao.min.z], max: [uniao.max.x, uniao.max.y, uniao.max.z] };
+  }
+
+  /**
+   * Entra no modo andar com o olho 1,60 m acima de `pisoY` (Y do three, metros), no centro em planta de `caixa` (a do
+   * pavimento, `caixaDosElementos`) ou, sem ela, dos modelos; olhando na horizontal para onde a câmera já olhava. Já
+   * andando, só troca o piso.
+   */
+  iniciarAndar(opts: { pisoY: number; caixa?: { min: Vec3; max: Vec3 } | null }): void {
+    if (this.destruido) return;
+    if (this.andar) {
+      this.trocarPisoDoAndar(opts.pisoY);
+      return;
+    }
+    if (this.realinhar) this.sairRealinhamento();
+    const box = this.bboxGlobal();
+    const cam = this.camera.position;
+    const caixa =
+      opts.caixa ??
+      (box
+        ? { min: [box.min.x, box.min.y, box.min.z] as Vec3, max: [box.max.x, box.max.y, box.max.z] as Vec3 }
+        : { min: [cam.x, cam.y, cam.z] as Vec3, max: [cam.x, cam.y, cam.z] as Vec3 });
+    const direcao = this.camera.getWorldDirection(new THREE.Vector3());
+    const yaw = Math.hypot(direcao.x, direcao.z) > 1e-6 ? Math.atan2(-direcao.x, -direcao.z) : 0;
+    const dom = this.renderer.domElement;
+
+    const down = (e: PointerEvent) => {
+      const a = this.andar;
+      if (!a || a.olhando || (e.pointerType === "mouse" && e.button !== 0)) return;
+      a.olhando = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      try {
+        dom.setPointerCapture(e.pointerId);
+      } catch {
+        /* ponteiro já solto */
+      }
+    };
+    const move = (e: PointerEvent) => {
+      const a = this.andar;
+      if (!a?.olhando || a.olhando.id !== e.pointerId) return;
+      this.olharAndar(e.clientX - a.olhando.x, e.clientY - a.olhando.y);
+      a.olhando = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    };
+    const up = (e: PointerEvent) => {
+      const a = this.andar;
+      if (!a?.olhando || a.olhando.id !== e.pointerId) return;
+      a.olhando = null;
+      try {
+        dom.releasePointerCapture(e.pointerId);
+      } catch {
+        /* ponteiro já solto */
+      }
+    };
+
+    const botoesAntes = { ...this.controls.mouseButtons };
+    const toquesAntes = { ...this.controls.touches };
+    const nada = CameraControls.ACTION.NONE;
+    this.controls.mouseButtons.left = nada;
+    this.controls.mouseButtons.middle = nada;
+    this.controls.mouseButtons.right = nada;
+    this.controls.mouseButtons.wheel = nada;
+    this.controls.touches.one = nada;
+    this.controls.touches.two = nada;
+    this.controls.touches.three = nada;
+    dom.addEventListener("pointerdown", down);
+    dom.addEventListener("pointermove", move);
+    dom.addEventListener("pointerup", up);
+    dom.addEventListener("pointercancel", up);
+
+    this.andar = {
+      estado: { ...entradaDoAndar(caixa, opts.pisoY), yaw },
+      teclas: new Set(),
+      joystick: null,
+      sujo: true,
+      botoesAntes,
+      toquesAntes,
+      olhando: null,
+      down,
+      move,
+      up,
+    };
+    this.quadroDoAndar(0);
+    this.opts.onAndar?.(true);
+  }
+
+  /** Leva o olho à altura de outro pavimento (1,60 m acima de `pisoY`), no mesmo ponto em planta. */
+  trocarPisoDoAndar(pisoY: number): void {
+    const a = this.andar;
+    if (!a || !Number.isFinite(pisoY)) return;
+    a.estado = { ...a.estado, pos: [a.estado.pos[0], pisoY + ALTURA_OLHO_M, a.estado.pos[2]] };
+    a.sujo = true;
+  }
+
+  /** Teclas apertadas agora (`KeyboardEvent.code`) — quem escuta o teclado é o Viewer3D. */
+  definirTeclasAndar(teclas: ReadonlySet<string>): void {
+    if (this.andar) this.andar.teclas = new Set(teclas);
+  }
+
+  /** Controle de direção da tela (toque): x para a direita, y para baixo, cada um em −1…1; null = solto. */
+  definirJoystick(v: { x: number; y: number } | null): void {
+    if (this.andar) this.andar.joystick = v;
+  }
+
+  /** Gira o olhar por um arraste de (dx, dy) pixels: arrastar para a direita olha para a direita. */
+  olharAndar(dx: number, dy: number): void {
+    const a = this.andar;
+    if (!a) return;
+    a.estado = olhar(a.estado, -dx * OLHAR_RAD_POR_PX, -dy * OLHAR_RAD_POR_PX);
+    a.sujo = true;
+  }
+
+  /** Sai do modo andar: devolve a órbita em torno de um ponto à frente de onde o olho estava. */
+  async sairAndar(): Promise<void> {
+    const a = this.andar;
+    if (!a) return;
+    const { pos } = a.estado;
+    const alvo = alvoDoOlhar(a.estado);
+    const d = DISTANCIA_ALVO_SAIDA_ANDAR;
+    this.encerrarAndar();
+    await this.controls.setLookAt(
+      pos[0],
+      pos[1],
+      pos[2],
+      pos[0] + (alvo[0] - pos[0]) * d,
+      pos[1] + (alvo[1] - pos[1]) * d,
+      pos[2] + (alvo[2] - pos[2]) * d,
+      false,
+    );
+  }
+
+  /** Um quadro do andar: anda pelo teclado/joystick e, se algo mudou, manda a câmera para o estado novo. */
+  private quadroDoAndar(dt: number): void {
+    const a = this.andar;
+    if (!a) return;
+    const novo = passoDoAndar(a.estado, a.teclas, dt, a.joystick ?? undefined);
+    if (novo === a.estado && !a.sujo) return;
+    a.estado = novo;
+    a.sujo = false;
+    const alvo = alvoDoOlhar(novo);
+    void this.controls.setLookAt(novo.pos[0], novo.pos[1], novo.pos[2], alvo[0], alvo[1], alvo[2], false);
+  }
+
+  /** Desfaz o modo andar sem mexer na câmera (quem chama decide para onde ela vai). */
+  private encerrarAndar(notificar = true): void {
+    const a = this.andar;
+    if (!a) return;
+    const dom = this.renderer.domElement;
+    dom.removeEventListener("pointerdown", a.down);
+    dom.removeEventListener("pointermove", a.move);
+    dom.removeEventListener("pointerup", a.up);
+    dom.removeEventListener("pointercancel", a.up);
+    Object.assign(this.controls.mouseButtons, a.botoesAntes);
+    Object.assign(this.controls.touches, a.toquesAntes);
+    this.andar = null;
+    if (notificar) this.opts.onAndar?.(false);
+  }
+
   // ── Pins (marcadores 3D dos apontamentos) ───────────────────
 
   /** Registra um callback rodado a cada frame (após o render) — usado p/ reprojetar pins na tela. */
@@ -2123,6 +2336,7 @@ export class ViewerEngine {
     if (this.destruido) return;
     if (this.realinhar) this.sairRealinhamento();
     if (this.medicao) this.sairMedicao();
+    this.encerrarAndar(false);
     if (this.snapMarker) {
       this.snapMarker.geometry.dispose();
       (this.snapMarker.material as THREE.Material).dispose();

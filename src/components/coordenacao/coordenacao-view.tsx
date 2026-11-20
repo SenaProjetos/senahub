@@ -37,6 +37,11 @@ import {
 import { enviaveis as apontamentosEnviaveis } from "@/modules/coordenacao/helpers";
 import { type ModeloRow } from "@/components/coordenacao/conversao-status-view";
 import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
+import { CamadaAndar } from "@/components/coordenacao/controle-andar";
+import type { PavimentosDoFiltro } from "@/components/coordenacao/filtros-painel";
+import { pisoDeEntrada } from "@/modules/coordenacao/viewer/andar";
+import type { Vec3 } from "@/modules/coordenacao/viewer/coords";
+import { chavePavimento, SEM_PAVIMENTO } from "@/modules/coordenacao/filtros";
 import { BcfImportDialog } from "@/components/coordenacao/bcf-import-dialog";
 import { ClashPainel } from "@/components/coordenacao/clash-painel";
 import { DiffPainel } from "@/components/coordenacao/diff-painel";
@@ -68,6 +73,50 @@ const Viewer3D = dynamic(() => import("@/components/coordenacao/viewer-3d"), {
 });
 
 type DraftInfo = { uploadId: string; disciplinaId: string | null; guids: string[]; camera: CameraApontamento };
+
+/** Piso de um conjunto de elementos (o menor `pisoDoPavimento` entre os modelos); sem caixa válida, `+Infinity`. */
+async function pisoDosElementos(engine: ViewerEngine, porModelo: ReadonlyMap<string, readonly number[]>): Promise<number> {
+  let piso = Number.POSITIVE_INFINITY;
+  for (const [modeloId, ids] of porModelo) {
+    if (ids.length > 0) piso = Math.min(piso, await engine.pisoDoPavimento(modeloId, [...ids]));
+  }
+  return piso;
+}
+
+/**
+ * Onde o modo andar entra: o piso (Y do three) e a caixa do pavimento (o centro em planta). O pavimento é o dos marcados
+ * no filtro (o mais baixo deles; a caixa de todos); sem filtro, o pavimento mais baixo dos modelos na cena, unido pelo
+ * nome entre as disciplinas como no filtro; sem pavimento algum, o fundo da cena (e o centro dos modelos).
+ */
+async function entradaDoAndarInterno(
+  engine: ViewerEngine,
+  filtro: PavimentosDoFiltro | null,
+): Promise<{ pisoY: number; caixa: { min: Vec3; max: Vec3 } | null } | null> {
+  if (filtro) {
+    const piso = await pisoDosElementos(engine, filtro.porModelo);
+    if (Number.isFinite(piso)) return { pisoY: piso, caixa: await engine.caixaDosElementos(filtro.porModelo) };
+  }
+  const grupos = new Map<string, Map<string, number[]>>();
+  for (const modeloId of engine.modelosCarregados) {
+    for (const e of await engine.indiceDoModelo(modeloId)) {
+      const chave = chavePavimento(e.pavimentoNome);
+      if (chave === SEM_PAVIMENTO) continue;
+      const porModelo = grupos.get(chave) ?? new Map<string, number[]>();
+      grupos.set(chave, porModelo);
+      const ids = porModelo.get(modeloId) ?? [];
+      porModelo.set(modeloId, ids);
+      ids.push(e.localId);
+    }
+  }
+  let maisBaixo: { pisoY: number; porModelo: Map<string, number[]> } | null = null;
+  for (const porModelo of grupos.values()) {
+    const piso = await pisoDosElementos(engine, porModelo);
+    if (Number.isFinite(piso) && (!maisBaixo || piso < maisBaixo.pisoY)) maisBaixo = { pisoY: piso, porModelo };
+  }
+  if (maisBaixo) return { pisoY: maisBaixo.pisoY, caixa: await engine.caixaDosElementos(maisBaixo.porModelo) };
+  const fundo = pisoDeEntrada([], engine.caixasDosModelos());
+  return fundo === null ? null : { pisoY: fundo, caixa: null };
+}
 
 /** Viewer federado + apontamentos de compatibilização. Nada carrega por padrão. */
 export function CoordenacaoView({
@@ -127,6 +176,8 @@ export function CoordenacaoView({
   // ── Dock de painéis (menu do viewer) + medição + vistas salvas ──
   const [painelAtivo, setPainelAtivo] = useState<PainelId | null>(null);
   const [medicaoAberta, setMedicaoAberta] = useState(false);
+  const [andando, setAndando] = useState(false);
+  const pavimentosFiltroRef = useRef<PavimentosDoFiltro | null>(null);
   const [vistas, setVistas] = useState<VistaView[]>(vistasIniciais);
 
   // ── Realinhamento (offset de IFC) ──
@@ -239,6 +290,30 @@ export function CoordenacaoView({
     // Diff dependem de selecionar elementos e seriam fechados no meio da ação.
     if (info) setPainelAtivo((atual) => (atual === null || atual === "propriedades" ? "propriedades" : atual));
   }, []);
+
+  // ── Modo andar: entra no pavimento do filtro (ou no mais baixo); medição e realinhamento não andam junto ──
+  const alternarAndar = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.andando) return void engine.sairAndar();
+    setMedicaoAberta(false);
+    const entrada = await entradaDoAndarInterno(engine, pavimentosFiltroRef.current);
+    if (!entrada) return void toast.error("Ligue um modelo em Disciplinas para andar por ele.");
+    engine.iniciarAndar(entrada);
+  }, []);
+
+  // Trocar o pavimento do filtro enquanto anda leva o olho à altura do novo (só quando os marcados mudam).
+  const aoMudarPavimentosFiltro = useCallback((sel: PavimentosDoFiltro | null) => {
+    const antes = pavimentosFiltroRef.current;
+    pavimentosFiltroRef.current = sel;
+    const engine = engineRef.current;
+    if (!sel || sel.chave === antes?.chave || !engine?.andando) return;
+    void pisoDosElementos(engine, sel.porModelo).then((piso) => engine.trocarPisoDoAndar(piso));
+  }, []);
+
+  useEffect(() => {
+    if (realinharAberto) void engineRef.current?.sairAndar();
+  }, [realinharAberto]);
 
   const alternarPainel = useCallback((id: PainelId) => {
     setPainelAtivo((atual) => (atual === id ? null : id));
@@ -810,7 +885,11 @@ export function CoordenacaoView({
         />
       )}
       {painelAtivo === "elementos" && (
-        <ArvoreModelo engine={engineRef.current} modelos={modelosCarregadosInfo} />
+        <ArvoreModelo
+          engine={engineRef.current}
+          modelos={modelosCarregadosInfo}
+          onPavimentosChange={aoMudarPavimentosFiltro}
+        />
       )}
       {painelAtivo === "clash" && (
         <ClashPainel
@@ -902,9 +981,15 @@ export function CoordenacaoView({
               painelDesabilitado={painelDesabilitado}
               apontamentosAbertos={listaEnviaveis.length}
               medicaoAberta={medicaoAberta}
-              onToggleMedicao={() => setMedicaoAberta((v) => !v)}
+              onToggleMedicao={() => {
+                if (!medicaoAberta) void engineRef.current?.sairAndar();
+                setMedicaoAberta((v) => !v);
+              }}
               acoesModelo={acoesModelo}
               onAcaoModelo={aoAcaoModelo}
+              andando={andando}
+              onAndar={() => void alternarAndar()}
+              andarDesabilitado={carregados.size === 0 || realinharAberto}
             />
             </div>
             <div
@@ -954,7 +1039,13 @@ export function CoordenacaoView({
         </div>
         {/* No celular o ⋯ da barra liga o modo foco por evento: este é quem escuta. */}
         <ModoFocoBotao semBotao />
-        <Viewer3D onReady={onEngineReadyEfeito} onSelecionar={onSelecionarViewer} />
+        <Viewer3D onReady={onEngineReadyEfeito} onSelecionar={onSelecionarViewer} onAndar={setAndando} />
+        {andando && (
+          <CamadaAndar
+            onSair={() => void engineRef.current?.sairAndar()}
+            onJoystick={(v) => engineRef.current?.definirJoystick(v)}
+          />
+        )}
         <ApontamentoPins
           engine={engineRef.current}
           pins={pins}

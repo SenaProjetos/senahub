@@ -25,6 +25,9 @@ import { Input } from "@/components/ui/input";
 
 const LIMITE_PSETS_RENDERIZADOS = 200;
 
+/** Pavimentos marcados no filtro e os elementos deles em cada modelo — o modo andar entra no mais baixo deles. */
+export type PavimentosDoFiltro = { chave: string; porModelo: Map<string, number[]> };
+
 function chavePset(pset: { pset: string; nome: string; valor: string }) {
   return JSON.stringify([pset.pset, pset.nome, pset.valor]);
 }
@@ -38,10 +41,13 @@ export function FiltrosPanel({
   engine,
   modelos,
   onFiltroAtivoChange,
+  onPavimentosChange,
 }: {
   engine: ViewerEngine | null;
   modelos: { uploadId: string; label: string }[];
   onFiltroAtivoChange?: (ativo: boolean) => void;
+  /** Pavimentos marcados (null = nenhum, ou o painel fechou). */
+  onPavimentosChange?: (sel: PavimentosDoFiltro | null) => void;
 }) {
   const [elementos, setElementos] = useState<ElementoDeModelo[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -136,6 +142,17 @@ export function FiltrosPanel({
   useEffect(() => {
     onFiltroAtivoChange?.(temFiltro);
   }, [onFiltroAtivoChange, temFiltro]);
+
+  const pavimentosDoFiltro = useMemo<PavimentosDoFiltro | null>(() => {
+    if (pavimentosSelecionados.size === 0) return null;
+    const chaves = [...pavimentosSelecionados].sort();
+    return { chave: chaves.join("|"), porModelo: localIdsPorModelo(elementos, { pavimentos: chaves }, modeloIds) };
+  }, [pavimentosSelecionados, elementos, modeloIds]);
+  useEffect(() => {
+    onPavimentosChange?.(pavimentosDoFiltro);
+  }, [onPavimentosChange, pavimentosDoFiltro]);
+  // Fechar o painel desfaz o filtro (abaixo): o andar deixa de ter pavimento escolhido.
+  useEffect(() => () => onPavimentosChange?.(null), [onPavimentosChange]);
 
   // Fechar o painel nunca deixa o viewer preso num isolamento invisível.
   useEffect(() => {

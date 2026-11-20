@@ -77,6 +77,11 @@ function normalizarNome(nome: string): string {
 
 const CHAVE_SEM_PAVIMENTO = normalizarNome(NOME_SEM_PAVIMENTO);
 
+/** O grupo "Sem pavimento" de `unirPavimentos` (elementos sem pavimento no IFC) — não conta como andar. */
+export function ehSemPavimento(p: Pick<PavimentoUnido, "chave">): boolean {
+  return p.chave === CHAVE_SEM_PAVIMENTO;
+}
+
 /**
  * Une pavimentos de vários modelos por nome normalizado (sem acento/caixa/espaço extra).
  * Piso = o menor `pisoY`; ordem crescente de piso; sem nome → "Sem pavimento", sempre por último.

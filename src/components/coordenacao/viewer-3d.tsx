@@ -4,23 +4,27 @@ import { useEffect, useRef } from "react";
 import { ViewerEngine, type SelecaoInfo } from "@/modules/coordenacao/viewer/engine";
 import { atalhoDeVistaPermitido } from "@/modules/coordenacao/viewer/vistas";
 import { comandoDeHistorico } from "@/modules/coordenacao/historico-realinhamento";
+import { TECLAS_DO_ANDAR } from "@/modules/coordenacao/viewer/andar";
 
 /**
  * Wrapper React do ViewerEngine (three + fragments). SEMPRE importado via
  * next/dynamic com ssr:false — este módulo puxa todo o stack 3D.
- * Clique vs. órbita: só dispara seleção se o ponteiro moveu < 5px.
+ * Clique vs. órbita: só dispara seleção se o ponteiro moveu < 5px (vale também no modo andar, onde arrastar gira o olhar).
  */
 export default function Viewer3D({
   onReady,
   onSelecionar,
+  onAndar,
 }: {
   onReady: (engine: ViewerEngine) => void;
   onSelecionar: (info: SelecaoInfo | null) => void;
+  /** Entrou/saiu do modo andar (inclusive pelo Esc ou quando o motor sai sozinho). */
+  onAndar?: (andando: boolean) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<ViewerEngine | null>(null);
-  const callbacksRef = useRef({ onReady, onSelecionar });
-  callbacksRef.current = { onReady, onSelecionar };
+  const callbacksRef = useRef({ onReady, onSelecionar, onAndar });
+  callbacksRef.current = { onReady, onSelecionar, onAndar };
 
   useEffect(() => {
     const container = containerRef.current;
@@ -28,6 +32,7 @@ export default function Viewer3D({
 
     const engine = new ViewerEngine(container, {
       onSelecionar: (info) => callbacksRef.current.onSelecionar(info),
+      onAndar: (andando) => callbacksRef.current.onAndar?.(andando),
     });
     engineRef.current = engine;
     callbacksRef.current.onReady(engine);
@@ -59,13 +64,35 @@ export default function Viewer3D({
       if (engine.medindo) void engine.atualizarSnapHover(e.clientX, e.clientY);
     };
     const onLeave = () => engine.ocultarSnapHover();
-    // Teclado do visualizador, sempre fora de campos de digitação: no realinhamento,
-    // Ctrl+Z/Ctrl+Shift+Z desfazem/refazem e setas, PageUp/PageDown e Q/E movem a
-    // prévia; teclas 1–7 vão para as vistas padrão.
+    // Teclado do visualizador, sempre fora de campos de digitação: no modo andar, W/A/S/D,
+    // setas, Q/E, PageUp/PageDown e Shift andam e Esc sai (essas teclas são do andar enquanto
+    // ele está ativo); no realinhamento, Ctrl+Z/Ctrl+Shift+Z desfazem/refazem e setas,
+    // PageUp/PageDown e Q/E movem a prévia; teclas 1–7 vão para as vistas padrão.
+    const teclasAndar = new Set<string>();
+    const soltarTeclasAndar = () => {
+      if (teclasAndar.size === 0) return;
+      teclasAndar.clear();
+      engine.definirTeclasAndar(teclasAndar);
+    };
     const onKey = (e: KeyboardEvent) => {
       const alvo = e.target as HTMLElement | null;
       const alvoEditavel =
         !!alvo && (alvo.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName) || !!alvo.closest("[role=dialog]"));
+      if (!engine.andando) teclasAndar.clear();
+      else if (!alvoEditavel && !e.defaultPrevented && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          soltarTeclasAndar();
+          void engine.sairAndar();
+          return;
+        }
+        if (TECLAS_DO_ANDAR.has(e.code)) {
+          e.preventDefault();
+          teclasAndar.add(e.code);
+          engine.definirTeclasAndar(teclasAndar);
+          return;
+        }
+      }
       if (engine.realinhamentoAtivo && !alvoEditavel) {
         const comando = comandoDeHistorico(e);
         if (comando) {
@@ -89,7 +116,13 @@ export default function Viewer3D({
       e.preventDefault();
       void engine.irParaVista(vista);
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (teclasAndar.delete(e.code)) engine.definirTeclasAndar(teclasAndar);
+    };
     window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    // Janela sem foco não recebe o keyup: solta tudo para o andar não seguir sozinho.
+    window.addEventListener("blur", soltarTeclasAndar);
     container.addEventListener("pointerdown", onDown);
     container.addEventListener("pointerup", onUp);
     container.addEventListener("pointermove", onMove);
@@ -101,6 +134,8 @@ export default function Viewer3D({
       container.removeEventListener("pointermove", onMove);
       container.removeEventListener("pointerleave", onLeave);
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", soltarTeclasAndar);
       engineRef.current = null;
       void engine.dispose();
     };

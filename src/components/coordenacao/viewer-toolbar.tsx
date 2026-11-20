@@ -21,6 +21,7 @@ import {
   Maximize2,
   Box,
   FileDown,
+  Footprints,
   type LucideIcon,
 } from "lucide-react";
 import type { CorteConfig, EixoCorte } from "@/modules/coordenacao/viewer/engine";
@@ -149,6 +150,9 @@ export function ViewerToolbar({
   onVista,
   onExportarCorte,
   exportandoCorte = false,
+  andando = false,
+  onAndar,
+  andarDesabilitado = false,
 }: {
   temSelecao: boolean;
   corte: CorteConfig;
@@ -172,6 +176,10 @@ export function ViewerToolbar({
   /** Exporta o corte ativo como desenho 2D (DXF). */
   onExportarCorte?: () => void;
   exportandoCorte?: boolean;
+  /** Modo andar (primeira pessoa): o botão entra e sai dele. */
+  andando?: boolean;
+  onAndar?: () => void;
+  andarDesabilitado?: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const itensPaineis: AcaoItem[] = PAINEIS_NO_MENU.map((p) => ({
@@ -291,6 +299,17 @@ export function ViewerToolbar({
           )}
         </PopoverContent>
       </Popover>
+
+      {onAndar && (
+        <BotaoTool
+          label={andando ? "Sair do modo andar" : "Andar (primeira pessoa)"}
+          ativo={andando}
+          disabled={andarDesabilitado && !andando}
+          onClick={onAndar}
+        >
+          <Footprints className="size-4" />
+        </BotaoTool>
+      )}
 
       <span className="hidden sm:contents">
       <div className="mx-1 h-5 w-px bg-border" />

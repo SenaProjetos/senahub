@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { Box, Info, Maximize, RotateCw, SlidersHorizontal } from "lucide-react";
+import { Box, Footprints, Info, Maximize, RotateCw, SlidersHorizontal } from "lucide-react";
 import type { ModeloDoPortal } from "@/modules/portal/modelo3d/queries";
 import {
+  ehSemPavimento,
   gruposDePavimento,
   unirPavimentos,
   visibilidadeDoPortal,
@@ -12,6 +13,9 @@ import {
 } from "@/modules/portal/modelo3d/regras";
 import type { SelecaoInfo, ViewerEngine } from "@/modules/coordenacao/viewer/engine";
 import { VISTAS_PADRAO } from "@/modules/coordenacao/viewer/vistas";
+import { pisoDeEntrada } from "@/modules/coordenacao/viewer/andar";
+import { CamadaAndar } from "@/components/coordenacao/controle-andar";
+import { cn } from "@/lib/utils";
 import { useAlturaRestante } from "@/lib/use-altura-restante";
 import { PainelPropriedades } from "@/components/coordenacao/painel-propriedades";
 import { PainelModelo, type CorteHorizontal, type EstadoNaCena } from "@/components/portal/modelo3d/painel-modelo";
@@ -84,6 +88,7 @@ export function VisualizadorModelo({
   const [faixaY, setFaixaY] = useState<{ min: number; max: number } | null>(null);
   const [selecao, setSelecao] = useState<SelecaoInfo | null>(null);
   const [folhaAberta, setFolhaAberta] = useState(false);
+  const [andando, setAndando] = useState(false);
 
   const prontos = useMemo(() => modelos.filter((m) => m.situacao === "pronto" && m.url), [modelos]);
   const focoInicial = useMemo(
@@ -151,6 +156,29 @@ export function VisualizadorModelo({
     [carregados, desligados, dados],
   );
   const pavimentoAtivo = pavimentos.find((p) => p.chave === pavimentoSel) ?? null;
+
+  // Modo andar: entra no pavimento escolhido ou, sem escolha, no mais baixo (a lista vem de baixo para cima), no centro
+  // dele em planta; sem pavimento algum, no fundo da cena.
+  const alternarAndar = async () => {
+    if (!engine) return;
+    if (engine.andando) return void engine.sairAndar();
+    const pav = pavimentoAtivo ?? pavimentos.find((p) => !ehSemPavimento(p) && Number.isFinite(p.pisoY)) ?? null;
+    const piso = pav && Number.isFinite(pav.pisoY) ? pav.pisoY : pisoDeEntrada([], engine.caixasDosModelos());
+    if (piso === null) return;
+    const caixa = pav ? await engine.caixaDosElementos(pav.porModelo) : null;
+    engine.iniciarAndar({ pisoY: piso, caixa });
+  };
+  // Trocar o pavimento enquanto anda leva o olho à altura do novo (só quando a escolha muda).
+  const pavimentoDoAndarRef = useRef<string | null>(null);
+  useEffect(() => {
+    const chave = pavimentoAtivo?.chave ?? null;
+    if (!engine || !andando || !pavimentoAtivo || pavimentoDoAndarRef.current === chave) {
+      pavimentoDoAndarRef.current = chave;
+      return;
+    }
+    pavimentoDoAndarRef.current = chave;
+    engine.trocarPisoDoAndar(pavimentoAtivo.pisoY);
+  }, [engine, andando, pavimentoAtivo]);
 
   // Visibilidade: modelos desligados escondidos, pavimento escolhido isolado nos ligados.
   useEffect(() => {
@@ -290,12 +318,25 @@ export function VisualizadorModelo({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            size="sm"
+            variant={andando ? "default" : "outline"}
+            aria-pressed={andando}
+            onClick={() => void alternarAndar()}
+            // Até todos abrirem: o enquadramento do fim da carga tiraria a câmera do andar.
+            disabled={!andando && (nenhumNaCena || algumCarregando)}
+          >
+            <Footprints className="size-4" /> {andando ? "Sair do modo andar" : "Andar"}
+          </Button>
           <Button size="sm" variant="outline" className="ml-auto lg:hidden" onClick={() => setFolhaAberta(true)}>
             <SlidersHorizontal className="size-4" /> Modelos e corte
           </Button>
         </div>
         <div className="relative min-h-0 flex-1 bg-muted/20">
-          <Viewer3D onReady={setEngine} onSelecionar={onSelecionar} />
+          <Viewer3D onReady={setEngine} onSelecionar={onSelecionar} onAndar={setAndando} />
+          {andando && (
+            <CamadaAndar onSair={() => void engine?.sairAndar()} onJoystick={(v) => engine?.definirJoystick(v)} />
+          )}
           {nenhumNaCena && algumCarregando && (
             <p
               role="status"
@@ -320,7 +361,8 @@ export function VisualizadorModelo({
             <Button
               size="sm"
               variant="secondary"
-              className="absolute bottom-3 left-3 shadow-sm lg:hidden"
+              // Andando, o canto de baixo é da ajuda e do controle de direção.
+              className={cn("absolute left-3 shadow-sm lg:hidden", andando ? "top-3" : "bottom-3")}
               onClick={() => setFolhaAberta(true)}
             >
               <Info className="size-4" /> Propriedades
