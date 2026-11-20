@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { formatarData } from "@/lib/utils";
 import { notFound, redirect } from "next/navigation";
-import { CalendarDays, Download, FileStack, MapPin } from "lucide-react";
+import Link from "next/link";
+import { Box, CalendarDays, Download, FileStack, MapPin } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
 import { andamentoDoPortal } from "@/modules/portal/andamento-queries";
 import { pedidosDoProjetoNoPortal, uploadsComPedidoAguardando } from "@/modules/portal/pedido-revisao/queries";
+import { modelosDoPortal } from "@/modules/portal/modelo3d/queries";
 import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
@@ -68,7 +70,7 @@ export default async function PortalProjetoPage({
           um erro aqui fica só neste bloco. */}
       <LimiteErroEntregas>
         <Suspense fallback={<AndamentoEEntregasCarregando />}>
-          <AndamentoEEntregas projeto={projeto} clienteId={cliente.clienteId} />
+          <AndamentoEEntregas projeto={projeto} clienteId={cliente.clienteId} user={user} />
         </Suspense>
       </LimiteErroEntregas>
 
@@ -89,18 +91,35 @@ export default async function PortalProjetoPage({
 
 type ProjetoDoPortal = NonNullable<Awaited<ReturnType<typeof projetoDoCliente>>>;
 
-async function AndamentoEEntregas({ projeto, clienteId }: { projeto: ProjetoDoPortal; clienteId: string }) {
-  const { andamento, linha, conteudo } = await andamentoDoPortal(projeto);
+async function AndamentoEEntregas({
+  projeto,
+  clienteId,
+  user,
+}: {
+  projeto: ProjetoDoPortal;
+  clienteId: string;
+  user: Awaited<ReturnType<typeof requireUser>>;
+}) {
+  // Os modelos 3D só põem o link "Ver em 3D" e o olho do IFC: se a leitura falhar, as Entregas saem sem eles.
+  const [{ andamento, linha, conteudo }, modelos] = await Promise.all([
+    andamentoDoPortal(projeto),
+    modelosDoPortal(user, projeto.id).catch((e: unknown) => {
+      console.error("[portal] modelos 3D não carregaram:", e);
+      return null;
+    }),
+  ]);
   // O selo "Pedido aguardando" é só um aviso: se a leitura falhar, as Entregas saem sem ele.
   const aguardando = await uploadsComPedidoAguardando(projeto.id, clienteId).catch((e: unknown) => {
     console.error("[portal] selo de pedido aguardando não carregou:", e);
     return [] as string[];
   });
+  const modeloPorUpload: Record<string, string> = {};
+  for (const m of modelos ?? []) if (m.origem === "entrega" && m.origemUploadId) modeloPorUpload[m.origemUploadId] = m.modeloId;
   return (
     <div className="space-y-6">
       <AndamentoCard andamento={andamento} />
       <LinhaDoTempoCard itens={linha} />
-      <EntregasDoProjeto projetoId={projeto.id} entregas={conteudo} aguardando={aguardando} />
+      <EntregasDoProjeto projetoId={projeto.id} entregas={conteudo} aguardando={aguardando} modeloPorUpload={modeloPorUpload} />
     </div>
   );
 }
@@ -115,30 +134,49 @@ function EntregasDoProjeto({
   projetoId,
   entregas,
   aguardando,
+  modeloPorUpload,
 }: {
   projetoId: string;
   entregas: ConteudoPublico | null;
   /** Uploads com pedido de revisão aguardando a equipe (selo na linha). */
   aguardando: string[];
+  /** IFC das Entregas → modelo servido no 3D. Vazio = sem "Ver em 3D". */
+  modeloPorUpload: Record<string, string>;
 }) {
   const totalEntregas = entregas
     ? entregas.situacoes.reduce((n, s) => n + s.total, 0) + entregas.arts.length
     : 0;
   const base = `/api/portal/projetos/${projetoId}/arquivos`;
+  const temModelo3d = Object.keys(modeloPorUpload).length > 0;
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
         <CardTitle className="text-base">Entregas</CardTitle>
-        {entregas && conteudoTemZip(entregas) && (
-          <Button size="sm" variant="outline" render={<a href={`${base}/zip`} rel="noopener" />}>
-            <Download className="size-4" /> Baixar tudo (.zip)
-          </Button>
+        {((entregas && conteudoTemZip(entregas)) || temModelo3d) && (
+          <div className="flex flex-wrap gap-2">
+            {temModelo3d && (
+              <Button size="sm" variant="outline" render={<Link href={`/portal/${projetoId}/modelo`} />}>
+                <Box className="size-4" /> Ver em 3D
+              </Button>
+            )}
+            {entregas && conteudoTemZip(entregas) && (
+              <Button size="sm" variant="outline" render={<a href={`${base}/zip`} rel="noopener" />}>
+                <Download className="size-4" /> Baixar tudo (.zip)
+              </Button>
+            )}
+          </div>
         )}
       </CardHeader>
       <CardContent className="p-2 pt-0">
         {entregas && totalEntregas > 0 ? (
           <div className="divide-y">
-            <EntregasDoPortal base={base} conteudo={entregas} projetoId={projetoId} aguardando={aguardando} />
+            <EntregasDoPortal
+              base={base}
+              conteudo={entregas}
+              projetoId={projetoId}
+              aguardando={aguardando}
+              modeloPorUpload={modeloPorUpload}
+            />
           </div>
         ) : (
           <EmptyState

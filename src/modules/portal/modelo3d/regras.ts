@@ -116,3 +116,51 @@ export function unirPavimentos(
   const sem = todos.filter((p) => p.chave === CHAVE_SEM_PAVIMENTO);
   return [...comNome, ...sem];
 }
+
+/** Um pavimento lido do índice de UM modelo, ainda sem piso (o piso vem das caixas, no motor). */
+export type GrupoDePavimento = { nome: string | null; localIds: number[] };
+
+/**
+ * Agrupa os elementos do índice do motor pelo pavimento (`pavimentoLocalId`), na ordem em que aparecem. Elemento sem
+ * pavimento entra num grupo sem nome (vira "Sem pavimento" em `unirPavimentos`).
+ */
+export function gruposDePavimento(
+  indice: readonly { localId: number; pavimentoLocalId: number | null; pavimentoNome: string | null }[],
+): GrupoDePavimento[] {
+  const porPavimento = new Map<number | "sem", GrupoDePavimento>();
+  for (const e of indice) {
+    const chave = e.pavimentoLocalId ?? "sem";
+    const grupo = porPavimento.get(chave);
+    if (grupo) {
+      grupo.localIds.push(e.localId);
+      if (!grupo.nome && e.pavimentoNome) grupo.nome = e.pavimentoNome;
+    } else {
+      porPavimento.set(chave, { nome: chave === "sem" ? null : e.pavimentoNome, localIds: [e.localId] });
+    }
+  }
+  // Os sem pavimento por último, como na lista unida.
+  const sem = porPavimento.get("sem");
+  porPavimento.delete("sem");
+  return sem ? [...porPavimento.values(), sem] : [...porPavimento.values()];
+}
+
+/**
+ * O que fica visível no 3D do portal: "tudo" quando nenhum modelo carregado está desligado e não há pavimento
+ * escolhido; senão um mapa modelo → elementos visíveis (o motor esconde o modelo carregado que não está no mapa).
+ * Ligado = todos os elementos do índice dele, ou só os do pavimento escolhido.
+ */
+export function visibilidadeDoPortal(o: {
+  carregados: readonly string[];
+  desligados: ReadonlySet<string>;
+  pavimento: PavimentoUnido | null;
+  todosIds: ReadonlyMap<string, readonly number[]>;
+}): "tudo" | Map<string, number[]> {
+  const ligados = o.carregados.filter((id) => !o.desligados.has(id));
+  if (!o.pavimento && ligados.length === o.carregados.length) return "tudo";
+  const mapa = new Map<string, number[]>();
+  for (const id of ligados) {
+    const ids = o.pavimento ? o.pavimento.porModelo.get(id) : o.todosIds.get(id);
+    mapa.set(id, ids ? [...ids] : []);
+  }
+  return mapa;
+}

@@ -19,6 +19,8 @@ export type ModeloDoPortal = {
   disciplinaId: string | null;
   /** "Estrutural · R00" (`rotuloRevisao`, como nas Entregas) | "Referência enviada por você · base.ifc". */
   rotulo: string;
+  /** Nome do arquivo IFC (o das Entregas; o da versão no recebido) — dois IFCs da mesma disciplina e revisão. */
+  nomeArquivo: string;
   situacao: "pronto" | "preparando" | "erro";
   /** Rota do `.frag` no portal, só quando pronto. */
   url: string | null;
@@ -47,13 +49,13 @@ function versaoIfcDoRecebido(d: DocumentoItem) {
 async function ifcsDasEntregas(alcance: AlcanceArquivos) {
   const conteudo = await conteudoDoAlcanceSemSelos(alcance);
   if (!conteudo) return [];
-  const porId = new Map<string, { id: string; disciplinaId: string; disciplinaNome: string; versao: number }>();
+  const porId = new Map<string, { id: string; nome: string; disciplinaId: string; disciplinaNome: string; versao: number }>();
   for (const d of [...conteudo.situacoes.flatMap((s) => s.disciplinas), ...conteudo.disciplinas]) {
     for (const fase of d.pastas) {
       for (const ext of fase.extensoes) {
         for (const a of ext.arquivos) {
           if (ehIfc(a.nome) && !porId.has(a.id)) {
-            porId.set(a.id, { id: a.id, disciplinaId: d.id, disciplinaNome: d.nome, versao: a.versao });
+            porId.set(a.id, { id: a.id, nome: a.nome, disciplinaId: d.id, disciplinaNome: d.nome, versao: a.versao });
           }
         }
       }
@@ -116,6 +118,7 @@ export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string):
       disciplinaId: s.disciplinaId,
       // O mesmo rótulo das Entregas (R00 = emissão original).
       rotulo: `${s.disciplinaNome} · ${rotuloRevisao(s.versao)}`,
+      nomeArquivo: s.nome,
       situacao,
       url: situacao === "pronto" ? urlDoModelo(projetoId, s.servido) : null,
     };
@@ -139,6 +142,7 @@ export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string):
       documentoRecebidoId: r.documento.id,
       disciplinaId: null,
       rotulo: `${ROTULO_RECEBIDO} · ${r.versao.nomeArquivo}`,
+      nomeArquivo: r.versao.nomeArquivo,
       situacao,
       url: situacao === "pronto" ? urlDoModelo(projetoId, modeloId) : null,
     });

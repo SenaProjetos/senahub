@@ -220,11 +220,13 @@ async function main() {
         daOrigem.situacao === "pronto" &&
         daOrigem.disciplinaId === p1.estruturalId &&
         daOrigem.rotulo === "Estrutural · R00" &&
+        daOrigem.nomeArquivo === `${tag}-estrutura.ifc` &&
         daOrigem.url === `/api/portal/projetos/${p1.id}/modelos/${r.uploadId}` &&
         doRecebido?.origem === "cliente" &&
         doRecebido.documentoRecebidoId === recebido.doc.id &&
         doRecebido.origemUploadId === null &&
         doRecebido.rotulo === "Referência enviada por você · base.ifc" &&
+        doRecebido.nomeArquivo === "base.ifc" &&
         doRecebido.situacao === "pronto" &&
         !ids.includes(u.up.id) &&
         !ids.includes(x.up.id) &&

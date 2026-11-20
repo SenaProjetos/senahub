@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   descendentesDe,
+  gruposDePavimento,
   modeloServidoDaOrigem,
   unirPavimentos,
+  visibilidadeDoPortal,
   type UploadDaCadeia,
 } from "./regras";
 
@@ -136,5 +138,84 @@ describe("unirPavimentos", () => {
 
   it("lista vazia dá lista vazia", () => {
     expect(unirPavimentos([])).toEqual([]);
+  });
+});
+
+describe("gruposDePavimento", () => {
+  const el = (localId: number, pavimentoLocalId: number | null, pavimentoNome: string | null) => ({
+    localId,
+    pavimentoLocalId,
+    pavimentoNome,
+  });
+
+  it("agrupa pelo pavimento do índice e junta os sem pavimento num grupo sem nome", () => {
+    const grupos = gruposDePavimento([
+      el(1, 10, "Térreo"),
+      el(2, 20, "Cobertura"),
+      el(3, 10, "Térreo"),
+      el(4, null, null),
+      el(5, null, null),
+    ]);
+    expect(grupos).toEqual([
+      { nome: "Térreo", localIds: [1, 3] },
+      { nome: "Cobertura", localIds: [2] },
+      { nome: null, localIds: [4, 5] },
+    ]);
+  });
+
+  it("pavimento sem nome resolvido vira grupo sem nome; índice vazio = nenhum grupo", () => {
+    expect(gruposDePavimento([el(1, 10, null)])).toEqual([{ nome: null, localIds: [1] }]);
+    expect(gruposDePavimento([])).toEqual([]);
+  });
+});
+
+describe("visibilidadeDoPortal", () => {
+  const todosIds = new Map<string, number[]>([
+    ["A", [1, 2, 3]],
+    ["B", [7, 8]],
+  ]);
+  const terreo = {
+    chave: "terreo",
+    nome: "Térreo",
+    pisoY: 0,
+    porModelo: new Map<string, number[]>([
+      ["A", [1]],
+      ["B", [7]],
+    ]),
+  };
+
+  it("todos ligados e sem pavimento = mostra tudo", () => {
+    expect(visibilidadeDoPortal({ carregados: ["A", "B"], desligados: new Set(), pavimento: null, todosIds })).toBe("tudo");
+  });
+
+  it("modelo desligado fica fora do mapa (escondido) e os ligados inteiros", () => {
+    const v = visibilidadeDoPortal({ carregados: ["A", "B"], desligados: new Set(["B"]), pavimento: null, todosIds });
+    expect(v).toEqual(new Map([["A", [1, 2, 3]]]));
+  });
+
+  it("pavimento isola os elementos dele só nos modelos ligados", () => {
+    expect(visibilidadeDoPortal({ carregados: ["A", "B"], desligados: new Set(), pavimento: terreo, todosIds })).toEqual(
+      new Map([
+        ["A", [1]],
+        ["B", [7]],
+      ]),
+    );
+    expect(
+      visibilidadeDoPortal({ carregados: ["A", "B"], desligados: new Set(["A"]), pavimento: terreo, todosIds }),
+    ).toEqual(new Map([["B", [7]]]));
+  });
+
+  it("modelo ligado sem nada no pavimento escolhido fica todo escondido", () => {
+    const soA = { ...terreo, porModelo: new Map([["A", [1]]]) };
+    expect(visibilidadeDoPortal({ carregados: ["A", "B"], desligados: new Set(), pavimento: soA, todosIds })).toEqual(
+      new Map([
+        ["A", [1]],
+        ["B", []],
+      ]),
+    );
+  });
+
+  it("desligado que não está carregado não muda nada", () => {
+    expect(visibilidadeDoPortal({ carregados: ["A"], desligados: new Set(["Z"]), pavimento: null, todosIds })).toBe("tudo");
   });
 });

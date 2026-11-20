@@ -35,8 +35,11 @@ export type AcoesDoArquivo = {
   selos?: (arquivo: ArquivoPublicoView) => ReactNode;
   /** Botões extras ao fim da linha. */
   extras?: (arquivo: ArquivoPublicoView) => ReactNode;
-  /** Para onde o olho do PDF leva (padrão: o PDF inline pela rota de download). */
-  hrefVer?: (arquivo: ArquivoPublicoView) => string;
+  /**
+   * Para onde o olho da linha leva; `null` = sem olho. Sem a função, só o PDF tem olho (o PDF inline pela rota de
+   * download). O portal leva o PDF ao visualizador da prancha e o IFC ao modelo 3D.
+   */
+  hrefVer?: (arquivo: ArquivoPublicoView) => string | null;
 };
 const AcoesDoArquivoContext = createContext<AcoesDoArquivo>({});
 
@@ -124,6 +127,11 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
   // Bloqueada ou fora do disco: listada com o selo, sem ver nem baixar (a rota daria 404 ou 410).
   const baixavel = !arquivo.bloqueado && !arquivo.indisponivel;
   const semArquivo = arquivo.indisponivel && !arquivo.bloqueado;
+  const hrefOlho = acoes.hrefVer
+    ? acoes.hrefVer(arquivo)
+    : arquivo.ehPdf
+      ? `${base}/${arquivo.id}?disposition=inline`
+      : null;
   return (
     <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm py-1.5 pl-14 pr-1 text-sm hover:bg-muted/40">
       {arquivo.ehPdf ? (
@@ -180,14 +188,14 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
         {rotuloRevisao(arquivo.versao)}
       </span>
       <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(arquivo.tamanho)}</span>
-      {arquivo.ehPdf && baixavel && (
+      {hrefOlho && baixavel && (
         <a
-          href={acoes.hrefVer ? acoes.hrefVer(arquivo) : `${base}/${arquivo.id}?disposition=inline`}
+          href={hrefOlho}
           target={acoes.hrefVer ? undefined : "_blank"}
           rel="noopener"
           className="shrink-0 text-primary hover:text-primary/80"
-          title="Visualizar (PDF)"
-          aria-label={`Visualizar ${arquivo.nome}`}
+          title={arquivo.ehPdf ? "Visualizar (PDF)" : "Ver em 3D"}
+          aria-label={`${arquivo.ehPdf ? "Visualizar" : "Ver em 3D"} ${arquivo.nome}`}
         >
           <Eye className="size-4" />
         </a>

@@ -912,6 +912,20 @@ export class ViewerEngine {
   }
 
   /**
+   * Piso de um pavimento no mundo do viewer: o menor Y (altura, metros) das caixas dos elementos dele. Nunca o
+   * atributo Elevation do IFC — a unidade dele muda de arquivo para arquivo. Sem caixa válida = `+Infinity` (quem
+   * ordena põe o pavimento por último).
+   */
+  async pisoDoPavimento(modeloId: string, localIds: number[]): Promise<number> {
+    const caixas = await this.bboxesDoModelo(modeloId, localIds);
+    let piso = Number.POSITIVE_INFINITY;
+    for (const caixa of caixas) {
+      if (!caixa.isEmpty() && Number.isFinite(caixa.min.y) && caixa.min.y < piso) piso = caixa.min.y;
+    }
+    return piso;
+  }
+
+  /**
    * Isola um conjunto explícito de elementos (por localId) de UM modelo — esconde
    * tudo nos modelos carregados e mostra só os informados. Independente da seleção
    * de clique (`this.selecao`); usado pela árvore de elementos/filtros. `mostrarTudo()`
