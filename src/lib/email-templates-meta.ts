@@ -254,11 +254,11 @@ Sena Projetos`,
     grupo: "Projetos",
     label: "Resposta ao pedido de revisão (cliente)",
     descricao:
-      "Enviado à conta do portal que pediu revisão de uma prancha, assim que a equipe aceita ou recusa o pedido. Não tem opção de desligar: é a resposta a uma ação do próprio cliente.",
+      "Enviado à conta do portal que pediu revisão de uma prancha ou do modelo 3D, assim que a equipe aceita ou recusa o pedido. Não tem opção de desligar: é a resposta a uma ação do próprio cliente.",
     variaveis: [
       { nome: "nome", descricao: "Primeiro nome de quem pediu", exemplo: "Mariana" },
       { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
-      { nome: "prancha", descricao: "Arquivo da prancha", exemplo: "260507-ARQ-EX-3001-PLA.pdf" },
+      { nome: "prancha", descricao: "Arquivo da prancha, ou \"Modelo 3D\" no pedido feito no modelo", exemplo: "260507-ARQ-EX-3001-PLA.pdf" },
       { nome: "situacao", descricao: "aceito ou recusado", exemplo: "aceito" },
       {
         nome: "resposta",
@@ -270,7 +270,7 @@ Sena Projetos`,
     assuntoPadrao: "Seu pedido de revisão foi {{situacao}} — {{projeto}}",
     corpoPadrao: `Olá, {{nome}}.
 
-Seu pedido de revisão da prancha **{{prancha}}**, no projeto **{{projeto}}**, foi **{{situacao}}** pela equipe.
+Seu pedido de revisão de **{{prancha}}**, no projeto **{{projeto}}**, foi **{{situacao}}** pela equipe.
 
 {{resposta}}
 

@@ -5,22 +5,25 @@ import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SeloIndisponivel, SeloStatusPedido } from "@/components/arquivos/selos-pedido";
+import { avisoIndisponivelNoPortal, rotuloDoPedido } from "@/modules/portal/pedido-revisao/modelo-regras";
 import { CancelarPedidoBotao } from "@/components/portal/cancelar-pedido-botao";
 
 function LinhaPedido({ p, projetoId }: { p: PedidoPortalView; projetoId: string }) {
+  const ehModelo = p.tipo === "modelo";
+  const titulo = rotuloDoPedido(p);
   return (
     <li className="space-y-1 py-3">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="min-w-0 max-w-full truncate text-sm font-medium" title={p.prancha}>
-          {p.prancha}
+        <span className="min-w-0 max-w-full truncate text-sm font-medium" title={titulo}>
+          {titulo}
         </span>
-        <span className="shrink-0 font-mono text-xs text-muted-foreground">{p.revisao}</span>
+        {p.revisao && <span className="shrink-0 font-mono text-xs text-muted-foreground">{p.revisao}</span>}
         <SeloStatusPedido status={p.status} rotulo={p.rotuloStatus} />
-        {p.indisponivel && <SeloIndisponivel tipo={p.indisponivel} />}
+        {p.indisponivel && <SeloIndisponivel tipo={p.indisponivel} pedido={p.tipo} />}
       </div>
       <p className="text-xs text-muted-foreground">
         Pedido por {p.autorNome} em {formatarData(p.criadoEm)}
-        {p.marcacoes > 0 ? ` · ${p.marcacoes} ${p.marcacoes === 1 ? "marcação" : "marcações"}` : ""}
+        {!ehModelo && p.marcacoes > 0 ? ` · ${p.marcacoes} ${p.marcacoes === 1 ? "marcação" : "marcações"}` : ""}
       </p>
       <p className="line-clamp-3 text-sm whitespace-pre-wrap break-words">{p.comentario}</p>
       {p.anexos.length > 0 && (
@@ -40,13 +43,7 @@ function LinhaPedido({ p, projetoId }: { p: PedidoPortalView; projetoId: string 
           <span className="font-medium">Resposta da equipe:</span> <span className="whitespace-pre-wrap">{p.resposta}</span>
         </p>
       )}
-      {p.indisponivel && (
-        <p className="text-xs text-muted-foreground">
-          {p.indisponivel === "substituida"
-            ? "A prancha ganhou revisão nova depois deste pedido. Confira a revisão nova nas Entregas."
-            : "Esta prancha saiu das suas Entregas. A equipe vai responder o pedido."}
-        </p>
-      )}
+      {p.indisponivel && <p className="text-xs text-muted-foreground">{avisoIndisponivelNoPortal(p.tipo, p.indisponivel)}</p>}
       {p.status === "aguardando" && (
         <div className="flex flex-wrap gap-2 pt-1">
           {!p.indisponivel && p.uploadId && (
@@ -54,7 +51,12 @@ function LinhaPedido({ p, projetoId }: { p: PedidoPortalView; projetoId: string 
               Ver na prancha
             </Button>
           )}
-          <CancelarPedidoBotao id={p.id} prancha={p.prancha} />
+          {!p.indisponivel && ehModelo && (
+            <Button size="sm" variant="outline" render={<Link href={`/portal/${projetoId}/modelo`} />}>
+              Ver no modelo 3D
+            </Button>
+          )}
+          <CancelarPedidoBotao id={p.id} prancha={p.prancha} modelo={ehModelo} />
         </div>
       )}
     </li>

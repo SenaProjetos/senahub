@@ -15,12 +15,14 @@ export default async function PedidosClientePage({ searchParams }: { searchParam
   if (user.tipo !== "interno" || !(await can(user, "arquivos", "alterar_status"))) redirect("/sem-permissao");
   const { filtro: f } = await searchParams;
   const filtro = f === "respondidos" ? "respondidos" : "aguardando";
-  const [pedidos, podeValidar] = [await pedidosParaCoordenacao(user, filtro), await can(user, "uploads", "validar")];
+  const pedidos = await pedidosParaCoordenacao(user, filtro);
+  // A tela já sabe quem decide o quê: prancha = `uploads:validar`, modelo 3D = `coordenacao:gerir` (o servidor confere).
+  const poderes = { podeValidar: await can(user, "uploads", "validar"), podeCoordenar: await can(user, "coordenacao", "gerir") };
 
   return (
     <div className="space-y-4">
-      <CabecalhoPagina titulo="Pedidos do cliente" descricao="Pedidos de revisão de pranchas feitos pelos clientes no portal." />
-      <PedidosClienteView pedidos={pedidos} filtro={filtro} podeValidar={podeValidar} />
+      <CabecalhoPagina titulo="Pedidos do cliente" descricao="Pedidos de revisão de pranchas e do modelo 3D feitos pelos clientes no portal." />
+      <PedidosClienteView pedidos={pedidos} filtro={filtro} poderes={poderes} />
     </div>
   );
 }

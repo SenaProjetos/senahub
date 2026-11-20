@@ -1,13 +1,16 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, FileText, Paperclip } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Box, FileText, Paperclip } from "lucide-react";
 import type { PedidoDetalheView } from "@/modules/portal/pedido-revisao/queries";
+import type { MarcaDoPedidoModelo } from "@/modules/portal/pedido-revisao/modelo-queries";
+import { rotuloDoPedido } from "@/modules/portal/pedido-revisao/modelo-regras";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { cn, formatarBytes, formatarDataHora } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DecisaoPedidoBotoes } from "@/components/arquivos/decisao-pedido-botoes";
-import { SeloIndisponivel, SeloStatusPedido, motivoNaTela } from "@/components/arquivos/selos-pedido";
+import { SeloIndisponivel, SeloStatusPedido, motivoNaTela, type PoderesNaFila } from "@/components/arquivos/selos-pedido";
 
 function Aviso({ children }: { children: ReactNode }) {
   return (
@@ -19,21 +22,30 @@ function Aviso({ children }: { children: ReactNode }) {
 }
 
 /**
- * Detalhe de um pedido do cliente para a coordenação: comentário, marcações, anexos, a prancha e as decisões.
- * `visualizador` é o lugar da prancha com as marcações (etapa 2); sem ele, o link para abrir o PDF. Server Component:
- * só os botões de decisão são do cliente.
+ * Detalhe de um pedido do cliente para a coordenação: comentário, marcações, anexos, a prancha (ou o modelo 3D) e as
+ * decisões. `visualizador` é o lugar da prancha ou do 3D em leitura com as marcações; sem ele, o link para abrir o PDF.
+ * Server Component: só os botões de decisão e o 3D são do cliente.
  */
 export function PedidoClienteDetalhe({
   pedido,
-  podeValidar,
+  poderes,
   visualizador,
+  marcasModelo,
+  versaoMaisNova = false,
 }: {
   pedido: PedidoDetalheView;
-  podeValidar: boolean;
+  poderes: PoderesNaFila;
   visualizador?: ReactNode;
+  /** Pedido de modelo: as marcações com o modelo de cada uma e o apontamento em que viraram (depois do aceite). */
+  marcasModelo?: MarcaDoPedidoModelo[];
+  /** A série de algum modelo marcado já tem upload mais novo na Coordenação. */
+  versaoMaisNova?: boolean;
 }) {
-  const motivo = motivoNaTela(pedido, podeValidar);
+  const motivo = motivoNaTela(pedido, poderes);
   const aguardando = pedido.status === "aguardando";
+  const ehModelo = pedido.tipo === "modelo";
+  const podeRecusar = !ehModelo || poderes.podeCoordenar;
+  const modeloDaMarcacao = new Map((marcasModelo ?? []).map((m) => [m.id, m]));
 
   return (
     <div className="space-y-4">
@@ -41,10 +53,11 @@ export function PedidoClienteDetalhe({
         <CardHeader className="space-y-1 pb-2">
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="min-w-0 break-words text-base">
-              {pedido.prancha} <span className="font-mono text-sm font-normal text-muted-foreground">{pedido.revisao}</span>
+              {rotuloDoPedido(pedido)}{" "}
+              {pedido.revisao && <span className="font-mono text-sm font-normal text-muted-foreground">{pedido.revisao}</span>}
             </CardTitle>
             <SeloStatusPedido status={pedido.status} rotulo={pedido.rotuloStatus} />
-            {pedido.indisponivel && <SeloIndisponivel tipo={pedido.indisponivel} />}
+            {pedido.indisponivel && <SeloIndisponivel tipo={pedido.indisponivel} pedido={pedido.tipo} />}
           </div>
           <p className="text-xs text-muted-foreground">
             <span className="font-mono">{formatarCodigo(pedido.projeto.codigo)}</span> · {pedido.projeto.nome} · pedido por{" "}
@@ -52,7 +65,8 @@ export function PedidoClienteDetalhe({
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          {pedido.indisponivel && <Aviso>{motivoNaTela(pedido, true)}</Aviso>}
+          {pedido.indisponivel && <Aviso>{motivoNaTela(pedido, { podeValidar: true, podeCoordenar: true })}</Aviso>}
+          {ehModelo && versaoMaisNova && <Aviso>A equipe já trabalha numa versão mais nova deste modelo.</Aviso>}
           {aguardando && pedido.jaHaPedidoAceitoNaRevisao && <Aviso>Já há pedido aceito nesta revisão.</Aviso>}
           <p className="text-sm whitespace-pre-wrap break-words">{pedido.comentario}</p>
 
@@ -60,12 +74,27 @@ export function PedidoClienteDetalhe({
             <div className="space-y-1">
               <h3 className="text-sm font-medium">Marcações</h3>
               <ol className="list-decimal space-y-1 pl-5 text-sm">
-                {pedido.listaMarcacoes.map((m) => (
-                  <li key={m.id} className="break-words">
-                    {m.texto}
-                    {m.pagina !== null && <span className="text-xs text-muted-foreground"> (página {m.pagina})</span>}
-                  </li>
-                ))}
+                {pedido.listaMarcacoes.map((m) => {
+                  const doModelo = modeloDaMarcacao.get(m.id);
+                  return (
+                    <li key={m.id} className="break-words">
+                      {m.texto}
+                      {m.pagina !== null && <span className="text-xs text-muted-foreground"> (página {m.pagina})</span>}
+                      {doModelo?.modeloRotulo && <span className="text-xs text-muted-foreground"> ({doModelo.modeloRotulo})</span>}
+                      {doModelo?.apontamentoNumero != null && (
+                        <>
+                          {" "}
+                          <Link
+                            href={`/projetos/${pedido.projeto.id}/coordenacao?apontamento=${doModelo.apontamentoNumero}`}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Apontamento #{doModelo.apontamentoNumero}
+                          </Link>
+                        </>
+                      )}
+                    </li>
+                  );
+                })}
               </ol>
             </div>
           )}
@@ -100,10 +129,16 @@ export function PedidoClienteDetalhe({
                 <FileText className="size-4" /> Abrir a prancha <span className="sr-only">(abre em nova aba)</span>
               </Button>
             )}
+            {ehModelo && (
+              <Button size="sm" variant="outline" render={<Link href={`/projetos/${pedido.projeto.id}/coordenacao`} />}>
+                <Box className="size-4" /> Abrir a Coordenação
+              </Button>
+            )}
             {aguardando && (
               <DecisaoPedidoBotoes
-                pedido={{ id: pedido.id, prancha: pedido.prancha, revisao: pedido.revisao, autorNome: pedido.autorNome }}
+                pedido={{ id: pedido.id, tipo: pedido.tipo, prancha: rotuloDoPedido(pedido), revisao: pedido.revisao, autorNome: pedido.autorNome }}
                 motivoNaoAceitar={motivo}
+                podeRecusar={podeRecusar}
               />
             )}
           </div>

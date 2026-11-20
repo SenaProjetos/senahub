@@ -300,12 +300,22 @@ export async function marcacoesDoPedido(pedidoId: string) {
   };
 }
 
-/** PDFs com pedido de revisão aguardando a equipe (selo "Pedido aguardando" nas Entregas). Leitura leve, à parte do card. */
+/**
+ * Arquivos das Entregas com pedido de revisão aguardando a equipe (selo "Pedido aguardando"): o PDF do pedido de
+ * prancha e o IFC das Entregas de onde saiu o modelo de cada marcação 3D. Leitura leve, à parte do card.
+ */
 export async function uploadsComPedidoAguardando(projetoId: string, clienteId: string): Promise<string[]> {
   const linhas = await prisma.pedidoRevisaoCliente.findMany({
     where: { projetoId, projeto: { clienteId }, status: "aguardando", tipo: "prancha" },
     distinct: ["uploadId"],
     select: { uploadId: true },
   });
-  return linhas.flatMap((l) => (l.uploadId ? [l.uploadId] : []));
+  const marcas = await prisma.marcacaoModeloCliente.findMany({
+    where: { origemUploadId: { not: null }, pedido: { projetoId, projeto: { clienteId }, status: "aguardando", tipo: "modelo" } },
+    distinct: ["origemUploadId"],
+    select: { origemUploadId: true },
+  });
+  return [
+    ...new Set([...linhas.flatMap((l) => (l.uploadId ? [l.uploadId] : [])), ...marcas.flatMap((m) => (m.origemUploadId ? [m.origemUploadId] : []))]),
+  ];
 }

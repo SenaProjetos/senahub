@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/session";
 import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
 import { modelosDoPortal } from "@/modules/portal/modelo3d/queries";
 import { motivoSemModelo } from "@/modules/portal/modelo3d/regras";
+import { marcasAguardandoNoModelo } from "@/modules/portal/pedido-revisao/modelo-queries";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { VisualizadorModeloDinamico } from "@/components/portal/modelo3d/visualizador-modelo-dinamico";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,10 @@ const TEXTO_SEM_MODELO = {
   },
 } as const;
 
-/** Modelo 3D do portal do cliente: os IFCs das Entregas (e os enviados pelo cliente) juntos, para explorar. */
+/**
+ * Modelo 3D do portal do cliente: os IFCs das Entregas (e os enviados pelo cliente) juntos, para explorar e pedir
+ * revisão marcando os elementos. As marcações dos pedidos que ainda aguardam a equipe aparecem esmaecidas.
+ */
 export default async function ModeloDoPortalPage({
   params,
   searchParams,
@@ -52,6 +56,17 @@ export default async function ModeloDoPortalPage({
   const motivo = motivoSemModelo(modelos.map((m) => m.situacao));
   const texto = motivo ? TEXTO_SEM_MODELO[motivo] : null;
   const daEntrega = modelos.filter((m) => m.origem === "entrega" && m.origemUploadId);
+  // As marcações esmaecidas são só um aviso: se a leitura falhar, o 3D abre sem elas.
+  const aguardando = texto
+    ? []
+    : await marcasAguardandoNoModelo(
+        projetoId,
+        cliente.clienteId,
+        modelos.filter((m) => m.situacao === "pronto").map((m) => m.modeloId),
+      ).catch((e: unknown) => {
+        console.error("[portal] marcações aguardando do 3D não carregaram:", e);
+        return [];
+      });
 
   return (
     <div className="space-y-3">
@@ -65,7 +80,13 @@ export default async function ModeloDoPortalPage({
         ]}
       />
       {!texto ? (
-        <VisualizadorModeloDinamico projetoId={projetoId} modelos={modelos} foco={foco} />
+        <VisualizadorModeloDinamico
+          projetoId={projetoId}
+          modelos={modelos}
+          foco={foco}
+          pedir={{ userId: user.id, voltarPara: `/portal/${projetoId}` }}
+          aguardando={aguardando}
+        />
       ) : (
         <Card>
           <CardContent>

@@ -193,6 +193,17 @@ describe("textos dos avisos", () => {
       corpo: "260507 — Mariana Souza pediu revisão de ARQ-3001.pdf.",
     });
   });
+  it("pedido no modelo 3D: o aviso fala do modelo, não de uma prancha", () => {
+    expect(textoPedidoNovo({ projetoCodigo: "260507", autorNome: "Mariana", prancha: "Modelo 3D", tipo: "modelo" }).corpo).toBe(
+      "260507 — Mariana pediu revisão no modelo 3D.",
+    );
+    expect(textoResposta({ status: "aceito", prancha: "Modelo 3D", tipo: "modelo" }).corpo).toBe(
+      "A equipe aceitou seu pedido de revisão no modelo 3D.",
+    );
+    expect(textoResposta({ status: "recusado", prancha: "Modelo 3D", tipo: "modelo" }).corpo).toBe(
+      "A equipe respondeu seu pedido de revisão no modelo 3D.",
+    );
+  });
   it("resposta: aceito e recusado, com a resposta escapada para o e-mail", () => {
     expect(situacaoDaResposta("aceito")).toBe("aceito");
     expect(situacaoDaResposta("recusado")).toBe("recusado");

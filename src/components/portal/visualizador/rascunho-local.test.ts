@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { chaveDoRascunho, gravarRascunho, lerRascunho, limparRascunho, type RascunhoPedido } from "./rascunho-local";
+import {
+  chaveDoRascunho,
+  chaveDoRascunhoModelo,
+  gravarRascunho,
+  gravarRascunhoModelo,
+  lerRascunho,
+  lerRascunhoModelo,
+  limparRascunho,
+  type RascunhoModelo,
+  type RascunhoPedido,
+} from "./rascunho-local";
 
 function memoria(): Storage {
   const m = new Map<string, string>();
@@ -58,5 +68,46 @@ describe("rascunho local do pedido", () => {
     const quebrado = { ...memoria(), getItem: () => { throw new Error("bloqueado"); }, setItem: () => { throw new Error("cheio"); } } as Storage;
     expect(lerRascunho(K1, quebrado)).toBeNull();
     expect(() => gravarRascunho(K1, rascunho, quebrado)).not.toThrow();
+  });
+});
+
+describe("rascunho local do pedido no modelo 3D", () => {
+  const modelo: RascunhoModelo = {
+    comentario: "Revisar a escada",
+    marcacoes: [
+      { id: "a", modeloId: "u1", guids: ["g1"], ponto: [1, 2, 3], camera: { position: [9, 9, 9], target: [0, 0, 0] }, texto: "degrau" },
+    ],
+  };
+  it("chave por conta e projeto, separada da chave da prancha", () => {
+    expect(chaveDoRascunhoModelo("p1", "conta1")).toBe("pedido-revisao-modelo:conta1:p1");
+    expect(chaveDoRascunhoModelo("p1", "conta1")).not.toBe(chaveDoRascunho("p1", "conta1"));
+    const s = memoria();
+    gravarRascunhoModelo(chaveDoRascunhoModelo("p1", "conta1"), modelo, s);
+    expect(lerRascunhoModelo(chaveDoRascunhoModelo("p1", "conta2"), s)).toBeNull();
+    expect(lerRascunhoModelo(chaveDoRascunhoModelo("p2", "conta1"), s)).toBeNull();
+  });
+  it("grava e lê (sem imagem: nada binário vai ao armazenamento)", () => {
+    const s = memoria();
+    const k = chaveDoRascunhoModelo("p1", "c1");
+    gravarRascunhoModelo(k, modelo, s);
+    expect(lerRascunhoModelo(k, s)).toEqual(modelo);
+    expect(s.getItem(k)).not.toMatch(/blob|data:image/);
+    gravarRascunhoModelo(k, { comentario: " ", marcacoes: [] }, s);
+    expect(s.length).toBe(0);
+  });
+  it("marcação 3D estragada fica de fora; o resto volta", () => {
+    const s = memoria();
+    const k = chaveDoRascunhoModelo("p1", "c1");
+    const ruins = [
+      {},
+      { ...modelo.marcacoes[0], ponto: [1, 2] },
+      { ...modelo.marcacoes[0], camera: { position: [1, 2, 3] } },
+      { ...modelo.marcacoes[0], guids: "g1" },
+      { ...modelo.marcacoes[0], modeloId: 5 },
+    ];
+    s.setItem(k, JSON.stringify({ comentario: "oi", marcacoes: [...ruins, modelo.marcacoes[0]] }));
+    expect(lerRascunhoModelo(k, s)).toEqual({ comentario: "oi", marcacoes: [modelo.marcacoes[0]] });
+    s.setItem(k, "{x");
+    expect(lerRascunhoModelo(k, s)).toBeNull();
   });
 });

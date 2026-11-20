@@ -8,8 +8,10 @@ import { exigirEscopoDaRevisao } from "@/modules/uploads/ciclo/acesso";
 import { anexoParaBaixar, exigirEscopoDoPedidoModelo } from "@/modules/portal/pedido-revisao/service";
 
 /**
- * Download de um anexo do pedido de revisão do cliente: a coordenação (`arquivos:alterar_status` + a mesma muralha
- * da disciplina de aceitar/recusar, `exigirEscopoDaRevisao`) ou uma conta do portal com acesso ao projeto do pedido. Sempre como anexo (`attachment`), nunca inline: o
+ * Download de um anexo do pedido de revisão do cliente: a coordenação (`arquivos:alterar_status` + a mesma muralha de
+ * aceitar/recusar — na prancha, a da disciplina da revisão, `exigirEscopoDaRevisao`; no pedido do modelo 3D, que não tem
+ * revisão única, a do pedido inteiro, `exigirEscopoDoPedidoModelo`: ver todas as disciplinas + a muralha de cada revisão
+ * marcada) ou uma conta do portal com acesso ao projeto do pedido. Sempre como anexo (`attachment`), nunca inline: o
  * arquivo veio de fora.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {

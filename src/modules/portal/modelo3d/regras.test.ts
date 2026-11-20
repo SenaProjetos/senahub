@@ -7,6 +7,10 @@ import {
   motivoSemModelo,
   unirPavimentos,
   visibilidadeDoPortal,
+  pontoNaCena,
+  pontoNoModelo,
+  vistaNaCena,
+  vistaNoModelo,
   type UploadDaCadeia,
 } from "./regras";
 
@@ -262,5 +266,23 @@ describe("motivoSemModelo", () => {
     expect(motivoSemModelo(["erro", "erro"])).toBe("erro");
     expect(motivoSemModelo(["erro", "preparando"])).toBe("preparando");
     expect(motivoSemModelo(["preparando"])).toBe("preparando");
+  });
+});
+
+describe("vista da marcação no referencial do próprio modelo", () => {
+  // O mundo do visualizador é o do PRIMEIRO modelo aberto; a marcação é gravada como se o modelo dela tivesse aberto
+  // primeiro (deslocamento zero) — é assim que o link ?apontamento=N da Coordenação o abre.
+  const d: [number, number, number] = [10, -5, 2];
+  const vista = { position: [11, -4, 5] as [number, number, number], target: [10, -5, 2] as [number, number, number] };
+  it("da cena para o modelo e de volta é a identidade", () => {
+    const noModelo = vistaNoModelo(vista, d);
+    expect(noModelo).toEqual({ position: [1, 1, 3], target: [0, 0, 0] });
+    expect(vistaNaCena(noModelo, d)).toEqual(vista);
+    expect(pontoNoModelo([12, -5, 2], d)).toEqual([2, 0, 0]);
+    expect(pontoNaCena([2, 0, 0], d)).toEqual([12, -5, 2]);
+  });
+  it("modelo que abriu primeiro (deslocamento zero) não muda nada", () => {
+    expect(vistaNoModelo(vista, [0, 0, 0])).toEqual(vista);
+    expect(pontoNaCena([1, 2, 3], [0, 0, 0])).toEqual([1, 2, 3]);
   });
 });

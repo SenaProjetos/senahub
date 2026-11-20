@@ -195,3 +195,31 @@ export function motivoSemModelo(situacoes: readonly ("pronto" | "preparando" | "
   if (situacoes.includes("pronto")) return null;
   return situacoes.includes("preparando") ? "preparando" : "erro";
 }
+
+// ─────────────────────────────────────────────────────────────
+// Referencial da marcação 3D
+// ─────────────────────────────────────────────────────────────
+
+type V3 = [number, number, number];
+
+/**
+ * O mundo do visualizador é o do PRIMEIRO modelo aberto (o fragments desloca os outros até ele), então a mesma vista
+ * tem números diferentes conforme a ordem de abertura. A marcação do cliente é gravada no referencial do PRÓPRIO
+ * modelo — como se ele tivesse aberto primeiro, que é o que o link `?apontamento=N` da Coordenação faz (abre o modelo do
+ * apontamento antes dos outros). `d` = deslocamento do modelo na cena (espaço IFC, `ViewerEngine.deslocamentoDoModelo`).
+ */
+export function pontoNoModelo(p: V3, d: V3): V3 {
+  return [p[0] - d[0], p[1] - d[1], p[2] - d[2]];
+}
+
+export function pontoNaCena(p: V3, d: V3): V3 {
+  return [p[0] + d[0], p[1] + d[1], p[2] + d[2]];
+}
+
+export function vistaNoModelo(v: { position: V3; target: V3 }, d: V3): { position: V3; target: V3 } {
+  return { position: pontoNoModelo(v.position, d), target: pontoNoModelo(v.target, d) };
+}
+
+export function vistaNaCena(v: { position: V3; target: V3 }, d: V3): { position: V3; target: V3 } {
+  return { position: pontoNaCena(v.position, d), target: pontoNaCena(v.target, d) };
+}

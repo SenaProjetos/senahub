@@ -7,7 +7,7 @@ import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import { whereAudiencia } from "@/lib/audiencias";
 import { can } from "@/lib/permissions";
-import { copiarArquivo, removerArquivo } from "@/lib/storage";
+import { copiarArquivo, removerArquivo, salvarArquivo } from "@/lib/storage";
 import type { SessionUser } from "@/lib/session";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { destinatariosDaConclusao } from "@/modules/planejamento/conclusao-aviso";
@@ -52,8 +52,10 @@ import {
 } from "./regras";
 import {
   MAX_GUIDS_MARCACAO,
+  MOTIVO_IMAGEM_SO_AUTOR,
   ROTULO_MODELO_3D,
   apontamentoDaMarcacao,
+  motivoDaImagemDaVista,
   motivoParaNaoAceitarModelo,
   piorSituacao,
   situacaoDaMarcacao,
@@ -601,6 +603,65 @@ export async function aceitarPedidoModeloNoBanco(p: {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Imagem da vista de uma marcação 3D (rota /api/portal/pedidos/[id]/marcacoes/[marcacaoId]/imagem)
+// ─────────────────────────────────────────────────────────────
+
+/** A marcação é deste pedido de modelo, de quem envia, e o pedido ainda aguarda a equipe? */
+function motivoDaMarcacaoParaImagem(
+  pedido: { tipo: string; autorId: string; status: string; marcacoesModelo: { id: string }[] } | null,
+  userId: string,
+): string | null {
+  if (!pedido || pedido.tipo !== "modelo" || pedido.marcacoesModelo.length !== 1) return MOTIVO_PEDIDO_NAO_ENCONTRADO;
+  if (pedido.autorId !== userId || pedido.status !== "aguardando") return MOTIVO_IMAGEM_SO_AUTOR;
+  return null;
+}
+
+/**
+ * Grava a imagem da vista (PNG ≤ 2 MB, conferido pela assinatura) de uma marcação 3D — uma por requisição, depois de
+ * criado o pedido. Só o autor, só enquanto aguarda, só marcação do próprio pedido. O arquivo vai para o disco ANTES da
+ * transação (que trava o pedido como o aceite: imagem × aceite não se cruzam) e é apagado se o registro falha; a imagem
+ * anterior da marcação, se havia, sai do disco depois. A rota só lê o corpo e chama aqui (o smoke testa sem HTTP).
+ */
+export async function gravarImagemDaMarcacao(p: {
+  pedidoId: string;
+  marcacaoId: string;
+  userId: string;
+  conteudo: Buffer;
+}): Promise<{ caminho: string }> {
+  const motivoImagem = motivoDaImagemDaVista({ tamanho: p.conteudo.length, inicio: new Uint8Array(p.conteudo.subarray(0, 8)) });
+  if (motivoImagem) throw new ActionError(motivoImagem);
+  const lerPedido = (db: Tx | typeof prisma) =>
+    db.pedidoRevisaoCliente.findUnique({
+      where: { id: p.pedidoId },
+      select: { tipo: true, autorId: true, status: true, marcacoesModelo: { where: { id: p.marcacaoId }, select: { id: true } } },
+    });
+  // Checagem barata antes de escrever no disco; a transação confere de novo.
+  const antes = motivoDaMarcacaoParaImagem(await lerPedido(prisma), p.userId);
+  if (antes) throw new ActionError(antes);
+
+  const caminho = `portal/pedidos/${p.pedidoId}/vistas/${p.marcacaoId}-${Date.now().toString(36)}.png`;
+  await salvarArquivo(caminho, p.conteudo);
+  let anterior: string | null = null;
+  try {
+    anterior = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM pedido_revisao_cliente WHERE id = ${p.pedidoId} FOR UPDATE`;
+      const motivo = motivoDaMarcacaoParaImagem(await lerPedido(tx), p.userId);
+      if (motivo) throw new ActionError(motivo);
+      const m = await tx.marcacaoModeloCliente.findUnique({ where: { id: p.marcacaoId }, select: { snapshotPath: true } });
+      await tx.marcacaoModeloCliente.update({ where: { id: p.marcacaoId }, data: { snapshotPath: caminho } });
+      return m?.snapshotPath ?? null;
+    });
+  } catch (e) {
+    await removerArquivo(caminho).catch(() => {});
+    throw e;
+  }
+  if (anterior && anterior !== caminho) {
+    await removerArquivo(anterior).catch((e: unknown) => console.error("[pedido-revisao] imagem anterior não removida:", anterior, e));
+  }
+  return { caminho };
+}
+
+// ─────────────────────────────────────────────────────────────
 // Anexos (rota /api/portal/pedidos/[id]/anexos)
 // ─────────────────────────────────────────────────────────────
 
@@ -732,6 +793,7 @@ export async function avisarPedidoNovo(
       projetoCodigo: formatarCodigo(p.projeto.codigo),
       autorNome: p.autor.name,
       prancha: p.upload?.nomeArquivo ?? ROTULO_MODELO_3D,
+      tipo: ehModelo ? "modelo" : "prancha",
     });
     await notificar(destino, { ...texto, href: `/arquivos/pedidos-cliente/${pedidoId}` }, { categoria: "pedido_revisao_cliente" });
     return { avisados: destino.length };
@@ -760,6 +822,7 @@ export async function avisarResposta(
     const p = await prisma.pedidoRevisaoCliente.findUnique({
       where: { id: pedidoId },
       select: {
+        tipo: true,
         status: true,
         resposta: true,
         projetoId: true,
@@ -772,7 +835,8 @@ export async function avisarResposta(
     if (!p || (p.status !== "aceito" && p.status !== "recusado")) return { sino, email };
     const href = `/portal/${p.projetoId}`;
     const prancha = p.upload?.nomeArquivo ?? ROTULO_MODELO_3D;
-    await deps.notificar(p.autorId, { ...textoResposta({ status: p.status, prancha }), href });
+    const tipo = p.tipo === "modelo" ? "modelo" : "prancha";
+    await deps.notificar(p.autorId, { ...textoResposta({ status: p.status, prancha, tipo }), href });
     sino = true;
     if (deps.enviarEmail && p.autor.email) {
       const app = (process.env.APP_URL ?? "").replace(/\/+$/, "");

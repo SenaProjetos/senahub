@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 
 export type ModoDecisao = "aceitar" | "recusar";
-export type PedidoEmDecisao = { id: string; prancha: string; revisao: string; autorNome: string };
+export type PedidoEmDecisao = { id: string; tipo: "prancha" | "modelo"; prancha: string; revisao: string; autorNome: string };
 
 /**
  * Diálogo único de decisão de um pedido do cliente (lista e detalhe). O próprio diálogo é a confirmação: aceitar
@@ -50,7 +50,14 @@ export function DecisaoPedidoDialog({
           return;
         }
         const partes = ["Pedido aceito."];
-        if (r.data.emRevisao) partes.push('A prancha ficou "Em revisão".');
+        if (r.data.tipo === "modelo") {
+          if (r.data.emRevisao) partes.push('Os modelos marcados ficaram "Em revisão".');
+          if (r.data.apontamentos > 0) {
+            partes.push(
+              `${r.data.apontamentos} ${r.data.apontamentos === 1 ? "apontamento 3D foi criado" : "apontamentos 3D foram criados"} na Coordenação.`,
+            );
+          }
+        } else if (r.data.emRevisao) partes.push('A prancha ficou "Em revisão".');
         else if (r.data.jaEstavaEmRevisao) partes.push('A prancha já estava "Em revisão".');
         if (r.data.rascunhos > 0) {
           partes.push(
@@ -77,10 +84,12 @@ export function DecisaoPedidoDialog({
         <DialogHeader>
           <DialogTitle>{modo === "recusar" ? "Recusar o pedido" : "Aceitar o pedido"}</DialogTitle>
           <DialogDescription className="break-words">
-            {pedido?.prancha} · {pedido?.revisao}, pedido por {pedido?.autorNome}.{" "}
+            {[pedido?.prancha, pedido?.revisao].filter(Boolean).join(" · ")}, pedido por {pedido?.autorNome}.{" "}
             {modo === "recusar"
               ? "A resposta vai para o cliente."
-              : 'A prancha fica "Em revisão" e as marcações do cliente viram rascunhos de apontamento com você.'}
+              : pedido?.tipo === "modelo"
+                ? 'Os modelos marcados ficam "Em revisão" e cada marcação do cliente vira um apontamento 3D da coordenação, na vista que ele marcou.'
+                : 'A prancha fica "Em revisão" e as marcações do cliente viram rascunhos de apontamento com você.'}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>

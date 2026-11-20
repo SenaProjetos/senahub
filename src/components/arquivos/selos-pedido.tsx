@@ -1,18 +1,17 @@
 import { cn } from "@/lib/utils";
 import { classeDoStatus } from "@/modules/uploads/status-documento";
-import {
-  MOTIVO_PRANCHA_RETIRADA,
-  MOTIVO_REVISAO_SUBSTITUIDA,
-  MOTIVO_SEM_VALIDAR,
-  type StatusPedido,
-} from "@/modules/portal/pedido-revisao/regras";
+import type { StatusPedido } from "@/modules/portal/pedido-revisao/regras";
+import { motivoNaTelaDoPedido, rotuloIndisponivel, type TipoPedido } from "@/modules/portal/pedido-revisao/modelo-regras";
+
+/** O que a tela sabe de quem decide: `uploads:validar` (prancha) e `coordenacao:gerir` (modelo 3D), lidos no servidor. */
+export type PoderesNaFila = { podeValidar: boolean; podeCoordenar: boolean };
 
 /** Motivo para não aceitar que a TELA já sabe (o servidor confere tudo de novo). */
-export function motivoNaTela(p: { indisponivel: "substituida" | "retirada" | null }, podeValidar: boolean): string | null {
-  if (!podeValidar) return MOTIVO_SEM_VALIDAR;
-  if (p.indisponivel === "substituida") return MOTIVO_REVISAO_SUBSTITUIDA;
-  if (p.indisponivel === "retirada") return MOTIVO_PRANCHA_RETIRADA;
-  return null;
+export function motivoNaTela(
+  p: { tipo: TipoPedido; indisponivel: "substituida" | "retirada" | null },
+  poderes: PoderesNaFila,
+): string | null {
+  return motivoNaTelaDoPedido(p, poderes);
 }
 
 /**
@@ -29,11 +28,9 @@ export function SeloStatusPedido({ status, rotulo }: { status: StatusPedido; rot
   return <span className={cn(CLASSE_SELO, classeDoStatus(COR_STATUS[status]))}>{rotulo}</span>;
 }
 
-/** O pedido não pode mais ser aceito: a prancha ganhou revisão nova, ou saiu das Entregas. */
-export function SeloIndisponivel({ tipo }: { tipo: "substituida" | "retirada" }) {
-  return (
-    <span className={cn(CLASSE_SELO, classeDoStatus("neutro"))}>{tipo === "substituida" ? "Revisão substituída" : "Prancha retirada"}</span>
-  );
+/** O pedido não pode mais ser aceito: a prancha (ou um modelo marcado) ganhou revisão nova, ou saiu das Entregas. */
+export function SeloIndisponivel({ tipo, pedido = "prancha" }: { tipo: "substituida" | "retirada"; pedido?: TipoPedido }) {
+  return <span className={cn(CLASSE_SELO, classeDoStatus("neutro"))}>{rotuloIndisponivel(pedido, tipo)}</span>;
 }
 
 export function SeloPedidoAguardando() {

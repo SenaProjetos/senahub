@@ -5,7 +5,16 @@ import { Button } from "@/components/ui/button";
 import { DecisaoPedidoDialog, type ModoDecisao, type PedidoEmDecisao } from "@/components/arquivos/decisao-pedido-dialog";
 
 /** Aceitar…/Recusar… do detalhe do pedido — a única parte com interação; o detalhe fica no servidor. */
-export function DecisaoPedidoBotoes({ pedido, motivoNaoAceitar }: { pedido: PedidoEmDecisao; motivoNaoAceitar: string | null }) {
+export function DecisaoPedidoBotoes({
+  pedido,
+  motivoNaoAceitar,
+  podeRecusar = true,
+}: {
+  pedido: PedidoEmDecisao;
+  motivoNaoAceitar: string | null;
+  /** Falso quando a pessoa não decide este tipo de pedido (modelo 3D sem `coordenacao:gerir`): o servidor recusaria. */
+  podeRecusar?: boolean;
+}) {
   const [modo, setModo] = useState<ModoDecisao | null>(null);
   return (
     <>
@@ -18,9 +27,11 @@ export function DecisaoPedidoBotoes({ pedido, motivoNaoAceitar }: { pedido: Pedi
       >
         Aceitar…
       </Button>
-      <Button size="sm" variant="outline" onClick={() => setModo("recusar")}>
-        Recusar…
-      </Button>
+      {podeRecusar && (
+        <Button size="sm" variant="outline" onClick={() => setModo("recusar")}>
+          Recusar…
+        </Button>
+      )}
       <DecisaoPedidoDialog key={modo ?? "fechado"} pedido={pedido} modo={modo} onFechar={() => setModo(null)} />
     </>
   );

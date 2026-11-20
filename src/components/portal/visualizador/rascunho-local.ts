@@ -84,3 +84,66 @@ export function limparRascunho(chave: string, s?: Storage): void {
     /* idem */
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Pedido no modelo 3D: rascunho por conta e PROJETO (o pedido cruza os modelos do projeto)
+// ─────────────────────────────────────────────────────────────
+
+type Vetor3 = [number, number, number];
+
+/** Marcação 3D em edição. A imagem da vista NÃO vai para o armazenamento (fica só na memória da aba). */
+export type MarcacaoModeloRascunho = {
+  id: string;
+  modeloId: string;
+  guids: string[];
+  ponto: Vetor3;
+  camera: { position: Vetor3; target: Vetor3 };
+  texto: string;
+};
+
+export type RascunhoModelo = { comentario: string; marcacoes: MarcacaoModeloRascunho[] };
+
+export function chaveDoRascunhoModelo(projetoId: string, userId: string): string {
+  return `pedido-revisao-modelo:${userId}:${projetoId}`;
+}
+
+const vetor3 = (v: unknown) => Array.isArray(v) && v.length === 3 && v.every(numero);
+
+function marcacaoModeloValida(m: unknown): m is MarcacaoModeloRascunho {
+  const x = m as Partial<MarcacaoModeloRascunho> | null;
+  return (
+    !!x &&
+    typeof x.id === "string" &&
+    typeof x.texto === "string" &&
+    typeof x.modeloId === "string" &&
+    Array.isArray(x.guids) &&
+    x.guids.every((g) => typeof g === "string") &&
+    vetor3(x.ponto) &&
+    !!x.camera &&
+    vetor3(x.camera.position) &&
+    vetor3(x.camera.target)
+  );
+}
+
+export function lerRascunhoModelo(chave: string, s?: Storage): RascunhoModelo | null {
+  try {
+    const bruto = armazenamento(s)?.getItem(chave);
+    if (!bruto) return null;
+    const r = JSON.parse(bruto) as Partial<RascunhoModelo> | null;
+    if (typeof r?.comentario !== "string" || !Array.isArray(r.marcacoes)) return null;
+    return { comentario: r.comentario, marcacoes: r.marcacoes.filter(marcacaoModeloValida) };
+  } catch {
+    return null;
+  }
+}
+
+export function gravarRascunhoModelo(chave: string, r: RascunhoModelo, s?: Storage): void {
+  try {
+    const st = armazenamento(s);
+    if (!st) return;
+    if (!r.comentario.trim() && r.marcacoes.length === 0) st.removeItem(chave);
+    else st.setItem(chave, JSON.stringify(r));
+  } catch {
+    /* sem armazenamento: o rascunho só não sobrevive à aba */
+  }
+}

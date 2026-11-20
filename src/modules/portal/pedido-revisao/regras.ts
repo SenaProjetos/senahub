@@ -163,8 +163,16 @@ export function itensDoPedido(p: { status: StatusPedido; podeAceitar: string | n
 // ─────────────────────────────────────────────────────────────
 
 /** Sino da coordenação quando o cliente pede revisão. */
-export function textoPedidoNovo(p: { projetoCodigo: string; autorNome: string; prancha: string }): { titulo: string; corpo: string } {
-  return { titulo: "Pedido de revisão do cliente", corpo: `${p.projetoCodigo} — ${p.autorNome} pediu revisão de ${p.prancha}.` };
+export function textoPedidoNovo(p: { projetoCodigo: string; autorNome: string; prancha: string; tipo?: "prancha" | "modelo" }): {
+  titulo: string;
+  corpo: string;
+} {
+  return { titulo: "Pedido de revisão do cliente", corpo: `${p.projetoCodigo} — ${p.autorNome} pediu revisão ${doQue(p)}.` };
+}
+
+/** "de ARQ-3001.pdf" (prancha) ou "no modelo 3D" (pedido no modelo). */
+function doQue(p: { prancha: string; tipo?: "prancha" | "modelo" }): string {
+  return p.tipo === "modelo" ? "no modelo 3D" : `de ${p.prancha}`;
 }
 
 /** "aceito" | "recusado" — como a situação entra na frase do e-mail ("foi **aceito** pela equipe"). */
@@ -173,10 +181,13 @@ export function situacaoDaResposta(status: "aceito" | "recusado"): string {
 }
 
 /** Sino de quem pediu quando a equipe responde. */
-export function textoResposta(p: { status: "aceito" | "recusado"; prancha: string }): { titulo: string; corpo: string } {
+export function textoResposta(p: { status: "aceito" | "recusado"; prancha: string; tipo?: "prancha" | "modelo" }): {
+  titulo: string;
+  corpo: string;
+} {
   return p.status === "aceito"
-    ? { titulo: "Pedido de revisão aceito", corpo: `A equipe aceitou seu pedido de revisão de ${p.prancha}.` }
-    : { titulo: "Pedido de revisão recusado", corpo: `A equipe respondeu seu pedido de revisão de ${p.prancha}.` };
+    ? { titulo: "Pedido de revisão aceito", corpo: `A equipe aceitou seu pedido de revisão ${doQue(p)}.` }
+    : { titulo: "Pedido de revisão recusado", corpo: `A equipe respondeu seu pedido de revisão ${doQue(p)}.` };
 }
 
 /** A resposta da equipe no e-mail (Markdown escapado); sem resposta, linha vazia. */

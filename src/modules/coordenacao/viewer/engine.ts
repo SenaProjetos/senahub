@@ -118,6 +118,8 @@ export type SelecaoInfo = {
   guid: string | null;
   atributos: AtributoItem[];
   psets: PsetItem[];
+  /** Ponto clicado no elemento (espaço IFC, Z para cima) — só na seleção por clique (`selecionarEm`). */
+  ponto?: Vec3 | null;
 };
 
 export type EixoCorte = EixoIfc;
@@ -345,11 +347,12 @@ export class ViewerEngine {
     const mouse = new THREE.Vector2(clientX, clientY);
     const dom = this.renderer.domElement;
 
-    let melhor: { modeloId: string; localId: number; distancia: number } | null = null;
+    let melhor: { modeloId: string; localId: number; distancia: number; ponto: Vec3 | null } | null = null;
     for (const [modeloId, model] of this.modelos) {
       const hit = await model.raycast({ camera: this.camera, mouse, dom });
       if (hit && (melhor === null || hit.distance < melhor.distancia)) {
-        melhor = { modeloId, localId: hit.localId, distancia: hit.distance };
+        const p = hit.point;
+        melhor = { modeloId, localId: hit.localId, distancia: hit.distance, ponto: p ? threeParaIfc([p.x, p.y, p.z]) : null };
       }
     }
 
@@ -372,7 +375,7 @@ export class ViewerEngine {
     });
     await this.fragments.update(true);
 
-    const info = await this.montarInfo(melhor.modeloId, melhor.localId);
+    const info = { ...(await this.montarInfo(melhor.modeloId, melhor.localId)), ponto: melhor.ponto };
     this.opts.onSelecionar?.(info);
     return info;
   }
@@ -624,6 +627,16 @@ export class ViewerEngine {
       if (segmentos.length > 0) modelos.push({ modeloId, segmentos });
     }
     return { base: this.fragments.baseCoordinates, modelos };
+  }
+
+  /**
+   * Deslocamento do modelo na cena (espaço IFC): o fragments põe cada modelo aberto depois do primeiro no referencial do
+   * primeiro (`autoCoordinate`), então o mesmo ponto tem números diferentes conforme a ordem de abertura. O pedido do
+   * cliente no 3D grava a marcação sem esse deslocamento (como se o modelo dela tivesse aberto primeiro). Null = não aberto.
+   */
+  deslocamentoDoModelo(modeloId: string): Vec3 | null {
+    const p = this.modelos.get(modeloId)?.object.position;
+    return p ? threeParaIfc([p.x, p.y, p.z]) : null;
   }
 
   /** Caixa de cada modelo carregado no mundo do viewer (metros) — aviso de origem. */

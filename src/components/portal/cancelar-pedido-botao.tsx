@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 /** "Cancelar pedido" do card do portal — a única parte com interação; o card fica no servidor. */
-export function CancelarPedidoBotao({ id, prancha }: { id: string; prancha: string }) {
+export function CancelarPedidoBotao({ id, prancha, modelo = false }: { id: string; prancha: string; modelo?: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [pendente, startTransition] = useTransition();
@@ -16,7 +16,7 @@ export function CancelarPedidoBotao({ id, prancha }: { id: string; prancha: stri
   async function cancelar() {
     const ok = await confirm({
       title: "Cancelar o pedido?",
-      description: `O pedido de revisão de ${prancha} sai da fila da equipe. Para pedir de novo, faça outro pedido.`,
+      description: `O pedido de revisão ${modelo ? "no modelo 3D" : `de ${prancha}`} sai da fila da equipe. Para pedir de novo, faça outro pedido.`,
       confirmLabel: "Cancelar pedido",
       variant: "destructive",
     });

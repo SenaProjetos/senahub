@@ -28,6 +28,8 @@ import {
   removerArquivosDosAnexos,
   cancelarPedidoNoBanco,
   gravarAnexoNoBanco,
+  gravarImagemDaMarcacao,
+  MOTIVO_PEDIDO_NAO_ENCONTRADO,
   motivoParaAnexar,
   criarPedidoNoBanco,
   recusarPedidoNoBanco,
@@ -47,6 +49,14 @@ import type { SessionUser } from "../src/lib/session";
 import { refDocumento } from "../src/modules/coordenacao/modelo-ref";
 import { criarApontamentoCoordenacaoNoTx } from "../src/modules/coordenacao/apontamento-service";
 import { MAX_PEDIDOS_AGUARDANDO, MOTIVO_PRANCHA_RETIRADA } from "../src/modules/portal/pedido-revisao/regras";
+import {
+  MOTIVO_IMAGEM_GRANDE,
+  MOTIVO_IMAGEM_NAO_PNG,
+  MOTIVO_IMAGEM_SO_AUTOR,
+  MOTIVO_MODELO_RETIRADO,
+  MOTIVO_MODELO_SUBSTITUIDO,
+  TAMANHO_MAX_IMAGEM_VISTA,
+} from "../src/modules/portal/pedido-revisao/modelo-regras";
 
 async function erroDe(p: Promise<unknown>): Promise<string | null> {
   try {
@@ -650,7 +660,8 @@ async function main() {
           noPortal.revisao === "" &&
           noPortal.marcacoes === 4 &&
           noPortal.indisponivel === null &&
-          (sinos3d[0]?.corpo ?? "").includes("Modelo 3D") &&
+          (sinos3d[0]?.corpo ?? "").includes("no modelo 3D") &&
+          !(sinos3d[0]?.corpo ?? "").includes("prancha") &&
           !(sinos3d[0]?.corpo ?? "").includes("undefined"),
         { noPortal, sinos3d },
       );
@@ -708,6 +719,40 @@ async function main() {
         sinosAud,
       );
 
+      // ── imagem da vista (rota /api/portal/pedidos/[id]/marcacoes/[marcacaoId]/imagem, pelo serviço) ──
+      const pngOk = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 7)]);
+      const imagem = (marcacaoId: string, userId = conta.id, conteudo = pngOk, pedidoId = pm3.id) =>
+        gravarImagemDaMarcacao({ pedidoId, marcacaoId, userId, conteudo });
+      const img1 = await imagem(gravadas3d[2].id);
+      arquivosSmoke.push(img1.caminho);
+      const img2 = await imagem(gravadas3d[2].id);
+      arquivosSmoke.push(img2.caminho);
+      const lidaImg = await prisma.marcacaoModeloCliente.findUnique({ where: { id: gravadas3d[2].id }, select: { snapshotPath: true } });
+      const outroPedido = await pedirModelo([marca3d(r1.id, "outro pedido")]);
+      const recusasImg = {
+        colega: await erroDe(imagem(gravadas3d[2].id, colega.id)),
+        alheia: await erroDe(imagem(gravadas3d[2].id, alheia.id)),
+        jpg: await erroDe(imagem(gravadas3d[2].id, conta.id, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]))),
+        grande: await erroDe(imagem(gravadas3d[2].id, conta.id, Buffer.concat([pngOk, Buffer.alloc(TAMANHO_MAX_IMAGEM_VISTA)]))),
+        deOutroPedido: await erroDe(imagem(gravadas3d[2].id, conta.id, pngOk, outroPedido.id)),
+      };
+      await cancelarPedidoNoBanco({ id: outroPedido.id, autor: conta });
+      const canceladoImg = await erroDe(imagem(outroPedido.marcacaoIds[0], conta.id, pngOk, outroPedido.id));
+      check(
+        "imagem da vista: o autor grava (a segunda troca a primeira e apaga o arquivo antigo); outra conta, JPG, > 2 MB, marcação de outro pedido e pedido que não aguarda recusam",
+        lidaImg?.snapshotPath === img2.caminho &&
+          (await existeArquivo(img2.caminho)) &&
+          !(await existeArquivo(img1.caminho)) &&
+          recusasImg.colega === MOTIVO_IMAGEM_SO_AUTOR &&
+          recusasImg.alheia === MOTIVO_IMAGEM_SO_AUTOR &&
+          recusasImg.jpg === MOTIVO_IMAGEM_NAO_PNG &&
+          recusasImg.grande === MOTIVO_IMAGEM_GRANDE &&
+          recusasImg.deOutroPedido === MOTIVO_PEDIDO_NAO_ENCONTRADO &&
+          canceladoImg === MOTIVO_IMAGEM_SO_AUTOR &&
+          (await prisma.marcacaoModeloCliente.findUnique({ where: { id: outroPedido.marcacaoIds[0] } }))?.snapshotPath === null,
+        { recusasImg, canceladoImg, lidaImg },
+      );
+
       // ── aceite ──
       // A imagem da vista: a 1ª marcação com o PNG no disco, a 2ª com um caminho que sumiu (fica sem imagem).
       const pngMarca = `portal/pedidos/${pm3.id}/marcacoes/${gravadas3d[0].id}.png`;
@@ -735,7 +780,7 @@ async function main() {
       });
       const ligadas3d = await prisma.marcacaoModeloCliente.findMany({ where: { pedidoId: pm3.id }, orderBy: { ordem: "asc" } });
       const pngApontamento = `coordenacao/apontamentos/${p3d.id}/${apontamentos3d[0]?.id}.png`;
-      arquivosSmoke.push(pngApontamento);
+      arquivosSmoke.push(pngApontamento, `coordenacao/apontamentos/${p3d.id}/${apontamentos3d[2]?.id}.png`);
       check(
         "aceite cria apontamentos 3D sem tarefa, numerados no projeto, no modelo que o cliente viu, autor = quem aceitou",
         aceite3d.apontamentos === 4 &&
@@ -753,11 +798,16 @@ async function main() {
         { aceite3d, apontamentos3d: apontamentos3d.map((a) => [a.numero, a.uploadId, a.disciplinaId, a.titulo, a.autorId === coord.id]) },
       );
       check(
+        "imagem da vista: pedido aceito não recebe mais imagem",
+        (await erroDe(imagem(gravadas3d[0].id))) === MOTIVO_IMAGEM_SO_AUTOR,
+      );
+      check(
         "imagem da marcação copiada para o apontamento (a do pedido fica); a que sumiu deixa o apontamento sem imagem",
         apontamentos3d[0]?.snapshotPath === pngApontamento &&
           (await existeArquivo(pngApontamento)) &&
           (await existeArquivo(pngMarca)) &&
           apontamentos3d[1]?.snapshotPath === null &&
+          apontamentos3d[2]?.snapshotPath === `coordenacao/apontamentos/${p3d.id}/${apontamentos3d[2]?.id}.png` &&
           apontamentos3d[3]?.snapshotPath === null,
         apontamentos3d.map((a) => a.snapshotPath),
       );
@@ -851,10 +901,10 @@ async function main() {
       const vistas3d = await pedidosDoProjetoNoPortal(p3d.id, cliente.id);
       check(
         "modelo saiu das Entregas / recebido excluído / realinhado servido na lixeira: aceite recusado",
-        erros3d.ret === MOTIVO_PRANCHA_RETIRADA &&
-          erros3d.sub === MOTIVO_REVISAO_SUBSTITUIDA &&
-          erros3d.doc === MOTIVO_PRANCHA_RETIRADA &&
-          erros3d.r5 === MOTIVO_PRANCHA_RETIRADA &&
+        erros3d.ret === MOTIVO_MODELO_RETIRADO &&
+          erros3d.sub === MOTIVO_MODELO_SUBSTITUIDO &&
+          erros3d.doc === MOTIVO_MODELO_RETIRADO &&
+          erros3d.r5 === MOTIVO_MODELO_RETIRADO &&
           vistas3d.find((v) => v.id === pR5.id)?.indisponivel === "retirada" &&
           (await contarApontamentos()) === antesRecusa &&
           (await prisma.pedidoRevisaoCliente.count({ where: { id: { in: [pRet.id, pSub.id, pDoc.id] }, status: "aguardando" } })) === 3 &&
