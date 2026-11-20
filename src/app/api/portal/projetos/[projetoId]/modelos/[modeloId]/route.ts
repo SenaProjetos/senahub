@@ -3,10 +3,12 @@ import { getSession } from "@/lib/session";
 import { servirFrag } from "@/lib/frag-stream";
 import { modeloPermitidoNoPortal } from "@/modules/portal/modelo3d/queries";
 import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
+import {
+  MSG_ROTA_ARQUIVO_SUMIU as MSG_ARQUIVO_SUMIU,
+  MSG_ROTA_INDISPONIVEL as MSG_INDISPONIVEL,
+  MSG_ROTA_SEM_SESSAO as MSG_SEM_SESSAO,
+} from "@/modules/portal/modelo3d/mensagens";
 
-const MSG_SEM_SESSAO = "Sua sessão expirou. Entre de novo para ver o modelo.";
-const MSG_INDISPONIVEL = "Modelo indisponível.";
-const MSG_ARQUIVO_SUMIU = "O modelo 3D não está disponível no momento. Avise a equipe do projeto.";
 /** Recusa sem cache: 404 é guardável por padrão no HTTP, e "Tentar de novo" no visualizador leria a falha antiga. */
 const SEM_CACHE = { "Cache-Control": "no-store" };
 

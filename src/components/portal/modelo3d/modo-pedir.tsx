@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label";
 import { CampoAnexos } from "@/components/portal/pedir-revisao-dialog";
 import type { MarcacaoModeloRascunho } from "@/components/portal/visualizador/rascunho-local";
 
+/** Os campos de texto do modo pedir: o mesmo anel de foco dos campos do sistema (`Input`). */
+export const CLASSE_CAMPO_TEXTO =
+  "w-full resize-y rounded-lg border border-input bg-background px-2 py-1.5 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
 function Numero({ n, esmaecido = false }: { n: number; esmaecido?: boolean }) {
   return (
     <span
@@ -107,7 +111,7 @@ export function PainelPedidoModelo({
                   aria-label={`O que mudar na marcação ${i + 1}`}
                   rows={2}
                   maxLength={LIMITE_TEXTO_MARCACAO}
-                  className="w-full resize-y rounded-sm border bg-background px-2 py-1 text-sm outline-none focus:border-primary"
+                  className={CLASSE_CAMPO_TEXTO}
                   value={m.texto}
                   onChange={(e) => onTexto(m.id, e.target.value)}
                 />
@@ -129,7 +133,7 @@ export function PainelPedidoModelo({
           rows={4}
           maxLength={LIMITE_COMENTARIO}
           aria-required
-          className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+          className={CLASSE_CAMPO_TEXTO}
           placeholder="Explique o pedido para a equipe."
           value={comentario}
           onChange={(e) => onComentario(e.target.value)}
@@ -179,6 +183,7 @@ export function ListaMarcasLeitura({
             <Numero n={m.numero} esmaecido={esmaecidas} />
             <div className="min-w-0 flex-1 space-y-0.5">
               <p className="break-words">{m.texto}</p>
+              {esmaecidas && <p className="text-xs text-muted-foreground">Aguardando resposta da equipe</p>}
               <p className="truncate text-xs text-muted-foreground" title={rotuloDoModelo(m.modeloId)}>
                 {rotuloDoModelo(m.modeloId)}
               </p>

@@ -4,8 +4,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, useTransition
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Box, Footprints, Info, ListChecks, Maximize, MessageSquarePlus, RotateCw, SlidersHorizontal } from "lucide-react";
+import { Box, Crosshair, Footprints, Info, ListChecks, Maximize, MessageSquarePlus, RotateCw, SlidersHorizontal } from "lucide-react";
 import type { ModeloDoPortal } from "@/modules/portal/modelo3d/queries";
+import { MSG_ABRIR_FALHOU, mensagemDaFalhaAoAbrir } from "@/modules/portal/modelo3d/mensagens";
 import {
   ehSemPavimento,
   gruposDePavimento,
@@ -37,6 +38,7 @@ import {
 } from "@/components/portal/visualizador/rascunho-local";
 import { MarcadoresModelo, type MarcadorModelo } from "@/components/portal/modelo3d/marcadores-modelo";
 import {
+  CLASSE_CAMPO_TEXTO,
   ListaMarcasLeitura,
   PainelPedidoModelo,
   enviarImagensDasVistas,
@@ -87,13 +89,17 @@ async function abrirNaCena(engine: ViewerEngine, m: ModeloDoPortal): Promise<Dad
 
 /** O motivo da falha (vindo da rota), quando ele diz mais que a frase padrão. */
 function estadoFalha(estado: EstadoNaCena | undefined): string | null {
-  if (estado?.tipo !== "falhou" || estado.erro === "Não foi possível abrir o modelo.") return null;
+  if (estado?.tipo !== "falhou" || estado.erro === MSG_ABRIR_FALHOU) return null;
   return estado.erro;
 }
 
+/** A frase para a pessoa (a da rota ou a fixa); o erro técnico só no console. */
 function mensagemDeErro(e: unknown): string {
-  return e instanceof Error && e.message ? e.message : "Não foi possível abrir o modelo.";
+  console.error("[portal] modelo 3D não abriu:", e);
+  return mensagemDaFalhaAoAbrir(e);
 }
+
+const MSG_ENVIO_FALHOU = "Não foi possível enviar o pedido. Tente de novo: o rascunho continua guardado neste navegador.";
 
 /** Marcação recém-clicada, esperando o texto (a imagem da vista já capturada, ou null). */
 type NovaMarcacao = Omit<MarcacaoModeloRascunho, "id" | "texto"> & { imagem: Blob | null; onde: string };
@@ -154,6 +160,8 @@ export function VisualizadorModelo({
   const [comImagem, setComImagem] = useState<ReadonlySet<string>>(new Set());
   const chaveRascunho = chaveDoRascunhoModelo(projetoId, pedir?.userId ?? "");
   const idTextoNova = useId();
+  const idMotivoAndar = useId();
+  const idMotivoPedir = useId();
 
   const prontos = useMemo(() => modelos.filter((m) => m.situacao === "pronto" && m.url), [modelos]);
   const focoInicial = useMemo(
@@ -396,21 +404,43 @@ export function VisualizadorModelo({
     if (!pedir) return;
     const marcacoes = rascunho.marcacoes;
     startEnvio(async () => {
-      const r = await criarPedidoModelo({
-        projetoId,
-        comentario: rascunho.comentario,
-        marcacoes: marcacoes.map((m) => ({ modeloId: m.modeloId, guids: m.guids, ponto: m.ponto, camera: m.camera, texto: m.texto })),
-      });
+      // Antes de o pedido existir, qualquer falha deixa o rascunho como está (é só tentar de novo).
+      let r: Awaited<ReturnType<typeof criarPedidoModelo>>;
+      try {
+        r = await criarPedidoModelo({
+          projetoId,
+          comentario: rascunho.comentario,
+          marcacoes: marcacoes.map((m) => ({ modeloId: m.modeloId, guids: m.guids, ponto: m.ponto, camera: m.camera, texto: m.texto })),
+        });
+      } catch (e) {
+        console.error("[portal] envio do pedido no modelo falhou:", e);
+        toast.error(MSG_ENVIO_FALHOU);
+        return;
+      }
       if (!r.ok) {
         toast.error(r.error);
         return;
       }
+      // O pedido existe: daqui em diante o rascunho sai mesmo que uma imagem ou um anexo falhe (ninguém pede duas vezes).
+      const pedidoId = r.data.id;
       const envios = r.data.marcacaoIds.flatMap((marcacaoId, i) => {
         const imagem = imagensRef.current.get(marcacoes[i]?.id ?? "");
         return imagem ? [{ marcacaoId, imagem }] : [];
       });
-      const falhasImagem = await enviarImagensDasVistas(r.data.id, envios);
-      const falhasAnexo = await enviarAnexosDoPedido(r.data.id, arquivos);
+      let falhasImagem = 0;
+      try {
+        falhasImagem = await enviarImagensDasVistas(pedidoId, envios);
+      } catch (e) {
+        console.error("[portal] imagens da vista não enviadas:", e);
+        falhasImagem = envios.length;
+      }
+      let falhasAnexo: string[] = [];
+      try {
+        falhasAnexo = await enviarAnexosDoPedido(pedidoId, arquivos);
+      } catch (e) {
+        console.error("[portal] anexos do pedido não enviados:", e);
+        falhasAnexo = arquivos.map((a) => `${a.name}: falha no envio.`);
+      }
       limparRascunho(chaveRascunho);
       imagensRef.current.clear();
       toast.success("Pedido enviado à equipe. A resposta aparece no portal.");
@@ -425,6 +455,13 @@ export function VisualizadorModelo({
       router.push(pedir.voltarPara);
       router.refresh();
     });
+  }
+
+  /** "Marcar o que está no centro da vista": o mesmo caminho do clique (o motor seleciona; a seleção vira marcação). */
+  async function marcarNoCentro() {
+    if (!engine) return;
+    const info = await engine.selecionarNoCentro();
+    if (!info) toast.info("Nada no centro da vista. Gire ou aproxime o modelo até o elemento ficar no meio da tela.");
   }
 
   // No painel lateral, as propriedades ficam no fim: ao clicar num elemento, rola até elas — menos no modo de pedido,
@@ -459,6 +496,21 @@ export function VisualizadorModelo({
   const alturaDoCorte = faixaY ? (faixaY.max - faixaY.min) * corte.posicao : null;
   const algumCarregando = [...estados.values()].some((e) => e.tipo === "carregando" || e.tipo === "fila");
   const nenhumNaCena = carregados.length === 0;
+  // Todos os modelos abertos estão desligados: a cena fica vazia — diz por quê.
+  const todosDesligados = carregados.length > 0 && carregados.every((id) => desligados.has(id));
+  // Desabilitado com o motivo (title + texto para leitor de tela), como no resto do sistema.
+  const motivoSemAndar = andando
+    ? null
+    : algumCarregando
+      ? "Espere todos os modelos abrirem para andar."
+      : nenhumNaCena
+        ? "Nenhum modelo aberto para andar."
+        : null;
+  const motivoSemPedir = nenhumNaCena
+    ? algumCarregando
+      ? "Espere um modelo abrir para pedir revisão."
+      : "Nenhum modelo aberto para pedir revisão."
+    : null;
   const falhas = prontos.filter((m) => estados.get(m.modeloId)?.tipo === "falhou");
   // Nada na cena, nada abrindo e algum modelo falhou: o aviso vai no meio da tela (no celular o painel fica na folha).
   const mostrarFalha = nenhumNaCena && !algumCarregando && falhas.length > 0;
@@ -542,7 +594,7 @@ export function VisualizadorModelo({
     <ListaMarcasLeitura titulo="Marcações do cliente" marcas={leitura} rotuloDoModelo={rotuloDoModelo} onIr={irParaMarcador} />
   ) : null;
   const legenda = pedindo
-    ? "Clique no elemento que você quer mudar: a vista atual e a imagem dela vão junto com a marcação."
+    ? 'Clique no elemento que você quer mudar, ou deixe ele na mira e use "Marcar o que está no centro da vista". A vista atual e a imagem dela vão junto com a marcação.'
     : leitura
       ? "Os números seguem a lista do pedido. \"Ir para\" volta à vista que o cliente marcou."
       : aguardandoNaCena
@@ -576,16 +628,43 @@ export function VisualizadorModelo({
           <Button
             size="sm"
             variant={andando ? "default" : "outline"}
+            // Rótulo fixo; entrou ou não no modo andar vem do `aria-pressed` (sair também pelo botão da ajuda ou Esc).
+            aria-label="Andar pela obra"
             aria-pressed={andando}
             onClick={() => void alternarAndar()}
             // Até todos abrirem: o enquadramento do fim da carga tiraria a câmera do andar.
-            disabled={!andando && (nenhumNaCena || algumCarregando)}
+            disabled={motivoSemAndar !== null}
+            title={motivoSemAndar ?? undefined}
+            aria-describedby={motivoSemAndar ? idMotivoAndar : undefined}
           >
-            <Footprints className="size-4" /> {andando ? "Sair do modo andar" : "Andar"}
+            <Footprints className="size-4" /> Andar
           </Button>
+          {motivoSemAndar && (
+            <span id={idMotivoAndar} className="sr-only">
+              {motivoSemAndar}
+            </span>
+          )}
           {pedir && !pedindo && (
-            <Button size="sm" onClick={() => setPedindo(true)} disabled={nenhumNaCena}>
-              <MessageSquarePlus className="size-4" /> Pedir revisão
+            <>
+              <Button
+                size="sm"
+                onClick={() => setPedindo(true)}
+                disabled={motivoSemPedir !== null}
+                title={motivoSemPedir ?? undefined}
+                aria-describedby={motivoSemPedir ? idMotivoPedir : undefined}
+              >
+                <MessageSquarePlus className="size-4" /> Pedir revisão
+              </Button>
+              {motivoSemPedir && (
+                <span id={idMotivoPedir} className="sr-only">
+                  {motivoSemPedir}
+                </span>
+              )}
+            </>
+          )}
+          {pedindo && (
+            <Button size="sm" variant="outline" onClick={() => void marcarNoCentro()} disabled={nenhumNaCena || todosDesligados}>
+              <Crosshair className="size-4" /> Marcar o que está no centro da vista
             </Button>
           )}
           {pedindo && (
@@ -603,7 +682,19 @@ export function VisualizadorModelo({
           </p>
         )}
         <div className="relative min-h-0 flex-1 bg-muted/20">
-          <Viewer3D onReady={setEngine} onSelecionar={onSelecionar} onAndar={setAndando} />
+          <Viewer3D
+            onReady={setEngine}
+            onSelecionar={onSelecionar}
+            onAndar={setAndando}
+            rotulo="Modelo 3D do projeto. Arraste para girar e use a roda do mouse ou dois dedos para aproximar."
+          />
+          {/* A mira do "Marcar o que está no centro da vista". */}
+          {pedindo && (
+            <Crosshair
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 top-1/2 size-6 -translate-x-1/2 -translate-y-1/2 text-primary drop-shadow"
+            />
+          )}
           {marcadores.length > 0 && <MarcadoresModelo engine={engine} marcadores={marcadores} onIr={irParaMarcador} />}
           {andando && (
             <CamadaAndar onSair={() => void engine?.sairAndar()} onJoystick={(v) => engine?.definirJoystick(v)} />
@@ -614,6 +705,14 @@ export function VisualizadorModelo({
               className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-md bg-background/85 px-4 py-2 text-sm text-muted-foreground backdrop-blur"
             >
               Abrindo o modelo 3D…
+            </p>
+          )}
+          {todosDesligados && !andando && (
+            <p
+              role="status"
+              className="pointer-events-none absolute left-1/2 top-1/2 w-[min(22rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-md bg-background/85 px-4 py-2 text-center text-sm text-muted-foreground backdrop-blur"
+            >
+              Nenhum modelo ligado. Ligue um modelo no painel.
             </p>
           )}
           {mostrarFalha && (
@@ -692,7 +791,7 @@ export function VisualizadorModelo({
               autoFocus
               rows={3}
               maxLength={LIMITE_TEXTO_MARCACAO}
-              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+              className={CLASSE_CAMPO_TEXTO}
               value={textoNova}
               onChange={(e) => setTextoNova(e.target.value)}
             />

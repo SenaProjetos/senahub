@@ -380,6 +380,15 @@ export class ViewerEngine {
     return info;
   }
 
+  /**
+   * O caminho sem ponteiro da seleção (teclado, leitor de tela): o mesmo raycast do clique, no centro do canvas — o que
+   * está no meio da vista. Nada ali = `null` (e a seleção é limpa, como um clique no vazio).
+   */
+  async selecionarNoCentro(): Promise<SelecaoInfo | null> {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    return this.selecionarEm(r.left + r.width / 2, r.top + r.height / 2);
+  }
+
   async limparSelecao(notificar = true): Promise<void> {
     for (const [modeloId, ids] of this.selecao) {
       const model = this.modelos.get(modeloId);

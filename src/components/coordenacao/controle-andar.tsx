@@ -82,18 +82,18 @@ export function CamadaAndar({
   return (
     // Deixa o canto direito livre para o indicador de eixos (96 px).
     <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-8rem)] flex-col items-start gap-2">
-      <div
-        role="status"
-        className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur"
-      >
-        <p className="font-medium">Modo andar</p>
-        <p className="text-muted-foreground pointer-coarse:hidden">
-          <kbd className="font-sans font-medium text-foreground">W A S D</kbd> ou setas: andar ·{" "}
-          <kbd className="font-sans font-medium text-foreground">Q</kbd>/<kbd className="font-sans font-medium text-foreground">E</kbd>:
-          subir e descer · <kbd className="font-sans font-medium text-foreground">Shift</kbd>: correr · arrastar: olhar ·{" "}
-          <kbd className="font-sans font-medium text-foreground">Esc</kbd>: sair
-        </p>
-        <p className="hidden text-muted-foreground pointer-coarse:block">Use o controle para andar e arraste a tela para olhar.</p>
+      <div className="pointer-events-auto flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border bg-background/90 px-3 py-2 text-xs shadow-sm backdrop-blur">
+        {/* Só a ajuda é anunciada ao entrar; o botão Sair fica fora da região de status. */}
+        <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <p className="font-medium">Modo andar</p>
+          <p className="text-muted-foreground pointer-coarse:hidden">
+            <kbd className="font-sans font-medium text-foreground">W A S D</kbd> ou setas: andar ·{" "}
+            <kbd className="font-sans font-medium text-foreground">Q</kbd>/<kbd className="font-sans font-medium text-foreground">E</kbd>:
+            subir e descer · <kbd className="font-sans font-medium text-foreground">Shift</kbd>: correr · arrastar: olhar ·{" "}
+            <kbd className="font-sans font-medium text-foreground">Esc</kbd>: sair
+          </p>
+          <p className="hidden text-muted-foreground pointer-coarse:block">Use o controle para andar e arraste a tela para olhar.</p>
+        </div>
         <Button size="sm" variant="secondary" onClick={onSair}>
           <LogOut className="size-4" /> Sair do modo andar
         </Button>

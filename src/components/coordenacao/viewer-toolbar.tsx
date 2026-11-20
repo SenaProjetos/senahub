@@ -302,7 +302,8 @@ export function ViewerToolbar({
 
       {onAndar && (
         <BotaoTool
-          label={andando ? "Sair do modo andar" : "Andar (primeira pessoa)"}
+          // Rótulo fixo: o estado vai no `aria-pressed` (ativo) — o leitor de tela não ouve o nome trocar.
+          label="Andar pela obra"
           ativo={andando}
           disabled={andarDesabilitado && !andando}
           onClick={onAndar}

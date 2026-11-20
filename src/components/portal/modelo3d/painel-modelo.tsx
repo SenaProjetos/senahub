@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { AlertCircle, Loader2, RotateCw } from "lucide-react";
 import type { ModeloDoPortal } from "@/modules/portal/modelo3d/queries";
 import type { PavimentoUnido } from "@/modules/portal/modelo3d/regras";
@@ -34,6 +35,7 @@ function segundaLinha(m: ModeloDoPortal): string | null {
 }
 
 function LinhaModelo({
+  id,
   modelo,
   estado,
   ligado,
@@ -41,6 +43,8 @@ function LinhaModelo({
   onLigar,
   onTentarDeNovo,
 }: {
+  /** Id do switch — único na página: o painel aparece duas vezes (coluna e folha do celular). */
+  id: string;
   modelo: ModeloDoPortal;
   estado: EstadoNaCena | undefined;
   ligado: boolean;
@@ -48,7 +52,6 @@ function LinhaModelo({
   onLigar: (ligar: boolean) => void;
   onTentarDeNovo: () => void;
 }) {
-  const id = `modelo-${modelo.modeloId}`;
   const arquivo = segundaLinha(modelo);
   const carregado = estado?.tipo === "carregado";
   return (
@@ -67,7 +70,8 @@ function LinhaModelo({
             checked={carregado && ligado}
             disabled={!carregado}
             onCheckedChange={(v) => onLigar(v)}
-            aria-label={`${ligado ? "Esconder" : "Mostrar"} ${modelo.rotulo}`}
+            // Rótulo fixo (o nome do modelo); ligado ou não vem do `aria-checked` do switch.
+            aria-label={modelo.rotulo}
           />
         )}
       </div>
@@ -132,6 +136,7 @@ export function PainelModelo({
   alturaDoCorte: number | null;
   propriedades: React.ReactNode;
 }) {
+  const prefixo = useId();
   const algumCarregado = [...estados.values()].some((e) => e.tipo === "carregado");
   // A altura absoluta no mundo do visualizador depende de qual modelo abriu primeiro; a diferença entre pisos, não.
   const pisos = pavimentos.map((p) => p.pisoY).filter(Number.isFinite);
@@ -140,9 +145,10 @@ export function PainelModelo({
     <div className="space-y-4">
       <Secao titulo="Modelos">
         <ul className="space-y-2">
-          {modelos.map((m) => (
+          {modelos.map((m, i) => (
             <LinhaModelo
               key={m.modeloId}
+              id={`${prefixo}-modelo-${i}`}
               modelo={m}
               estado={estados.get(m.modeloId)}
               ligado={!desligados.has(m.modeloId)}
@@ -192,9 +198,9 @@ export function PainelModelo({
 
       <Secao titulo="Corte">
         <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="corte-horizontal">Corte horizontal</Label>
+          <Label htmlFor={`${prefixo}-corte`}>Corte horizontal</Label>
           <Switch
-            id="corte-horizontal"
+            id={`${prefixo}-corte`}
             checked={corte.ativo}
             disabled={!algumCarregado}
             onCheckedChange={(v) => onCorte({ ...corte, ativo: v })}

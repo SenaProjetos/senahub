@@ -71,8 +71,13 @@ export function MarcadoresModelo({
           // Começa escondido: o primeiro frame o põe no lugar.
           style={{ display: "none" }}
           onClick={() => onIr(m.id)}
-          title={m.texto}
-          aria-label={`Ir para a marcação ${m.numero}: ${m.texto}`}
+          // A cor cinza não basta: o texto diz que a marcação é de um pedido que aguarda a equipe.
+          title={m.variante === "esmaecida" ? `${m.texto} (aguardando resposta da equipe)` : m.texto}
+          aria-label={
+            m.variante === "esmaecida"
+              ? `Ir para a marcação ${m.numero}, aguardando resposta da equipe: ${m.texto}`
+              : `Ir para a marcação ${m.numero}: ${m.texto}`
+          }
           className={cn(
             "pointer-events-auto absolute left-0 top-0 -ml-3 -mt-3 flex size-6 items-center justify-center rounded-full text-[11px] font-bold shadow ring-2 ring-background",
             COR[m.variante],

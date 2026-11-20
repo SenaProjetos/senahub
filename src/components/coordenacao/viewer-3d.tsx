@@ -15,11 +15,14 @@ export default function Viewer3D({
   onReady,
   onSelecionar,
   onAndar,
+  rotulo = "Visualizador 3D dos modelos",
 }: {
   onReady: (engine: ViewerEngine) => void;
   onSelecionar: (info: SelecaoInfo | null) => void;
   /** Entrou/saiu do modo andar (inclusive pelo Esc ou quando o motor sai sozinho). */
   onAndar?: (andando: boolean) => void;
+  /** Nome acessível da área 3D (o canvas não tem texto; o foco não entra nele, então é uma imagem). */
+  rotulo?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<ViewerEngine | null>(null);
@@ -141,5 +144,5 @@ export default function Viewer3D({
     };
   }, []);
 
-  return <div ref={containerRef} className="size-full" />;
+  return <div ref={containerRef} role="img" aria-label={rotulo} className="size-full" />;
 }
