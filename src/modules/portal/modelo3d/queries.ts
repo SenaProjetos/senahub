@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { rotuloRevisao } from "@/lib/utils";
 import { parseModeloId, refDocumento } from "@/modules/coordenacao/modelo-ref";
 import { recebidosDoProjeto, type DocumentoItem } from "@/modules/documentos-cliente/queries";
 import { conteudoDoAlcanceSemSelos, uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
@@ -16,7 +17,7 @@ export type ModeloDoPortal = {
   origemUploadId: string | null;
   documentoRecebidoId: string | null;
   disciplinaId: string | null;
-  /** "Estrutural · R01" | "Referência enviada por você · base.ifc". */
+  /** "Estrutural · R00" (`rotuloRevisao`, como nas Entregas) | "Referência enviada por você · base.ifc". */
   rotulo: string;
   situacao: "pronto" | "preparando" | "erro";
   /** Rota do `.frag` no portal, só quando pronto. */
@@ -113,7 +114,8 @@ export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string):
       origemUploadId: s.id,
       documentoRecebidoId: null,
       disciplinaId: s.disciplinaId,
-      rotulo: `${s.disciplinaNome} · R${String(s.versao).padStart(2, "0")}`,
+      // O mesmo rótulo das Entregas (R00 = emissão original).
+      rotulo: `${s.disciplinaNome} · ${rotuloRevisao(s.versao)}`,
       situacao,
       url: situacao === "pronto" ? urlDoModelo(projetoId, s.servido) : null,
     };

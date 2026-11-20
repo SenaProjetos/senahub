@@ -219,7 +219,7 @@ async function main() {
         daOrigem.origem === "entrega" &&
         daOrigem.situacao === "pronto" &&
         daOrigem.disciplinaId === p1.estruturalId &&
-        daOrigem.rotulo === "Estrutural · R01" &&
+        daOrigem.rotulo === "Estrutural · R00" &&
         daOrigem.url === `/api/portal/projetos/${p1.id}/modelos/${r.uploadId}` &&
         doRecebido?.origem === "cliente" &&
         doRecebido.documentoRecebidoId === recebido.doc.id &&
