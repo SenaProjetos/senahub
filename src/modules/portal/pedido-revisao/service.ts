@@ -579,6 +579,8 @@ export async function aceitarPedidoModeloNoBanco(p: {
       const origem = m.origemUploadId ? (origens.get(m.origemUploadId) ?? null) : null;
       const criado = await criarApontamentoCoordenacaoNoTx(tx, {
         ...apontamentoDaMarcacao(m, ctx),
+        // A marcação foi gravada no referencial do próprio modelo (a tela soma o deslocamento ao abrir).
+        referencial: "modelo",
         projetoId: pedido.projetoId,
         disciplinaId: await disciplinaDoModelo(tx, m.modeloId, origem),
         autorId: p.quem.id,

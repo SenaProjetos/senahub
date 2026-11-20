@@ -21,6 +21,8 @@ export async function criarApontamentoCoordenacaoNoTx(
     texto: string;
     guids: string[];
     camera: CameraApontamento;
+    /** "cena" (padrão: o mundo de quem criou) ou "modelo" (o referencial do próprio modelo — pedido do cliente no 3D). */
+    referencial?: "cena" | "modelo";
     autorId: string;
     snapshotPath?: string | null;
     bcfGuid?: string | null;
@@ -38,6 +40,7 @@ export async function criarApontamentoCoordenacaoNoTx(
       texto: p.texto,
       guids: p.guids,
       camera: p.camera,
+      referencial: p.referencial ?? "cena",
       status: "aberta",
       autorId: p.autorId,
       snapshotPath: p.snapshotPath ?? null,

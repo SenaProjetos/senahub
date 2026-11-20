@@ -40,7 +40,7 @@ import { ArvoreModelo } from "@/components/coordenacao/arvore-modelo";
 import { CamadaAndar } from "@/components/coordenacao/controle-andar";
 import type { PavimentosDoFiltro } from "@/components/coordenacao/filtros-painel";
 import { elementosDoPiso, maisBaixoParaAndar, pisoDeEntrada } from "@/modules/coordenacao/viewer/andar";
-import type { Vec3 } from "@/modules/coordenacao/viewer/coords";
+import { cameraDoApontamentoNaCena, type Vec3 } from "@/modules/coordenacao/viewer/coords";
 import { chavePavimento, SEM_PAVIMENTO } from "@/modules/coordenacao/filtros";
 import { BcfImportDialog } from "@/components/coordenacao/bcf-import-dialog";
 import { ClashPainel } from "@/components/coordenacao/clash-painel";
@@ -678,6 +678,7 @@ export function CoordenacaoView({
         texto: draft.texto,
         guids: draftInfo.guids,
         camera: draftInfo.camera,
+        referencial: "cena",
         snapshotPath: null,
         status: "aberta",
         autorId: currentUserId,
@@ -752,7 +753,9 @@ export function CoordenacaoView({
     async (a: ApontamentoView) => {
       setApontamentoSelecionadoId(a.id);
       if (!carregados.has(a.uploadId)) await onToggle(a.uploadId, true);
-      await engineRef.current?.restaurarCamera(a.camera);
+      const engine = engineRef.current;
+      // Apontamento do pedido do cliente: câmera no referencial do próprio modelo, que já está aberto aqui.
+      await engine?.restaurarCamera(cameraDoApontamentoNaCena(a, engine.deslocamentoDoModelo(a.uploadId)));
       await engineRef.current?.selecionarPorGuids(a.guids);
     },
     [carregados, onToggle],

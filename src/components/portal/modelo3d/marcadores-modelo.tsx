@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 export type MarcadorModelo = {
   id: string;
   numero: number;
-  /** Onde o cliente clicou, no espaço IFC (Z para cima). */
+  /** Onde o alfinete fica NA CENA ATUAL (eixos IFC, Z para cima) — quem chama já somou o deslocamento do modelo. */
   ponto: Vec3;
   texto: string;
   /** `rascunho` = do pedido em edição; `leitura` = do pedido aberto (detalhe); `esmaecida` = outro pedido aguardando. */

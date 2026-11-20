@@ -146,7 +146,7 @@ function vetor3(v: unknown): Vetor3 | null {
   return Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === "number" && Number.isFinite(n)) ? (v as Vetor3) : null;
 }
 
-/** Câmera gravada na marcação ({ position, target }, espaço IFC); ilegível = null. */
+/** Câmera gravada na marcação ({ position, target }, eixos IFC no referencial do próprio modelo); ilegível = null. */
 export function lerCamera(v: unknown): { position: Vetor3; target: Vetor3 } | null {
   if (!v || typeof v !== "object") return null;
   const c = v as { position?: unknown; target?: unknown };
@@ -155,7 +155,7 @@ export function lerCamera(v: unknown): { position: Vetor3; target: Vetor3 } | nu
   return position && target ? { position, target } : null;
 }
 
-/** Ponto 3D gravado na marcação (espaço IFC); ilegível = null. */
+/** Ponto 3D gravado na marcação (eixos IFC no referencial do próprio modelo); ilegível = null. */
 export function lerPonto(v: unknown): Vetor3 | null {
   return vetor3(v);
 }
@@ -190,9 +190,12 @@ export type MarcaModeloLeitura = {
   modeloId: string;
   texto: string;
   guids: string[];
-  /** Onde o cliente clicou (espaço IFC); null = sem alfinete. */
+  /**
+   * Onde o cliente clicou: eixos IFC, no referencial do PRÓPRIO modelo (como se ele tivesse aberto primeiro — o mundo
+   * do visualizador é o do 1º modelo aberto). A tela soma o deslocamento do modelo (`pontoNaCena`). Null = sem alfinete.
+   */
   ponto: Vetor3 | null;
-  /** A vista do cliente (espaço IFC); null = sem "ir para". */
+  /** A vista do cliente, no mesmo referencial do `ponto` (`vistaNaCena` para restaurar); null = sem "ir para". */
   camera: { position: Vetor3; target: Vetor3 } | null;
 };
 

@@ -58,3 +58,18 @@ export function planoCorteIfcParaThree(
     ponto: ifcParaThree(pontoIfc),
   };
 }
+
+/**
+ * A câmera de um apontamento na cena ATUAL. O mundo do visualizador é o do 1º modelo aberto (fragments
+ * `autoCoordinate`): apontamento da equipe (`referencial = "cena"`) volta como foi gravado; o do pedido do cliente no 3D
+ * (`"modelo"`) foi gravado no referencial do próprio modelo e soma o deslocamento dele na cena (`deslocamentoDoModelo`,
+ * espaço IFC). Sem deslocamento (modelo não aberto), a câmera gravada.
+ */
+export function cameraDoApontamentoNaCena(
+  a: { camera: { position: Vec3; target: Vec3 }; referencial: string },
+  deslocamento: Vec3 | null,
+): { position: Vec3; target: Vec3 } {
+  if (a.referencial !== "modelo" || !deslocamento) return a.camera;
+  const somar = (p: Vec3): Vec3 => [p[0] + deslocamento[0], p[1] + deslocamento[1], p[2] + deslocamento[2]];
+  return { position: somar(a.camera.position), target: somar(a.camera.target) };
+}

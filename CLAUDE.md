@@ -763,6 +763,7 @@ corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. 
   ≤ 2 MB, author only, while aguardando — `gravarImagemDaMarcacao`). Only people who see every discipline decide it
   (`exigirEscopoDoPedidoModelo`), with `arquivos:alterar_status` + `coordenacao:gerir`; accepting creates one
   `ApontamentoCoordenacao` per mark through `criarApontamentoCoordenacaoNoTx` (the only writer, advisory lock per project)
+  with `referencial = "modelo"` (team ones stay `"cena"`; every camera restore goes through `cameraDoApontamentoNaCena`)
   and copies the image after commit. The browser draft is per account+project (`chaveDoRascunhoModelo`) and never stores
   images. Smokes: `smoke:pedido-revisao-cliente`, `smoke:portal-modelo3d`.
 

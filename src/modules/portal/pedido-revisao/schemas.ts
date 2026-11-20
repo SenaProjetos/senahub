@@ -35,7 +35,7 @@ const foraDoModelo = "Marcação fora do modelo.";
 const numero = z.number({ error: foraDoModelo });
 const ponto3d = z.tuple([numero, numero, numero], { error: foraDoModelo });
 
-/** Marcação 3D do cliente: o modelo que ele viu, os elementos (IfcGuids), o ponto e a vista — espaço IFC. */
+/** Marcação 3D do cliente: o modelo que ele viu, os elementos (IfcGuids), o ponto e a vista — eixos IFC, no referencial do próprio modelo. */
 const marcacaoModeloSchema = z.object({
   modeloId: z.string().min(1, foraDoModelo).max(80, foraDoModelo),
   guids: z

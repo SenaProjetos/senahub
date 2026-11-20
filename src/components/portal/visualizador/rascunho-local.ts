@@ -91,7 +91,10 @@ export function limparRascunho(chave: string, s?: Storage): void {
 
 type Vetor3 = [number, number, number];
 
-/** Marcação 3D em edição. A imagem da vista NÃO vai para o armazenamento (fica só na memória da aba). */
+/**
+ * Marcação 3D em edição: ponto e câmera em eixos IFC, no referencial do próprio modelo (o que o servidor grava). A
+ * imagem da vista NÃO vai para o armazenamento (fica só na memória da aba).
+ */
 export type MarcacaoModeloRascunho = {
   id: string;
   modeloId: string;

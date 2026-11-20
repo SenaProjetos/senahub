@@ -174,6 +174,8 @@ export type ApontamentoView = {
   texto: string;
   guids: string[];
   camera: { position: [number, number, number]; target: [number, number, number] };
+  /** Referencial da câmera: "cena" (equipe) ou "modelo" (pedido do cliente) — `cameraDoApontamentoNaCena`. */
+  referencial: string;
   snapshotPath: string | null;
   status: string;
   autorId: string;
@@ -216,6 +218,7 @@ export async function apontamentosDoProjeto(projetoId: string): Promise<Apontame
     texto: r.texto,
     guids: Array.isArray(r.guids) ? (r.guids as string[]) : [],
     camera: r.camera as ApontamentoView["camera"],
+    referencial: r.referencial,
     snapshotPath: r.snapshotPath,
     status: r.status,
     autorId: r.autorId,

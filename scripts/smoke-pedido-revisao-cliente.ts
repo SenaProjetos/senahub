@@ -797,6 +797,12 @@ async function main() {
           (await prisma.pedidoRevisaoCliente.findUnique({ where: { id: pm3.id } }))?.status === "aceito",
         { aceite3d, apontamentos3d: apontamentos3d.map((a) => [a.numero, a.uploadId, a.disciplinaId, a.titulo, a.autorId === coord.id]) },
       );
+      const daEquipe = await prisma.apontamentoCoordenacao.findFirst({ where: { projetoId: p3d.id, numero: 1 }, select: { referencial: true } });
+      check(
+        "referencial da câmera: apontamento do pedido do cliente = modelo; o da equipe segue cena",
+        apontamentos3d.length === 4 && apontamentos3d.every((a) => a.referencial === "modelo") && daEquipe?.referencial === "cena",
+        { daEquipe, refs: apontamentos3d.map((a) => a.referencial) },
+      );
       check(
         "imagem da vista: pedido aceito não recebe mais imagem",
         (await erroDe(imagem(gravadas3d[0].id))) === MOTIVO_IMAGEM_SO_AUTOR,

@@ -3,6 +3,7 @@ import {
   threeParaIfc,
   ifcParaThree,
   planoCorteIfcParaThree,
+  cameraDoApontamentoNaCena,
   type Vec3,
 } from "@/modules/coordenacao/viewer/coords";
 
@@ -46,5 +47,22 @@ describe("threeParaIfc / ifcParaThree", () => {
 
     esperarVetor(plano.ponto, [0, 0, -1]);
     esperarVetor(plano.normal, [0, 0, 1]);
+  });
+});
+
+describe("cameraDoApontamentoNaCena", () => {
+  const camera = { position: [1, 2, 3] as Vec3, target: [0, 0, 0] as Vec3 };
+  it("referencial da cena (apontamento da equipe): a câmera gravada, sem mexer", () => {
+    expect(cameraDoApontamentoNaCena({ camera, referencial: "cena" }, [10, 20, 30])).toEqual(camera);
+  });
+  it("referencial do modelo (pedido do cliente): soma o deslocamento do modelo na cena atual", () => {
+    expect(cameraDoApontamentoNaCena({ camera, referencial: "modelo" }, [10, 20, 30])).toEqual({
+      position: [11, 22, 33],
+      target: [10, 20, 30],
+    });
+  });
+  it("modelo não aberto (sem deslocamento) ou referencial desconhecido: a câmera gravada", () => {
+    expect(cameraDoApontamentoNaCena({ camera, referencial: "modelo" }, null)).toEqual(camera);
+    expect(cameraDoApontamentoNaCena({ camera, referencial: "outro" }, [1, 1, 1])).toEqual(camera);
   });
 });

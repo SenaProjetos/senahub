@@ -2285,9 +2285,11 @@ model MarcacaoModeloCliente {
   documentoRecebidoId String?
   /// IfcGuids dos elementos (string[], até 200).
   guids               Json
-  /// Ponto do clique [x, y, z], espaço IFC.
+  /// Ponto do clique [x, y, z], eixos IFC (Z para cima) no referencial do PRÓPRIO modelo (`modeloId`), como se ele
+  /// tivesse aberto primeiro: o mundo do visualizador é o do 1º modelo aberto (fragments `autoCoordinate`), então o
+  /// número da cena dependeria da ordem de abertura.
   ponto               Json
-  /// { position, target }, espaço IFC — o mesmo formato de ApontamentoCoordenacao.camera.
+  /// { position, target }, mesmo referencial do `ponto` — vira ApontamentoCoordenacao.camera com `referencial = "modelo"`.
   camera              Json
   texto               String
   /// Imagem da vista (PNG), enviada depois de criado o pedido; copiada para o apontamento no aceite.
@@ -8282,6 +8284,10 @@ model ApontamentoCoordenacao {
   guids          Json
   /// Posição/direção/up da câmera, fov/escala, projeção e planos de corte.
   camera         Json
+  /// Em que referencial `camera` foi gravada: "cena" = o mundo do visualizador de quem criou (o do 1º modelo aberto
+  /// naquela sessão — apontamentos da equipe); "modelo" = o do próprio modelo `uploadId`, como se ele tivesse aberto
+  /// primeiro (pedido do cliente no 3D). Ao restaurar, "modelo" soma o deslocamento do modelo na cena atual.
+  referencial    String      @default("cena")
   snapshotPath   String?
   /// aberta | resolvida | fechada | descartada
   status         String      @default("aberta")
