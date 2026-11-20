@@ -37,3 +37,11 @@ describe("item Pendências documentais", () => {
     expect(item).toMatchObject({ title: "Pendências", permissao: "notificacoes:gestao", tipo: "interno" });
   });
 });
+
+describe("item Pedidos do cliente", () => {
+  it("fica em Trabalho, só para interno com o gate de marcar Em revisão", () => {
+    const item = itens.find((i) => i.href === "/arquivos/pedidos-cliente");
+    expect(item).toMatchObject({ title: "Pedidos do cliente", permissao: "arquivos:alterar_status", tipo: "interno" });
+    expect(hrefAtivo("/arquivos/pedidos-cliente/abc", itens)).toBe("/arquivos/pedidos-cliente");
+  });
+});

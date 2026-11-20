@@ -13,8 +13,12 @@ import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
 import {
+  MOTIVO_ANEXO_SO_AUTOR,
   aceitarPedidoNoBanco,
+  anexoParaBaixar,
   cancelarPedidoNoBanco,
+  gravarAnexoNoBanco,
+  motivoParaAnexar,
   criarPedidoNoBanco,
   recusarPedidoNoBanco,
 } from "../src/modules/portal/pedido-revisao/service";
@@ -223,6 +227,35 @@ async function main() {
       doCliente.length,
     );
     check("portal: outro cliente não vê os pedidos", (await pedidosDoProjetoNoPortal(p1.id, outro.id)).length === 0);
+
+    // ── anexos (o arquivo em disco é da rota; aqui só o registro) ──
+    const p8 = await pedir(a.up.id);
+    const anexo = (n: number, autorId = conta.id, pedidoId = p8.id) =>
+      gravarAnexoNoBanco({ pedidoId, userId: autorId, nome: `f${n}.pdf`, caminho: `smoke/${tag}-f${n}.pdf`, tamanho: 1, mime: "application/pdf" });
+    check(
+      "anexo: só o autor",
+      (await motivoParaAnexar({ pedidoId: p8.id, userId: colega.id, nome: "a.pdf" })) === MOTIVO_ANEXO_SO_AUTOR &&
+        (await erroDe(anexo(0, colega.id))) === MOTIVO_ANEXO_SO_AUTOR,
+    );
+    check("anexo: extensão fora da lista recusa", (await motivoParaAnexar({ pedidoId: p8.id, userId: conta.id, nome: "x.exe" })) !== null);
+    const cinco = await Promise.allSettled([1, 2, 3, 4, 5, 6].map((n) => anexo(n)));
+    const gravados = await prisma.anexoPedidoCliente.count({ where: { pedidoId: p8.id } });
+    check(
+      "anexo: seis ao mesmo tempo, só cinco entram",
+      gravados === 5 && cinco.filter((r) => r.status === "rejected").length === 1,
+      { gravados },
+    );
+    const algum = await prisma.anexoPedidoCliente.findFirstOrThrow({ where: { pedidoId: p8.id }, select: { id: true } });
+    const nunca = async () => false;
+    check("anexo: conta de outro cliente não baixa", (await anexoParaBaixar(alheia, algum.id, nunca)) === null);
+    check("anexo: outra conta do mesmo cliente baixa", (await anexoParaBaixar(colega, algum.id, nunca)) !== null);
+    const interno = { id: coord.id, tipo: "interno" as const, mustChangePassword: false };
+    check(
+      "anexo: equipe só com o gate da coordenação",
+      (await anexoParaBaixar(interno, algum.id, nunca)) === null && (await anexoParaBaixar(interno, algum.id, async () => true)) !== null,
+    );
+    await cancelarPedidoNoBanco({ id: p8.id, autor: conta });
+    check("anexo: pedido cancelado não recebe anexo", (await erroDe(anexo(9))) === MOTIVO_ANEXO_SO_AUTOR);
   } finally {
     for (const id of projetos) await prisma.projeto.delete({ where: { id } });
     for (const id of usuarios) await prisma.user.delete({ where: { id } });

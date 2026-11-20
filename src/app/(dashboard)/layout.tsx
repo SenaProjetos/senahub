@@ -7,6 +7,7 @@ import type { ContextoNav } from "@/lib/nav-config";
 import { precisaAceitarTermo } from "@/modules/legal/queries";
 import { pendenciaDeAssinaturaHolerite } from "@/modules/rh/folha/queries";
 import { contarCertidoesAtencao } from "@/modules/certidoes/queries";
+import { contarPedidosAguardando } from "@/modules/portal/pedido-revisao/queries";
 import { PushManager } from "@/components/notificacoes/push-manager";
 import { AvisoProvider } from "@/components/notificacoes/aviso-provider";
 import { AcessoTracker } from "@/components/uso/acesso-tracker";
@@ -94,6 +95,22 @@ export default async function DashboardLayout({
           ]
             .filter(Boolean)
             .join(" · "),
+        },
+      };
+    }
+  }
+
+  // Bolinha de "Pedidos do cliente": pedidos de revisão aguardando nos projetos que a pessoa enxerga. Mesma economia
+  // das certidões: só quem vê o item paga o `count`.
+  if (nav.tipo === "interno" && nav.permitidas.includes("arquivos:alterar_status")) {
+    const aguardando = await contarPedidosAguardando(user);
+    if (aguardando > 0) {
+      nav.alertas = {
+        ...nav.alertas,
+        "/arquivos/pedidos-cliente": {
+          total: aguardando,
+          critico: false,
+          descricao: `${aguardando} pedido${aguardando > 1 ? "s" : ""} aguardando`,
         },
       };
     }

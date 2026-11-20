@@ -159,7 +159,7 @@ export const PERMISSOES_CATALOGO: RecursoCatalogo[] = [
       // que é o eixo do fluxo de aprovação — separado de "enviar" de propósito, porque quem
       // sobe arquivo não é necessariamente quem declara que ele foi aprovado.
       { acao: "editar_metadados", label: "Editar título, descrição e fase dos documentos" },
-      { acao: "alterar_status", label: "Liberar para obra e enviar ao cliente (revisão publicada)" },
+      { acao: "alterar_status", label: "Liberar para obra e enviar ao cliente (revisão publicada)", abre: "Pedidos do cliente" },
       // Ciclo documental (ISO 19650, 2026-10-08). Publicar é a aprovação do coordenador/RT; bloquear
       // e restringir são decisões de responsabilidade técnica — por isso separados de alterar_status.
       { acao: "publicar", label: "Publicar e devolver revisões (aprovação do coordenador/RT)" },

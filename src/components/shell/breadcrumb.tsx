@@ -43,6 +43,7 @@ const ROTULO_POR_ROTA: Record<string, string> = {
   "/rh/gestao": "Gestão de pessoas",
   // Segmento sem acento (URL): a trilha escreveria "Pendencias".
   "/arquivos/pendencias": "Pendências documentais",
+  "/arquivos/pedidos-cliente": "Pedidos do cliente",
 };
 
 function capitalize(segment: string): string {

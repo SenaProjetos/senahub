@@ -18,6 +18,7 @@ import {
   motivoParaNaoAceitar,
   motivoParaNaoCancelar,
   motivoParaNaoRecusar,
+  motivoDoAnexo,
   type EstadoDaRevisao,
   type StatusPedido,
 } from "./regras";
@@ -174,4 +175,68 @@ export async function recusarPedidoNoBanco(p: { id: string; quem: { id: string }
     data: { status: "recusado", resposta, respondidoPorId: p.quem.id, respondidoEm: new Date() },
   });
   if (count !== 1) throw new ActionError(MOTIVO_JA_RESPONDIDO);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Anexos (rota /api/portal/pedidos/[id]/anexos)
+// ─────────────────────────────────────────────────────────────
+
+export const MOTIVO_ANEXO_SO_AUTOR = "Só quem fez o pedido anexa arquivos, e só enquanto ele aguarda a equipe.";
+
+/**
+ * Checagem barata ANTES de gravar o arquivo no disco: autor, aguardando, limite e extensão. A mesma checagem se
+ * repete na transação de `gravarAnexoNoBanco` (dois envios ao mesmo tempo não passam de 5).
+ */
+export async function motivoParaAnexar(p: { pedidoId: string; userId: string; nome: string }): Promise<string | null> {
+  const pedido = await prisma.pedidoRevisaoCliente.findUnique({
+    where: { id: p.pedidoId },
+    select: { autorId: true, status: true, _count: { select: { anexos: true } } },
+  });
+  if (!pedido || pedido.autorId !== p.userId || pedido.status !== "aguardando") return MOTIVO_ANEXO_SO_AUTOR;
+  return motivoDoAnexo({ nome: p.nome, jaTem: pedido._count.anexos });
+}
+
+export async function gravarAnexoNoBanco(p: {
+  pedidoId: string;
+  userId: string;
+  nome: string;
+  caminho: string;
+  tamanho: number;
+  mime: string;
+}): Promise<{ id: string }> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM pedido_revisao_cliente WHERE id = ${p.pedidoId} FOR UPDATE`;
+    const pedido = await tx.pedidoRevisaoCliente.findUnique({
+      where: { id: p.pedidoId },
+      select: { autorId: true, status: true, _count: { select: { anexos: true } } },
+    });
+    if (!pedido || pedido.autorId !== p.userId || pedido.status !== "aguardando") throw new ActionError(MOTIVO_ANEXO_SO_AUTOR);
+    const motivo = motivoDoAnexo({ nome: p.nome, jaTem: pedido._count.anexos });
+    if (motivo) throw new ActionError(motivo);
+    return tx.anexoPedidoCliente.create({
+      data: { pedidoId: p.pedidoId, nome: p.nome, caminho: p.caminho, tamanho: p.tamanho, mime: p.mime },
+      select: { id: true },
+    });
+  });
+}
+
+/**
+ * Quem baixa um anexo: a coordenação (`arquivos:alterar_status` + projeto no escopo) ou uma conta do portal com
+ * acesso ao projeto do pedido. Devolve o arquivo ou null (a rota responde 404 nos dois casos).
+ */
+export async function anexoParaBaixar(
+  user: (UsuarioDaSessao & { superUsuario?: boolean }) | null,
+  anexoId: string,
+  podeCoordenar: (projetoId: string) => Promise<boolean>,
+): Promise<{ nome: string; caminho: string; mime: string; projetoId: string } | null> {
+  if (!user) return null;
+  const anexo = await prisma.anexoPedidoCliente.findUnique({
+    where: { id: anexoId },
+    select: { nome: true, caminho: true, mime: true, pedido: { select: { projetoId: true } } },
+  });
+  if (!anexo) return null;
+  const projetoId = anexo.pedido.projetoId;
+  const pode =
+    user.tipo === "externo" ? (await acessoDoUsuarioAoProjetoDoPortal(user, projetoId)).ok : await podeCoordenar(projetoId);
+  return pode ? { nome: anexo.nome, caminho: anexo.caminho, mime: anexo.mime, projetoId } : null;
 }

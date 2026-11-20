@@ -5,6 +5,7 @@ import {
   FolderKanban,
   Wallet,
   MessageSquare,
+  MessageSquareText,
   Clock,
   HeartPulse,
   UserCog,
@@ -202,6 +203,13 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/arquivos/pendencias",
         icon: FileWarning,
         permissao: "notificacoes:gestao",
+        tipo: "interno",
+      },
+      {
+        title: "Pedidos do cliente",
+        href: "/arquivos/pedidos-cliente",
+        icon: MessageSquareText,
+        permissao: "arquivos:alterar_status",
         tipo: "interno",
       },
       {

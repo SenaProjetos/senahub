@@ -11,7 +11,7 @@ import { PortalDocumentos } from "@/components/portal/portal-documentos";
 import { AndamentoCard } from "@/components/portal/andamento-card";
 import { LinhaDoTempoCard } from "@/components/portal/linha-do-tempo-card";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { ArvoreEntregas } from "@/components/arquivos/arquivos-publico-view";
+import { EntregasDoPortal } from "@/components/portal/entregas-do-portal";
 import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
 import { conteudoTemZip } from "@/modules/projetos/arquivos/link-publico-regras";
 import { Button } from "@/components/ui/button";
@@ -107,7 +107,7 @@ function EntregasDoProjeto({ projetoId, entregas }: { projetoId: string; entrega
       <CardContent className="p-2 pt-0">
         {entregas && totalEntregas > 0 ? (
           <div className="divide-y">
-            <ArvoreEntregas base={base} conteudo={entregas} />
+            <EntregasDoPortal base={base} conteudo={entregas} projetoId={projetoId} />
           </div>
         ) : (
           <EmptyState

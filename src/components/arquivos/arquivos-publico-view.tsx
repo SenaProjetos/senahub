@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import {
   ChevronRight,
   Download,
@@ -23,7 +23,26 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CabecalhoPublico } from "@/components/publico/cabecalho-publico";
 
-type ArquivoPublicoView = ConteudoPublico["disciplinas"][number]["pastas"][number]["extensoes"][number]["arquivos"][number];
+export type ArquivoPublicoView = ConteudoPublico["disciplinas"][number]["pastas"][number]["extensoes"][number]["arquivos"][number];
+
+/**
+ * O que SÓ o portal do cliente acrescenta à linha de um arquivo (botão "Pedir revisão", selo do pedido aguardando,
+ * olho abrindo o visualizador do portal). Por contexto, para não atravessar as quatro camadas da árvore; o link
+ * público não passa nada e fica como sempre foi.
+ */
+export type AcoesDoArquivo = {
+  /** Selos extras ao lado do nome. */
+  selos?: (arquivo: ArquivoPublicoView) => ReactNode;
+  /** Botões extras ao fim da linha. */
+  extras?: (arquivo: ArquivoPublicoView) => ReactNode;
+  /** Para onde o olho do PDF leva (padrão: o PDF inline pela rota de download). */
+  hrefVer?: (arquivo: ArquivoPublicoView) => string;
+};
+const AcoesDoArquivoContext = createContext<AcoesDoArquivo>({});
+
+export function ProvedorAcoesDoArquivo({ valor, children }: { valor: AcoesDoArquivo; children: ReactNode }) {
+  return <AcoesDoArquivoContext.Provider value={valor}>{children}</AcoesDoArquivoContext.Provider>;
+}
 
 type FasePublica = ConteudoPublico["disciplinas"][number]["pastas"][number];
 const arquivosDaFase = (f: FasePublica) => f.extensoes.flatMap((e) => e.arquivos);
@@ -101,6 +120,7 @@ function DescricaoRevisao({ texto, arquivo }: { texto: string; arquivo: string }
 }
 
 function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublicoView }) {
+  const acoes = useContext(AcoesDoArquivoContext);
   // Bloqueada ou fora do disco: listada com o selo, sem ver nem baixar (a rota daria 404 ou 410).
   const baixavel = !arquivo.bloqueado && !arquivo.indisponivel;
   const semArquivo = arquivo.indisponivel && !arquivo.bloqueado;
@@ -125,6 +145,7 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
               Em revisão
             </span>
           )}
+          {acoes.selos?.(arquivo)}
           {arquivo.bloqueado && (
             <span
               className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_CONTROLE.bloqueio))}
@@ -161,8 +182,8 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
       <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(arquivo.tamanho)}</span>
       {arquivo.ehPdf && baixavel && (
         <a
-          href={`${base}/${arquivo.id}?disposition=inline`}
-          target="_blank"
+          href={acoes.hrefVer ? acoes.hrefVer(arquivo) : `${base}/${arquivo.id}?disposition=inline`}
+          target={acoes.hrefVer ? undefined : "_blank"}
           rel="noopener"
           className="shrink-0 text-primary hover:text-primary/80"
           title="Visualizar (PDF)"
@@ -181,6 +202,7 @@ function LinhaArquivo({ base, arquivo }: { base: string; arquivo: ArquivoPublico
           <Download className="size-4" />
         </a>
       )}
+      {acoes.extras?.(arquivo)}
       {/* O que mudou na revisão, numa linha própria com a largura toda: ao lado do nome, no celular,
           sobrariam poucos caracteres. Duas linhas visíveis e "Ver tudo" quando o texto passa delas. */}
       {arquivo.descricaoRevisao && <DescricaoRevisao texto={arquivo.descricaoRevisao} arquivo={arquivo.nome} />}
