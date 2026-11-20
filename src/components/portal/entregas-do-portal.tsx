@@ -1,8 +1,8 @@
 "use client";
 
 import type { ConteudoPublico } from "@/modules/projetos/arquivos/link-publico";
-import { cn, rotuloRevisao } from "@/lib/utils";
-import { classeDoStatus } from "@/modules/uploads/status-documento";
+import { rotuloRevisao } from "@/lib/utils";
+import { SeloPedidoAguardando } from "@/components/arquivos/selos-pedido";
 import { ArvoreEntregas, ProvedorAcoesDoArquivo, type ArquivoPublicoView } from "@/components/arquivos/arquivos-publico-view";
 import { PedirRevisaoDialog } from "@/components/portal/pedir-revisao-dialog";
 
@@ -26,11 +26,7 @@ export function EntregasDoPortal({
     <ProvedorAcoesDoArquivo
       valor={{
         selos: (a) =>
-          aguardando.includes(a.id) ? (
-            <span className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus("aguardando"))}>
-              Pedido aguardando
-            </span>
-          ) : null,
+          aguardando.includes(a.id) ? <SeloPedidoAguardando /> : null,
         // O olho do PDF abre o visualizador do portal (ver, dar zoom e pedir revisão com marcações).
         hrefVer: (a) => `/portal/${projetoId}/prancha/${a.id}`,
         extras: (a) =>

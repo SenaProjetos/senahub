@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ListChecks, Loader2, MessageSquarePlus, ZoomIn, ZoomOut } from "lucide-react";
@@ -21,7 +21,7 @@ import {
 } from "@/modules/projetos/pendencias/marcacao";
 import { medirMm, type ModoCalibracao } from "@/modules/projetos/pendencias/medicao";
 import { MOTIVO_SEM_ESCALA } from "@/modules/portal/pedido-revisao/conversao";
-import { LIMITE_TEXTO_MARCACAO } from "@/modules/portal/pedido-revisao/regras";
+import { LIMITE_TEXTO_MARCACAO, MAX_MARCACOES } from "@/modules/portal/pedido-revisao/regras";
 import { criarPedidoRevisao } from "@/modules/portal/pedido-revisao/actions";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -252,6 +252,8 @@ export function VisualizadorPrancha({
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [folhaAberta, setFolhaAberta] = useState(false);
   const [enviando, startTransition] = useTransition();
+  const idTextoNova = useId();
+  const idLegenda = useId();
 
   const { zoom, setZoom } = useZoomAncorado(colunaRef);
   const ajustarZoom = useCallback((direcao: 1 | -1) => setZoom((z) => passoZoom(z, direcao)), [setZoom]);
@@ -403,7 +405,9 @@ export function VisualizadorPrancha({
               <MessageSquarePlus className="size-4" /> Pedir revisão
             </Button>
           )}
-          {desenhando && <BarraFerramentas ferramenta={ferramenta} onEscolher={setFerramenta} motivoSemCota={motivoSemCota} />}
+          {desenhando && (
+            <BarraFerramentas ferramenta={ferramenta} onEscolher={setFerramenta} motivoSemCota={motivoSemCota} idMotivo={idLegenda} />
+          )}
           {desenhando && (
             <Button size="sm" variant="outline" className="lg:hidden" onClick={() => setFolhaAberta(true)}>
               <ListChecks className="size-4" /> Pedido ({rascunho.marcacoes.length})
@@ -420,13 +424,24 @@ export function VisualizadorPrancha({
           </div>
         </div>
         {(rotuloLeitura && leitura.length > 0) || desenhando ? (
-          <p className="border-b px-3 py-1 text-xs text-muted-foreground">
-            {desenhando ? "Marque na prancha o que você quer mudar. Cada marcação pede um texto." : rotuloLeitura}
+          <p id={idLegenda} role="status" className="border-b px-3 py-1 text-xs text-muted-foreground">
+            {desenhando
+              ? `Marque na prancha o que você quer mudar. Cada marcação pede um texto.${motivoSemCota ? ` Cota indisponível: ${motivoSemCota}` : ""}`
+              : rotuloLeitura}
           </p>
         ) : null}
-        <div ref={colunaRef} className="min-h-0 flex-1 overflow-auto bg-muted/40 p-3" style={{ touchAction: "pan-x pan-y" }}>
+        <div
+          ref={colunaRef}
+          tabIndex={0}
+          role="region"
+          aria-label="Prancha"
+          className="min-h-0 flex-1 overflow-auto bg-muted/40 p-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
+          style={{ touchAction: "pan-x pan-y" }}
+        >
           {erro ? (
-            <p className="py-10 text-center text-sm text-destructive">{erro}</p>
+            <p role="alert" className="py-10 text-center text-sm text-destructive-text">
+              {erro}
+            </p>
           ) : !pdf ? (
             <p role="status" className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" /> Carregando a prancha…
@@ -445,6 +460,10 @@ export function VisualizadorPrancha({
                       leitura={leitura.filter((m) => m.pagina === n)}
                       rascunho={rascunho.marcacoes.map((m, i) => ({ m, numero: i + 1 })).filter(({ m }) => m.pagina === n)}
                       onNova={(x) => {
+                        if (rascunho.marcacoes.length >= MAX_MARCACOES) {
+                          toast.error(`O pedido aceita no máximo ${MAX_MARCACOES} marcações.`);
+                          return;
+                        }
                         setTextoNova("");
                         setNova(x);
                       }}
@@ -479,11 +498,11 @@ export function VisualizadorPrancha({
             <DialogDescription>O texto vai junto da marcação para a equipe.</DialogDescription>
           </DialogHeader>
           <div className="space-y-1.5">
-            <Label htmlFor="texto-marcacao" className="sr-only">
+            <Label htmlFor={idTextoNova} className="sr-only">
               Texto da marcação
             </Label>
             <textarea
-              id="texto-marcacao"
+              id={idTextoNova}
               autoFocus
               rows={3}
               maxLength={LIMITE_TEXTO_MARCACAO}

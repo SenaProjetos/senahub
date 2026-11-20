@@ -4,16 +4,18 @@ import { useState, type ReactNode } from "react";
 import { AlertTriangle, FileText, Paperclip } from "lucide-react";
 import type { PedidoDetalheView } from "@/modules/portal/pedido-revisao/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { formatarBytes, formatarDataHora } from "@/lib/utils";
+import { cn, formatarBytes, formatarDataHora } from "@/lib/utils";
+import { classeDoStatus } from "@/modules/uploads/status-documento";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DecisaoPedidoDialog, type ModoDecisao } from "@/components/arquivos/decisao-pedido-dialog";
-import { SeloRevisaoSubstituida, SeloStatusPedido, motivoNaTela } from "@/components/arquivos/pedidos-cliente-view";
+import { motivoNaTela } from "@/components/arquivos/pedidos-cliente-view";
+import { SeloRevisaoSubstituida, SeloStatusPedido } from "@/components/arquivos/selos-pedido";
 
 function Aviso({ children }: { children: ReactNode }) {
   return (
-    <p className="flex items-start gap-1.5 rounded-sm border border-warning/50 bg-warning/10 px-2 py-1.5 text-sm">
-      <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+    <p className={cn("flex items-start gap-1.5 rounded-sm border px-2 py-1.5 text-sm", classeDoStatus("atencao"))}>
+      <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
       <span>{children}</span>
     </p>
   );
@@ -96,11 +98,17 @@ export function PedidoClienteDetalhe({
 
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" render={<a href={`/api/uploads/${pedido.uploadId}/download`} target="_blank" rel="noopener" />}>
-              <FileText className="size-4" /> Abrir a prancha
+              <FileText className="size-4" /> Abrir a prancha <span className="sr-only">(abre em nova aba)</span>
             </Button>
             {aguardando && (
               <>
-                <Button size="sm" onClick={() => setModo("aceitar")} disabled={motivo !== null} title={motivo ?? undefined}>
+                <Button
+                  size="sm"
+                  onClick={() => setModo("aceitar")}
+                  disabled={motivo !== null}
+                  title={motivo ?? undefined}
+                  aria-describedby={motivo ? "motivo-nao-aceitar" : undefined}
+                >
                   Aceitar…
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setModo("recusar")}>
@@ -109,7 +117,11 @@ export function PedidoClienteDetalhe({
               </>
             )}
           </div>
-          {aguardando && motivo && <p className="text-xs text-muted-foreground">{motivo}</p>}
+          {aguardando && motivo && (
+            <p id="motivo-nao-aceitar" className="text-xs text-muted-foreground">
+              {motivo}
+            </p>
+          )}
         </CardContent>
       </Card>
 

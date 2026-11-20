@@ -45,6 +45,12 @@ export function ListaMarcacoes({
 }) {
   const idComentario = useId();
   const faltaTexto = marcacoes.some((m) => !m.texto.trim());
+  const idDica = useId();
+  const dica = !comentario.trim()
+    ? "Escreva o comentário geral para enviar."
+    : faltaTexto
+      ? "Escreva o que mudar em cada marcação."
+      : null;
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -67,7 +73,7 @@ export function ListaMarcacoes({
                   <button
                     type="button"
                     onClick={() => onRemover(m.id)}
-                    className="shrink-0 rounded p-1 hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                    className="shrink-0 rounded-sm p-1 hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
                     aria-label={`Excluir a marcação ${i + 1}`}
                   >
                     <Trash2 className="size-3.5" />
@@ -88,11 +94,12 @@ export function ListaMarcacoes({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={idComentario}>Comentário geral</Label>
+        <Label htmlFor={idComentario}>Comentário geral (obrigatório)</Label>
         <textarea
           id={idComentario}
           rows={4}
           maxLength={LIMITE_COMENTARIO}
+          aria-required
           className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
           placeholder="Explique o pedido para a equipe."
           value={comentario}
@@ -103,14 +110,18 @@ export function ListaMarcacoes({
       <CampoAnexos arquivos={arquivos} onChange={onArquivos} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={onEnviar} disabled={enviando || !comentario.trim() || faltaTexto}>
+        <Button onClick={onEnviar} disabled={enviando || dica !== null} aria-describedby={dica ? idDica : undefined}>
           {enviando ? "Enviando…" : "Enviar pedido"}
         </Button>
         <Button variant="ghost" onClick={onDescartar} disabled={enviando}>
           Descartar
         </Button>
       </div>
-      {faltaTexto && <p className="text-xs text-muted-foreground">Escreva o que mudar em cada marcação.</p>}
+      {dica && (
+        <p id={idDica} className="text-xs text-muted-foreground">
+          {dica}
+        </p>
+      )}
     </div>
   );
 }

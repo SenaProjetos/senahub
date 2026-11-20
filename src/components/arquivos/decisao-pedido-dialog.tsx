@@ -85,11 +85,12 @@ export function DecisaoPedidoDialog({
         </DialogHeader>
         <DialogBody>
           <div className="space-y-1.5">
-            <Label htmlFor={idResposta}>{modo === "recusar" ? "Resposta ao cliente" : "Resposta ao cliente (opcional)"}</Label>
+            <Label htmlFor={idResposta}>{modo === "recusar" ? "Resposta ao cliente (obrigatória)" : "Resposta ao cliente (opcional)"}</Label>
             <textarea
               id={idResposta}
               rows={4}
               maxLength={LIMITE_RESPOSTA}
+              aria-required={modo === "recusar"}
               className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
               value={resposta}
               onChange={(e) => setResposta(e.target.value)}

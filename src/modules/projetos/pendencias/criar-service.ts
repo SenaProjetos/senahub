@@ -32,6 +32,9 @@ export async function criarPendenciaNoTx(
 ): Promise<{ id: string; numero: number }> {
   const { upload, dados } = p;
   const escopoNumero = upload.documentoId ? { documentoId: upload.documentoId } : { uploadId: upload.id };
+  // Trava da numeração até o fim da transação: sem índice único em (documento, número), dois apontamentos ao mesmo tempo
+  // (um pino da equipe durante o aceite de um pedido com várias marcações) leriam o mesmo máximo.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`pendencia-numero:${upload.documentoId ?? upload.id}`}))`;
   const max = await tx.pendencia.aggregate({ where: escopoNumero, _max: { numero: true } });
   const { marcacaoTipo, marcacaoGeo } = colunasDaMarcacao(dados.marcacao);
   return tx.pendencia.create({

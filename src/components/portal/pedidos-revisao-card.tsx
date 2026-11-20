@@ -11,7 +11,7 @@ import { formatarData } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
-import { SeloRevisaoSubstituida, SeloStatusPedido } from "@/components/arquivos/pedidos-cliente-view";
+import { SeloRevisaoSubstituida, SeloStatusPedido } from "@/components/arquivos/selos-pedido";
 
 function LinhaPedido({ p, projetoId }: { p: PedidoPortalView; projetoId: string }) {
   const router = useRouter();

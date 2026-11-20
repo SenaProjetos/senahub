@@ -27,7 +27,7 @@ const selectLinha = {
   revisaoId: true,
   uploadId: true,
   autor: { select: { name: true } },
-  documento: { select: { chave: true, nomeArquivo: true, titulo: true } },
+  documento: { select: { chave: true, nomeArquivo: true, titulo: true, revisaoCompartilhadaId: true, revisaoLiberadaObraId: true } },
   revisao: { select: { numero: true, estado: true } },
   upload: { select: { nomeArquivo: true, substituidoPorId: true, excluidoEm: true } },
   anexos: { select: { id: true, nome: true, tamanho: true }, orderBy: { createdAt: "asc" } },
@@ -43,6 +43,7 @@ function aindaNasEntregas(l: Linha): boolean {
     participa: participaDoCiclo({ chave: l.documento.chave, extensoes: [] }),
     uploadSubstituido: l.upload.substituidoPorId !== null || l.upload.excluidoEm !== null,
     arquivada: l.revisao.estado === "arquivado",
+    nasPastasDoCliente: l.documento.revisaoCompartilhadaId === l.revisaoId || l.documento.revisaoLiberadaObraId === l.revisaoId,
   });
 }
 

@@ -5,8 +5,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { MessageSquarePlus, Paperclip, X } from "lucide-react";
 import { criarPedidoRevisao } from "@/modules/portal/pedido-revisao/actions";
-import { EXTENSOES_ANEXO, LIMITE_COMENTARIO, MAX_ANEXOS, motivoDoAnexo } from "@/modules/portal/pedido-revisao/regras";
-import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
+import {
+  EXTENSOES_ANEXO,
+  LIMITE_COMENTARIO,
+  MAX_ANEXOS,
+  TAMANHO_MAX_ANEXO,
+  TAMANHO_MAX_ANEXO_LABEL,
+  motivoDoAnexo,
+} from "@/modules/portal/pedido-revisao/regras";
 import { formatarBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -33,7 +39,9 @@ export async function enviarAnexosDoPedido(pedidoId: string, arquivos: readonly 
       const res = await fetch(`/api/portal/pedidos/${encodeURIComponent(pedidoId)}/anexos`, { method: "POST", body: fd });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
-        falhas.push(`${arquivo.name}: ${data.error ?? "falha no envio."}`);
+        // 413 da borda (Cloudflare) não traz JSON: diz o limite em vez de "falha no envio".
+        const padrao = res.status === 413 ? `arquivo acima de ${TAMANHO_MAX_ANEXO_LABEL}.` : "falha no envio.";
+        falhas.push(`${arquivo.name}: ${data.error ?? padrao}`);
       }
     } catch {
       falhas.push(`${arquivo.name}: falha de conexão.`);
@@ -50,7 +58,7 @@ export function CampoAnexos({ arquivos, onChange }: { arquivos: File[]; onChange
     if (!lista) return;
     const novos = [...arquivos];
     for (const f of Array.from(lista)) {
-      const motivo = motivoDoAnexo({ nome: f.name, jaTem: novos.length }) ?? (f.size > TAMANHO_MAX ? `Arquivo acima de ${TAMANHO_MAX_LABEL}.` : null);
+      const motivo = motivoDoAnexo({ nome: f.name, jaTem: novos.length }) ?? (f.size > TAMANHO_MAX_ANEXO ? `Arquivo acima de ${TAMANHO_MAX_ANEXO_LABEL}.` : null);
       if (motivo) toast.error(`${f.name}: ${motivo}`);
       else novos.push(f);
     }
@@ -61,7 +69,7 @@ export function CampoAnexos({ arquivos, onChange }: { arquivos: File[]; onChange
     <div className="space-y-1.5">
       <Label htmlFor={id}>Anexos (opcional)</Label>
       <p className="text-xs text-muted-foreground">
-        Até {MAX_ANEXOS} arquivos: PDF, imagem (PNG ou JPG), DWG ou DXF.
+        Até {MAX_ANEXOS} arquivos de até {TAMANHO_MAX_ANEXO_LABEL}: PDF, imagem (PNG ou JPG), DWG ou DXF.
       </p>
       {arquivos.length > 0 && (
         <ul className="space-y-1">
@@ -74,8 +82,8 @@ export function CampoAnexos({ arquivos, onChange }: { arquivos: File[]; onChange
               <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatarBytes(f.size)}</span>
               <button
                 type="button"
-                className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
-                aria-label={`Tirar ${f.name}`}
+                className="shrink-0 rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+                aria-label={`Remover o anexo ${f.name}`}
                 onClick={() => onChange(arquivos.filter((_, j) => j !== i))}
               >
                 <X className="size-3.5" />
@@ -91,6 +99,7 @@ export function CampoAnexos({ arquivos, onChange }: { arquivos: File[]; onChange
         multiple
         accept={EXTENSOES_ANEXO.map((e) => `.${e}`).join(",")}
         className="sr-only"
+        tabIndex={-1}
         onChange={(e) => adicionar(e.target.files)}
         disabled={arquivos.length >= MAX_ANEXOS}
       />
@@ -145,7 +154,7 @@ export function PedirRevisaoDialog({
       <button
         type="button"
         onClick={() => setAberto(true)}
-        className="inline-flex shrink-0 items-center gap-1 rounded-sm px-1 text-xs font-medium text-primary hover:text-primary/80 focus-visible:outline-2 focus-visible:outline-ring"
+        className="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm px-1 text-xs font-medium text-primary pointer-coarse:min-h-10 pointer-coarse:min-w-10 hover:text-primary/80 focus-visible:outline-2 focus-visible:outline-ring"
         aria-label={`Pedir revisão de ${nome}`}
         title="Pedir revisão"
       >
@@ -162,11 +171,12 @@ export function PedirRevisaoDialog({
           </DialogHeader>
           <DialogBody className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor={idComentario}>O que você quer revisar?</Label>
+              <Label htmlFor={idComentario}>O que você quer revisar? (obrigatório)</Label>
               <textarea
                 id={idComentario}
                 rows={5}
                 maxLength={LIMITE_COMENTARIO}
+                aria-required
                 className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
                 placeholder="Ex.: mudar a porta da cozinha para a parede da direita."
                 value={comentario}

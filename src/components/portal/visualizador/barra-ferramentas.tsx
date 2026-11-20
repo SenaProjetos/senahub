@@ -22,10 +22,13 @@ export function BarraFerramentas({
   ferramenta,
   onEscolher,
   motivoSemCota,
+  idMotivo,
 }: {
   ferramenta: TipoMarcacao;
   onEscolher: (t: TipoMarcacao) => void;
   motivoSemCota: string | null;
+  /** Id do texto visível que explica a cota desligada (ligado por aria-describedby). */
+  idMotivo?: string;
 }) {
   return (
     <div role="toolbar" aria-label="Ferramentas de marcação" className="flex flex-wrap items-center gap-1">
@@ -39,6 +42,7 @@ export function BarraFerramentas({
             aria-pressed={ativa}
             disabled={desabilitada}
             title={desabilitada ? (motivoSemCota ?? undefined) : rotulo}
+            aria-describedby={desabilitada ? idMotivo : undefined}
             onClick={() => onEscolher(tipo)}
             className={cn(
               "inline-flex h-8 items-center gap-1 rounded-md border px-2 text-xs font-medium pointer-coarse:h-10",

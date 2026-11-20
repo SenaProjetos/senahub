@@ -4,14 +4,15 @@ import { getSession } from "@/lib/session";
 import { extensaoSegura, limitarStream, nomeArquivoLimpo, removerArquivo, salvarStream } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 import { ActionError } from "@/lib/with-action";
-import { TAMANHO_MAX, TAMANHO_MAX_LABEL } from "@/modules/uploads/limites";
+import { TAMANHO_MAX_ANEXO as TAMANHO_MAX, TAMANHO_MAX_ANEXO_LABEL as TAMANHO_MAX_LABEL } from "@/modules/portal/pedido-revisao/regras";
 import { acessoDoUsuarioAoProjetoDoPortal } from "@/modules/portal/acesso";
 import { prisma } from "@/lib/prisma";
 import { gravarAnexoNoBanco, motivoParaAnexar } from "@/modules/portal/pedido-revisao/service";
 
 /**
  * Anexo do pedido de revisão do cliente (um arquivo por requisição, DEPOIS de o pedido existir — spec 2026-11-19,
- * decisão 5). Só o autor do pedido, só enquanto aguarda, até 5 anexos (PDF, imagem, DWG, DXF). Mesmo esqueleto de
+ * decisão 5). Só o autor do pedido, só enquanto aguarda, até 5 anexos (PDF, imagem, DWG, DXF), até 100 MB cada (teto
+ * da borda do Cloudflare Tunnel). Mesmo esqueleto de
  * `/api/portal/documentos`: teto antes de ler o corpo, gravação em pedaços, arquivo apagado se o registro falhar.
  */
 const FOLGA_MULTIPART = 1024 * 1024;

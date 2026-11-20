@@ -26,6 +26,9 @@ export const MOTIVO_RECUSA_SEM_RESPOSTA = "Escreva a resposta ao cliente.";
 
 export const EXTENSOES_ANEXO = ["pdf", "png", "jpg", "jpeg", "dwg", "dxf"] as const;
 export const MAX_ANEXOS = 5;
+/** Teto por anexo: o Cloudflare Tunnel corta requisição acima de 100 MB na borda (mesmo teto do anexo do suporte). */
+export const TAMANHO_MAX_ANEXO = 100 * 1024 * 1024;
+export const TAMANHO_MAX_ANEXO_LABEL = "100 MB";
 
 export const LIMITE_COMENTARIO = 4000;
 /** Cabe no texto do apontamento (1000) com "Cliente (Nome): " e "(ver pedido do cliente)". */
@@ -34,17 +37,27 @@ export const MAX_MARCACOES = 50;
 export const LIMITE_RESPOSTA = 2000;
 export const LIMITE_MOTIVO_EM_REVISAO = 500;
 
-/** O que o aceite precisa saber da revisão do pedido. `participa` = dentro do ciclo documental (ISO 19650). */
-export type EstadoDaRevisao = { estado: string | null; participa: boolean; uploadSubstituido: boolean; arquivada: boolean };
+/**
+ * O que o aceite precisa saber da revisão do pedido. `participa` = dentro do ciclo documental (ISO 19650);
+ * `nasPastasDoCliente` = a revisão ainda é a "Compartilhado" ou a "Liberado para obra" do documento.
+ */
+export type EstadoDaRevisao = {
+  estado: string | null;
+  participa: boolean;
+  uploadSubstituido: boolean;
+  arquivada: boolean;
+  nasPastasDoCliente: boolean;
+};
 
 /**
- * A revisão em que o cliente pediu ainda é a das Entregas? No ciclo, só a publicada (não arquivada); fora dele, o
- * arquivo do pedido não pode ter sido substituído. Rascunho nunca cai em outra revisão.
+ * A revisão em que o cliente pediu ainda é a das Entregas? No ciclo, só a publicada (não arquivada); fora dele, a
+ * revisão ainda numa pasta do cliente. Nos dois, o arquivo do pedido não pode ter sido substituído. Rascunho nunca cai
+ * em outra revisão.
  */
 export function revisaoAindaNasEntregas(r: EstadoDaRevisao): boolean {
   if (r.uploadSubstituido) return false;
   if (r.participa) return r.estado === "publicado" && !r.arquivada;
-  return true;
+  return r.nasPastasDoCliente;
 }
 
 export function motivoParaNaoAceitar(p: { status: StatusPedido; podeValidar: boolean; revisao: EstadoDaRevisao }): string | null {

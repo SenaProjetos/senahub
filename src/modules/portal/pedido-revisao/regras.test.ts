@@ -19,7 +19,7 @@ import {
   type EstadoDaRevisao,
 } from "./regras";
 
-const publicada: EstadoDaRevisao = { estado: "publicado", participa: true, uploadSubstituido: false, arquivada: false };
+const publicada: EstadoDaRevisao = { estado: "publicado", participa: true, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: true };
 
 describe("motivoParaNaoAceitar", () => {
   it("aguardando, quem valida e revisão publicada: pode", () => {
@@ -47,7 +47,7 @@ describe("motivoParaNaoAceitar", () => {
       motivoParaNaoAceitar({
         status: "aguardando",
         podeValidar: true,
-        revisao: { estado: null, participa: false, uploadSubstituido: true, arquivada: false },
+        revisao: { estado: null, participa: false, uploadSubstituido: true, arquivada: false, nasPastasDoCliente: true },
       }),
     ).toBe(MOTIVO_REVISAO_SUBSTITUIDA);
   });
@@ -56,13 +56,18 @@ describe("motivoParaNaoAceitar", () => {
       motivoParaNaoAceitar({
         status: "aguardando",
         podeValidar: true,
-        revisao: { estado: null, participa: false, uploadSubstituido: false, arquivada: false },
+        revisao: { estado: null, participa: false, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: true },
       }),
     ).toBeNull();
   });
 });
 
 describe("revisaoAindaNasEntregas", () => {
+  it("fora do ciclo, a revisão que saiu das pastas do cliente (outra revisão compartilhada) não está mais nas Entregas", () => {
+    expect(
+      revisaoAindaNasEntregas({ estado: null, participa: false, uploadSubstituido: false, arquivada: false, nasPastasDoCliente: false }),
+    ).toBe(false);
+  });
   it("no ciclo, só publicada", () => {
     expect(revisaoAindaNasEntregas(publicada)).toBe(true);
     expect(revisaoAindaNasEntregas({ ...publicada, estado: "em_andamento" })).toBe(false);

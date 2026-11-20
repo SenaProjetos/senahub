@@ -180,7 +180,12 @@ export async function estadoDaRevisaoDoPedido(
     where: { id: pedido.uploadId, substituidoPorId: { not: undefined } },
     select: { substituidoPorId: true, excluidoEm: true },
   });
+  const doc = await db.documentoDisciplina.findUnique({
+    where: { id: r.documentoId },
+    select: { revisaoCompartilhadaId: true, revisaoLiberadaObraId: true },
+  });
   return {
+    nasPastasDoCliente: doc?.revisaoCompartilhadaId === r.id || doc?.revisaoLiberadaObraId === r.id,
     estado: r.estado,
     participa: estadoParaTransicao(r).participa,
     uploadSubstituido: !up || up.substituidoPorId !== null || up.excluidoEm !== null,
@@ -331,17 +336,19 @@ export async function gravarAnexoNoBanco(p: {
 export async function anexoParaBaixar(
   user: (UsuarioDaSessao & { superUsuario?: boolean }) | null,
   anexoId: string,
-  podeCoordenar: (projetoId: string) => Promise<boolean>,
+  podeCoordenar: (p: { projetoId: string; revisaoId: string }) => Promise<boolean>,
 ): Promise<{ nome: string; caminho: string; mime: string; projetoId: string } | null> {
   if (!user) return null;
   const anexo = await prisma.anexoPedidoCliente.findUnique({
     where: { id: anexoId },
-    select: { nome: true, caminho: true, mime: true, pedido: { select: { projetoId: true } } },
+    select: { nome: true, caminho: true, mime: true, pedido: { select: { projetoId: true, revisaoId: true } } },
   });
   if (!anexo) return null;
   const projetoId = anexo.pedido.projetoId;
   const pode =
-    user.tipo === "externo" ? (await acessoDoUsuarioAoProjetoDoPortal(user, projetoId)).ok : await podeCoordenar(projetoId);
+    user.tipo === "externo"
+      ? (await acessoDoUsuarioAoProjetoDoPortal(user, projetoId)).ok
+      : await podeCoordenar({ projetoId, revisaoId: anexo.pedido.revisaoId });
   return pode ? { nome: anexo.nome, caminho: anexo.caminho, mime: anexo.mime, projetoId } : null;
 }
 

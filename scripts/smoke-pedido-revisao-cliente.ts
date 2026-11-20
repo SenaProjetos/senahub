@@ -223,11 +223,66 @@ async function main() {
     const marcasSemCiclo = await prisma.controleRevisao.count({ where: { revisaoId: semCiclo.rev.id } });
     check("documento fora do ciclo: aceite sem marca", !aceite7.emRevisao && marcasSemCiclo === 0);
 
+    // ── fora do ciclo, a pasta do cliente passou a mostrar outra revisão ──
+    const d = await prancha(p1.disciplinaId, "d", { ciclo: false, compartilhar: true });
+    const pd = await pedir(d.up.id);
+    const r2d = await prisma.documentoRevisao.create({ data: { documentoId: d.doc.id, numero: 2, createdById: coord.id } });
+    await prisma.documentoDisciplina.update({ where: { id: d.doc.id }, data: { revisaoCompartilhadaId: r2d.id } });
+    check(
+      "fora do ciclo, revisão que saiu da pasta do cliente: aceite recusado e portal mostra substituída",
+      (await erroDe(aceitarPedidoNoBanco({ id: pd.id, quem, resposta: null }))) === MOTIVO_REVISAO_SUBSTITUIDA &&
+        (await pedidosDoProjetoNoPortal(p1.id, cliente.id)).find((x) => x.id === pd.id)?.revisaoSubstituida === true,
+    );
+    await recusarPedidoNoBanco({ id: pd.id, quem, resposta: "Confira a revisão nova." });
+
+    // ── outras pranchas que não aceitam pedido ──
+    const p1b = await novoProjeto(cliente.id, "p1b");
+    const deOutroProjeto = await prancha(p1b.disciplinaId, "outroprojeto", { ciclo: true, compartilhar: true });
+    check(
+      "upload de outro projeto do mesmo cliente com o projetoId deste: recusa",
+      (await erroDe(criarPedidoNoBanco({ autor: conta, projetoId: p1.id, uploadId: deOutroProjeto.up.id, comentario: "x" }))) !== null,
+    );
+    const bloqueada = await prancha(p1.disciplinaId, "bloq", { ciclo: true, compartilhar: true });
+    await prisma.controleRevisao.create({
+      data: { revisaoId: bloqueada.rev.id, tipo: "bloqueio", escopos: ["download"], motivo: "smoke", aplicadoPorId: coord.id },
+    });
+    check("prancha com download bloqueado: recusa", (await erroDe(pedir(bloqueada.up.id))) !== null);
+    const dwg = await prisma.upload.create({
+      data: {
+        disciplinaId: p1.disciplinaId,
+        documentoId: a.doc.id,
+        revisaoId: a.rev.id,
+        pacote: "A",
+        nomeArquivo: `${tag}-a.dwg`,
+        caminho: `smoke/${tag}-a.dwg`,
+        tamanho: 10,
+        hashSha256: "0".repeat(64),
+        autorId: coord.id,
+        validado: true,
+      },
+    });
+    check("arquivo que não é PDF: recusa", (await erroDe(pedir(dwg.id))) !== null);
+
+    // ── dois aceites ao mesmo tempo, pedidos diferentes da mesma revisão: uma marca só ──
+    const e = await prancha(p1.disciplinaId, "e", { ciclo: true, compartilhar: true });
+    const pe1 = await pedir(e.up.id);
+    const pe2 = await pedir(e.up.id, colega);
+    const duplo = await Promise.allSettled([
+      aceitarPedidoNoBanco({ id: pe1.id, quem, resposta: null }),
+      aceitarPedidoNoBanco({ id: pe2.id, quem, resposta: null }),
+    ]);
+    const marcasE = await prisma.controleRevisao.count({ where: { revisaoId: e.rev.id, tipo: "em_revisao", removidoEm: null } });
+    check(
+      "dois aceites simultâneos na mesma revisão: os dois aceitos, uma marca Em revisão",
+      duplo.every((r) => r.status === "fulfilled") && marcasE === 1,
+      { duplo: duplo.map((r) => r.status), marcasE },
+    );
+
     // ── leitura do portal ──
     const doCliente = await pedidosDoProjetoNoPortal(p1.id, cliente.id);
     check(
       "portal: lista os pedidos do projeto sem quem respondeu",
-      doCliente.length === 7 && doCliente.every((x) => !("respondidoPor" in x) && !("respondidoPorId" in x)),
+      doCliente.length === 10 && doCliente.every((x) => !("respondidoPor" in x) && !("respondidoPorId" in x)),
       doCliente.length,
     );
     check("portal: outro cliente não vê os pedidos", (await pedidosDoProjetoNoPortal(p1.id, outro.id)).length === 0);
@@ -286,6 +341,19 @@ async function main() {
     );
     const ligadas = await prisma.marcacaoPedidoCliente.findMany({ where: { pedidoId: pm.id }, orderBy: { ordem: "asc" }, select: { pendenciaId: true } });
     check("pendenciaId gravado", JSON.stringify(ligadas.map((l) => l.pendenciaId)) === JSON.stringify(rascunhos.map((r) => r.id)));
+    await Promise.all(
+      [1, 2, 3, 4, 5].map((n) =>
+        prisma.$transaction((tx) =>
+          criarPendenciaNoTx(tx, {
+            upload: { id: c.up.id, documentoId: c.doc.id, disciplinaId: p1.disciplinaId, projetoId: p1.id },
+            autorId: coord.id,
+            dados: { pagina: 1, x: 0.1 * n, y: 0.1, texto: `paralelo ${n}`, marcacao: null, medida: null },
+          }),
+        ),
+      ),
+    );
+    const numeros = (await prisma.pendencia.findMany({ where: { documentoId: c.doc.id }, select: { numero: true } })).map((p) => p.numero);
+    check("apontamentos criados ao mesmo tempo no mesmo documento: números sem repetir", new Set(numeros).size === numeros.length, numeros);
 
     // ── avisos (sem disparar nada: notificador e e-mail falsos) ──
     const sinos: { ids: string[]; titulo: string; href?: string; categoria?: string }[] = [];

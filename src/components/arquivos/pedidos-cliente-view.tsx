@@ -8,11 +8,10 @@ import {
   MOTIVO_REVISAO_SUBSTITUIDA,
   MOTIVO_SEM_VALIDAR,
   itensDoPedido,
-  type StatusPedido,
 } from "@/modules/portal/pedido-revisao/regras";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { cn, formatarDataHora } from "@/lib/utils";
-import { classeDoStatus } from "@/modules/uploads/status-documento";
+import { SeloRevisaoSubstituida, SeloStatusPedido } from "@/components/arquivos/selos-pedido";
 import type { AcaoItem, AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { LinhaComMenu } from "@/components/ui/linha-com-menu";
@@ -32,25 +31,6 @@ export function itensDaLinhaDoPedido(p: PedidoFilaView, podeValidar: boolean): A
   const decisoes = itensDoPedido({ status: p.status, podeAceitar: motivoNaTela(p, podeValidar), podeRecusar: true });
   if (decisoes.length === 0) return [];
   return [{ tipo: "link", id: "abrir", rotulo: "Abrir pedido", href: `/arquivos/pedidos-cliente/${p.id}` }, ...decisoes];
-}
-
-/** Cor de cada situação pelos tokens de status do sistema (`classeDoStatus`). */
-const COR_STATUS: Record<StatusPedido, string> = { aguardando: "aguardando", aceito: "aprovado", recusado: "perigo", cancelado: "neutro" };
-
-export function SeloStatusPedido({ status, rotulo }: { status: StatusPedido; rotulo: string }) {
-  return (
-    <span className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus(COR_STATUS[status]))}>
-      {rotulo}
-    </span>
-  );
-}
-
-export function SeloRevisaoSubstituida() {
-  return (
-    <span className={cn("shrink-0 rounded-sm border px-1.5 py-0.5 text-[10px] font-medium leading-none", classeDoStatus("neutro"))}>
-      Revisão substituída
-    </span>
-  );
 }
 
 function LinhaPedido({
