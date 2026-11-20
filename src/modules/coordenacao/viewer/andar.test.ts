@@ -215,3 +215,39 @@ describe("pisoPelaCotaMaisFrequente", () => {
     expect(pisoPelaCotaMaisFrequente([])).toBe(Number.POSITIVE_INFINITY);
   });
 });
+
+describe("elementosDoPiso + pisoPelaCotaMaisFrequente (piso pelos pilares e paredes)", () => {
+  type El = { localId: number; category: string; base: number };
+  const piso = (els: El[]) => pisoPelaCotaMaisFrequente(elementosDoPiso(els).elementos.map((e) => e.base));
+  let id = 0;
+  const n = (qtd: number, category: string, base: number): El[] =>
+    Array.from({ length: qtd }, () => ({ localId: ++id, category, base }));
+
+  it("108 baldrames a −0,30 + 29 pilares a 0,00 + 1 parede → 0,00 (só os verticais contam)", () => {
+    const els = [...n(108, "IFCBEAM", -0.3), ...n(29, "IfcColumn", 0), ...n(1, "IFCWALLSTANDARDCASE", 0), ...n(58, "IFCFOOTING", -1.8)];
+    const r = elementosDoPiso(els);
+    expect(r.elementos.every((e) => /COLUMN|WALL/i.test(e.category))).toBe(true);
+    expect(piso(els)).toBe(0);
+  });
+
+  it("todas as categorias verticais contam", () => {
+    const els = [...n(1, "IFCWALL", 0), ...n(1, "IFCWALLELEMENTEDCASE", 0), ...n(1, "ifccurtainwall", 0), ...n(5, "IFCBEAM", -0.3)];
+    expect(elementosDoPiso(els).elementos).toHaveLength(3);
+    expect(piso(els)).toBe(0);
+  });
+
+  it("com menos de 3 verticais, vale a regra geral (sem fundações, cota mais frequente)", () => {
+    const els = [...n(10, "IFCBEAM", -0.3), ...n(2, "IFCCOLUMN", 0), ...n(3, "IFCPILE", -5)];
+    const r = elementosDoPiso(els);
+    expect(r.elementos).toHaveLength(12);
+    expect(r.soFundacao).toBe(false);
+    expect(piso(els)).toBe(-0.3);
+  });
+
+  it("pavimento só de fundação continua com todos", () => {
+    const els = [...n(2, "IFCFOOTING", -1.8), ...n(2, "IFCPILE", -6)];
+    const r = elementosDoPiso(els);
+    expect(r.soFundacao).toBe(true);
+    expect(r.elementos).toHaveLength(4);
+  });
+});

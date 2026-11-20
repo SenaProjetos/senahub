@@ -142,17 +142,36 @@ export function pisoPelaCotaMaisFrequente(basesY: readonly number[], passo = 0.0
   return vencedora!.menor;
 }
 
+/** Categorias IFC verticais: a gente pisa onde pilares e paredes começam (baldrames e vigas ficam abaixo ou acima). */
+const CATEGORIAS_VERTICAIS: ReadonlySet<string> = new Set([
+  "IFCCOLUMN",
+  "IFCWALL",
+  "IFCWALLSTANDARDCASE",
+  "IFCWALLELEMENTEDCASE",
+  "IFCCURTAINWALL",
+]);
+/** Com menos verticais que isto, o pavimento usa todos os elementos (sem fundação). */
+const MINIMO_DE_VERTICAIS = 3;
+
+/** A categoria IFC (qualquer caixa) é de pilar ou parede. */
+export function ehVertical(categoria: string | null | undefined): boolean {
+  return !!categoria && CATEGORIAS_VERTICAIS.has(categoria.toUpperCase());
+}
+
 /**
- * A regra ÚNICA do piso de um pavimento (andar e alturas do portal): os elementos que entram no `pisoDoPavimento` do
- * motor. Sem as fundações; se o pavimento só tem fundação (ou nada sobra), ficam todos e `soFundacao` = true. Elemento
- * sem categoria conta como comum.
+ * A regra ÚNICA do piso de um pavimento (andar e alturas do portal): os elementos cujas bases entram no
+ * `pisoDoPavimento` do motor (cota mais frequente). Na ordem:
+ * 1. tira as fundações; se o pavimento só tem fundação (ou está vazio), ficam todos e `soFundacao` = true;
+ * 2. dos que sobram, os verticais (pilares e paredes), se forem 3 ou mais;
+ * 3. senão, todos os que sobraram. Elemento sem categoria conta como comum.
  */
 export function elementosDoPiso<T extends { category?: string | null }>(
   elementos: readonly T[],
 ): { elementos: T[]; soFundacao: boolean } {
   const semFundacao = elementos.filter((e) => !ehFundacao(e.category));
-  if (semFundacao.length > 0) return { elementos: semFundacao, soFundacao: false };
-  return { elementos: [...elementos], soFundacao: elementos.length > 0 };
+  if (semFundacao.length === 0) return { elementos: [...elementos], soFundacao: elementos.length > 0 };
+  const verticais = semFundacao.filter((e) => ehVertical(e.category));
+  return { elementos: verticais.length >= MINIMO_DE_VERTICAIS ? verticais : semFundacao, soFundacao: false };
 }
 
 /**
