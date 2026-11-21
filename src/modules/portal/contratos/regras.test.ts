@@ -6,6 +6,7 @@ import {
   MOTIVO_CONTRATO_EQUIPE,
   MOTIVO_ENCERRADO,
   MOTIVO_JA_ASSINADO,
+  MOTIVO_JA_ASSINADO_NA_VIGENTE,
   MOTIVO_JA_PEDIDO,
   MOTIVO_NAO_AGUARDANDO,
   MOTIVO_NAO_CONTRATUAL,
@@ -82,6 +83,7 @@ const base: EntradaPedir = {
   arquivoNome: "contrato.PDF",
   statusContrato: "rascunho",
   temPedidoAguardandoNaVigente: false,
+  temPedidoAssinadoNaVigente: false,
 };
 
 describe("motivoParaNaoPedir", () => {
@@ -123,6 +125,15 @@ describe("motivoParaNaoPedir", () => {
   });
   it("já há pedido aguardando na vigente", () => {
     expect(motivoParaNaoPedir({ ...base, temPedidoAguardandoNaVigente: true })).toBe(MOTIVO_JA_PEDIDO);
+  });
+  it("o cliente já assinou a vigente pelo portal", () => {
+    expect(motivoParaNaoPedir({ ...base, temPedidoAssinadoNaVigente: true })).toBe(MOTIVO_JA_ASSINADO_NA_VIGENTE);
+  });
+  it("assinado na vigente vem depois de encerrado e antes de 'já há pedido'", () => {
+    expect(motivoParaNaoPedir({ ...base, statusContrato: "vencido", temPedidoAssinadoNaVigente: true })).toBe(MOTIVO_ENCERRADO);
+    expect(
+      motivoParaNaoPedir({ ...base, temPedidoAssinadoNaVigente: true, temPedidoAguardandoNaVigente: true }),
+    ).toBe(MOTIVO_JA_ASSINADO_NA_VIGENTE);
   });
   it("segue a ordem da lista", () => {
     expect(

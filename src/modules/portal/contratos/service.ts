@@ -12,6 +12,8 @@ import { devePassarParaAssinado } from "@/modules/juridico/contrato/estado";
 import type { ContaDoPortal } from "./acesso";
 import {
   MOTIVO_ENCERRADO,
+  MOTIVO_JA_ASSINADO,
+  MOTIVO_JA_ASSINADO_NA_VIGENTE,
   MOTIVO_JA_PEDIDO,
   MOTIVO_MUDOU,
   MOTIVO_NAO_AGUARDANDO,
@@ -88,6 +90,9 @@ export async function pedirAssinaturaNoPortal(
   const aguardandoNaVigente = await prisma.pedidoAssinaturaPortal.count({
     where: { documentoId: doc.id, status: "aguardando", versaoId: vigente.id },
   });
+  const assinadoNaVigente = await prisma.pedidoAssinaturaPortal.count({
+    where: { documentoId: doc.id, status: "assinado", versaoId: vigente.id },
+  });
 
   const motivo = motivoParaNaoPedir({
     tipo: doc.tipo,
@@ -101,6 +106,7 @@ export async function pedirAssinaturaNoPortal(
     arquivoNome: versao.arquivoNome,
     statusContrato: doc.statusContrato,
     temPedidoAguardandoNaVigente: aguardandoNaVigente > 0,
+    temPedidoAssinadoNaVigente: assinadoNaVigente > 0,
   });
   if (motivo) throw new ActionError(motivo);
   // A alçada é de QUEM PEDE, e só quando a assinatura vai mudar o status (como no Jurídico): o cliente nunca
@@ -123,6 +129,11 @@ export async function pedirAssinaturaNoPortal(
       if (vig?.id !== p.versaoId) throw new ActionError(MOTIVO_VERSAO_NAO_VIGENTE);
       const atual = await tx.documentoJuridico.findUnique({ where: { id: doc.id }, select: { statusContrato: true } });
       if (atual?.statusContrato === "vencido" || atual?.statusContrato === "rescindido") throw new ActionError(MOTIVO_ENCERRADO);
+      const assinado = await tx.pedidoAssinaturaPortal.findFirst({
+        where: { documentoId: doc.id, status: "assinado", versaoId: p.versaoId },
+        select: { id: true },
+      });
+      if (assinado) throw new ActionError(MOTIVO_JA_ASSINADO_NA_VIGENTE);
       const ja = await tx.pedidoAssinaturaPortal.findFirst({
         where: { documentoId: doc.id, status: "aguardando", versaoId: p.versaoId },
         select: { id: true },
@@ -262,18 +273,18 @@ export async function assinarPedidoNoPortal(
         userAgent: p.userAgent,
       });
 
-      // A mesma conta já tinha assinado esta versão (pelo Jurídico): fecha o pedido com o aceite existente — a não ser
-      // que outro pedido já o carregue (`aceiteId` é único), e aí o pedido fecha sem apontar para ele.
-      let aceiteId: string | null = r.aceiteId;
+      // A mesma conta já tinha assinado esta versão (pelo Jurídico): fecha o pedido com o aceite existente. Se outro
+      // pedido já carrega esse aceite (`aceiteId` é único), recusa — o pedido nunca fecha assinado sem o seu aceite.
+      // Defensivo: pedir de novo numa versão já assinada pelo portal é recusado (`MOTIVO_JA_ASSINADO_NA_VIGENTE`).
       if (r.jaAssinado) {
         const outro = await tx.pedidoAssinaturaPortal.findFirst({ where: { aceiteId: r.aceiteId }, select: { id: true } });
-        if (outro) aceiteId = null;
+        if (outro) throw new ActionError(MOTIVO_JA_ASSINADO);
       }
       const { count } = await tx.pedidoAssinaturaPortal.updateMany({
         where: { id: pedido.id, status: "aguardando" },
         data: {
           status: "assinado",
-          aceiteId,
+          aceiteId: r.aceiteId,
           assinadoPorId: p.conta.userId,
           assinadoPorNome: p.conta.nome,
           assinadoEm: new Date(),

@@ -38,6 +38,7 @@ import {
   MOTIVO_CANCELADO,
   MOTIVO_CLIENTE_INATIVO,
   MOTIVO_JA_ASSINADO,
+  MOTIVO_JA_ASSINADO_NA_VIGENTE,
   MOTIVO_JA_PEDIDO,
   MOTIVO_MUDOU,
   MOTIVO_NAO_AGUARDANDO,
@@ -481,6 +482,20 @@ async function main() {
         sinos.length === 1 &&
         sinos[0].userId === socio.id &&
         sinos[0].href === "/juridico",
+    );
+
+    // [pedido] pedir de novo na versão que o cliente já assinou pelo portal: recusa, nada criado
+    limparAvisos();
+    const pedidosAntes = await prisma.pedidoAssinaturaPortal.count({ where: { documentoId: docVersao.id } });
+    const pedirDeNovo = await motivoDe(() => pedir(docVersao.id, v2.id));
+    const equipeAssinado = (await portalDosDocumentos([docVersao.id]))[docVersao.id];
+    check(
+      "[pedido] pedir de novo na versão já assinada pelo portal: recusa, nenhum pedido, nenhum aviso; o Jurídico mostra o mesmo motivo",
+      pedirDeNovo === MOTIVO_JA_ASSINADO_NA_VIGENTE &&
+        (await prisma.pedidoAssinaturaPortal.count({ where: { documentoId: docVersao.id } })) === pedidosAntes &&
+        sinos.length === 0 &&
+        emails.length === 0 &&
+        equipeAssinado?.motivoParaNaoPedir === MOTIVO_JA_ASSINADO_NA_VIGENTE,
     );
 
     // [portal] assinado fica, mesmo com versão nova

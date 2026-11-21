@@ -114,6 +114,7 @@ export async function portalDosDocumentos(documentoIds: string[]): Promise<Recor
           arquivoNome: vigente.arquivoNome,
           statusContrato: d.statusContrato,
           temPedidoAguardandoNaVigente: dele.some((p) => p.status === "aguardando" && p.versaoId === vigente.id),
+          temPedidoAssinadoNaVigente: dele.some((p) => p.status === "assinado" && p.versaoId === vigente.id),
         })
       : MOTIVO_SEM_VERSAO;
     resultado[d.id] = { motivoParaNaoPedir: motivo, contasAtivas, pedidosPorVersao };

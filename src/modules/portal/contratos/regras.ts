@@ -17,6 +17,7 @@ export const MOTIVO_SEM_CONTA = "O cliente não tem conta ativa no portal.";
 export const MOTIVO_VERSAO_NAO_VIGENTE = "Só a versão mais recente pode ir para assinatura.";
 export const MOTIVO_NAO_PDF = "Só arquivo PDF pode ser assinado pelo portal.";
 export const MOTIVO_ENCERRADO = "Contrato vencido ou rescindido não vai para assinatura.";
+export const MOTIVO_JA_ASSINADO_NA_VIGENTE = "O cliente já assinou esta versão pelo portal.";
 export const MOTIVO_JA_PEDIDO = "Já há um pedido de assinatura aguardando neste documento.";
 export const MOTIVO_JA_ASSINADO = "Este contrato já foi assinado.";
 export const MOTIVO_CANCELADO = "A equipe cancelou este pedido de assinatura.";
@@ -78,6 +79,8 @@ export type EntradaPedir = {
   statusContrato: StatusContratual | null;
   /** Pedido "aguardando" cuja versão É a vigente (o de versão substituída não conta: o serviço o cancela ao pedir de novo). */
   temPedidoAguardandoNaVigente: boolean;
+  /** Pedido "assinado" na versão vigente: o cliente já assinou esta versão pelo portal — pedir de novo é recusado. */
+  temPedidoAssinadoNaVigente: boolean;
 };
 
 /** Primeira razão que impede de pedir a assinatura, ou null. A ordem é a da lista de motivos. */
@@ -91,6 +94,7 @@ export function motivoParaNaoPedir(e: EntradaPedir): string | null {
   if (e.versaoNumero !== e.versaoVigenteNumero) return MOTIVO_VERSAO_NAO_VIGENTE;
   if (!e.arquivoNome.toLowerCase().endsWith(".pdf")) return MOTIVO_NAO_PDF;
   if (e.statusContrato === "vencido" || e.statusContrato === "rescindido") return MOTIVO_ENCERRADO;
+  if (e.temPedidoAssinadoNaVigente) return MOTIVO_JA_ASSINADO_NA_VIGENTE;
   if (e.temPedidoAguardandoNaVigente) return MOTIVO_JA_PEDIDO;
   return null;
 }
