@@ -207,12 +207,12 @@ export async function assinarPedidoNoPortal(
   const naoEncontrado = () => new ActionError(MOTIVO_NAO_ENCONTRADO);
   const pedido = await prisma.pedidoAssinaturaPortal.findUnique({
     where: { id: p.pedidoId },
-    select: { id: true, documentoId: true, versaoId: true, pedidoPorId: true },
+    select: { id: true, documentoId: true, versaoId: true, pedidoPorId: true, status: true },
   });
   if (!pedido) throw naoEncontrado();
   const doc = await prisma.documentoJuridico.findUnique({
     where: { id: pedido.documentoId },
-    select: { titulo: true, clienteId: true, cliente: { select: { ativo: true } } },
+    select: { titulo: true, clienteId: true, statusContrato: true, cliente: { select: { ativo: true } } },
   });
   // A conta é conferida no banco, não só pelo que a action passou: externa, ativa, do cliente do documento, e o
   // cliente ativo. Qualquer recusa é a mesma frase — nunca diz se o pedido existe.
@@ -233,6 +233,30 @@ export async function assinarPedidoNoPortal(
     throw naoEncontrado();
   }
 
+  // Pré-checagem barata da situação ANTES de ler o arquivo: pedido cancelado, de versão substituída ou de contrato
+  // encerrado recebe o motivo de verdade (o arquivo pode nem existir mais). A decisão final é a da transação.
+  const versaoDoPedido = await prisma.docJuridicoVersao.findUnique({
+    where: { id: pedido.versaoId },
+    select: { numero: true },
+  });
+  const vigenteAgora = await prisma.docJuridicoVersao.findFirst({
+    where: { documentoId: pedido.documentoId },
+    orderBy: { numero: "desc" },
+    select: { numero: true },
+  });
+  if (!versaoDoPedido || !vigenteAgora) throw naoEncontrado();
+  const motivoAntes = motivoParaNaoAssinar(
+    situacaoDoPedido(
+      { status: pedido.status, versaoNumero: versaoDoPedido.numero },
+      { versaoVigenteNumero: vigenteAgora.numero, statusContrato: doc.statusContrato },
+    ),
+  );
+  if (motivoAntes) throw new ActionError(motivoAntes);
+
+  // Alçada: conferida só ao PEDIR (`pedirAssinaturaNoPortal`, de quem pede), não aqui. Vale porque o valor de um
+  // contrato de cliente só é escrito na criação (`criarDocJuridico`) e uma versão nova — inclusive a gerada pelo
+  // Estúdio — substitui o pedido. Se um dia o valor puder ser editado com o pedido aguardando, esta assinatura
+  // precisa reler valor/tipo/status sob a trava do documento e recusar acima do limite sem sócio no pedido.
   const hashArquivo = await hashDaVersao(pedido.versaoId);
 
   const { r, versaoNumero } = await comRetentativaDeConflito(() =>

@@ -84,6 +84,7 @@ export const assinarContratoNoPortal = defineAction(
     entidade: "PedidoAssinaturaPortal",
     schema: assinarContratoNoPortalSchema,
     entidadeId: (_data, input) => input.pedidoId,
+    capturarAntes: async (input) => prisma.pedidoAssinaturaPortal.findUnique({ where: { id: input.pedidoId } }),
   },
   async (input, ctx) => {
     if (ctx.user.tipo !== "externo") throw new ActionError(MOTIVO_NAO_ENCONTRADO);

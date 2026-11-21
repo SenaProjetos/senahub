@@ -19,6 +19,7 @@
  * Uso: npm run smoke:portal-assinatura
  */
 import "dotenv/config";
+import { createHash } from "node:crypto";
 import { prisma } from "../src/lib/prisma";
 import type { Prisma } from "../src/generated/prisma/client";
 import { rm } from "node:fs/promises";
@@ -58,6 +59,8 @@ const PDF_MINIMO = Buffer.from(
   "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
     "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n",
 );
+/** SHA-256 do arquivo gravado: a prova de integridade que o aceite precisa carregar. */
+const HASH_PDF_MINIMO = createHash("sha256").update(PDF_MINIMO).digest("hex");
 
 async function main() {
   const tag = `SMKASSINATURA_${Date.now()}`;
@@ -161,6 +164,11 @@ async function main() {
         docDepois.assinadoEm != null &&
         parcelas === 2,
     );
+    const hashesMiolo = await prisma.aceiteDocumento.findMany({ where: { versaoId: versao.id }, select: { hashArquivo: true } });
+    check(
+      "[miolo] aceite guarda o SHA-256 do arquivo gravado",
+      hash === HASH_PDF_MINIMO && hashesMiolo.length === 2 && hashesMiolo.every((a) => a.hashArquivo === HASH_PDF_MINIMO),
+    );
     check(
       "[miolo] trilha encadeada: dois eventos 'assinado' em sequência 1 e 2",
       eventos.length === 2 && eventos.every((e) => e.tipo === "assinado") && eventos[0].sequencia === 1 && eventos[1].sequencia === 2,
@@ -219,14 +227,16 @@ async function main() {
       return c;
     };
     const tipoTermo = tipoTermoPorTipo("externo");
-    const novaConta = async (clienteId: string, sufixo: string, ativo = true) => {
+    const novaConta = async (clienteId: string, sufixo: string, ativo = true, aceitouTermo = true) => {
       const u = await prisma.user.create({
         data: { name: `Mariana ${sufixo} Souza`, email: `${tag.toLowerCase()}_${sufixo}@smoke.local`, tipo: "externo", clienteId, ativo },
       });
       usuarios.push(u.id);
-      await prisma.aceiteTermo.create({
-        data: { userId: u.id, tipo: tipoTermo, versao: TERMOS[tipoTermo].versao, conteudoHash: `${tag}_hash` },
-      });
+      if (aceitouTermo) {
+        await prisma.aceiteTermo.create({
+          data: { userId: u.id, tipo: tipoTermo, versao: TERMOS[tipoTermo].versao, conteudoHash: `${tag}_hash` },
+        });
+      }
       return u;
     };
     const novoDocumento = async (e: {
@@ -236,6 +246,7 @@ async function main() {
       sufixo: string;
       valor?: number;
       porData?: boolean;
+      dataVencimento?: Date;
     }) => {
       const d = await prisma.documentoJuridico.create({
         data: {
@@ -248,6 +259,7 @@ async function main() {
           parcelas: e.porData ? 2 : null,
           primeiroVencimento: e.porData ? primeiroVencimento : null,
           formaCobranca: "por_data",
+          dataVencimento: e.dataVencimento ?? null,
         },
       });
       documentos.push(d.id);
@@ -423,9 +435,33 @@ async function main() {
       "[portal] acesso: conta ativa do cliente passa; conta inativa não",
       acessoA1.ok && acessoA1.conta.userId === contaA1.id && acessoA1.conta.clienteId === cliA.id && !acessoA3.ok,
     );
+    const acessoSenha = await contaDoPortalParaCliente({ ...sessao(contaA1), mustChangePassword: true }, cliA.id);
+    // Conta sem o termo aceito: só para esta checagem — desativada logo depois, para não contar nos avisos adiante.
+    const contaA4SemTermo = await novaConta(cliA.id, "a4", true, false);
+    const acessoTermo = await contaDoPortalParaCliente(sessao(contaA4SemTermo), cliA.id);
+    await prisma.user.update({ where: { id: contaA4SemTermo.id }, data: { ativo: false } });
+    const acessoInterno = await contaDoPortalParaCliente({ id: userA.id, tipo: "interno", mustChangePassword: false }, cliA.id);
+    check(
+      "[portal] acesso: senha a trocar 403, termo pendente 403, conta interna recusada",
+      !acessoSenha.ok &&
+        acessoSenha.status === 403 &&
+        !acessoTermo.ok &&
+        acessoTermo.status === 403 &&
+        !acessoInterno.ok,
+    );
 
     // [portal] versão nova
-    const docVersao = await novoDocumento({ clienteId: cliA.id, projetoId: projA.id, sufixo: "versao", valor: 1000, porData: true });
+    // H3: o projeto A ainda não tem prazo; o vencimento deste contrato vira o prazo dele na assinatura.
+    const vencimentoContrato = new Date(primeiroVencimento);
+    vencimentoContrato.setUTCDate(vencimentoContrato.getUTCDate() + 365);
+    const docVersao = await novoDocumento({
+      clienteId: cliA.id,
+      projetoId: projA.id,
+      sufixo: "versao",
+      valor: 1000,
+      porData: true,
+      dataVencimento: vencimentoContrato,
+    });
     const v1 = await novaVersao(docVersao.id, 1);
     const p1 = await pedir(docVersao.id, v1.id);
     const v2 = await novaVersao(docVersao.id, 2);
@@ -466,6 +502,10 @@ async function main() {
       select: { autorId: true },
     });
     const p2Depois = await prisma.pedidoAssinaturaPortal.findUniqueOrThrow({ where: { id: p2.pedidoId } });
+    const projADepois = await prisma.projeto.findUniqueOrThrow({
+      where: { id: projA.id },
+      select: { prazoContrato: true, prazoPlanejado: true },
+    });
     const recusada = duas.find((d) => d.status === "rejected");
     check(
       "[portal] duas contas ao mesmo tempo: um aceite, assinado, parcelas uma vez (autor = quem pediu), pedido assinado, sino para quem pediu",
@@ -486,6 +526,15 @@ async function main() {
         sinos.length === 1 &&
         sinos[0].userId === socio.id &&
         sinos[0].href === "/juridico",
+    );
+    check(
+      "[portal] aceite pelo portal guarda o SHA-256 do arquivo gravado",
+      aceitesV2.length === 1 && aceitesV2[0].hashArquivo === HASH_PDF_MINIMO,
+    );
+    check(
+      "[portal] H3: projeto sem prazo recebe o vencimento do contrato como prazo de contrato e planejado",
+      projADepois.prazoContrato?.getTime() === vencimentoContrato.getTime() &&
+        projADepois.prazoPlanejado?.getTime() === vencimentoContrato.getTime(),
     );
 
     // [pedido] pedir de novo na versão que o cliente já assinou pelo portal: recusa, nada criado
@@ -538,6 +587,17 @@ async function main() {
     const lancsEquipe = await prisma.lancamento.count({ where: { contratoId: docEquipe.id, status: { not: "previsao" } } });
     const pEquipeDepois = await prisma.pedidoAssinaturaPortal.findUniqueOrThrow({ where: { id: pEquipe.pedidoId } });
     const docEquipeDepois = await prisma.documentoJuridico.findUniqueOrThrow({ where: { id: docEquipe.id } });
+    const autoresEquipe = await prisma.lancamento.findMany({
+      where: { contratoId: docEquipe.id, status: { not: "previsao" } },
+      select: { autorId: true },
+    });
+    // Quem entrou primeiro na trava do documento fez a transição: o evento 'assinado' de sequência 1 é dele.
+    const primeiroAssinado = await prisma.eventoAssinatura.findFirst({
+      where: { versaoId: vEquipe.id, tipo: "assinado" },
+      orderBy: { sequencia: "asc" },
+      select: { ator: true },
+    });
+    const transicaoDoPortal = primeiroAssinado?.ator === contaA1.id;
     check(
       "[portal] equipe × cliente ao mesmo tempo: 2 aceites, assinado, parcelas uma vez, pedido assinado",
       !rEquipe.jaAssinado &&
@@ -545,6 +605,12 @@ async function main() {
         docEquipeDepois.statusContrato === "assinado" &&
         lancsEquipe === 2 &&
         pEquipeDepois.status === "assinado",
+    );
+    check(
+      "[portal] equipe × cliente: uma transição só (equipe ou portal, nunca os dois); recebíveis com autor = quem pediu, nunca a conta externa",
+      rEquipe.transicao !== transicaoDoPortal &&
+        autoresEquipe.length === 2 &&
+        autoresEquipe.every((l) => l.autorId === pEquipeDepois.pedidoPorId && l.autorId !== contaA1.id),
     );
 
     // [portal] cancelar
@@ -563,6 +629,24 @@ async function main() {
         pCanceladoDepois.canceladoPorId === socio.id &&
         cancelarDeNovo === MOTIVO_NAO_AGUARDANDO &&
         assinarCancelado === MOTIVO_CANCELADO,
+    );
+
+    // [portal] pedido cancelado cujo arquivo sumiu: o motivo é o cancelamento, não o arquivo
+    const docSemArquivo = await novoDocumento({ clienteId: cliA.id, projetoId: projA.id, sufixo: "semarquivo" });
+    const caminhoSemArquivo = `juridico/smoke_${tag}/sem-arquivo.pdf`;
+    await salvarArquivo(caminhoSemArquivo, PDF_MINIMO);
+    // Fora de `arquivos`: é apagado aqui; se o smoke cair antes, a pasta do smoke leva junto.
+    const vSemArquivo = await prisma.docJuridicoVersao.create({
+      data: { documentoId: docSemArquivo.id, numero: 1, arquivoPath: caminhoSemArquivo, arquivoNome: "v1.pdf", autorId: userA.id },
+    });
+    const pSemArquivo = await pedir(docSemArquivo.id, vSemArquivo.id);
+    await cancelarPedidoAssinatura({ pedidoId: pSemArquivo.pedidoId, porId: socio.id });
+    await removerArquivo(caminhoSemArquivo);
+    const assinarSemArquivo = await motivoDe(() => assinarPortal(pSemArquivo.pedidoId, contaDoPortal(contaA1, cliA.id)));
+    check(
+      "[portal] pedido cancelado com o arquivo apagado: assinar responde o cancelamento, sem aceite",
+      assinarSemArquivo === MOTIVO_CANCELADO &&
+        (await prisma.aceiteDocumento.count({ where: { versaoId: vSemArquivo.id } })) === 0,
     );
 
     // [rota] arquivo do contrato no portal: a decisão da rota GET /api/portal/contratos/[pedidoId]/arquivo

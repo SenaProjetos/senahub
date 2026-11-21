@@ -69,6 +69,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ pedidoId: strin
       "Content-Type": "application/pdf",
       "Content-Disposition": `${disposition}; filename="${encodeURIComponent(versao.arquivoNome)}"`,
       "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }
