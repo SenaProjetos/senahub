@@ -34,6 +34,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { AssinarComCertificadoIcp } from "@/components/juridico/assinar-com-certificado-icp";
+import { PedidoAssinaturaPortal } from "@/components/juridico/pedido-assinatura-portal";
+import type { PortalDoDocumento } from "@/modules/portal/contratos/equipe-queries";
 import {
   Select,
   SelectContent,
@@ -147,6 +149,8 @@ type Doc = {
   versoes: VersaoDoc[];
   /** F7.3: forma de cobrança e o plano por entrega (contrato de cliente). */
   cobranca: CobrancaContrato;
+  /** Pedido de assinatura pelo portal — só contrato/aditivo de cliente. */
+  portal?: PortalDoDocumento;
 };
 type Pasta = { id: string; nome: string; total: number };
 /** Modelo do ESTÚDIO (`DocumentoModelo`, tipo=contrato) — fonte única desde a Fase E2. O pipeline
@@ -811,6 +815,16 @@ function DocsTab({
                         {podeGerir && <EnviarParaAssinatura versaoId={v.id} rotulo={`v${v.numero}`} />}
                         {podeGerir && <AssinarComCertificadoIcp />}
                       </div>
+                      {d.portal && (
+                        <PedidoAssinaturaPortal
+                          documentoId={d.id}
+                          versaoId={v.id}
+                          numero={v.numero}
+                          vigente={i === 0}
+                          portal={d.portal}
+                          podeGerir={podeGerir}
+                        />
+                      )}
                       {v.aceites.length > 0 && (
                         <ul className="ml-4 space-y-0.5 border-l pl-2 text-[11px] text-muted-foreground">
                           {v.aceites.map((a) => (

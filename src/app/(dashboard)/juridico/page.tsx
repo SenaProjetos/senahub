@@ -4,6 +4,7 @@ import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { listarClientes } from "@/modules/clientes/queries";
 import { verificarCadeia } from "@/modules/juridico/assinatura/cadeia";
+import { portalDosDocumentos } from "@/modules/portal/contratos/equipe-queries";
 import { JuridicoView } from "@/components/juridico/juridico-view";
 
 export const metadata: Metadata = { title: "Jurídico" };
@@ -122,6 +123,12 @@ export default async function JuridicoPage() {
     (ativosPorUsuario[m.responsavelId!] ??= []).push({ id: m.id, nome: m.nome, tipo: "Máquina (TI)" });
   }
 
+  // Assinatura pelo portal: só contrato/aditivo de cliente (equipe e outros tipos não recebem `portal`).
+  const idsDoPortal = docs
+    .filter((d) => !d.vinculoId && d.clienteId && (d.tipo === "contrato" || d.tipo === "aditivo"))
+    .map((d) => d.id);
+  const portalPorDocumento = await portalDosDocumentos(idsDoPortal);
+
   return (
     <JuridicoView
       podeGerir={podeGerir}
@@ -144,6 +151,7 @@ export default async function JuridicoPage() {
               dataFim: d.vinculo.dataFim ? d.vinculo.dataFim.toISOString() : null,
             }
           : null,
+        portal: portalPorDocumento[d.id],
         contratoOrigemId: d.contratoOrigemId,
         aditivo: d.aditivoEquipe
           ? {
