@@ -482,6 +482,14 @@ cadastro**, e as respostas caem direto nesta aba (salvam sozinhas, campo a campo
   aviso quando o briefing fica completo). Para não receber, desligue **Formulário
   preenchido pelo cliente** em *Preferências → Notificações*.
 
+### Pedir o formulário pelo portal do cliente (aba Inputs)
+
+Se o cliente tem conta no portal, use o cartão **Portal do cliente**, logo abaixo do link:
+
+- **Pedir ao cliente pelo portal** manda um aviso (sino e e-mail) às contas ativas do cliente, com o formulário na página do projeto no portal. O e-mail é editável em Configurações → E-mails. O botão fica desligado, com o motivo escrito, se o projeto não tem cliente, o cliente está inativo, não há conta ativa ou não há nada a preencher.
+- **Encerrar** fecha o preenchimento: nem o portal nem o link gravam mais, e a equipe continua editando. **Reabrir** (o mesmo botão depois de encerrar) libera de novo e avisa o cliente.
+- O **link público** continua valendo como segundo caminho, mas deixa de gravar enquanto o pedido estiver encerrado.
+
 ### Ajustar o formulário ao projeto (aba Inputs)
 
 **Modelo do formulário** — quando há mais de um modelo cadastrado (Configurações → **Modelos de

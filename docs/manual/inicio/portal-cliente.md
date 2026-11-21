@@ -160,6 +160,14 @@ passam a mostrar **Em revisão** e a equipe trabalha nos pontos marcados; **Recu
 Se um modelo marcado ganhar revisão nova antes da resposta, o pedido mostra **Modelo substituído**; se sair das
 Entregas, **Modelo retirado**. Cancelar, limite de pedidos e anexos seguem as regras da prancha.
 
+## Briefing do projeto
+
+Quando a equipe pede, o projeto mostra o cartão **Briefing do projeto** na página dele no portal (e o cliente recebe um aviso no sino e por e-mail). É o mesmo formulário do link público: as perguntas que a equipe ocultou não aparecem.
+
+- **Preencher** abre o formulário. Ele salva sozinho, campo a campo, e mostra quantas perguntas obrigatórias já foram respondidas. A equipe é avisada quando o cliente mexe (no máximo um aviso a cada 6 horas) e de novo quando o briefing fica completo.
+- Quando a equipe **encerra** o preenchimento, o cartão passa a **Ver respostas**: o cliente só lê. Se a equipe reabrir, ele volta a preencher e recebe um novo aviso.
+- Sem pedido da equipe o cartão não aparece e o portal não grava nada. O cliente que prefere não usar o portal continua com o link público.
+
 ## Resumo por e-mail
 
 Nos dias em que um projeto anda, o cliente recebe **às 7h do dia seguinte** um e-mail (um por projeto) com o que

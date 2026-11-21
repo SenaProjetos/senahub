@@ -20,6 +20,12 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Briefing do projeto agora pode ser preenchido no portal do cliente (novembro/2026)
+
+- Na aba **Inputs** do projeto, o cartão **Portal do cliente** pede o formulário ao cliente: ele recebe um aviso no sino e por e-mail e preenche na página do projeto no portal, sem precisar do link.
+- A equipe vê o aviso de preenchimento e quando o briefing fica completo. **Encerrar** fecha o preenchimento (portal e link param de gravar) e **Reabrir** libera de novo.
+- O link público continua funcionando para quem não usa o portal.
+
 ## Pranchas na orientação certa e linhas traço-ponto completas no visualizador de PDF (novembro/2026)
 
 - Prancha que o arquivo PDF manda abrir **deitada** agora abre deitada no visualizador, como no leitor de PDF do
