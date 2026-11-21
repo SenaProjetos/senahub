@@ -3,13 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { notificarMuitos } from "@/lib/notificar";
 import { whereAudiencia } from "@/lib/audiencias";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { textoPreenchimento } from "@/modules/inputs/portal-pedido";
 
 /**
- * Aviso à equipe de que o cliente mexeu no formulário público (briefing ou perguntas
- * extras). O formulário salva sozinho a cada campo — sem trava, uma sessão de
+ * Aviso à equipe de que o cliente mexeu no formulário (briefing ou perguntas extras), pelo
+ * link público ou pelo portal. O formulário salva sozinho a cada campo — sem trava, uma sessão de
  * preenchimento viraria dezenas de notificações.
  *
- * Trava: `LinkPublicoInput.notificadoEm`. Só notifica se a última notificação for
+ * Trava: `BriefingProjeto.avisoEquipeEm` (uma por projeto, vale para os dois canais). Só notifica se a última notificação for
  * mais velha que `JANELA_MS`, e a checagem é o próprio `updateMany` condicional —
  * com dois autosaves concorrentes, apenas um `count` volta 1 e notifica.
  *
@@ -25,11 +26,13 @@ type Motivo = "parcial" | "completo";
 async function reservar(projetoId: string, forcar: boolean): Promise<boolean> {
   const agora = new Date();
   const corte = new Date(agora.getTime() - JANELA_MS);
-  const { count } = await prisma.linkPublicoInput.updateMany({
+  // A linha do briefing pode não existir (só perguntas extras respondidas): garante antes do updateMany.
+  await prisma.briefingProjeto.createMany({ data: [{ projetoId }], skipDuplicates: true });
+  const { count } = await prisma.briefingProjeto.updateMany({
     where: forcar
       ? { projetoId }
-      : { projetoId, OR: [{ notificadoEm: null }, { notificadoEm: { lt: corte } }] },
-    data: { notificadoEm: agora },
+      : { projetoId, OR: [{ avisoEquipeEm: null }, { avisoEquipeEm: { lt: corte } }] },
+    data: { avisoEquipeEm: agora },
   });
   return count > 0;
 }
@@ -38,10 +41,13 @@ async function reservar(projetoId: string, forcar: boolean): Promise<boolean> {
  * Notifica a gestão operacional. Nunca lança: o preenchimento do cliente não pode
  * falhar porque o aviso interno falhou.
  */
-export async function notificarPreenchimentoInput(projetoId: string, motivo: Motivo): Promise<void> {
+export async function notificarPreenchimentoInput(
+  projetoId: string,
+  motivo: Motivo,
+  canal: "link" | "portal" = "link",
+): Promise<void> {
   try {
-    const concluido = motivo === "completo";
-    if (!(await reservar(projetoId, concluido))) return;
+    if (!(await reservar(projetoId, motivo === "completo"))) return;
 
     const projeto = await prisma.projeto.findUnique({
       where: { id: projetoId },
@@ -53,15 +59,18 @@ export async function notificarPreenchimentoInput(projetoId: string, motivo: Mot
       where: whereAudiencia("gestao_operacional"),
       select: { id: true },
     });
-    const codigo = formatarCodigo(projeto.codigo);
+    const { titulo, corpo } = textoPreenchimento({
+      motivo,
+      canal,
+      projetoNome: projeto.nome,
+      codigo: formatarCodigo(projeto.codigo),
+    });
 
     await notificarMuitos(
       destinatarios.map((d) => d.id),
       {
-        titulo: concluido ? "Formulário do cliente concluído" : "Cliente preencheu o formulário",
-        corpo: concluido
-          ? `${projeto.nome} (${codigo}) — briefing completo pelo link público.`
-          : `${projeto.nome} (${codigo}) — novas respostas pelo link público.`,
+        titulo,
+        corpo,
         href: `/projetos/${projetoId}/inputs`,
         tag: `input-cliente-${projetoId}`,
       },

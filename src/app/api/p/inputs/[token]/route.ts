@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
 import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
+import { gravarRespostasExtras } from "@/modules/inputs/extras-service";
 import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
 import { LIMITE_TEXTO_RESPOSTA } from "@/modules/inputs/briefing-schema";
 
@@ -67,23 +68,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
   const parsed = putSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 
-  // Só permite gravar respostas de inputs ATIVOS deste projeto (removida não recebe resposta).
-  const ids = new Set(
-    (await prisma.inputProjeto.findMany({ where: { projetoId: projeto.id, removidoEm: null }, select: { id: true } })).map(
-      (i) => i.id,
-    ),
-  );
-  const validas = parsed.data.respostas.filter((r) => ids.has(r.id));
-
-  await prisma.$transaction(
-    validas.map((r) =>
-      prisma.inputProjeto.updateMany({
-        where: { id: r.id, projetoId: projeto.id, removidoEm: null },
-        data: { resposta: r.resposta || null },
-      }),
-    ),
-  );
+  // Só grava em input ATIVO deste projeto (o serviço escopa por projeto e removida) e obedece à regra do canal
+  // (pedido encerrado pela equipe → recusa), tudo na mesma transação.
+  const r = await gravarRespostasExtras(projeto.id, parsed.data.respostas, "link");
+  if (!r.ok) return NextResponse.json({ error: r.erro }, { status: 409 });
   // Avisa a equipe (janela de 6 h — o formulário salva sozinho a cada campo).
-  if (validas.length > 0) await notificarPreenchimentoInput(projeto.id, "parcial");
-  return NextResponse.json({ ok: true, salvos: validas.length });
+  if (r.salvas > 0) await notificarPreenchimentoInput(projeto.id, "parcial", "link");
+  return NextResponse.json({ ok: true, salvos: r.salvas });
 }

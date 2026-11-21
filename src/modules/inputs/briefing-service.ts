@@ -11,26 +11,53 @@ import {
 } from "@/modules/inputs/briefing-schema";
 import { aplicarFormatosDoBriefing } from "@/modules/inputs/briefing-formato";
 import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
+import {
+  motivoParaNaoGravar,
+  situacaoPortal,
+  type CanalBriefing,
+  type SituacaoPortalBriefing,
+} from "@/modules/inputs/portal-pedido";
 
 type Resultado =
   | { ok: true; status: StatusBriefing; statusAnterior: StatusBriefing | null; descartados: string[] }
-  | { ok: false; erro: string; campos: Record<string, string> };
+  // `recusaDoCanal`: a gravação foi barrada pela regra do canal (pedido do portal), não por formato de campo.
+  | { ok: false; erro: string; campos: Record<string, string>; recusaDoCanal?: true };
+
+/**
+ * Garante a linha do briefing do projeto, a trava (`FOR UPDATE`) e devolve a situação do pedido pelo portal.
+ * Toda gravação que obedece à regra do canal lê a situação AQUI, dentro da transação que grava: encerrar
+ * e gravar ao mesmo tempo não deixam uma resposta passar depois do encerramento.
+ */
+export async function travarBriefingNoTx(
+  tx: Prisma.TransactionClient,
+  projetoId: string,
+): Promise<{ situacao: SituacaoPortalBriefing }> {
+  await tx.briefingProjeto.createMany({ data: [{ projetoId }], skipDuplicates: true });
+  await tx.$queryRaw`SELECT 1 FROM "briefing_projeto" WHERE "projetoId" = ${projetoId} FOR UPDATE`;
+  const portal = await tx.briefingProjeto.findUniqueOrThrow({
+    where: { projetoId },
+    select: { portalPedidoEm: true, portalEncerradoEm: true },
+  });
+  return { situacao: situacaoPortal(portal) };
+}
 
 /**
  * Grava as respostas do briefing (no formulário do MODELO do projeto) — o caminho único da equipe (`salvarBriefing`) e do link
  * público. Só os campos VISÍVEIS no projeto mudam (o oculto é guardado, nunca sobrescrito nem
  * apagado pelo envio); e-mail/telefone mudado passa pela validação de formato; o status é
  * calculado sobre o que continua visível. Trava a linha: ocultar e salvar ao mesmo tempo não
- * deixam um status defasado.
+ * deixam um status defasado. `canal` aplica a regra do pedido pelo portal (`motivoParaNaoGravar`).
  */
 export async function gravarRespostasBriefing(
   projetoId: string,
   enviadas: Record<string, unknown>,
   preenchidoPor: string,
+  canal: CanalBriefing = "equipe",
 ): Promise<Resultado> {
   return prisma.$transaction(async (tx) => {
-    await tx.briefingProjeto.createMany({ data: [{ projetoId }], skipDuplicates: true });
-    await tx.$queryRaw`SELECT 1 FROM "briefing_projeto" WHERE "projetoId" = ${projetoId} FOR UPDATE`;
+    const { situacao } = await travarBriefingNoTx(tx, projetoId);
+    const motivo = motivoParaNaoGravar(situacao, canal);
+    if (motivo) return { ok: false, erro: motivo, campos: {}, recusaDoCanal: true };
     const gravado = await tx.briefingProjeto.findUniqueOrThrow({
       where: { projetoId },
       select: { respostasJson: true, status: true, secoesOcultas: true, camposOcultos: true, preenchidoEm: true, modeloId: true },

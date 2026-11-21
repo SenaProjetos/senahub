@@ -1424,6 +1424,16 @@ model BriefingProjeto {
   /// e os que nunca escolheram), então não há backfill.
   modeloId      String?
   modelo        ModeloBriefing? @relation(fields: [modeloId], references: [id], onDelete: SetNull)
+  /// Quando a equipe pediu o preenchimento pelo portal do cliente (nulo = nunca pediu). Reabrir limpa `portalEncerradoEm`, não esta.
+  portalPedidoEm       DateTime?
+  /// Quem pediu (User.id, sem FK: o histórico não depende da conta).
+  portalPedidoPorId    String?
+  /// Quando a equipe encerrou o pedido: depois disso nem o portal nem o link gravam.
+  portalEncerradoEm    DateTime?
+  /// Quem encerrou (User.id, sem FK).
+  portalEncerradoPorId String?
+  /// Última vez que a equipe foi avisada de preenchimento do cliente (link ou portal): trava da janela de 6 h.
+  avisoEquipeEm        DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -1464,9 +1474,7 @@ model LinkPublicoInput {
   ativo        Boolean   @default(true)
   /// Data/hora de expiração (opcional). Nulo = não expira.
   expiraEm     DateTime?
-  /// Última vez que a equipe foi avisada de preenchimento por este link. Serve de
-  /// trava de janela: o formulário salva sozinho a cada campo, e sem isso cada
-  /// tecla viraria notificação.
+  /// Obsoleto: a trava agora é BriefingProjeto.avisoEquipeEm (vale também para o portal).
   notificadoEm DateTime?
   createdAt    DateTime  @default(now())
 

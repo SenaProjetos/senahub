@@ -10,7 +10,8 @@ import { projetoVisivel } from "@/modules/planejamento/queries";
 import { calcularStatusBriefing, existeNoBriefing, secoesDoProjeto } from "@/modules/inputs/briefing-schema";
 import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
 import { gravarRespostasBriefing } from "@/modules/inputs/briefing-service";
-import { perguntasDoPadraoParaCriar } from "@/modules/inputs/perguntas";
+import { aplicarInputsPadraoCore } from "@/modules/inputs/inputs-padrao-service";
+import { gravarRespostasExtras } from "@/modules/inputs/extras-service";
 import {
   adicionarInputSchema,
   editarInputSchema,
@@ -40,32 +41,6 @@ async function motivoNaoCasou(i: { id: string; projetoId: string }, seRemovida: 
   const atual = await perguntaDoProjeto(i);
   if (!atual) return "Pergunta não encontrada.";
   return atual.removidoEm ? seRemovida : seAtiva;
-}
-
-/**
- * Cria, no projeto, os inputs padrão (InputTemplate) das disciplinas dele — sem duplicar e sem
- * ressuscitar: pergunta que veio do padrão e foi editada ou removida não volta.
- */
-async function aplicarInputsPadraoCore(projetoId: string): Promise<number> {
-  const [proj, existentes, templates] = await Promise.all([
-    prisma.projeto.findUnique({ where: { id: projetoId }, select: { disciplinas: { select: { disciplinaTextoLegado: true } } } }),
-    // Ativas E removidas: as duas impedem o padrão de recriar a pergunta.
-    prisma.inputProjeto.findMany({ where: { projetoId }, select: { templateId: true, disciplina: true, pergunta: true } }),
-    prisma.inputTemplate.findMany({ where: { ativo: true }, orderBy: [{ disciplina: "asc" }, { ordem: "asc" }] }),
-  ]);
-  if (!proj) return 0;
-  const novos = perguntasDoPadraoParaCriar(
-    templates,
-    existentes,
-    proj.disciplinas.map((d) => d.disciplinaTextoLegado),
-  );
-  if (novos.length === 0) return 0;
-  // Único (projetoId, templateId): dois "Aplicar padrão" simultâneos não duplicam.
-  const { count } = await prisma.inputProjeto.createMany({
-    data: novos.map((t) => ({ projetoId, disciplina: t.disciplina, pergunta: t.pergunta, ordem: t.ordem, templateId: t.id })),
-    skipDuplicates: true,
-  });
-  return count;
 }
 
 export const adicionarInput = defineAction(
@@ -190,15 +165,10 @@ export const responderInputs = defineAction(
     await exigirProjetoVisivel(user, input.projetoId);
     // Só perguntas ATIVAS deste projeto: id de outro projeto ou pergunta removida não é gravado,
     // e a tela avisa quantas ficaram de fora (removidas por outra pessoa enquanto editava).
-    const gravadas = await prisma.$transaction(
-      input.respostas.map((r) =>
-        prisma.inputProjeto.updateMany({
-          where: { id: r.id, projetoId: input.projetoId, removidoEm: null },
-          data: { resposta: r.resposta || null },
-        }),
-      ),
-    );
-    const salvas = gravadas.reduce((n, g) => n + g.count, 0);
+    // A equipe grava sempre, mesmo com o pedido do portal encerrado.
+    const r = await gravarRespostasExtras(input.projetoId, input.respostas, "equipe");
+    if (!r.ok) throw new ActionError(r.erro);
+    const { salvas } = r;
     revalidatePath(`/projetos/${input.projetoId}`);
     return { projetoId: input.projetoId, salvas, ignoradas: input.respostas.length - salvas };
   },

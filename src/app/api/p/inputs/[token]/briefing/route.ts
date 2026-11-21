@@ -50,11 +50,12 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
 
   // Só o e-mail/telefone que MUDOU é validado; o inválido já gravado segue salvando. `campos` leva a
   // mensagem por campo (chave da resposta) para a tela marcar o campo; `error` é o formato de sempre.
-  const r = await gravarRespostasBriefing(projeto.id, parsed.data.respostas, "Cliente (link público)");
-  if (!r.ok) return NextResponse.json({ error: r.erro, campos: r.campos }, { status: 400 });
+  const r = await gravarRespostasBriefing(projeto.id, parsed.data.respostas, "Cliente (link público)", "link");
+  // Pedido encerrado pela equipe: 409 (o link não grava mais); erro de formato de campo segue 400 com `campos`.
+  if (!r.ok) return NextResponse.json({ error: r.erro, campos: r.campos }, { status: r.recusaDoCanal ? 409 : 400 });
   const status = r.status;
   // Só a TRANSIÇÃO para completo fura a janela de 6 h; o resto é aviso de "mexeu".
   const concluiu = status === "completo" && r.statusAnterior !== "completo";
-  await notificarPreenchimentoInput(projeto.id, concluiu ? "completo" : "parcial");
+  await notificarPreenchimentoInput(projeto.id, concluiu ? "completo" : "parcial", "link");
   return NextResponse.json({ ok: true, status, descartados: r.descartados });
 }
