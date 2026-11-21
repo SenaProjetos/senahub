@@ -20,6 +20,13 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Contratos agora podem ser assinados pelo portal do cliente (novembro/2026)
+
+- No **Jurídico**, a versão atual de um contrato de cliente ou aditivo ganhou o botão **Pedir assinatura no portal**. O cliente recebe um aviso no sino e por e-mail e assina na página do projeto, no card **Contratos**.
+- Cada versão mostra a situação do pedido (**Aguardando o cliente**, **Assinado pelo cliente**…) e dá para **Cancelar pedido**. Quando o cliente assina, quem pediu recebe um aviso.
+- Enviar uma versão nova faz o pedido antigo deixar de valer — é só pedir de novo na versão nova.
+- O link público continua funcionando para quem não usa o portal.
+
 ## Briefing do projeto agora pode ser preenchido no portal do cliente (novembro/2026)
 
 - Na aba **Inputs** do projeto, o cartão **Portal do cliente** pede o formulário ao cliente: ele recebe um aviso no sino e por e-mail e preenche na página do projeto no portal, sem precisar do link.

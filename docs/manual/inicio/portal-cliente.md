@@ -2,7 +2,7 @@
 titulo: Portal do cliente (Meus projetos)
 descricao: Visão externa, somente leitura, onde o cliente acompanha seus projetos.
 resumo: O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.
-tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas]
+tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas, contrato, assinatura]
 palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação, andamento, fase, linha do tempo, resumo, e-mail]
 sinonimos: [área do cliente, portal externo, acompanhamento de projeto]
 ---
@@ -168,6 +168,22 @@ Quando a equipe pede, o projeto mostra o cartão **Briefing do projeto** na pág
 - Quando a equipe **encerra** o preenchimento, o cartão passa a **Ver respostas**: o cliente só lê. Se a equipe reabrir, ele volta a preencher e recebe um novo aviso.
 - Sem pedido da equipe o cartão não aparece e o portal não grava nada. O cliente que prefere não usar o portal continua com o link público.
 
+## Contratos
+
+Quando o escritório pede a sua assinatura num contrato ou aditivo, ele aparece no card **Contratos** da página do
+projeto (e em **Meus projetos**, no caso de contrato sem projeto). Você e as outras contas da sua empresa recebem um
+aviso no sino e por e-mail.
+
+- **Aguardando sua assinatura** — clique em **Ler e assinar**. Abre uma janela: abra o PDF para ler, marque **Li o
+  documento e concordo com os termos.** e clique em **Assinar**. **Baixar** salva o PDF no seu computador.
+- **Assinado por … em …** — contrato já assinado. **Ver PDF** e **Baixar** continuam disponíveis; o contrato assinado
+  fica no portal.
+
+Uma conta basta: quando alguém da empresa assina, o pedido se encerra para todas as contas. A assinatura pelo portal
+vale como a feita pela equipe no Jurídico: o contrato passa a **assinado**, e o prazo do projeto e as parcelas
+seguem a partir daí. Pedido cancelado pelo escritório, ou de uma versão que foi substituída por outra, deixa de
+aparecer. Quem prefere não usar o portal continua podendo assinar pelo link que o escritório envia.
+
 ## Resumo por e-mail
 
 Nos dias em que um projeto anda, o cliente recebe **às 7h do dia seguinte** um e-mail (um por projeto) com o que
@@ -211,7 +227,8 @@ Regras:
 
 - Mostra **apenas** os projetos do cliente vinculado à conta (`clienteId`). Nenhum dado
   de outros clientes é exibido.
-- Tela **somente leitura** (os envios são o do bloco Documentos e os pedidos de revisão, na prancha e no Modelo 3D).
+- Tela **somente leitura** (os envios são o do bloco Documentos, os pedidos de revisão, na prancha e no Modelo 3D, e a
+  assinatura dos contratos que o escritório pede).
 - O Modelo 3D mostra só os IFCs das suas Entregas (sem bloqueio de download) e os que você enviou — nunca material
   interno da equipe.
 - Cada abertura ou download de prancha fica registrado no histórico do documento, com o nome de quem baixou
@@ -234,7 +251,8 @@ Regras:
 
 ## FAQ
 
-**O cliente edita algo no portal?** Não. É acompanhamento, download das entregas e envio de documentos.
+**O cliente edita algo no portal?** Não. É acompanhamento, download das entregas, envio de documentos, pedidos de
+revisão e assinatura dos contratos que o escritório pedir.
 
 **Por que o cliente não vê projeto de outra empresa?** O portal é limitado ao cadastro
 de cliente vinculado à conta.

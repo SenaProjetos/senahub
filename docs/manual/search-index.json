@@ -339,7 +339,10 @@
         "corte horizontal",
         "andar pelo modelo",
         "primeira pessoa",
-        "pedir revisão no modelo"
+        "pedir revisão no modelo",
+        "contrato",
+        "assinar contrato",
+        "assinatura de contrato"
       ],
       "sinonimos": [
         "área do cliente",
@@ -2634,7 +2637,10 @@
         "condição de pagamento",
         "contrato por entrega",
         "parcela por marco",
-        "faturar parcela"
+        "faturar parcela",
+        "pedir assinatura no portal",
+        "assinatura pelo portal",
+        "assinatura online"
       ],
       "sinonimos": [
         "legal",
