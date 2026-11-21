@@ -64,13 +64,14 @@ async function main() {
     // 1) Link vigente abre o formulário.
     check("link vigente resolve o projeto", (await inputsPorToken(token))?.id === projeto.id);
 
-    // 2) Primeiro preenchimento notifica (1 destinatário no mínimo) e carimba notificadoEm.
+    // 2) Primeiro preenchimento notifica (1 destinatário no mínimo) e carimba a trava do projeto
+    //    (BriefingProjeto.avisoEquipeEm — vale para o link e para o portal).
     const r1 = await putInputs(req({ respostas: [{ id: pergunta.id, resposta: "resposta 1" }] }), novoCtx());
     check("PUT inputs aceita com link vigente", r1.status === 200);
     const apos1 = await contarNotificacoes();
     check("primeiro preenchimento notifica", apos1 > 0);
-    const link1 = await prisma.linkPublicoInput.findUnique({ where: { projetoId: projeto.id } });
-    check("notificadoEm carimbado", !!link1?.notificadoEm);
+    const briefing1 = await prisma.briefingProjeto.findUnique({ where: { projetoId: projeto.id } });
+    check("avisoEquipeEm carimbado", !!briefing1?.avisoEquipeEm);
 
     // 3) Segundo preenchimento na mesma janela NÃO notifica (autosave não vira spam).
     await putInputs(req({ respostas: [{ id: pergunta.id, resposta: "resposta 2" }] }), novoCtx());
