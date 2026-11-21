@@ -1,22 +1,19 @@
 "use server";
 
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { can } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { lerArquivo } from "@/lib/storage";
-import { devePassarPorAprovacao } from "@/lib/aprovacao";
-import { brl } from "@/lib/utils";
-import { limiteAprovacaoContrato } from "@/modules/juridico/config";
-import { comRetentativaDeConflito, registrarEventoAssinatura } from "@/modules/juridico/assinatura/service";
+import { exigirSocioSeAcimaDaAlcada } from "@/modules/juridico/alcada";
+import { comRetentativaDeConflito } from "@/modules/juridico/assinatura/service";
+import { assinarVersaoNoTx, depoisDeAssinar, hashDaVersao } from "@/modules/juridico/assinatura/assinar-service";
 import { gerarVersaoDeModelo as gerarVersaoDeModeloContrato } from "@/modules/juridico/contrato/gerar";
-import { decidirPrazoDoProjeto, devePassarParaAssinado, ehDocumentoContratual } from "@/modules/juridico/contrato/estado";
-import { gerarRecebiveisDoContrato } from "@/modules/juridico/contrato/recebiveis";
+import { devePassarParaAssinado, ehDocumentoContratual } from "@/modules/juridico/contrato/estado";
 import { faturarParcela, sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
-import { registrarAlteracaoContratual, type MotivoContratual } from "@/modules/rh/contratual/service";
+import { MOTIVO_EXTERNO_NO_JURIDICO } from "@/modules/portal/contratos/regras";
 import { campo } from "@/lib/campos/zod";
 
 const base = { modulo: "juridico", recurso: "juridico", permissao: "gerir" } as const;
@@ -42,19 +39,6 @@ const opt = (s: z.ZodString) => s.optional().or(z.literal(""));
  */
 function ehHrAdmin(user: { gereRh: boolean }): boolean {
   return user.gereRh;
-}
-
-/**
- * H4 — sair de "rascunho" (por edição de status OU por assinar a 1ª versão, que é a mesma coisa
- * do ponto de vista de negócio) com valor acima da alçada exige sócio. Único ponto de checagem —
- * `atualizarContratoEquipe` e `registrarAceite` chamam este helper em vez de duplicar a regra.
- */
-async function exigirSocioSeAcimaDaAlcada(valor: number | null | undefined, ctx: { superUsuario: boolean; ehSocio: boolean }) {
-  if (valor == null) return;
-  const limite = await limiteAprovacaoContrato();
-  if (devePassarPorAprovacao("despesa", valor, limite) && !ctx.ehSocio && !ctx.superUsuario) {
-    throw new ActionError(`Contrato de ${brl(valor)} acima do limite (${brl(limite)}) exige aprovação de um sócio.`);
-  }
 }
 
 const docSchema = z.object({
@@ -562,40 +546,36 @@ export const revogarLinkAssinatura = defineAction(
 export const registrarAceite = defineAction(
   {
     // SEM `recurso` de propósito — a autorização é feita dentro, e é mais rica que uma permissão
-    // fina. Assinar tem três titulares legítimos e só um deles é "quem administra o jurídico":
+    // fina. Assinar aqui tem dois titulares legítimos e só um deles é "quem administra o jurídico":
     //   (a) quem tem `juridico:gerir` — a superfície de gestão;
-    //   (b) o DONO do vínculo, assinando o próprio contrato (Fase E, self-service);
-    //   (c) o usuário do portal do cliente, assinando o contrato da empresa dele (Fase I).
-    // Com `recurso: juridico/gerir` no config, (b) e (c) seriam barrados antes de o handler rodar
-    // — um colaborador CLT não tem essa permissão, e é exatamente ele que a assinatura precisa
-    // vincular. Mesmo padrão de `aceitarTermo` (`modules/legal`), que também é self-service.
+    //   (b) o DONO do vínculo, assinando o próprio contrato (Fase E, self-service).
+    // Com `recurso: juridico/gerir` no config, (b) seria barrado antes de o handler rodar — um
+    // colaborador CLT não tem essa permissão, e é exatamente ele que a assinatura precisa vincular.
+    // Mesmo padrão de `aceitarTermo` (`modules/legal`), que também é self-service.
+    // A conta EXTERNA (cliente do portal) é recusada logo de saída: o cliente só assina pelo pedido
+    // de assinatura do portal — versão pedida, vigente, cliente ativo (spec 2026-11-21).
     modulo: "juridico",
     acao: "registrar-aceite",
     entidade: "AceiteDocumento",
     schema: z.object({ versaoId: z.string().min(1) }),
   },
   async (i, ctx) => {
+    // O cliente do portal só assina pelo pedido de assinatura (versão pedida, vigente, cliente
+    // ativo) — nunca por aqui, onde qualquer versão de qualquer contrato do cliente passaria.
+    if (ctx.user.tipo === "externo") throw new ActionError(MOTIVO_EXTERNO_NO_JURIDICO);
+
+    // Leitura FORA da transação: só autorização e o pré-filtro da alçada. A decisão de transição
+    // é do miolo, que relê o documento depois de travá-lo.
     const versao = await prisma.docJuridicoVersao.findUnique({
       where: { id: i.versaoId },
-      include: {
+      select: {
         documento: {
           select: {
-            id: true,
             vinculoId: true,
             tipo: true,
             statusContrato: true,
             valor: true,
             vinculo: { select: { userId: true } },
-            aditivoEquipe: true,
-            // Fases G e H3 — o que a assinatura de um contrato de CLIENTE dispara.
-            clienteId: true,
-            parcelas: true,
-            primeiroVencimento: true,
-            formaCobranca: true,
-            dataVencimento: true,
-            projetoId: true,
-            titulo: true,
-            projeto: { select: { prazoContrato: true, disciplinas: { select: { prazo: true } } } },
           },
         },
       },
@@ -606,16 +586,7 @@ export const registrarAceite = defineAction(
     const doc = versao.documento;
     const podeGerirJuridico = await can(ctx.user, "juridico", "gerir");
     const ehDonoDoVinculo = !!doc.vinculoId && doc.vinculo?.userId === ctx.user.id;
-    // Portal (Fase I): o representante do cliente assina o contrato da PRÓPRIA empresa.
-    // `clienteId` não está na sessão — só consulta quando as outras vias já falharam, para não
-    // pagar uma query a mais no caminho comum (RH/jurídico assinando).
-    const ehClienteDoContrato =
-      !podeGerirJuridico && !ehDonoDoVinculo && !!doc.clienteId
-        ? (await prisma.user.findUnique({ where: { id: ctx.user.id }, select: { clienteId: true } }))?.clienteId
-          === doc.clienteId
-        : false;
-
-    if (!podeGerirJuridico && !ehDonoDoVinculo && !ehClienteDoContrato) {
+    if (!podeGerirJuridico && !ehDonoDoVinculo) {
       throw new ActionError("Sem permissão para assinar este documento.");
     }
     // Contrato de equipe carrega salário/CPF: quem administra precisa ser RH, não qualquer um com
@@ -624,150 +595,34 @@ export const registrarAceite = defineAction(
       throw new ActionError("Só RH pode assinar contrato de equipe de outra pessoa.");
     }
 
-    // Idempotência: um aceite por (usuário, versão). Se já assinou, retorna o existente.
-    const existente = await prisma.aceiteDocumento.findFirst({
-      where: { versaoId: i.versaoId, userId: ctx.user.id },
-    });
-    if (existente) return { id: existente.id, jaAssinado: true };
-
-    // H4 — checa ANTES de criar o aceite: bloquear depois deixaria uma assinatura órfã gravada
-    // (o `defineAction` não envolve o handler numa transação — cada `create`/`update` é isolado).
-    if (devePassarParaAssinado(versao.documento.tipo, versao.documento.statusContrato)) {
-      await exigirSocioSeAcimaDaAlcada(versao.documento.valor?.toNumber(), ctx.user);
+    // H4 — checa ANTES de qualquer escrita: bloquear depois deixaria uma assinatura órfã gravada.
+    if (devePassarParaAssinado(doc.tipo, doc.statusContrato)) {
+      await exigirSocioSeAcimaDaAlcada(doc.valor?.toNumber(), ctx.user);
     }
 
-    // Lê o arquivo da versão pelo mesmo helper de storage usado no download.
-    let conteudo: Buffer;
-    try {
-      conteudo = await lerArquivo(versao.arquivoPath);
-    } catch {
-      throw new ActionError("Arquivo da versão indisponível para assinatura.");
-    }
-    const hashArquivo = createHash("sha256").update(conteudo).digest("hex");
+    const hashArquivo = await hashDaVersao(i.versaoId);
     const userAgent = (await headers()).get("user-agent");
 
-    // Aceite + evento da trilha na MESMA transação (Fase D): aceite sem evento é assinatura sem
-    // prova, evento sem aceite é prova que aponta pra nada. A retentativa cobre a corrida na
-    // unique `(versaoId, sequencia)` — refaz a transação inteira, e o perdedor entra na posição
-    // seguinte em vez de bifurcar a cadeia.
-    const aceite = await comRetentativaDeConflito(() =>
-      prisma.$transaction(async (tx) => {
-        const criado = await tx.aceiteDocumento.create({
-          data: {
-            versaoId: i.versaoId,
-            userId: ctx.user.id,
-            userNome: ctx.user.name,
-            hashArquivo,
-            assinadoEm: new Date(),
-            ip: ctx.ip,
-            userAgent,
-          },
-        });
-
-        await registrarEventoAssinatura(tx, {
+    // O miolo trava o documento, é idempotente por (pessoa, versão) e faz a transição uma vez só.
+    // A retentativa cobre a corrida na unique `(versaoId, sequencia)` da trilha — refaz a
+    // transação inteira, e o perdedor entra na posição seguinte em vez de bifurcar a cadeia.
+    const r = await comRetentativaDeConflito(() =>
+      prisma.$transaction((tx) =>
+        assinarVersaoNoTx(tx, {
           versaoId: i.versaoId,
-          tipo: "assinado",
-          ator: ctx.user.id,
-          atorNome: ctx.user.name,
+          ator: { id: ctx.user.id, nome: ctx.user.name },
+          autorFinanceiroId: ctx.user.id,
+          hashArquivo,
           ip: ctx.ip,
           userAgent,
-          hashArquivo,
-        });
-
-        // Fecha o loop do badge "contrato pendente" (Fase I) e da alçada (H4): o próprio aceite JÁ
-        // É o sinal de "assinado" — nenhuma tela extra pra mudar status à mão. Predicado único:
-        // vale pra aditivo também, e não reabre "rescindido"/"vencido".
-        if (devePassarParaAssinado(versao.documento.tipo, versao.documento.statusContrato)) {
-          await tx.documentoJuridico.update({
-            where: { id: versao.documento.id },
-            data: { statusContrato: "assinado", assinadoEm: new Date() },
-          });
-
-          // Aditivo de equipe assinado APLICA a alteração contratual (Fase B2).
-          //
-          // O efeito é preso à TRANSIÇÃO de status, não ao aceite: dois signatários no mesmo
-          // aditivo geram dois aceites, e aplicar por aceite reajustaria o salário duas vezes.
-          // Aqui o segundo signatário já encontra `statusContrato = "assinado"` e não entra.
-          const adt = versao.documento.aditivoEquipe;
-          const userIdAlvo = versao.documento.vinculo?.userId;
-          if (adt && userIdAlvo) {
-            await registrarAlteracaoContratual(
-              tx,
-              userIdAlvo,
-              {
-                // ⚠️ `?? undefined` é obrigatório: no service, `null` significa LIMPAR o campo,
-                // enquanto no aditivo `null` significa "não mexe nesse eixo". Passar o null direto
-                // apagaria o cargo de quem recebeu um aditivo só de reajuste.
-                cargoId: adt.cargoId ?? undefined,
-                remuneracao: adt.remuneracao ?? undefined,
-                // Data de VIGÊNCIA do aditivo, não a de hoje: um aditivo assinado em fevereiro
-                // pode valer a partir de março, e o default do service é `hoje`.
-                vigenciaEm: adt.vigenciaEm,
-                motivo: (adt.motivo ?? undefined) as MotivoContratual | undefined,
-                observacao: adt.observacao,
-              },
-              ctx.user.id,
-            );
-          }
-
-          // ── Fase H3: o prazo do contrato vira o prazo do projeto ────────────────────────
-          // Só quando o projeto ainda não tem prazo e nenhuma disciplina já está agendada além
-          // dele — ver `decidirPrazoDoProjeto` para o porquê de cada guarda.
-          const doc = versao.documento;
-          if (doc.projetoId && doc.projeto) {
-            const decisao = decidirPrazoDoProjeto(
-              doc.dataVencimento,
-              doc.projeto.prazoContrato,
-              doc.projeto.disciplinas.map((d) => d.prazo),
-            );
-            if (decisao.define) {
-              await tx.projeto.update({
-                where: { id: doc.projetoId },
-                data: { prazoContrato: doc.dataVencimento, prazoPlanejado: doc.dataVencimento },
-              });
-            }
-          }
-
-          // ── Fase G: contrato de cliente assinado gera o cronograma de recebíveis ────────
-          // Exige `parcelas` e `primeiroVencimento` definidos — sem condição de pagamento não há
-          // o que gerar, e inventar uma (à vista? 30 dias?) seria escrever regra financeira que
-          // ninguém pediu. Contrato de EQUIPE nunca entra: é pago pela folha, não por
-          // `Lancamento`.
-          // F7.3: só o contrato POR DATA. O por entrega gera previsões pelo cronograma, logo abaixo.
-          if (
-            doc.formaCobranca === "por_data" &&
-            !doc.vinculoId &&
-            doc.clienteId &&
-            doc.parcelas &&
-            doc.primeiroVencimento &&
-            doc.valor
-          ) {
-            await gerarRecebiveisDoContrato(tx, {
-              contratoId: doc.id,
-              titulo: doc.titulo,
-              clienteId: doc.clienteId,
-              projetoId: doc.projetoId,
-              valor: doc.valor.toNumber(),
-              parcelas: doc.parcelas,
-              primeiroVencimento: doc.primeiroVencimento,
-              autorId: ctx.user.id,
-            });
-          }
-        }
-
-        return criado;
-      }),
+        }),
+      ),
     );
 
-    // F7.2: contrato por entrega assinado passa a ter previsão de recebimento (a parcela "na
-    // assinatura" já; as de marco quando o cronograma estiver aprovado). Fora da transação: roda
-    // o motor do cronograma. Idempotente — o segundo signatário não duplica nada.
-    if (doc.formaCobranca === "por_entrega" && !doc.vinculoId) {
-      await sincronizarPrevisoesDepois(doc.projetoId ? { projetoId: doc.projetoId } : { contratoId: doc.id }, ctx.user.id);
-      revalidarFinanceiro();
-    }
+    await depoisDeAssinar(r, ctx.user.id);
+    if (!r.jaAssinado && r.documento.formaCobranca === "por_entrega" && !r.documento.vinculoId) revalidarFinanceiro();
     rev();
-    return { id: aceite.id, jaAssinado: false };
+    return { id: r.aceiteId, jaAssinado: r.jaAssinado };
   },
 );
 
