@@ -16,17 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SeletorModeloBriefing } from "./seletor-modelo-briefing";
-
-const STATUS_LABEL: Record<StatusBriefing, string> = {
-  nao_iniciado: "Não iniciado",
-  em_preenchimento: "Em preenchimento",
-  completo: "Completo",
-};
-const STATUS_TONE: Record<StatusBriefing, string> = {
-  nao_iniciado: "text-muted-foreground",
-  em_preenchimento: "border-warning/40 text-warning",
-  completo: "border-success/40 text-success",
-};
+import { STATUS_LABEL, STATUS_TONE } from "./briefing-status";
 
 /** Seção "Briefing de Start" da aba Inputs — salva via Server Action (uso interno). */
 export function BriefingSection({

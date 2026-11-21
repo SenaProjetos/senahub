@@ -10,6 +10,8 @@ import { andamentoDoPortal } from "@/modules/portal/andamento-queries";
 import { pedidosDoProjetoNoPortal, uploadsComPedidoAguardando } from "@/modules/portal/pedido-revisao/queries";
 import { modelosDoPortal } from "@/modules/portal/modelo3d/queries";
 import { temModelo3dNoPortal } from "@/modules/portal/modelo3d/regras";
+import { briefingDoPortal } from "@/modules/portal/briefing-queries";
+import { BriefingCard } from "@/components/portal/briefing-card";
 import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
@@ -66,6 +68,16 @@ export default async function PortalProjetoPage({
           )}
         </div>
       )}
+
+      {/* Briefing: só aparece depois que a equipe pede pelo portal; leitura e limite de erro próprios. */}
+      <LimiteErroEntregas
+        titulo="Briefing do projeto"
+        mensagem="Não foi possível carregar o briefing agora. Tente de novo; se continuar, fale com a equipe do projeto."
+      >
+        <Suspense fallback={null}>
+          <BriefingDoProjeto projetoId={projeto.id} />
+        </Suspense>
+      </LimiteErroEntregas>
 
       {/* Andamento, linha do tempo e entregas saem da MESMA leitura das Entregas: enquanto isso os esqueletos;
           um erro aqui fica só neste bloco. */}
@@ -131,6 +143,11 @@ async function AndamentoEEntregas({
       />
     </div>
   );
+}
+
+async function BriefingDoProjeto({ projetoId }: { projetoId: string }) {
+  const resumo = await briefingDoPortal(projetoId);
+  return resumo ? <BriefingCard projetoId={projetoId} resumo={resumo} /> : null;
 }
 
 async function PedidosDoProjeto({ projetoId, clienteId }: { projetoId: string; clienteId: string }) {
