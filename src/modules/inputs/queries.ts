@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
+import { lerContexto, temAlgoAPreencher } from "@/modules/inputs/portal-pedido-service";
+import { motivoParaNaoEncerrar, motivoParaNaoPedir, type SituacaoPortalBriefing } from "@/modules/inputs/portal-pedido";
 
 /** Templates de inputs padrão (catálogo por disciplina). */
 export async function listarInputTemplates() {
@@ -69,3 +71,45 @@ export async function inputsPorToken(token: string) {
 }
 
 export type InputItem = Awaited<ReturnType<typeof listarInputs>>[number];
+
+export type ResumoPortalBriefing = {
+  situacao: SituacaoPortalBriefing;
+  pedidoEm: Date | null;
+  pedidoPor: string | null;
+  encerradoEm: Date | null;
+  encerradoPor: string | null;
+  contasAtivas: number;
+  motivoPedir: string | null;
+  motivoEncerrar: string | null;
+};
+
+/** Leitura para a tela da equipe: estado do pedido, quem fez, e os motivos (mesmas frases do serviço) dos botões. */
+export async function resumoPortalBriefing(projetoId: string): Promise<ResumoPortalBriefing> {
+  const ctx = await lerContexto(projetoId);
+  const briefing = await prisma.briefingProjeto.findUnique({
+    where: { projetoId },
+    select: { portalPedidoPorId: true, portalEncerradoPorId: true },
+  });
+  const ids = [briefing?.portalPedidoPorId, briefing?.portalEncerradoPorId].filter((x): x is string => !!x);
+  const nomes = new Map(
+    ids.length > 0 ? (await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]) : [],
+  );
+  const situacao = ctx?.situacao ?? "nao_pedido";
+  const algo = ctx ? await temAlgoAPreencher(projetoId, ctx.briefing) : false;
+  return {
+    situacao,
+    pedidoEm: ctx?.briefing?.portalPedidoEm ?? null,
+    pedidoPor: briefing?.portalPedidoPorId ? (nomes.get(briefing.portalPedidoPorId) ?? null) : null,
+    encerradoEm: ctx?.briefing?.portalEncerradoEm ?? null,
+    encerradoPor: briefing?.portalEncerradoPorId ? (nomes.get(briefing.portalEncerradoPorId) ?? null) : null,
+    contasAtivas: ctx?.contas.length ?? 0,
+    motivoPedir: motivoParaNaoPedir({
+      temCliente: !!ctx?.projeto.clienteId,
+      clienteAtivo: ctx?.projeto.cliente?.ativo ?? false,
+      contasAtivas: ctx?.contas.length ?? 0,
+      temAlgoAPreencher: algo,
+      situacao,
+    }),
+    motivoEncerrar: motivoParaNaoEncerrar(situacao),
+  };
+}

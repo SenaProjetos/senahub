@@ -12,6 +12,7 @@ import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
 import { gravarRespostasBriefing } from "@/modules/inputs/briefing-service";
 import { aplicarInputsPadraoCore } from "@/modules/inputs/inputs-padrao-service";
 import { gravarRespostasExtras } from "@/modules/inputs/extras-service";
+import { encerrarBriefingNoPortal, pedirBriefingNoPortal } from "@/modules/inputs/portal-pedido-service";
 import {
   adicionarInputSchema,
   editarInputSchema,
@@ -310,6 +311,48 @@ export const atualizarLinkInput = defineAction(
         expiraEm: input.expiraEm ? new Date(input.expiraEm) : null,
       },
     });
+    revalidatePath(`/projetos/${input.projetoId}/inputs`);
+    return { projetoId: input.projetoId };
+  },
+);
+
+// ── Briefing pelo portal do cliente ───────────────────────────
+const pedidoPortalSchema = z.object({ projetoId: z.string().min(1) });
+const briefingDoProjeto = (i: { projetoId: string }) => prisma.briefingProjeto.findUnique({ where: { projetoId: i.projetoId } });
+
+/** Pede (ou reabre) o briefing no portal: sino + e-mail a cada conta ativa do cliente. */
+export const pedirBriefingPortal = defineAction(
+  {
+    ...projBase,
+    acao: "pedir-briefing-portal",
+    entidade: "BriefingProjeto",
+    schema: pedidoPortalSchema,
+    entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
+    capturarAntes: briefingDoProjeto,
+  },
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
+    const r = await pedirBriefingNoPortal(input.projetoId, user.id);
+    if (!r.ok) throw new ActionError(r.erro);
+    revalidatePath(`/projetos/${input.projetoId}/inputs`);
+    return { projetoId: input.projetoId, reaberto: r.reaberto, avisadas: r.avisadas, emails: r.emails };
+  },
+);
+
+/** Encerra o pedido do briefing no portal: nem o portal nem o link gravam mais; a equipe segue podendo. */
+export const encerrarBriefingPortal = defineAction(
+  {
+    ...projBase,
+    acao: "encerrar-briefing-portal",
+    entidade: "BriefingProjeto",
+    schema: pedidoPortalSchema,
+    entidadeId: (_d, i) => (i as { projetoId: string }).projetoId,
+    capturarAntes: briefingDoProjeto,
+  },
+  async (input, { user }) => {
+    await exigirProjetoVisivel(user, input.projetoId);
+    const r = await encerrarBriefingNoPortal(input.projetoId, user.id);
+    if (!r.ok) throw new ActionError(r.erro);
     revalidatePath(`/projetos/${input.projetoId}/inputs`);
     return { projetoId: input.projetoId };
   },

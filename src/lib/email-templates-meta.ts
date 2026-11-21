@@ -285,6 +285,28 @@ Seu pedido de revisão no projeto **{{projeto}}** (**{{prancha}}**) foi **{{situ
 Sena Projetos`,
   },
   {
+    slug: "portal-briefing-pedido",
+    grupo: "Projetos",
+    label: "Pedido do briefing pelo portal (cliente)",
+    descricao:
+      "Enviado a cada conta ativa do cliente quando a equipe pede (ou reabre) o briefing do projeto pelo portal. Não tem opção de desligar: é um pedido direto da equipe ao cliente. Sem SMTP configurado, só o sino do portal.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome da conta do portal", exemplo: "Mariana" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      { nome: "url", descricao: "Link do briefing no portal", exemplo: "https://app/portal/abc/briefing" },
+    ],
+    assuntoPadrao: "A equipe pediu o briefing do projeto {{projeto}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+A equipe pediu que você preencha o briefing do projeto **{{projeto}}**. As informações nos ajudam a iniciar os projetos com tudo o que precisamos.
+
+[Preencher no portal]({{url}})
+
+Você pode preencher aos poucos: o que for respondido fica salvo.
+
+Sena Projetos`,
+  },
+  {
     slug: "holerite",
     grupo: "RH",
     label: "Holerite",
