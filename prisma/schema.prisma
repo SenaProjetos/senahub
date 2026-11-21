@@ -3624,6 +3624,8 @@ model DocumentoJuridico {
 
   versoes DocJuridicoVersao[]
 
+  pedidosAssinaturaPortal PedidoAssinaturaPortal[]
+
   @@index([projetoId])
   @@index([pastaId])
   @@index([vinculoId])
@@ -3871,9 +3873,47 @@ model DocJuridicoVersao {
   linksAssinatura   LinkPublicoAssinatura[]
   aceitesExternos   AceiteExternoDocumento[]
 
+  pedidosAssinaturaPortal PedidoAssinaturaPortal[]
+
   @@unique([documentoId, numero])
   @@index([documentoGeradoId])
   @@map("doc_juridico_versao")
+}
+
+enum StatusPedidoAssinatura {
+  aguardando
+  assinado
+  cancelado
+}
+
+/// Pedido da equipe para o cliente assinar um contrato/aditivo pelo portal (spec
+/// `docs/superpowers/specs/2026-11-21-portal-assinatura-contrato-design.md`). Cliente e projeto
+/// são SEMPRE lidos do `DocumentoJuridico` (o pedido não guarda cópia). Um só `aguardando` por
+/// documento (índice parcial `pedido_assinatura_portal_um_aguardando`, fora do schema.prisma).
+/// `pedidoPorId`, `canceladoPorId`, `assinadoPorId` e `aceiteId` são texto, sem relação, de propósito.
+model PedidoAssinaturaPortal {
+  id          String                 @id @default(cuid())
+  documentoId String
+  documento   DocumentoJuridico      @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+  versaoId    String
+  versao      DocJuridicoVersao      @relation(fields: [versaoId], references: [id], onDelete: Cascade)
+  status      StatusPedidoAssinatura @default(aguardando)
+
+  pedidoPorId String
+  pedidoEm    DateTime @default(now())
+
+  canceladoPorId String?
+  canceladoEm    DateTime?
+
+  assinadoPorId   String?
+  assinadoPorNome String?
+  assinadoEm      DateTime?
+  /// `AceiteDocumento.id` do aceite gravado pelo portal.
+  aceiteId        String?   @unique
+
+  @@index([documentoId, status])
+  @@index([versaoId])
+  @@map("pedido_assinatura_portal")
 }
 
 /// Link público (sem login) para um NÃO-USUÁRIO assinar uma versão de documento (spec
