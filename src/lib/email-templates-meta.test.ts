@@ -9,4 +9,13 @@ describe("modelos de e-mail do portal", () => {
     expect(meta?.variaveis.map((v) => v.nome)).toEqual(["nome", "projeto", "url", "acao"]);
     expect(meta?.assuntoPadrao).toBe("A equipe {{acao}} o briefing do projeto {{projeto}}");
   });
+
+  it("modelo do pedido de assinatura de contrato existe com as variáveis do serviço", () => {
+    const meta = metaTemplate("portal-contrato-assinatura");
+    expect(meta).toBeDefined();
+    expect(meta?.grupo).toBe("Projetos");
+    expect(meta?.variaveis.map((v) => v.nome)).toEqual(["nome", "documento", "projeto", "url"]);
+    expect(meta?.assuntoPadrao).toBe("Assinatura pendente: {{documento}}");
+    expect(meta?.corpoPadrao).toContain("{{url}}");
+  });
 });

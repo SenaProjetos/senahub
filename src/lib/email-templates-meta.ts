@@ -308,6 +308,27 @@ Você pode preencher aos poucos: o que for respondido fica salvo.
 Sena Projetos`,
   },
   {
+    slug: "portal-contrato-assinatura",
+    grupo: "Projetos",
+    label: "Pedido de assinatura de contrato pelo portal (cliente)",
+    descricao:
+      "Enviado a cada conta ativa do cliente quando a equipe pede, no Jurídico, a assinatura de um contrato ou aditivo pelo portal. Não tem opção de desligar: é um pedido direto da equipe ao cliente. Sem SMTP configurado, só o sino do portal.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome da conta do portal", exemplo: "Mariana" },
+      { nome: "documento", descricao: "Título do contrato ou aditivo", exemplo: "Contrato de prestação de serviços" },
+      { nome: "projeto", descricao: "Nome do projeto (vazio quando o documento não tem projeto)", exemplo: "Residencial Villa Verde" },
+      { nome: "url", descricao: "Link dos contratos no portal", exemplo: "https://app/portal/abc#contratos" },
+    ],
+    assuntoPadrao: "Assinatura pendente: {{documento}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+A equipe pediu sua assinatura no documento **{{documento}}**. Você pode ler o PDF e assinar direto pelo portal.
+
+[Ver e assinar no portal]({{url}})
+
+Sena Projetos`,
+  },
+  {
     slug: "holerite",
     grupo: "RH",
     label: "Holerite",
