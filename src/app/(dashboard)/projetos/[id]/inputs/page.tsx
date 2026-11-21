@@ -4,7 +4,14 @@ import { requirePermission } from "@/lib/session";
 import { can } from "@/lib/permissions";
 import { projetoVisivel } from "@/modules/planejamento/queries";
 import { obterProjeto } from "@/modules/projetos/queries";
-import { listarInputs, listarInputsRemovidos, linkInput, progressoInputs, obterBriefing } from "@/modules/inputs/queries";
+import {
+  listarInputs,
+  listarInputsRemovidos,
+  linkInput,
+  progressoInputs,
+  obterBriefing,
+  resumoPortalBriefing,
+} from "@/modules/inputs/queries";
 import { resolverModeloDoProjeto, modelosParaEscolha } from "@/modules/inputs/modelo-queries";
 import {
   secoesDoProjeto,
@@ -13,6 +20,7 @@ import {
   type StatusBriefing,
 } from "@/modules/inputs/briefing-schema";
 import { InputsPanel } from "@/components/inputs/inputs-panel";
+import { PortalBriefingCard } from "@/components/inputs/portal-briefing-card";
 import { BriefingSection } from "@/components/inputs/briefing-section";
 import { LinkPublicoInputsButton } from "@/components/inputs/link-publico-inputs-dialog";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +35,7 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
   const projeto = await projetoVisivel(user, id);
   if (!projeto) notFound();
 
-  const [podeGerir, projetoCompleto, inputs, removidos, link, progresso, briefing] = await Promise.all([
+  const [podeGerir, projetoCompleto, inputs, removidos, link, progresso, briefing, resumoPortal] = await Promise.all([
     can(user, "projetos", "gerir"),
     obterProjeto(user, id),
     listarInputs(id),
@@ -36,6 +44,8 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
     linkInput(id),
     progressoInputs(id),
     obterBriefing(id),
+    // Só a equipe que gere vê (e usa) o bloco do portal.
+    can(user, "projetos", "gerir").then((pode) => (pode ? resumoPortalBriefing(id) : null)),
   ]);
   if (!projetoCompleto) notFound();
 
@@ -71,15 +81,21 @@ export default async function ProjetoInputsPage({ params }: { params: Promise<{ 
         : link.expiraEm
           ? `Link ativo até ${formatarDataHora(link.expiraEm)}.`
           : "Link ativo, sem data de expiração.";
+  const descricaoLink =
+    resumoPortal?.situacao === "encerrado"
+      ? `${situacaoLink} Encerrado no portal: o link também não aceita respostas.`
+      : situacaoLink;
 
   return (
     <div className="space-y-4">
+      {podeGerir && resumoPortal && <PortalBriefingCard projetoId={id} resumo={resumoPortal} />}
+
       {podeGerir && (
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
             <div className="min-w-0">
-              <CardTitle className="text-base">Formulário do cliente</CardTitle>
-              <CardDescription>{situacaoLink}</CardDescription>
+              <CardTitle className="text-base">Link para quem não tem conta no portal</CardTitle>
+              <CardDescription>{descricaoLink}</CardDescription>
             </div>
             <LinkPublicoInputsButton
               projetoId={id}

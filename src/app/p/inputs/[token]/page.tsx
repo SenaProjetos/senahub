@@ -7,6 +7,7 @@ import {
   respostasVisiveis,
   secoesDoProjeto,
 } from "@/modules/inputs/briefing-schema";
+import { MOTIVO_ENCERRADO, situacaoPortal } from "@/modules/inputs/portal-pedido";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { InputsPublicForm } from "@/components/inputs/inputs-public-form";
 import { BriefingPublico } from "@/components/inputs/briefing-public";
@@ -45,6 +46,9 @@ export default async function InputsPublicoPage({
     resposta: i.resposta ?? "",
   }));
 
+  // Encerrado pela equipe: o link mostra o que já foi respondido, sem aceitar novas respostas.
+  const somenteLeitura = situacaoPortal(projeto.briefing) === "encerrado";
+
   const disciplinas = projeto.disciplinas.map((d) => d.disciplinaTextoLegado);
   const ocultos = {
     secoes: projeto.briefing?.secoesOcultas ?? [],
@@ -77,8 +81,15 @@ export default async function InputsPublicoPage({
         descricao="Preencha as informações abaixo. Suas respostas são salvas automaticamente."
       />
 
+      {somenteLeitura && (
+        <p role="status" className="rounded-sm border bg-card p-4 text-sm text-muted-foreground">
+          {MOTIVO_ENCERRADO}
+        </p>
+      )}
+
       <BriefingPublico
         token={token}
+        somenteLeitura={somenteLeitura}
         respostasIniciais={respostasBriefing}
         secoes={secoesVisiveis}
       />
@@ -92,7 +103,7 @@ export default async function InputsPublicoPage({
       {itens.length > 0 && (
         <div>
           <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-muted-foreground">Perguntas extras</h2>
-          <InputsPublicForm token={token} itens={itens} />
+          <InputsPublicForm token={token} itens={itens} somenteLeitura={somenteLeitura} />
         </div>
       )}
     </main>
