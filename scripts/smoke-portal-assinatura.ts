@@ -11,6 +11,9 @@
  * quem recebe o aviso, dois pedidos simultâneos, outro cliente, versão nova, duas contas assinando juntas, equipe ×
  * cliente ao mesmo tempo, cliente inativo, cancelar e o assinado que fica no portal.
  *
+ * Seção "rota": `arquivoDoPedidoParaConta`, a decisão da rota do PDF no portal (outro cliente/inativo/cancelado/versão
+ * substituída = 404, assinado serve a versão assinada, sem sessão = 401).
+ *
  * Apaga tudo o que criou (inclusive o PDF gravado no storage) e devolve o limite de alçada do banco como estava.
  *
  * Uso: npm run smoke:portal-assinatura
@@ -26,6 +29,7 @@ import { comRetentativaDeConflito } from "../src/modules/juridico/assinatura/ser
 import { CHAVE_LIMITE_APROVACAO_CONTRATO } from "../src/modules/juridico/config";
 import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
 import { contaDoPortalParaCliente, type ContaDoPortal } from "../src/modules/portal/contratos/acesso";
+import { arquivoDoPedidoParaConta } from "../src/modules/portal/contratos/arquivo";
 import {
   assinarPedidoNoPortal,
   cancelarPedidoAssinatura,
@@ -561,6 +565,52 @@ async function main() {
         assinarCancelado === MOTIVO_CANCELADO,
     );
 
+    // [rota] arquivo do contrato no portal: a decisão da rota GET /api/portal/contratos/[pedidoId]/arquivo
+    const docRota = await novoDocumento({ clienteId: cliA.id, projetoId: projA.id, sufixo: "rota" });
+    const vRota = await novaVersao(docRota.id, 1, "contrato-rota.pdf");
+    const pRota = await pedir(docRota.id, vRota.id);
+    const rotaA1 = await arquivoDoPedidoParaConta(sessao(contaA1), pRota.pedidoId);
+    const rotaB1 = await arquivoDoPedidoParaConta(sessao(contaB1), pRota.pedidoId);
+    const rotaA3 = await arquivoDoPedidoParaConta(sessao(contaA3), pRota.pedidoId);
+    const rotaSemSessao = await arquivoDoPedidoParaConta(null, pRota.pedidoId);
+    const rotaInexistente = await arquivoDoPedidoParaConta(sessao(contaA1), "pedido-que-nao-existe");
+    check(
+      "[rota] pedido aguardando: conta do cliente recebe a versão do pedido; outro cliente, conta inativa e pedido inexistente 404; sem sessão 401",
+      rotaA1.ok &&
+        rotaA1.versao.id === vRota.id &&
+        rotaA1.versao.arquivoNome === "contrato-rota.pdf" &&
+        rotaA1.versao.arquivoPath === pdfComum &&
+        rotaA1.conta.userId === contaA1.id &&
+        !rotaB1.ok &&
+        rotaB1.status === 404 &&
+        rotaB1.erro === "Arquivo indisponível." &&
+        !rotaA3.ok &&
+        rotaA3.status === 404 &&
+        !rotaInexistente.ok &&
+        rotaInexistente.status === 404 &&
+        !rotaSemSessao.ok &&
+        rotaSemSessao.status === 401,
+    );
+    const rotaCancelado = await arquivoDoPedidoParaConta(sessao(contaA1), pCancelar.pedidoId);
+    const docSubstituida = await novoDocumento({ clienteId: cliA.id, projetoId: projA.id, sufixo: "rotasubstituida" });
+    const vSubst1 = await novaVersao(docSubstituida.id, 1);
+    const pSubst = await pedir(docSubstituida.id, vSubst1.id);
+    const rotaAntesSubst = await arquivoDoPedidoParaConta(sessao(contaA1), pSubst.pedidoId);
+    await novaVersao(docSubstituida.id, 2);
+    const rotaSubstituida = await arquivoDoPedidoParaConta(sessao(contaA1), pSubst.pedidoId);
+    const rotaAssinado = await arquivoDoPedidoParaConta(sessao(contaA1), p2.pedidoId);
+    check(
+      "[rota] pedido cancelado e versão substituída: 404 neutro; assinado com versão nova depois continua servindo a versão ASSINADA (v2)",
+      !rotaCancelado.ok &&
+        rotaCancelado.status === 404 &&
+        rotaAntesSubst.ok &&
+        !rotaSubstituida.ok &&
+        rotaSubstituida.status === 404 &&
+        rotaSubstituida.erro === "Arquivo indisponível." &&
+        rotaAssinado.ok &&
+        rotaAssinado.versao.id === v2.id,
+    );
+
     // [portal] cliente inativo (por último: inativa o cliente A)
     const docInativar = await novoDocumento({ clienteId: cliA.id, projetoId: projA.id, sufixo: "inativar" });
     const vInativar = await novaVersao(docInativar.id, 1);
@@ -568,12 +618,18 @@ async function main() {
     await prisma.cliente.update({ where: { id: cliA.id }, data: { ativo: false } });
     const acessoInativo = await contaDoPortalParaCliente(sessao(contaA1), cliA.id);
     const assinarInativo = await motivoDe(() => assinarPortal(pInativar.pedidoId, contaDoPortal(contaA1, cliA.id)));
+    const rotaInativo = await arquivoDoPedidoParaConta(sessao(contaA1), pInativar.pedidoId);
+    const rotaAssinadoInativo = await arquivoDoPedidoParaConta(sessao(contaA1), p2.pedidoId);
     check(
       "[portal] cliente inativo: acesso recusado (404) e assinar responde 'Pedido não encontrado.', sem aceite",
       !acessoInativo.ok &&
         acessoInativo.status === 404 &&
         assinarInativo === MOTIVO_NAO_ENCONTRADO &&
         (await prisma.aceiteDocumento.count({ where: { versaoId: vInativar.id } })) === 0,
+    );
+    check(
+      "[rota] cliente inativo: o arquivo some (404), até o do pedido assinado",
+      !rotaInativo.ok && rotaInativo.status === 404 && !rotaAssinadoInativo.ok && rotaAssinadoInativo.status === 404,
     );
   } finally {
     // Cada remoção em separado: uma falha não deixa o resto do lixo no banco de dev.
