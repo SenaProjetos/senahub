@@ -22,8 +22,9 @@ export default async function BriefingDoPortalPage({ params }: { params: Promise
   const { projetoId } = await params;
   const projeto = await projetoDoCliente(cliente.clienteId, projetoId);
   if (!projeto) notFound();
-  const briefing = await briefingDoPortal(projetoId);
-  if (!briefing) notFound();
+  const briefing = await briefingDoPortal(projetoId, cliente.clienteId);
+  // Sem pedido da equipe: quem guardou o link cai no projeto, não num 404.
+  if (!briefing) redirect(`/portal/${projetoId}`);
   const encerrado = briefing.situacao === "encerrado";
 
   return (

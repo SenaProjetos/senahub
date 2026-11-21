@@ -30,7 +30,17 @@ export function PortalBriefingCard({ projetoId, resumo }: { projetoId: string; r
 
   const rotuloPedir = resumo.situacao === "encerrado" ? "Reabrir" : "Pedir ao cliente pelo portal";
 
-  function pedir() {
+  async function pedir() {
+    const n = resumo.contasAtivas;
+    const ok = await confirm({
+      title: resumo.situacao === "encerrado" ? "Reabrir o briefing no portal?" : "Pedir o briefing pelo portal?",
+      description:
+        n === 1
+          ? "A 1 conta do cliente no portal vai receber um e-mail pedindo o briefing."
+          : `As ${n} contas do cliente no portal vão receber um e-mail pedindo o briefing.`,
+      confirmLabel: rotuloPedir,
+    });
+    if (!ok) return;
     start(async () => {
       const r = await pedirBriefingPortal({ projetoId });
       if (!r.ok) return void toast.error(r.error);
@@ -66,21 +76,35 @@ export function PortalBriefingCard({ projetoId, resumo }: { projetoId: string; r
       <CardContent>
         <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
           <div className="max-w-xs space-y-1">
-            <Button size="sm" disabled={pending || resumo.motivoPedir !== null} onClick={pedir}>
+            <Button
+              size="sm"
+              disabled={pending || resumo.motivoPedir !== null}
+              aria-describedby={resumo.motivoPedir ? "portal-briefing-motivo-pedir" : undefined}
+              onClick={pedir}
+            >
               {rotuloPedir}
             </Button>
-            {resumo.motivoPedir && <p className="text-xs text-muted-foreground">{resumo.motivoPedir}</p>}
+            {resumo.motivoPedir && (
+              <p id="portal-briefing-motivo-pedir" className="text-xs text-muted-foreground">
+                {resumo.motivoPedir}
+              </p>
+            )}
           </div>
           <div className="max-w-xs space-y-1">
             <Button
               size="sm"
               variant="outline"
               disabled={pending || resumo.motivoEncerrar !== null}
+              aria-describedby={resumo.motivoEncerrar ? "portal-briefing-motivo-encerrar" : undefined}
               onClick={encerrar}
             >
               Encerrar
             </Button>
-            {resumo.motivoEncerrar && <p className="text-xs text-muted-foreground">{resumo.motivoEncerrar}</p>}
+            {resumo.motivoEncerrar && (
+              <p id="portal-briefing-motivo-encerrar" className="text-xs text-muted-foreground">
+                {resumo.motivoEncerrar}
+              </p>
+            )}
           </div>
         </div>
       </CardContent>

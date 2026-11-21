@@ -25,14 +25,15 @@ export type BriefingDoPortal = {
 /**
  * O briefing de um projeto como o cliente o vê no portal: o MESMO formulário do link público (modelo do projeto,
  * disciplinas ativas, ocultações), sem resposta de campo oculto. `null` enquanto a equipe não pediu pelo portal.
- * Quem chama já validou que o projeto é do cliente (`projetoDoCliente` / `acessoDoUsuarioAoProjetoDoPortal`).
+ * Projeto de outro cliente devolve `null` (e quem chama também já o validou).
  *
  * Status e progresso saem do que está GRAVADO (o mesmo que o selo da equipe mostra); as respostas do formulário
  * levam também o pré-preenchimento do cadastro do cliente, como no link.
  */
-export async function briefingDoPortal(projetoId: string): Promise<BriefingDoPortal | null> {
-  const projeto = await prisma.projeto.findUnique({
-    where: { id: projetoId },
+export async function briefingDoPortal(projetoId: string, clienteId: string): Promise<BriefingDoPortal | null> {
+  // Defesa em profundidade: o projeto tem de ser do cliente da conta, mesmo que quem chama já tenha conferido.
+  const projeto = await prisma.projeto.findFirst({
+    where: { id: projetoId, clienteId },
     select: {
       id: true,
       endereco: true,

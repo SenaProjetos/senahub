@@ -294,11 +294,12 @@ Sena Projetos`,
       { nome: "nome", descricao: "Primeiro nome da conta do portal", exemplo: "Mariana" },
       { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
       { nome: "url", descricao: "Link do briefing no portal", exemplo: "https://app/portal/abc/briefing" },
+      { nome: "acao", descricao: "O que a equipe fez: \"pediu\" (primeiro pedido) ou \"reabriu\" (briefing já encerrado)", exemplo: "pediu" },
     ],
-    assuntoPadrao: "A equipe pediu o briefing do projeto {{projeto}}",
+    assuntoPadrao: "A equipe {{acao}} o briefing do projeto {{projeto}}",
     corpoPadrao: `Olá, {{nome}}.
 
-A equipe pediu que você preencha o briefing do projeto **{{projeto}}**. As informações nos ajudam a iniciar os projetos com tudo o que precisamos.
+A equipe {{acao}} o briefing do projeto **{{projeto}}** para você preencher. As informações nos ajudam a iniciar os projetos com tudo o que precisamos.
 
 [Preencher no portal]({{url}})
 

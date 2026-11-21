@@ -11,7 +11,7 @@ const putSchema = z.object({
   respostas: z
     .record(z.string().max(64), z.unknown())
     .default({})
-    .refine((r) => Object.keys(r).length <= 500, "Respostas demais."),
+    .refine((r) => Object.keys(r).length <= 500, "Respostas demais neste envio. Recarregue a página e tente de novo."),
 });
 
 const LIMITE_CORPO_BYTES = 512 * 1024;

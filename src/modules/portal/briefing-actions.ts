@@ -28,6 +28,7 @@ export const salvarBriefingDoPortal = defineAction(
     acao: "briefing-salvar",
     entidade: "BriefingProjeto",
     schema: salvarBriefingDoPortalSchema,
+    redact: ["respostas"], // autosave por campo: as respostas (dados pessoais) não entram no AuditLog
     entidadeId: (_data, input) => input.projetoId,
   },
   async (input, { user }) => {
@@ -47,6 +48,7 @@ export const responderPerguntasDoPortal = defineAction(
     acao: "briefing-responder-extras",
     entidade: "InputProjeto",
     schema: responderPerguntasDoPortalSchema,
+    redact: ["respostas"],
     entidadeId: (_data, input) => input.projetoId,
   },
   async (input, { user }) => {

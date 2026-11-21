@@ -12,7 +12,7 @@ export const MOTIVO_SEM_CLIENTE = "O projeto não tem cliente.";
 export const MOTIVO_CLIENTE_INATIVO = "O cliente está inativo.";
 export const MOTIVO_SEM_CONTA_PORTAL = "O cliente não tem conta ativa no portal. Use o link.";
 export const MOTIVO_NADA_A_PREENCHER = "Não há nada para o cliente preencher neste projeto.";
-export const MOTIVO_JA_PEDIDO = "Já foi pedido.";
+export const MOTIVO_JA_PEDIDO = "O briefing já foi pedido ao cliente pelo portal.";
 export const MOTIVO_PEDIDO_NAO_ABERTO = "O pedido não está aberto.";
 
 export function situacaoPortal(

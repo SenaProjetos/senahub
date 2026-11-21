@@ -31,6 +31,7 @@ export function PerguntasExtrasForm({
   );
   const [salvando, setSalvando] = useState(false);
   const [salvo, setSalvo] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
 
   const grupos = useMemo(() => {
     const map = new Map<string, ItemExtra[]>();
@@ -46,13 +47,18 @@ export function PerguntasExtrasForm({
     if (somenteLeitura) return;
     setSalvando(true);
     setSalvo(false);
+    setErro(null);
+    const falhou = (msg: string) => {
+      setErro(msg);
+      toast.error(msg);
+    };
     try {
       const r = await salvar(id, valores[id] ?? "");
-      if (!r.ok) toast.error(r.erro);
-      else if (r.ignoradas > 0) toast.error("Esta pergunta foi removida pela equipe e não foi salva.");
+      if (!r.ok) falhou(r.erro);
+      else if (r.ignoradas > 0) falhou("Esta pergunta foi removida pela equipe e não foi salva.");
       else setSalvo(true);
     } catch {
-      toast.error("Falha de conexão.");
+      falhou("Falha de conexão.");
     } finally {
       setSalvando(false);
     }
@@ -91,21 +97,22 @@ export function PerguntasExtrasForm({
         </section>
       ))}
 
-      {!somenteLeitura && (
-        <div role="status" aria-live="polite" className="flex items-center gap-2 text-xs text-muted-foreground">
-          {salvando ? (
-            <>
-              <Loader2 className="size-3.5 animate-spin" /> Salvando…
-            </>
-          ) : salvo ? (
-            <>
-              <Check className="size-3.5 text-status-aprovado" /> Respostas salvas.
-            </>
-          ) : (
-            "As respostas são salvas ao sair de cada campo."
-          )}
-        </div>
-      )}
+      {/* Região viva sempre montada (leitor de tela só anuncia mudança numa região que já existia); vazia no só leitura. */}
+      <div role="status" aria-live="polite" className="flex items-center gap-2 text-xs text-muted-foreground">
+        {somenteLeitura ? null : salvando ? (
+          <>
+            <Loader2 className="size-3.5 animate-spin" aria-hidden /> Salvando…
+          </>
+        ) : erro ? (
+          <span className="text-destructive">{erro}</span>
+        ) : salvo ? (
+          <>
+            <Check className="size-3.5 text-success" aria-hidden /> Respostas salvas.
+          </>
+        ) : (
+          "As respostas são salvas ao sair de cada campo."
+        )}
+      </div>
     </div>
   );
 }

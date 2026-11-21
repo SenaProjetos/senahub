@@ -123,6 +123,7 @@ export async function pedirBriefingNoPortal(
           nome: conta.name.trim().split(/\s+/)[0] ?? "",
           projeto: projeto.nome,
           url: `${app}${href}`,
+          acao: reaberto ? "reabriu" : "pediu",
         });
         if (enviado) emails += 1;
       } catch (e) {

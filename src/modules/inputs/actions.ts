@@ -317,8 +317,20 @@ export const atualizarLinkInput = defineAction(
 );
 
 // ── Briefing pelo portal do cliente ───────────────────────────
-const pedidoPortalSchema = z.object({ projetoId: z.string().min(1) });
-const briefingDoProjeto = (i: { projetoId: string }) => prisma.briefingProjeto.findUnique({ where: { projetoId: i.projetoId } });
+const pedidoPortalSchema = z.object({ projetoId: z.string().min(1, "Projeto não informado.") });
+// Só o estado do pedido vai para o "antes" da auditoria: as respostas do briefing (dados pessoais) ficam de fora.
+const briefingDoProjeto = (i: { projetoId: string }) =>
+  prisma.briefingProjeto.findUnique({
+    where: { projetoId: i.projetoId },
+    select: {
+      portalPedidoEm: true,
+      portalPedidoPorId: true,
+      portalEncerradoEm: true,
+      portalEncerradoPorId: true,
+      status: true,
+      avisoEquipeEm: true,
+    },
+  });
 
 /** Pede (ou reabre) o briefing no portal: sino + e-mail a cada conta ativa do cliente. */
 export const pedirBriefingPortal = defineAction(

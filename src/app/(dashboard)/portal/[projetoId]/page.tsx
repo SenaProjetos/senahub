@@ -75,7 +75,7 @@ export default async function PortalProjetoPage({
         mensagem="Não foi possível carregar o briefing agora. Tente de novo; se continuar, fale com a equipe do projeto."
       >
         <Suspense fallback={null}>
-          <BriefingDoProjeto projetoId={projeto.id} />
+          <BriefingDoProjeto projetoId={projeto.id} clienteId={cliente.clienteId} />
         </Suspense>
       </LimiteErroEntregas>
 
@@ -145,8 +145,8 @@ async function AndamentoEEntregas({
   );
 }
 
-async function BriefingDoProjeto({ projetoId }: { projetoId: string }) {
-  const resumo = await briefingDoPortal(projetoId);
+async function BriefingDoProjeto({ projetoId, clienteId }: { projetoId: string; clienteId: string }) {
+  const resumo = await briefingDoPortal(projetoId, clienteId);
   return resumo ? <BriefingCard projetoId={projetoId} resumo={resumo} /> : null;
 }
 

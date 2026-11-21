@@ -45,7 +45,7 @@ describe("motivoParaNaoPedir", () => {
   it("cada recusa com a sua frase, na ordem", () => {
     expect(motivoParaNaoPedir({ ...ok, temCliente: false, clienteAtivo: false })).toBe("O projeto não tem cliente.");
     expect(motivoParaNaoPedir({ ...ok, clienteAtivo: false, contasAtivas: 0 })).toBe("O cliente está inativo.");
-    expect(motivoParaNaoPedir({ ...ok, situacao: "aberto", contasAtivas: 0 })).toBe("Já foi pedido.");
+    expect(motivoParaNaoPedir({ ...ok, situacao: "aberto", contasAtivas: 0 })).toBe("O briefing já foi pedido ao cliente pelo portal.");
     expect(motivoParaNaoPedir({ ...ok, contasAtivas: 0 })).toBe("O cliente não tem conta ativa no portal. Use o link.");
     expect(motivoParaNaoPedir({ ...ok, temAlgoAPreencher: false })).toBe("Não há nada para o cliente preencher neste projeto.");
   });

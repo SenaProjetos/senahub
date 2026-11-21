@@ -144,7 +144,7 @@ async function main() {
     );
     check(
       "e-mail usa o modelo portal-briefing-pedido e o link /portal/<id>/briefing",
-      emails.every((e) => e.slug === "portal-briefing-pedido" && e.vars.url.endsWith(`/portal/${pA.id}/briefing`)) &&
+      emails.every((e) => e.slug === "portal-briefing-pedido" && e.vars.acao === "pediu" && e.vars.url.endsWith(`/portal/${pA.id}/briefing`)) &&
         sinos.every((s) => s.href === `/portal/${pA.id}/briefing`),
     );
 
@@ -170,7 +170,8 @@ async function main() {
 
     // 6. Campo oculto pela equipe, com resposta guardada, não sai para o portal.
     const guardada = ((await prisma.briefingProjeto.findUnique({ where: { projetoId: pA.id }, select: { respostasJson: true } }))?.respostasJson ?? {}) as Record<string, unknown>;
-    const doPortal = await briefingDoPortal(pA.id);
+    const doPortal = await briefingDoPortal(pA.id, cliente.id);
+    check("briefing de projeto de outro cliente não sai (briefingDoPortal)", (await briefingDoPortal(pA.id, outro.id)) === null);
     check(
       "resposta de campo oculto fica guardada mas não aparece no portal",
       gravouEndereco.ok &&
@@ -226,7 +227,7 @@ async function main() {
     const voltaLink = await gravarRespostasBriefing(pA.id, { nomeCompleto: "Depois de reabrir" }, "Fulano Cliente", "link");
     check(
       "reabrir avisa de novo (2 sinos 'A equipe reabriu…', 2 e-mails)",
-      reaberto.ok && reaberto.reaberto && sinos.length === 2 && emails.length === 2 && sinos.every((s) => s.titulo.startsWith("A equipe reabriu")),
+      reaberto.ok && reaberto.reaberto && sinos.length === 2 && emails.length === 2 && sinos.every((s) => s.titulo.startsWith("A equipe reabriu")) && emails.every((e) => e.vars.acao === "reabriu"),
     );
     check("reabrir: portal e link voltam a gravar", volta.ok && voltaLink.ok);
 
@@ -247,10 +248,35 @@ async function main() {
     );
     const removida = await prisma.inputProjeto.findUnique({ where: { id: extraRemovida.id }, select: { resposta: true } });
     check("pergunta extra removida: portal devolve ignoradas 1 e não grava nela", extras.ok && extras.ignoradas === 1 && extras.salvas === 1 && removida?.resposta === null);
+
+    // 12. Salvar e encerrar AO MESMO TEMPO (fora de transação): ou o salvamento entrou e o pedido fechou, ou o
+    // salvamento foi recusado com a frase do encerramento. Em qualquer caso, depois disso o portal não grava mais.
+    const [salvando, encerrando] = await Promise.all([
+      gravarRespostasBriefing(pA.id, { emailContato: "corrida@exemplo.com.br" }, "Fulano Cliente", "portal"),
+      encerrarBriefingNoPortal(pA.id, autor.id),
+    ]);
+    const aposCorrida = ((await prisma.briefingProjeto.findUnique({ where: { projetoId: pA.id }, select: { portalEncerradoEm: true, respostasJson: true } })) ?? null);
+    const gravadoNaCorrida = (aposCorrida?.respostasJson as Record<string, unknown> | null)?.emailContato === "corrida@exemplo.com.br";
+    const depoisDaCorrida = await gravarRespostasBriefing(pA.id, { emailContato: "tarde@exemplo.com.br" }, "Fulano Cliente", "portal");
+    check(
+      "salvar e encerrar juntos: ou salvou e fechou, ou o salvamento foi recusado; depois o portal recusa",
+      encerrando.ok &&
+        aposCorrida?.portalEncerradoEm != null &&
+        ((salvando.ok && gravadoNaCorrida) || (erroDe(salvando) === MOTIVO_ENCERRADO && !gravadoNaCorrida)) &&
+        erroDe(depoisDaCorrida) === MOTIVO_ENCERRADO,
+    );
   } finally {
-    for (const id of projetos) await prisma.projeto.delete({ where: { id } });
-    for (const id of usuarios) await prisma.user.delete({ where: { id } });
-    for (const id of clientes) await prisma.cliente.delete({ where: { id } });
+    // Cada remoção em separado: uma falha não deixa o resto do lixo no banco de dev.
+    const remover = async (rotulo: string, id: string, apagar: () => Promise<unknown>) => {
+      try {
+        await apagar();
+      } catch (e) {
+        console.error(`[limpeza] não removeu ${rotulo} ${id}:`, e);
+      }
+    };
+    for (const id of projetos) await remover("projeto", id, () => prisma.projeto.delete({ where: { id } }));
+    for (const id of usuarios) await remover("usuário", id, () => prisma.user.delete({ where: { id } }));
+    for (const id of clientes) await remover("cliente", id, () => prisma.cliente.delete({ where: { id } }));
     await prisma.$disconnect();
   }
   process.exit(ok ? 0 : 1);

@@ -6,7 +6,7 @@ describe("modelos de e-mail do portal", () => {
     const meta = metaTemplate("portal-briefing-pedido");
     expect(meta).toBeDefined();
     expect(meta?.grupo).toBe("Projetos");
-    expect(meta?.variaveis.map((v) => v.nome)).toEqual(["nome", "projeto", "url"]);
-    expect(meta?.assuntoPadrao).toBe("A equipe pediu o briefing do projeto {{projeto}}");
+    expect(meta?.variaveis.map((v) => v.nome)).toEqual(["nome", "projeto", "url", "acao"]);
+    expect(meta?.assuntoPadrao).toBe("A equipe {{acao}} o briefing do projeto {{projeto}}");
   });
 });
