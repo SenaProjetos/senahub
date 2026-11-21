@@ -87,9 +87,9 @@ export function PedidoAssinaturaPortal({
             disabled={pending || !!motivo}
             aria-describedby={motivo ? motivoId : undefined}
             title={motivo ?? "Pedir a assinatura pelo portal do cliente"}
-            className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 disabled:opacity-50"
+            className="inline-flex items-center gap-1 rounded-sm text-xs text-primary hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
           >
-            <MonitorSmartphone className="size-3.5" /> Pedir assinatura no portal
+            <MonitorSmartphone className="size-3.5" aria-hidden /> Pedir assinatura no portal
           </button>
           {motivo && (
             <span id={motivoId} className="text-muted-foreground">
@@ -113,9 +113,10 @@ export function PedidoAssinaturaPortal({
                 type="button"
                 onClick={() => cancelar(p.id)}
                 disabled={pending}
-                className="inline-flex items-center gap-1 text-destructive hover:text-destructive/80 disabled:opacity-50"
+                aria-label={`Cancelar pedido de assinatura da v${numero} feito em ${formatarData(p.pedidoEm)}`}
+                className="inline-flex items-center gap-1 rounded-sm text-destructive hover:text-destructive/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
               >
-                <X className="size-3" /> Cancelar pedido
+                <X className="size-3" aria-hidden /> Cancelar pedido
               </button>
             )}
           </div>

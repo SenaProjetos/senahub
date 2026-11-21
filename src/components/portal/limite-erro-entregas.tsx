@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
- * Isola o bloco Andamento + Linha do tempo + Entregas do portal (os três saem da mesma leitura): um erro ao
- * carregar ou desenhar troca só este bloco pela mensagem, e o topo e
- * os Documentos continuam na tela (sem isto o erro subiria ao `error.tsx` e
- * levaria a página inteira).
+ * Isola um bloco do portal — nasceu para Andamento + Linha do tempo + Entregas (os três saem da mesma leitura) e hoje
+ * serve a vários blocos (Contratos, Briefing, Pedidos de revisão…, com `titulo`/`mensagem` próprios): um erro ao
+ * carregar ou desenhar troca só aquele bloco pela mensagem, e o resto da página continua na tela (sem isto o erro
+ * subiria ao `error.tsx` e levaria a página inteira).
  */
 type Props = {
   children: ReactNode;

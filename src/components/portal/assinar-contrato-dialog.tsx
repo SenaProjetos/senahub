@@ -39,6 +39,7 @@ export function AssinarContratoDialog({
   const [concordo, setConcordo] = useState(false);
   const [enviando, startTransition] = useTransition();
   const idConcordo = useId();
+  const idAjuda = useId();
   const fe = useFieldErrors({ concordo: idConcordo });
 
   function mudarAberto(o: boolean) {
@@ -55,6 +56,8 @@ export function AssinarContratoDialog({
       const r = await assinarContratoNoPortal({ pedidoId, concordo: true });
       if (!r.ok) {
         if (!fe.registrar(r)) toast.error(r.error);
+        // Versão substituída, pedido cancelado…: a recusa muda o que o card deve mostrar.
+        router.refresh();
         return;
       }
       toast.success("Contrato assinado.");
@@ -65,8 +68,8 @@ export function AssinarContratoDialog({
 
   return (
     <>
-      <Button size="sm" onClick={() => mudarAberto(true)}>
-        <FileSignature className="size-4" /> Ler e assinar
+      <Button size="sm" onClick={() => mudarAberto(true)} aria-label={`Ler e assinar ${titulo}`}>
+        <FileSignature className="size-4" aria-hidden /> Ler e assinar
       </Button>
       <Dialog open={aberto} onOpenChange={mudarAberto}>
         <DialogContent className="sm:max-w-lg">
@@ -100,14 +103,19 @@ export function AssinarContratoDialog({
                 <span>Li o documento e concordo com os termos.</span>
               </label>
               <FieldError campo={idConcordo} mensagem={fe.erros.concordo} />
+              {!concordo && (
+                <p id={idAjuda} className="text-xs text-muted-foreground">
+                  Marque que leu e concorda para assinar.
+                </p>
+              )}
             </div>
           </DialogBody>
           <DialogFooter>
             <Button variant="ghost" onClick={() => mudarAberto(false)} disabled={enviando}>
               Cancelar
             </Button>
-            <Button onClick={assinar} disabled={enviando || !concordo}>
-              {enviando ? "Assinando…" : "Assinar"}
+            <Button onClick={assinar} disabled={enviando || !concordo} aria-describedby={!concordo ? idAjuda : undefined}>
+              <span role="status">{enviando ? "Assinando…" : "Assinar"}</span>
             </Button>
           </DialogFooter>
         </DialogContent>

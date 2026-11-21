@@ -31,7 +31,7 @@ export function ContratosCard({ contratos }: { contratos: ContratoDoPortal[] }) 
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="min-w-0 break-words text-sm font-medium">{c.titulo}</p>
                     {aguardando && (
-                      <Badge variant="outline" className="border-warning/40 text-warning">
+                      <Badge variant="outline" className="border-warning/40 text-warning-text">
                         Aguardando sua assinatura
                       </Badge>
                     )}
@@ -60,13 +60,20 @@ export function ContratosCard({ contratos }: { contratos: ContratoDoPortal[] }) 
                     <Button
                       size="sm"
                       variant="outline"
-                      render={<a href={`${base}?disposition=inline`} target="_blank" rel="noopener noreferrer" />}
+                      render={
+                        <a
+                          href={`${base}?disposition=inline`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Ver PDF de ${c.titulo} (abre em nova aba)`}
+                        />
+                      }
                     >
-                      <Eye className="size-4" /> Ver PDF
+                      <Eye className="size-4" aria-hidden /> Ver PDF
                     </Button>
                   )}
-                  <Button size="sm" variant="outline" render={<a href={base} rel="noopener" />}>
-                    <Download className="size-4" /> Baixar
+                  <Button size="sm" variant="outline" render={<a href={base} aria-label={`Baixar ${c.titulo}`} />}>
+                    <Download className="size-4" aria-hidden /> Baixar
                   </Button>
                 </div>
               </li>

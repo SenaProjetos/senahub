@@ -52,7 +52,7 @@ export default async function PortalPage() {
       {/* Contratos sem projeto: o card só existe quando há item; leitura e limite de erro próprios. */}
       <LimiteErroEntregas
         titulo="Contratos"
-        mensagem="Não foi possível carregar os contratos agora. Tente de novo; se continuar, fale com a equipe do projeto."
+        mensagem="Não foi possível carregar os contratos agora. Tente de novo; se continuar, fale com o escritório."
       >
         <Suspense fallback={null}>
           <ContratosSemProjeto clienteId={cliente.clienteId} />
