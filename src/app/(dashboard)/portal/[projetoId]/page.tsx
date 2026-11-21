@@ -12,6 +12,8 @@ import { modelosDoPortal } from "@/modules/portal/modelo3d/queries";
 import { temModelo3dNoPortal } from "@/modules/portal/modelo3d/regras";
 import { briefingDoPortal } from "@/modules/portal/briefing-queries";
 import { BriefingCard } from "@/components/portal/briefing-card";
+import { ContratosCard } from "@/components/portal/contratos-card";
+import { contratosDoPortal } from "@/modules/portal/contratos/queries";
 import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { PortalDocumentos } from "@/components/portal/portal-documentos";
@@ -68,6 +70,16 @@ export default async function PortalProjetoPage({
           )}
         </div>
       )}
+
+      {/* Contratos: só aparecem quando a equipe pediu a assinatura pelo portal; leitura e limite de erro próprios. */}
+      <LimiteErroEntregas
+        titulo="Contratos"
+        mensagem="Não foi possível carregar os contratos agora. Tente de novo; se continuar, fale com a equipe do projeto."
+      >
+        <Suspense fallback={null}>
+          <ContratosDoProjeto projetoId={projeto.id} clienteId={cliente.clienteId} />
+        </Suspense>
+      </LimiteErroEntregas>
 
       {/* Briefing: só aparece depois que a equipe pede pelo portal; leitura e limite de erro próprios. */}
       <LimiteErroEntregas
@@ -143,6 +155,11 @@ async function AndamentoEEntregas({
       />
     </div>
   );
+}
+
+async function ContratosDoProjeto({ projetoId, clienteId }: { projetoId: string; clienteId: string }) {
+  const contratos = await contratosDoPortal(clienteId, projetoId);
+  return <ContratosCard contratos={contratos} />;
 }
 
 async function BriefingDoProjeto({ projetoId, clienteId }: { projetoId: string; clienteId: string }) {

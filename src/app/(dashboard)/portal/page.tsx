@@ -7,6 +7,9 @@ import { redirect } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { clienteDoUsuario, projetosDoCliente, querResumoPorEmail } from "@/modules/portal/queries";
+import { ContratosCard } from "@/components/portal/contratos-card";
+import { LimiteErroEntregas } from "@/components/portal/limite-erro-entregas";
+import { contratosDoPortal } from "@/modules/portal/contratos/queries";
 import { ResumoEmailToggle } from "@/components/portal/resumo-email-toggle";
 import { SITUACAO_PROJETO_LABEL } from "@/modules/projetos/status";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -46,6 +49,15 @@ export default async function PortalPage() {
   return (
     <div className="space-y-6">
       <CabecalhoPagina titulo="Meus projetos" descricao="Acompanhe o andamento dos seus projetos." />
+      {/* Contratos sem projeto: o card só existe quando há item; leitura e limite de erro próprios. */}
+      <LimiteErroEntregas
+        titulo="Contratos"
+        mensagem="Não foi possível carregar os contratos agora. Tente de novo; se continuar, fale com a equipe do projeto."
+      >
+        <Suspense fallback={null}>
+          <ContratosSemProjeto clienteId={cliente.clienteId} />
+        </Suspense>
+      </LimiteErroEntregas>
       {/* O progresso de cada projeto lê as Entregas dele (a mesma conta do detalhe): esqueleto enquanto isso. */}
       <Suspense fallback={<ProjetosCarregando />}>
         <ProjetosDoCliente clienteId={cliente.clienteId} />
@@ -53,6 +65,11 @@ export default async function PortalPage() {
       <ResumoEmailToggle ligado={resumoPorEmail} />
     </div>
   );
+}
+
+async function ContratosSemProjeto({ clienteId }: { clienteId: string }) {
+  const contratos = await contratosDoPortal(clienteId, null);
+  return <ContratosCard contratos={contratos} />;
 }
 
 async function ProjetosDoCliente({ clienteId }: { clienteId: string }) {
