@@ -5,6 +5,7 @@ import { gravarRespostasBriefing } from "@/modules/inputs/briefing-service";
 import { linkVigente } from "@/lib/link-publico";
 import { auditarBloqueioRateLimit, limitarRequisicao, respostaLimiteRequisicoes } from "@/lib/rate-limit";
 import { notificarPreenchimentoInput } from "@/modules/inputs/notificar-preenchimento";
+import { lerJsonLimitado } from "@/lib/corpo-limitado";
 
 // O link é aberto ao mundo: teto de perguntas por envio (o valor de cada uma é conferido pelo tipo no serviço).
 const putSchema = z.object({
@@ -41,11 +42,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ token: string }
   const projeto = await projetoDoToken(token);
   if (!projeto) return NextResponse.json({ error: "Link inválido." }, { status: 404 });
 
-  // Teto de bytes ANTES de ler o corpo: o limite de chaves só vale depois do parse, e o processo é um só (chat incluso).
-  if (Number(req.headers.get("content-length") ?? 0) > LIMITE_CORPO_BYTES) {
-    return NextResponse.json({ error: "Respostas grandes demais." }, { status: 413 });
-  }
-  const parsed = putSchema.safeParse(await req.json().catch(() => null));
+  // Teto de bytes lido em fluxo (o corpo em pedaços não traz Content-Length): o limite de chaves só vale depois do
+  // parse, e o processo é um só (chat incluso).
+  const corpo = await lerJsonLimitado(req, LIMITE_CORPO_BYTES);
+  if (!corpo.ok) return NextResponse.json({ error: corpo.erro }, { status: corpo.status });
+  const parsed = putSchema.safeParse(corpo.dados);
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos." }, { status: 400 });
 
   // Só o e-mail/telefone que MUDOU é validado; o inválido já gravado segue salvando. `campos` leva a
