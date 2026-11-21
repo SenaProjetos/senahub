@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { exigirSocioSeAcimaDaAlcada } from "@/modules/juridico/alcada";
 import { comRetentativaDeConflito } from "@/modules/juridico/assinatura/service";
 import { assinarVersaoNoTx, depoisDeAssinar, hashDaVersao } from "@/modules/juridico/assinatura/assinar-service";
+import { motivoParaNaoAssinarNoJuridico } from "@/modules/juridico/assinatura/quem-assina";
 import { gerarVersaoDeModelo as gerarVersaoDeModeloContrato } from "@/modules/juridico/contrato/gerar";
 import { devePassarParaAssinado, ehDocumentoContratual } from "@/modules/juridico/contrato/estado";
 import { faturarParcela, sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
@@ -582,18 +583,19 @@ export const registrarAceite = defineAction(
     });
     if (!versao) throw new ActionError("Versão não encontrada.");
 
-    // ── Autorização (ver a nota no config desta action) ───────────────────────────────────────
+    // ── Autorização (ver a nota no config desta action) — a regra inteira é `motivoParaNaoAssinarNoJuridico`
+    // (pura, testada); a recusa da conta externa acima é a mesma, só que antes de ler o banco.
     const doc = versao.documento;
     const podeGerirJuridico = await can(ctx.user, "juridico", "gerir");
     const ehDonoDoVinculo = !!doc.vinculoId && doc.vinculo?.userId === ctx.user.id;
-    if (!podeGerirJuridico && !ehDonoDoVinculo) {
-      throw new ActionError("Sem permissão para assinar este documento.");
-    }
-    // Contrato de equipe carrega salário/CPF: quem administra precisa ser RH, não qualquer um com
-    // `juridico:gerir`. O dono do vínculo segue podendo assinar o dele.
-    if (doc.vinculoId && !ehDonoDoVinculo && !ehHrAdmin(ctx.user)) {
-      throw new ActionError("Só RH pode assinar contrato de equipe de outra pessoa.");
-    }
+    const motivoAutorizacao = motivoParaNaoAssinarNoJuridico({
+      tipo: ctx.user.tipo,
+      podeGerirJuridico,
+      ehDonoDoVinculo,
+      temVinculo: !!doc.vinculoId,
+      ehHrAdmin: ehHrAdmin(ctx.user),
+    });
+    if (motivoAutorizacao) throw new ActionError(motivoAutorizacao);
 
     // H4 — checa ANTES de qualquer escrita: bloquear depois deixaria uma assinatura órfã gravada.
     if (devePassarParaAssinado(doc.tipo, doc.statusContrato)) {
