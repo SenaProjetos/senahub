@@ -35,7 +35,8 @@ têm tela própria — veja [Certidões](certidoes.md).
   - não há outro pedido aguardando;
   - o cliente ainda não assinou esta versão pelo portal.
 
-  Acima do limite de aprovação, quem pede precisa ser um sócio. Cada versão mostra
+  Quando a assinatura vai deixar o contrato **assinado** e o valor passa do limite de aprovação, quem pede precisa
+  ser um sócio. Cada versão mostra
   **Portal: situação · pedido por … em …**, com uma destas situações: **Aguardando o cliente**,
   **Assinado pelo cliente**, **Cancelado**, **Versão substituída** ou **Contrato encerrado**. **Cancelar pedido**
   desfaz um pedido que ainda aguarda.

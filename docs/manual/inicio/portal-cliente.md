@@ -180,9 +180,10 @@ aviso no sino e por e-mail.
   fica no portal.
 
 Uma conta basta: quando alguém da empresa assina, o pedido se encerra para todas as contas. A assinatura pelo portal
-vale como a feita pela equipe no Jurídico: o contrato passa a **assinado**, e o prazo do projeto e as parcelas
-seguem a partir daí. Pedido cancelado pelo escritório, ou de uma versão que foi substituída por outra, deixa de
-aparecer. Quem prefere não usar o portal continua podendo assinar pelo link que o escritório envia.
+vale como a feita pela equipe no Jurídico: o contrato passa a **assinado** (se ainda não estava), e o prazo do
+projeto e as parcelas seguem a partir daí. Pedido cancelado pelo escritório, de uma versão que foi substituída por
+outra ou de um contrato encerrado (vencido ou rescindido) enquanto aguardava deixa de aparecer. Quem prefere não
+usar o portal continua podendo assinar pelo link que o escritório envia.
 
 ## Resumo por e-mail
 

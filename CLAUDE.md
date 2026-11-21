@@ -929,6 +929,12 @@ a calculadora. A memória exportada (`/api/estudos/[id]/memoria?formato=pdf|docx
 - **No `Promise.all` on a transaction client:** a `$transaction` has ONE connection; `Promise.all([tx.a…, tx.b…])`
   fires concurrent queries on it (deprecated in `pg`, breaks in pg@9). Await them one by one. A guard test
   (`lib/promise-all-em-transacao.test.ts`) scans `src/`.
+- **No nested relation `select`/`include` inside a `$transaction` either** (Prisma 7 + adapter-pg): Prisma resolves the
+  relations with parallel queries on the transaction's one connection — the same problem as `Promise.all`. Inside a
+  transaction read flat (one model per query) and sequentially; see `assinarVersaoNoTx`.
+- **Signature writer:** `assinarVersaoNoTx` (`juridico/assinatura/assinar-service.ts`) is the ONLY writer of
+  `AceiteDocumento` (Jurídico `registrarAceite` and the portal's signature request both call it); lock order is always
+  `pedido_assinatura_portal` → `documento_juridico`.
 - **shadcn on base-ui, not Radix:** triggers use `render={<Comp />}`, **not** `asChild`. `components.json`
   style is `base-nova`. Don't reach for Radix patterns.
 - REST routes under `src/app/api/` exist only for multipart uploads, public-token endpoints, streaming, and
