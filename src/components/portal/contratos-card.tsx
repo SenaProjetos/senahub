@@ -27,7 +27,8 @@ export function ContratosCard({ contratos }: { contratos: ContratoDoPortal[] }) 
             const aguardando = c.situacao === "aguardando";
             return (
               <li key={c.pedidoId} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-2 py-3">
-                <div className="min-w-0 flex-1 space-y-0.5">
+                {/* No celular o bloco de texto ocupa a linha toda e os botões descem (senão cobrem o selo). */}
+                <div className="min-w-0 flex-1 basis-full space-y-0.5 sm:basis-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="min-w-0 break-words text-sm font-medium">{c.titulo}</p>
                     {aguardando && (
