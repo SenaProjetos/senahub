@@ -1474,8 +1474,6 @@ model LinkPublicoInput {
   ativo        Boolean   @default(true)
   /// Data/hora de expiração (opcional). Nulo = não expira.
   expiraEm     DateTime?
-  /// Obsoleto: a trava agora é BriefingProjeto.avisoEquipeEm (vale também para o portal).
-  notificadoEm DateTime?
   createdAt    DateTime  @default(now())
 
   @@map("link_publico_input")
