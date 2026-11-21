@@ -13,6 +13,7 @@ import { randomBytes } from "node:crypto";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { inputsPorToken } from "../src/modules/inputs/queries";
+import { formularioDoCliente } from "../src/modules/inputs/formulario-cliente";
 import { BRIEFING_SCHEMA } from "../src/modules/inputs/briefing-schema";
 import { PUT as putInputs } from "../src/app/api/p/inputs/[token]/route";
 import { PUT as putBriefing } from "../src/app/api/p/inputs/[token]/briefing/route";
@@ -123,7 +124,10 @@ async function main() {
     // 10) Pergunta removida some do link e não recebe resposta; a resposta guardada fica.
     await prisma.inputProjeto.update({ where: { id: pergunta.id }, data: { removidoEm: new Date() } });
     const comRemovida = await inputsPorToken(token);
-    check("pergunta removida fora do link", comRemovida?.inputs.every((i) => i.id !== pergunta.id) === true);
+    check(
+      "pergunta removida fora do link",
+      comRemovida != null && (await formularioDoCliente(comRemovida)).extras.every((i) => i.id !== pergunta.id),
+    );
     const r10 = await putInputs(req({ respostas: [{ id: pergunta.id, resposta: "depois de removida" }] }), novoCtx());
     check("PUT ignora pergunta removida", ((await r10.json()) as { salvos: number }).salvos === 0);
     const guardada = await prisma.inputProjeto.findUnique({ where: { id: pergunta.id } });

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { STATUS_LABEL, STATUS_TONE } from "@/components/inputs/briefing-status";
 import type { BriefingDoPortal } from "@/modules/portal/briefing-queries";
-import { fraseEncerradoPelaEquipe, fraseProgressoBriefing } from "@/modules/portal/briefing-regras";
+import { fraseEncerradoPelaEquipe, fraseProgressoBriefing, fraseProgressoExtras } from "@/modules/portal/briefing-regras";
 
 /**
  * Card "Briefing do projeto" da página do projeto no portal. Quem renderiza só o monta quando a equipe pediu o
@@ -16,10 +16,11 @@ export function BriefingCard({
   resumo,
 }: {
   projetoId: string;
-  resumo: Pick<BriefingDoPortal, "situacao" | "status" | "progresso" | "encerradoEm">;
+  resumo: Pick<BriefingDoPortal, "situacao" | "status" | "progresso" | "temCampoVisivel" | "extras" | "encerradoEm">;
 }) {
   const encerrado = resumo.situacao === "encerrado";
-  const progresso = fraseProgressoBriefing(resumo.progresso);
+  // Projeto só com perguntas extras: a frase conta as extras, como o selo.
+  const progresso = resumo.temCampoVisivel ? fraseProgressoBriefing(resumo.progresso) : fraseProgressoExtras(resumo.extras);
   return (
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">

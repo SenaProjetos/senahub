@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { linkVigente } from "@/lib/link-publico";
-import { lerContexto, temAlgoAPreencher } from "@/modules/inputs/portal-pedido-service";
+import { lerContexto, temAlgoAPreencher } from "@/modules/inputs/portal-pedido-leitura";
 import { motivoParaNaoEncerrar, motivoParaNaoPedir, type SituacaoPortalBriefing } from "@/modules/inputs/portal-pedido";
 
 /** Templates de inputs padrão (catálogo por disciplina). */
@@ -44,7 +44,7 @@ export async function progressoInputs(projetoId: string) {
   return { total, respondidas };
 }
 
-/** Carrega o projeto + inputs + briefing pelo token público (só link vigente). */
+/** Carrega o projeto + briefing pelo token público (só link vigente); o formulário sai de `formularioDoCliente`. */
 export async function inputsPorToken(token: string) {
   const link = await prisma.linkPublicoInput.findUnique({
     where: { token },
@@ -55,10 +55,6 @@ export async function inputsPorToken(token: string) {
           nome: true,
           codigo: true,
           endereco: true,
-          inputs: {
-            where: { removidoEm: null },
-            orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }],
-          },
           disciplinas: { select: { disciplinaTextoLegado: true } },
           briefing: {
             select: {

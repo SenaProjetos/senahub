@@ -1,12 +1,7 @@
 import type { Metadata } from "next";
 import { ClipboardList } from "lucide-react";
 import { inputsPorToken } from "@/modules/inputs/queries";
-import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
-import {
-  prePopularRespostas,
-  respostasVisiveis,
-  secoesDoProjeto,
-} from "@/modules/inputs/briefing-schema";
+import { formularioDoCliente } from "@/modules/inputs/formulario-cliente";
 import { MOTIVO_ENCERRADO, situacaoPortal } from "@/modules/inputs/portal-pedido";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { InputsPublicForm } from "@/components/inputs/inputs-public-form";
@@ -39,37 +34,10 @@ export default async function InputsPublicoPage({
     );
   }
 
-  const itens = projeto.inputs.map((i) => ({
-    id: i.id,
-    disciplina: i.disciplina,
-    pergunta: i.pergunta,
-    resposta: i.resposta ?? "",
-  }));
-
   // Encerrado pela equipe: o link mostra o que já foi respondido, sem aceitar novas respostas.
   const somenteLeitura = situacaoPortal(projeto.briefing) === "encerrado";
 
-  const disciplinas = projeto.disciplinas.map((d) => d.disciplinaTextoLegado);
-  const ocultos = {
-    secoes: projeto.briefing?.secoesOcultas ?? [],
-    campos: projeto.briefing?.camposOcultos ?? [],
-  };
-  const modelo = await resolverModeloDoProjeto(projeto.id, projeto.briefing?.modeloId);
-  const secoesVisiveis = secoesDoProjeto(modelo.secoes, disciplinas, ocultos);
-  // Resposta de campo oculto não sai do servidor (a gravação mescla, então ela fica guardada).
-  const respostasBriefing = respostasVisiveis(
-    prePopularRespostas(
-    (projeto.briefing?.respostasJson as Record<string, unknown> | null) ?? {},
-    {
-      nome: projeto.cliente?.nome,
-      email: projeto.cliente?.email,
-      telefone: projeto.cliente?.telefone,
-      endereco: projeto.endereco ?? undefined,
-    },
-    modelo.secoes,
-    ),
-    secoesVisiveis,
-  );
+  const { secoes: secoesVisiveis, respostas: respostasBriefing, extras: itens } = await formularioDoCliente(projeto);
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 px-4 py-10">

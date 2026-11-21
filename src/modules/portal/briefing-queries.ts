@@ -2,14 +2,12 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import {
   calcularStatusBriefing,
-  prePopularRespostas,
   progressoObrigatorios,
-  respostasVisiveis,
-  secoesDoProjeto,
   type SecaoBriefing,
   type StatusBriefing,
 } from "@/modules/inputs/briefing-schema";
-import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
+import { formularioDoCliente, type ExtraDoFormulario } from "@/modules/inputs/formulario-cliente";
+import { statusDoFormulario } from "@/modules/portal/briefing-regras";
 import { situacaoPortal } from "@/modules/inputs/portal-pedido";
 
 export type BriefingDoPortal = {
@@ -18,7 +16,9 @@ export type BriefingDoPortal = {
   progresso: { preenchidos: number; total: number };
   secoes: SecaoBriefing[];
   respostas: Record<string, unknown>;
-  extras: { id: string; disciplina: string | null; pergunta: string; resposta: string }[];
+  /** Há campo do modelo visível; falso = o projeto só tem perguntas extras (o selo e a frase vêm delas). */
+  temCampoVisivel: boolean;
+  extras: ExtraDoFormulario[];
   encerradoEm: Date | null;
 };
 
@@ -55,42 +55,19 @@ export async function briefingDoPortal(projetoId: string, clienteId: string): Pr
   const situacao = situacaoPortal(projeto.briefing);
   if (situacao === "nao_pedido") return null;
 
-  const disciplinas = projeto.disciplinas.map((d) => d.disciplinaTextoLegado);
-  const ocultos = {
-    secoes: projeto.briefing?.secoesOcultas ?? [],
-    campos: projeto.briefing?.camposOcultos ?? [],
-  };
-  const modelo = await resolverModeloDoProjeto(projeto.id, projeto.briefing?.modeloId);
-  const secoes = secoesDoProjeto(modelo.secoes, disciplinas, ocultos);
-  const gravadas = (projeto.briefing?.respostasJson as Record<string, unknown> | null) ?? {};
-  // Resposta de campo oculto (ou de disciplina que o projeto não tem) não sai do servidor.
-  const respostas = respostasVisiveis(
-    prePopularRespostas(
-      gravadas,
-      {
-        nome: projeto.cliente?.nome,
-        email: projeto.cliente?.email,
-        telefone: projeto.cliente?.telefone,
-        endereco: projeto.endereco ?? undefined,
-      },
-      modelo.secoes,
-    ),
-    secoes,
-  );
-
-  const extras = await prisma.inputProjeto.findMany({
-    where: { projetoId: projeto.id, removidoEm: null },
-    orderBy: [{ disciplina: "asc" }, { ordem: "asc" }, { createdAt: "asc" }],
-    select: { id: true, disciplina: true, pergunta: true, resposta: true },
-  });
+  const { secoes, gravadas, respostas, extras } = await formularioDoCliente(projeto);
+  const progresso = progressoObrigatorios(gravadas, secoes);
+  // Só perguntas extras (nenhum campo do modelo visível): o selo e a frase vêm das extras.
+  const temCampoVisivel = secoes.length > 0;
 
   return {
     situacao,
-    status: calcularStatusBriefing(gravadas, secoes),
-    progresso: progressoObrigatorios(gravadas, secoes),
+    status: statusDoFormulario({ status: calcularStatusBriefing(gravadas, secoes), temCampoVisivel, extras }),
+    progresso,
+    temCampoVisivel,
     secoes,
     respostas,
-    extras: extras.map((e) => ({ id: e.id, disciplina: e.disciplina, pergunta: e.pergunta, resposta: e.resposta ?? "" })),
+    extras,
     encerradoEm: projeto.briefing?.portalEncerradoEm ?? null,
   };
 }
