@@ -32,6 +32,7 @@ import {
 } from "../src/modules/inputs/portal-pedido";
 import { acessoDoUsuarioAoProjetoDoPortal } from "../src/modules/portal/acesso";
 import { briefingDoPortal } from "../src/modules/portal/briefing-queries";
+import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
 
 type Sino = { userId: string; titulo: string; corpo: string; href: string };
 type Email = { to: string; slug: string; vars: Record<string, string> };
@@ -167,6 +168,15 @@ async function main() {
     const acessoInativo = await acessoDoUsuarioAoProjetoDoPortal({ id: contaDoInativo.id, tipo: "externo", mustChangePassword: false }, pInativo.id);
     check("conta de outro cliente não acessa o projeto", !acessoOutro.ok);
     check("conta de cliente inativo não acessa o projeto", !acessoInativo.ok);
+    // Caso positivo: a conta ativa do cliente dono do projeto, com o termo vigente aceito, abre o projeto.
+    const tipoTermo = tipoTermoPorTipo("externo");
+    await prisma.aceiteTermo.create({
+      data: { userId: contaA.id, tipo: tipoTermo, versao: TERMOS[tipoTermo].versao, conteudoHash: `${tag}_hash` },
+    });
+    const acessoDono = await acessoDoUsuarioAoProjetoDoPortal({ id: contaA.id, tipo: "externo", mustChangePassword: false }, pA.id);
+    check("conta ativa do cliente dono, com o termo aceito, acessa o projeto", acessoDono.ok && acessoDono.userId === contaA.id);
+    // Projeto do mesmo cliente que a equipe ainda não pediu pelo portal: a leitura do portal não devolve nada.
+    check("briefingDoPortal devolve null enquanto o pedido não foi feito (nao_pedido)", (await briefingDoPortal(pC.id, cliente.id)) === null);
 
     // 6. Campo oculto pela equipe, com resposta guardada, não sai para o portal.
     const guardada = ((await prisma.briefingProjeto.findUnique({ where: { projetoId: pA.id }, select: { respostasJson: true } }))?.respostasJson ?? {}) as Record<string, unknown>;
@@ -274,6 +284,7 @@ async function main() {
         console.error(`[limpeza] não removeu ${rotulo} ${id}:`, e);
       }
     };
+    for (const id of usuarios) await remover("aceite de termo", id, () => prisma.aceiteTermo.deleteMany({ where: { userId: id } }));
     for (const id of projetos) await remover("projeto", id, () => prisma.projeto.delete({ where: { id } }));
     for (const id of usuarios) await remover("usuário", id, () => prisma.user.delete({ where: { id } }));
     for (const id of clientes) await remover("cliente", id, () => prisma.cliente.delete({ where: { id } }));
