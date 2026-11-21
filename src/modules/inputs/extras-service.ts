@@ -23,7 +23,8 @@ export async function gravarRespostasExtras(
     for (const r of respostas) {
       const { count } = await tx.inputProjeto.updateMany({
         where: { id: r.id, projetoId, removidoEm: null },
-        data: { resposta: r.resposta || null },
+        // Só espaço não é resposta: o selo da equipe e o do portal contam "respondida" pela mesma regra.
+        data: { resposta: r.resposta.trim() || null },
       });
       salvas += count;
     }

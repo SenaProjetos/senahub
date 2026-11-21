@@ -235,9 +235,9 @@ export function BriefingForm({
 }
 
 const inputClass =
-  "w-full rounded-sm border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default disabled:bg-muted/40 disabled:text-foreground";
+  "w-full rounded-sm border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default disabled:bg-muted/40 disabled:text-foreground dark:disabled:bg-muted/40";
 /** Só somente leitura desabilita o campo: a resposta continua legível (sem opacidade), só não edita. */
-const inputLeituraClass = "disabled:cursor-default disabled:bg-muted/40 disabled:text-foreground disabled:opacity-100";
+const inputLeituraClass = "disabled:cursor-default disabled:bg-muted/40 disabled:text-foreground disabled:opacity-100 dark:disabled:bg-muted/40";
 
 function CampoView({
   campo,

@@ -149,6 +149,41 @@ async function main() {
     await prisma.briefingProjeto.update({ where: { projetoId: projeto.id }, data: { camposOcultos: [] } });
     const r11b = await putBriefing(req({ respostas: { ...semOculta, [oculta]: "" } }), novoCtx());
     check("mostrar de novo volta a exigir", ((await r11b.json()) as { status: string }).status === "em_preenchimento");
+
+    // 12) Corpo em fluxo, sem Content-Length, acima de 512 KiB: as duas rotas recusam com 413.
+    const corpoEmFluxo = () => {
+      const enc = new TextEncoder();
+      const pedaco = enc.encode("x".repeat(64 * 1024));
+      let n = 0;
+      const stream = new ReadableStream<Uint8Array>(
+        { pull: (c) => (n++ < 10 ? c.enqueue(pedaco) : c.close()) },
+        { highWaterMark: 0 },
+      );
+      return new Request("http://localhost/api/p/inputs/x", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: stream,
+        // @ts-expect-error — obrigatório no Node para corpo em stream
+        duplex: "half",
+      });
+    };
+    const semLen = corpoEmFluxo();
+    check("o corpo em fluxo do teste não traz Content-Length", semLen.headers.get("content-length") === null);
+    const r12a = await putInputs(corpoEmFluxo(), novoCtx());
+    check(
+      "PUT inputs: corpo em fluxo acima de 512 KiB = 413",
+      r12a.status === 413 && ((await r12a.json()) as { error: string }).error === "Respostas grandes demais.",
+    );
+    const r12b = await putBriefing(corpoEmFluxo(), novoCtx());
+    check(
+      "PUT briefing: corpo em fluxo acima de 512 KiB = 413",
+      r12b.status === 413 && ((await r12b.json()) as { error: string }).error === "Respostas grandes demais.",
+    );
+
+    // 13) Resposta só de espaço não conta como respondida: grava vazio.
+    const perg2 = await prisma.inputProjeto.create({ data: { projetoId: projeto.id, pergunta: `${tag} outra?`, ordem: 1 } });
+    await putInputs(req({ respostas: [{ id: perg2.id, resposta: "   " }] }), novoCtx());
+    check("resposta só de espaço grava vazio (null)", (await prisma.inputProjeto.findUnique({ where: { id: perg2.id } }))?.resposta === null);
   } finally {
     await prisma.notificacao.deleteMany({ where: { href: `/projetos/${projeto.id}/inputs` } });
     await prisma.projeto.delete({ where: { id: projeto.id } });

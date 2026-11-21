@@ -47,6 +47,8 @@ export async function temAlgoAPreencher(
     secoes: briefing?.secoesOcultas ?? [],
     campos: briefing?.camposOcultos ?? [],
   });
+  // Com seção visível já há o que preencher: não carrega pergunta nem padrão.
+  if (visiveis.length > 0) return true;
   const existentes = await prisma.inputProjeto.findMany({
     where: { projetoId },
     select: { templateId: true, disciplina: true, pergunta: true, removidoEm: true },
@@ -56,7 +58,7 @@ export async function temAlgoAPreencher(
     select: { id: true, disciplina: true, pergunta: true, ordem: true },
   });
   return haPerguntaParaOCliente({
-    secoesVisiveis: visiveis.length,
+    secoesVisiveis: 0,
     extrasAtivas: existentes.filter((e) => e.removidoEm == null).length,
     padraoACriar: perguntasDoPadraoParaCriar(templates, existentes, disciplinas).length,
   });

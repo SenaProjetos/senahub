@@ -1,7 +1,7 @@
 /**
  * Lê o corpo JSON de uma requisição com teto de bytes — para rotas abertas ao mundo. Só conferir `Content-Length`
  * não basta: um corpo em pedaços (chunked) não o traz e `req.json()` o carregaria inteiro na memória. Aqui o
- * corpo é lido em fluxo e a leitura aborta ao passar do limite. Puro: sem Next, sem Prisma.
+ * corpo é lido em fluxo e a leitura aborta ao passar do limite. Sem Next e sem Prisma (usa `Buffer`, então roda no Node).
  */
 export type CorpoJson = { ok: true; dados: unknown } | { ok: false; status: 400 | 413; erro: string };
 
