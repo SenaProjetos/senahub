@@ -6,8 +6,8 @@
  * cliente / cliente inativo, campo oculto que não sai, janela do aviso à equipe, encerrar, reabrir, link sem pedido e
  * pergunta extra removida.
  *
- * O aviso à equipe usa o `notificarPreenchimentoInput` de verdade (audiência real do banco de dev): as notificações são
- * contadas pelo `href` do projeto throwaway e apagadas no fim. Apaga tudo o que criou.
+ * O aviso à equipe usa o `notificarPreenchimentoInput` de verdade, com o envio trocado por um registro (`notificarMuitos`
+ * falso): nenhum sino nem push sai para ninguém do banco de dev. Apaga tudo o que criou.
  *
  * Uso: npm run smoke:portal-briefing
  */
@@ -90,7 +90,13 @@ async function main() {
     emails.length = 0;
   };
   const erroDe = (r: { ok: boolean } & Record<string, unknown>) => (r.ok ? null : (r.erro as string));
-  const avisosDaEquipe = (projetoId: string) => prisma.notificacao.count({ where: { href: `/projetos/${projetoId}/inputs` } });
+  // Aviso à equipe: o envio é um registro (nunca `notificarMuitos`/push de verdade).
+  const avisosDaEquipe: { titulo: string }[] = [];
+  const depsEquipe = {
+    notificarMuitos: async (_ids: string[], n: { titulo: string }) => {
+      avisosDaEquipe.push({ titulo: n.titulo });
+    },
+  } as Parameters<typeof notificarPreenchimentoInput>[3];
 
   try {
     const cliente = await novoCliente("cli");
@@ -176,27 +182,26 @@ async function main() {
 
     // 7. Aviso à equipe: a ação chama `parcial` a cada salvamento e `completo` na transição. Janela de 6 h por projeto.
     const marca = async () => (await prisma.briefingProjeto.findUnique({ where: { projetoId: pA.id }, select: { avisoEquipeEm: true } }))?.avisoEquipeEm ?? null;
-    await notificarPreenchimentoInput(pA.id, "parcial", "portal");
+    await notificarPreenchimentoInput(pA.id, "parcial", "portal", depsEquipe);
     const t1 = await marca();
-    const c1 = await avisosDaEquipe(pA.id);
+    const c1 = avisosDaEquipe.length;
     const segundo = await gravarRespostasBriefing(pA.id, { emailContato: "fulano2@exemplo.com.br" }, "Fulano Cliente", "portal");
-    await notificarPreenchimentoInput(pA.id, "parcial", "portal");
+    await notificarPreenchimentoInput(pA.id, "parcial", "portal", depsEquipe);
     const t2 = await marca();
-    const c2 = await avisosDaEquipe(pA.id);
+    const c2 = avisosDaEquipe.length;
     check(
       "dois salvamentos parciais pelo portal = 1 aviso na janela",
-      segundo.ok && t1 !== null && t2 !== null && t2.getTime() === t1.getTime() && c2 === c1,
+      segundo.ok && t1 !== null && t2 !== null && t2.getTime() === t1.getTime() && c1 === 1 && c2 === 1,
     );
     const completo = await gravarRespostasBriefing(pA.id, { nomeCompleto: "Fulano de Tal" }, "Fulano Cliente", "portal");
     const concluiu = completo.ok && completo.status === "completo" && completo.statusAnterior !== "completo";
-    await notificarPreenchimentoInput(pA.id, concluiu ? "completo" : "parcial", "portal");
+    await notificarPreenchimentoInput(pA.id, concluiu ? "completo" : "parcial", "portal", depsEquipe);
     const t3 = await marca();
-    const c3 = await avisosDaEquipe(pA.id);
+    const c3 = avisosDaEquipe.length;
     check(
       "a passagem para completo avisa de novo (fura a janela)",
-      concluiu && t1 !== null && t3 !== null && t3.getTime() > t1.getTime() && c3 === c1 * 2,
+      concluiu && t1 !== null && t3 !== null && t3.getTime() > t1.getTime() && c3 === 2 && avisosDaEquipe[1].titulo === "Formulário do cliente concluído",
     );
-    if (c1 === 0) console.log("[AVISO] a audiência gestao_operacional do banco de dev está vazia: contagem de sinos não prova nada.");
 
     // 8. Encerrar: portal e link recusam; a equipe grava.
     const extraAtiva = await prisma.inputProjeto.create({ data: { projetoId: pA.id, disciplina: null, pergunta: `${tag} extra ativa`, ordem: 900 } });
@@ -243,10 +248,6 @@ async function main() {
     const removida = await prisma.inputProjeto.findUnique({ where: { id: extraRemovida.id }, select: { resposta: true } });
     check("pergunta extra removida: portal devolve ignoradas 1 e não grava nela", extras.ok && extras.ignoradas === 1 && extras.salvas === 1 && removida?.resposta === null);
   } finally {
-    if (projetos.length > 0) {
-      await prisma.notificacao.deleteMany({ where: { href: { in: projetos.map((id) => `/projetos/${id}/inputs`) } } });
-      await prisma.notificacao.deleteMany({ where: { userId: { in: usuarios } } });
-    }
     for (const id of projetos) await prisma.projeto.delete({ where: { id } });
     for (const id of usuarios) await prisma.user.delete({ where: { id } });
     for (const id of clientes) await prisma.cliente.delete({ where: { id } });

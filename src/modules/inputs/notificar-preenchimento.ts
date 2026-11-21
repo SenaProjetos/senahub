@@ -45,6 +45,8 @@ export async function notificarPreenchimentoInput(
   projetoId: string,
   motivo: Motivo,
   canal: "link" | "portal" = "link",
+  // Quem entrega o aviso: o smoke troca por um registro, sem sino nem push de verdade.
+  deps: { notificarMuitos: typeof notificarMuitos } = { notificarMuitos },
 ): Promise<void> {
   try {
     if (!(await reservar(projetoId, motivo === "completo"))) return;
@@ -66,7 +68,7 @@ export async function notificarPreenchimentoInput(
       codigo: formatarCodigo(projeto.codigo),
     });
 
-    await notificarMuitos(
+    await deps.notificarMuitos(
       destinatarios.map((d) => d.id),
       {
         titulo,
