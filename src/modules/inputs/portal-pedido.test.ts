@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  haPerguntaParaOCliente,
   MOTIVO_ENCERRADO,
   MOTIVO_PEDIDO_NAO_ABERTO,
   motivoParaNaoEncerrar,
@@ -75,5 +76,16 @@ describe("textos", () => {
     expect(textoPreenchimento({ motivo: "parcial", canal: "link", projetoNome: "Villa Verde", codigo: "260507" }).corpo).toBe(
       "Villa Verde (260507) — novas respostas pelo link público.",
     );
+  });
+});
+
+describe("haPerguntaParaOCliente", () => {
+  it("seção visível, extra ativa ou padrão que o pedido vai criar: há o que preencher", () => {
+    expect(haPerguntaParaOCliente({ secoesVisiveis: 1, extrasAtivas: 0, padraoACriar: 0 })).toBe(true);
+    expect(haPerguntaParaOCliente({ secoesVisiveis: 0, extrasAtivas: 2, padraoACriar: 0 })).toBe(true);
+    expect(haPerguntaParaOCliente({ secoesVisiveis: 0, extrasAtivas: 0, padraoACriar: 3 })).toBe(true);
+  });
+  it("nada de nenhum dos três: nada a preencher", () => {
+    expect(haPerguntaParaOCliente({ secoesVisiveis: 0, extrasAtivas: 0, padraoACriar: 0 })).toBe(false);
   });
 });

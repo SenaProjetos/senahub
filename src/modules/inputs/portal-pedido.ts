@@ -46,6 +46,14 @@ export function motivoParaNaoPedir(e: {
   return null;
 }
 
+/**
+ * Há pergunta para o cliente responder: alguma seção visível no formulário do projeto, pergunta extra ativa OU
+ * pergunta do padrão que o pedido cria antes de abrir. É a regra única da tela e do serviço.
+ */
+export function haPerguntaParaOCliente(e: { secoesVisiveis: number; extrasAtivas: number; padraoACriar: number }): boolean {
+  return e.secoesVisiveis > 0 || e.extrasAtivas > 0 || e.padraoACriar > 0;
+}
+
 export function motivoParaNaoEncerrar(situacao: SituacaoPortalBriefing): string | null {
   return situacao === "aberto" ? null : MOTIVO_PEDIDO_NAO_ABERTO;
 }

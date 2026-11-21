@@ -4,14 +4,12 @@ import { notificar } from "@/lib/notificar";
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { secoesDoProjeto } from "@/modules/inputs/briefing-schema";
-import { resolverModeloDoProjeto } from "@/modules/inputs/modelo-queries";
 import { aplicarInputsPadraoCore } from "@/modules/inputs/inputs-padrao-service";
+import { lerContexto, temAlgoAPreencher } from "@/modules/inputs/portal-pedido-leitura";
 import {
   MOTIVO_JA_PEDIDO,
   MOTIVO_PEDIDO_NAO_ABERTO,
   motivoParaNaoPedir,
-  situacaoPortal,
   textoPedidoBriefing,
 } from "@/modules/inputs/portal-pedido";
 
@@ -28,44 +26,6 @@ export type AvisarPedido = {
 export type ResultadoPedido =
   | { ok: true; reaberto: boolean; avisadas: number; emails: number }
   | { ok: false; erro: string };
-
-/** O que o pedido precisa saber do projeto: cliente, contas do portal, estado do pedido e se há o que preencher. */
-export async function lerContexto(projetoId: string) {
-  const projeto = await prisma.projeto.findUnique({
-    where: { id: projetoId },
-    select: { id: true, nome: true, codigo: true, clienteId: true, cliente: { select: { ativo: true } } },
-  });
-  if (!projeto) return null;
-  const contas = projeto.clienteId
-    ? await prisma.user.findMany({
-        where: { tipo: "externo", ativo: true, clienteId: projeto.clienteId },
-        select: { id: true, name: true, email: true },
-        orderBy: { name: "asc" },
-      })
-    : [];
-  const briefing = await prisma.briefingProjeto.findUnique({
-    where: { projetoId },
-    select: { portalPedidoEm: true, portalEncerradoEm: true, modeloId: true, secoesOcultas: true, camposOcultos: true },
-  });
-  return { projeto, contas, briefing, situacao: situacaoPortal(briefing) };
-}
-
-/** Há pergunta para o cliente responder: alguma seção visível no formulário do projeto OU pergunta extra ativa. */
-export async function temAlgoAPreencher(
-  projetoId: string,
-  briefing: { modeloId: string | null; secoesOcultas: string[]; camposOcultos: string[] } | null,
-): Promise<boolean> {
-  const modelo = await resolverModeloDoProjeto(projetoId, briefing?.modeloId);
-  const disciplinas = (await prisma.disciplina.findMany({ where: { projetoId }, select: { disciplinaTextoLegado: true } })).map(
-    (d) => d.disciplinaTextoLegado,
-  );
-  const visiveis = secoesDoProjeto(modelo.secoes, disciplinas, {
-    secoes: briefing?.secoesOcultas ?? [],
-    campos: briefing?.camposOcultos ?? [],
-  });
-  if (visiveis.length > 0) return true;
-  return (await prisma.inputProjeto.count({ where: { projetoId, removidoEm: null } })) > 0;
-}
 
 export async function pedirBriefingNoPortal(
   projetoId: string,
