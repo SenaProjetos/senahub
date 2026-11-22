@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { podeVerConversa } from "./audiencia";
+import { PAPEL_COORDENADOR, podeVerConversa } from "./audiencia";
 import { aguardandoResposta, ladoOposto, ROTULO_DECISAO_PORTAL, type LadoMensagem } from "./regras";
 import { contaPodeVerConversa, fatosDaAudiencia, podeVerConversaDoProjeto } from "./service";
 
@@ -155,7 +155,7 @@ export async function conversasDaEquipe(
   const conversas = await prisma.conversaPortal.findMany({
     where: {
       ultimaMensagemEm: { not: null },
-      ...(filtro.soMinhas ? { projeto: { membros: { some: { userId, papel: "coordenador" } } } } : {}),
+      ...(filtro.soMinhas ? { projeto: { membros: { some: { userId, papel: PAPEL_COORDENADOR } } } } : {}),
     },
     select: {
       id: true,

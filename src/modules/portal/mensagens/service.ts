@@ -7,7 +7,7 @@ import { can } from "@/lib/permissions";
 import { whereAudiencia, wherePermissao } from "@/lib/audiencias";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { acessoDoUsuarioAoProjetoDoPortal } from "@/modules/portal/acesso";
-import { podeVerConversa, type FatosAudiencia } from "./audiencia";
+import { PAPEL_COORDENADOR, podeVerConversa, type FatosAudiencia } from "./audiencia";
 import {
   MOTIVO_DECISAO_JA_MARCADA,
   MOTIVO_DECISAO_NAO_MARCADA,
@@ -132,7 +132,7 @@ export async function audienciaDeAlgumProjeto(userId: string): Promise<{ audienc
     select: { id: true, ativo: true, tipo: true, superUsuario: true, perfilId: true, perfil: { select: { chave: true } } },
   });
   if (!u) return { audiencia: false, coordenadorDeAlgum: false };
-  const coordenadorDeAlgum = (await prisma.projetoMembro.count({ where: { userId, papel: "coordenador" } })) > 0;
+  const coordenadorDeAlgum = (await prisma.projetoMembro.count({ where: { userId, papel: PAPEL_COORDENADOR } })) > 0;
   const escopoGlobalPerfil = await can(u, "escopo", "global");
   const base = {
     ativo: u.ativo,
@@ -140,7 +140,7 @@ export async function audienciaDeAlgumProjeto(userId: string): Promise<{ audienc
     superUsuario: u.superUsuario,
     escopoGlobalPerfil,
     perfilChave: u.perfil?.chave ?? null,
-    papelNoProjeto: coordenadorDeAlgum ? "coordenador" : null,
+    papelNoProjeto: coordenadorDeAlgum ? PAPEL_COORDENADOR : null,
   };
   if (podeVerConversa({ ...base, enxergaProjeto: false })) return { audiencia: true, coordenadorDeAlgum };
   // Só o perfil Coordenador ainda depende de enxergar um projeto pelo escopo de dados.

@@ -18,9 +18,12 @@ export type FatosAudiencia = {
   enxergaProjeto: boolean;
 };
 
-/** Os papéis do projeto são uma lista fixa (`projetos/papeis.ts`): coordenação = "coordenador", exato. */
+/** O papel de coordenação na equipe do projeto (`ProjetoMembro.papel`, lista fixa em `projetos/papeis.ts`). */
+export const PAPEL_COORDENADOR = "coordenador";
+
+/** Os papéis do projeto são uma lista fixa: coordenação = `PAPEL_COORDENADOR`, exato. */
 export function ehPapelDeCoordenacao(papel: string | null): boolean {
-  return papel === "coordenador";
+  return papel === PAPEL_COORDENADOR;
 }
 
 export function podeVerConversa(f: FatosAudiencia): boolean {

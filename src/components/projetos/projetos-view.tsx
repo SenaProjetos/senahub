@@ -10,7 +10,6 @@ import {
   Table as TableIcon,
   LayoutGrid,
   KanbanSquare,
-  Download,
   FileSpreadsheet,
   FileText,
   CalendarClock,
@@ -45,12 +44,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import type { AcaoItem } from "@/components/ui/acoes";
+import { BotaoAcoes } from "@/components/ui/acoes-menu";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SortableHead } from "@/components/ui/sortable-head";
 import { Pagination } from "@/components/ui/pagination";
@@ -197,6 +192,22 @@ export function ProjetosView({
     { v: "kanban", icon: KanbanSquare, label: "Visão em kanban" },
   ];
 
+  // O ⋯ do cabeçalho: o que não é uma das duas ações à vista (Mensagens de clientes e Novo projeto).
+  // As exportações são links de verdade: a rota responde como anexo, então baixa sem sair da página.
+  const acoesDaPagina: AcaoItem[] = [
+    ...(mostrarGuia
+      ? ([{ tipo: "link", id: "guia", rotulo: "Guia de uso", icone: BookOpenText, href: "/guias/projetos" }] as const)
+      : []),
+    {
+      tipo: "link",
+      id: "exportar-xlsx",
+      rotulo: "Exportar carteira — Excel (.xlsx)",
+      icone: FileSpreadsheet,
+      href: "/api/projetos/carteira?formato=xlsx",
+    },
+    { tipo: "link", id: "exportar-csv", rotulo: "Exportar carteira — CSV", icone: FileText, href: "/api/projetos/carteira?formato=csv" },
+  ];
+
   const filtrosAtivos = [situacao, meusProjetos, sortRisco, clienteId, responsavelId, disciplina].filter(Boolean).length;
 
   return (
@@ -224,49 +235,12 @@ export function ProjetosView({
                 {mensagensClientes.aguardando > 0 && <Badge className="h-5 px-1.5">{mensagensClientes.aguardando}</Badge>}
               </Button>
             )}
-            {mostrarGuia && (
-              <Button variant="secondary" size="sm" render={<Link href="/guias/projetos" />}>
-                <BookOpenText className="size-4" /> Guia de uso
-              </Button>
-            )}
-            <div className="flex items-center rounded-sm border p-0.5">
-              {TOGGLES.map((t) => (
-                <Button
-                  key={t.v}
-                  type="button"
-                  variant={vista === t.v ? "secondary" : "ghost"}
-                  size="icon"
-                  className="size-7"
-                  aria-label={t.label}
-                  aria-pressed={vista === t.v}
-                  onClick={() => mudarVista(t.v)}
-                >
-                  <t.icon className="size-4" />
-                </Button>
-              ))}
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button variant="outline" size="sm" aria-label="Exportar carteira">
-                    <Download className="size-4" /> Exportar
-                  </Button>
-                }
-              />
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem render={<a href="/api/projetos/carteira?formato=xlsx" download />}>
-                  <FileSpreadsheet className="size-4" /> Excel (.xlsx)
-                </DropdownMenuItem>
-                <DropdownMenuItem render={<a href="/api/projetos/carteira?formato=csv" download />}>
-                  <FileText className="size-4" /> CSV
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
             {podeGerir && (
               <Button onClick={() => setFormOpen(true)}>
                 <Plus className="size-4" /> Novo projeto
               </Button>
             )}
+            <BotaoAcoes itens={acoesDaPagina} onSelect={() => {}} rotulo="Mais ações de projetos" className="size-8" />
           </div>
           </>
         }
@@ -372,6 +346,22 @@ export function ProjetosView({
           </>
         )}
         </FiltrosGaveta>
+        <div className="ml-auto flex items-center rounded-sm border p-0.5" role="group" aria-label="Visão da lista">
+          {TOGGLES.map((t) => (
+            <Button
+              key={t.v}
+              type="button"
+              variant={vista === t.v ? "secondary" : "ghost"}
+              size="icon"
+              className="size-7"
+              aria-label={t.label}
+              aria-pressed={vista === t.v}
+              onClick={() => mudarVista(t.v)}
+            >
+              <t.icon className="size-4" />
+            </Button>
+          ))}
+        </div>
       </div>
 
       {items.length === 0 ? (
