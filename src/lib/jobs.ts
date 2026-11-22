@@ -11,6 +11,7 @@ import { FILA_MENSAGEM_AGENDADA } from "@/modules/chat/agendamento";
 import { FILA_IMPORTAR_CUSTOS } from "@/modules/custos/composicoes/service";
 import { verificarIntegridadeCiclo } from "@/modules/uploads/ciclo/integridade-service";
 import { avisarEtapasProximas } from "@/modules/planejamento/etapa-proxima-service";
+import { limparComprovantesNaoUsados } from "@/modules/portal/aprovacao-entrega/service";
 import {
   processarConversaoIfc,
   processarGeracaoFederado,
@@ -373,6 +374,14 @@ export async function startJobs(): Promise<PgBoss> {
       handler: async () => {
         const n = await limparDxfOrfaos();
         if (n > 0) console.log(`[dwg] ${n} .dxf órfão(s) removido(s).`);
+      },
+    },
+    {
+      fila: "limpar-comprovantes-aprovacao",
+      cron: "30 4 * * *", // diário 04:30 — comprovante de aprovação enviado e não usado em 24h
+      handler: async () => {
+        const n = await limparComprovantesNaoUsados();
+        if (n > 0) console.log(`[aprovacao-entrega] ${n} comprovante(s) não usado(s) removido(s).`);
       },
     },
     {

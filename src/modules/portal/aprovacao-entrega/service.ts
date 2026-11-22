@@ -3,12 +3,14 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { diaDeSaoPaulo } from "@/lib/data";
+import { removerArquivo } from "@/lib/storage";
 import { alcanceDoPortal } from "@/modules/projetos/arquivos/link-publico-regras";
 import { conteudoDoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import { parcelasAFaturar } from "@/modules/juridico/contrato/parcelas-a-faturar-queries";
 import { contaPodeVerConversa, podeVerConversaDoProjeto } from "@/modules/portal/mensagens/service";
 import { candidatosDasEntregas, impressaoDigital, itemDesatualizado, type Candidato } from "./itens";
 import {
+  COMPROVANTE_VALIDADE_MS,
   ITENS_MAX,
   MENSAGEM_MAX,
   MOTIVO_ANULACAO_MAX,
@@ -24,6 +26,7 @@ import {
   NOME_POR_FORA_MAX,
   TITULO_MAX,
   motivoDaDataPorFora,
+  motivoDoComprovante,
   motivoDoTexto,
   motivoParaAnular,
   motivoParaCancelar,
@@ -379,4 +382,77 @@ export async function anularResposta(p: {
     if (voltou.count !== 1) throw new ActionError(MOTIVO_JA_ANULADA);
   });
   return { projetoId: a.projetoId, aprovacaoId: r.aprovacaoId };
+}
+
+// ── Comprovante da resposta por fora ───────────────────────────────────────────────────────
+
+/**
+ * Porta do envio do comprovante, antes de ler o corpo da requisição: equipe da audiência e pacote aguardando.
+ * Devolve o projeto, para o caminho no disco.
+ */
+export async function exigirComprovanteAceito(p: { aprovacaoId: string; userId: string }): Promise<{ projetoId: string }> {
+  const a = await pacote(p.aprovacaoId);
+  await exigirEquipe(p.userId, a.projetoId);
+  const motivo = motivoParaCancelar(a.status);
+  if (motivo) throw new ActionError(motivo);
+  return { projetoId: a.projetoId };
+}
+
+/** Registra o comprovante já gravado no disco (quem chama apaga o arquivo se isto lançar). */
+export async function gravarComprovante(p: {
+  aprovacaoId: string;
+  quem: Equipe;
+  caminho: string;
+  nome: string;
+  tamanho: number;
+  tipo: string;
+}): Promise<{ comprovanteId: string }> {
+  await exigirComprovanteAceito({ aprovacaoId: p.aprovacaoId, userId: p.quem.userId });
+  const motivo = motivoDoComprovante({ nome: p.nome, tamanho: p.tamanho });
+  if (motivo) throw new ActionError(motivo);
+  const c = await prisma.comprovanteAprovacaoEntrega.create({
+    data: { aprovacaoId: p.aprovacaoId, enviadoPorId: p.quem.userId, caminho: p.caminho, nome: p.nome, tamanho: p.tamanho, tipo: p.tipo },
+    select: { id: true },
+  });
+  return { comprovanteId: c.id };
+}
+
+/** O comprovante para baixar: só a equipe da audiência do projeto do pacote. `null` em qualquer recusa. */
+export async function comprovanteParaEquipe(
+  comprovanteId: string,
+  userId: string,
+): Promise<{ caminho: string; nome: string; tipo: string } | null> {
+  const c = await prisma.comprovanteAprovacaoEntrega.findUnique({
+    where: { id: comprovanteId },
+    select: { caminho: true, nome: true, tipo: true, aprovacao: { select: { projetoId: true } } },
+  });
+  if (!c) return null;
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { tipo: true, ativo: true } });
+  if (!u || u.tipo !== "interno" || !u.ativo) return null;
+  if (!(await podeVerConversaDoProjeto(userId, c.aprovacao.projetoId))) return null;
+  return { caminho: c.caminho, nome: c.nome, tipo: c.tipo };
+}
+
+/**
+ * Job diário: apaga (registro e arquivo) o comprovante enviado há mais de 24 h e nunca usado numa resposta. A linha só
+ * sai com `usadoEm` ainda nulo na hora de apagar (um registro por fora no mesmo instante vence).
+ */
+export async function limparComprovantesNaoUsados(agora: Date = new Date()): Promise<number> {
+  const limite = new Date(agora.getTime() - COMPROVANTE_VALIDADE_MS);
+  const velhos = await prisma.comprovanteAprovacaoEntrega.findMany({
+    where: { usadoEm: null, criadoEm: { lt: limite } },
+    select: { id: true, caminho: true },
+  });
+  let n = 0;
+  for (const c of velhos) {
+    const r = await prisma.comprovanteAprovacaoEntrega.deleteMany({ where: { id: c.id, usadoEm: null } });
+    if (r.count !== 1) continue;
+    n += 1;
+    try {
+      await removerArquivo(c.caminho);
+    } catch (e) {
+      console.error("[aprovacao-entrega] arquivo do comprovante não removido:", c.caminho, e);
+    }
+  }
+  return n;
 }

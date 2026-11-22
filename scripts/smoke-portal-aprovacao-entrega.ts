@@ -21,6 +21,9 @@ import {
   anularResposta,
   cancelarAprovacao,
   candidatosDoProjeto,
+  comprovanteParaEquipe,
+  gravarComprovante,
+  limparComprovantesNaoUsados,
   desatualizadosDoProjeto,
   enviarAprovacao,
   registrarPorFora,
@@ -31,6 +34,7 @@ import {
 import { impressaoDigital } from "../src/modules/portal/aprovacao-entrega/itens";
 import {
   MOTIVO_CANCELADO,
+  MOTIVO_COMPROVANTE,
   MOTIVO_DESATUALIZADO,
   MOTIVO_ITEM_FORA,
   MOTIVO_JA_ANULADA,
@@ -394,6 +398,48 @@ async function main() {
     );
     check("projetista: leitura da equipe = null", (await aprovacoesParaEquipe(proj.id, projetistaU.id)) === null);
     check("outro cliente: leitura do cliente = null", (await aprovacoesParaCliente(proj.id, contaB.id)) === null);
+
+    // ── Comprovante (Task 4) ──
+    const a8 = await enviarAprovacao({ ...base, uploadIds: [e3.up.id] });
+    const a9 = await enviarAprovacao({ ...base, uploadIds: [e3.up.id] });
+    const porFora = (comprovanteId: string, aprovacaoId = a8.id) =>
+      registrarPorFora({ aprovacaoId, quem: coord, resposta: "aprovado", texto: null, dia: diaDeSaoPaulo(), respondidoPorNome: "Sr. Cliente", comprovanteId });
+    check("projetista não envia comprovante", (await motivoDe(() => gravarComprovante({ aprovacaoId: a8.id, quem: projetista, caminho: "x", nome: "c.pdf", tamanho: 10, tipo: "application/pdf" }))) === MOTIVO_NAO_ENCONTRADO);
+    const compOutra = await gravarComprovante({ aprovacaoId: a9.id, quem: coord, caminho: `smoke/${tag}-c9.pdf`, nome: "c9.pdf", tamanho: 10, tipo: "application/pdf" });
+    check("comprovante inexistente recusa", (await motivoDe(() => porFora("nao-existe"))) === MOTIVO_COMPROVANTE);
+    check("comprovante de outro pacote recusa", (await motivoDe(() => porFora(compOutra.comprovanteId))) === MOTIVO_COMPROVANTE);
+    const outroCoordU = await novoInterno("coord2");
+    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: outroCoordU.id, papel: "coordenador" } });
+    const compAlheio = await gravarComprovante({ aprovacaoId: a8.id, quem: { userId: outroCoordU.id, nome: outroCoordU.name }, caminho: `smoke/${tag}-c8b.pdf`, nome: "c8b.pdf", tamanho: 10, tipo: "application/pdf" });
+    check("comprovante enviado por outra pessoa recusa", (await motivoDe(() => porFora(compAlheio.comprovanteId))) === MOTIVO_COMPROVANTE);
+    const comp8Caminho = `smoke/${tag}-c8.pdf`;
+    await salvarArquivo(comp8Caminho, Buffer.from("%PDF-1.4 comprovante"));
+    noDisco.push(comp8Caminho);
+    const comp8 = await gravarComprovante({ aprovacaoId: a8.id, quem: coord, caminho: comp8Caminho, nome: "email do cliente.pdf", tamanho: 20, tipo: "application/pdf" });
+    const r8 = await porFora(comp8.comprovanteId);
+    const resp8 = await prisma.respostaAprovacaoEntrega.findUniqueOrThrow({ where: { id: r8.respostaId } });
+    const c8 = await prisma.comprovanteAprovacaoEntrega.findUniqueOrThrow({ where: { id: comp8.comprovanteId } });
+    check(
+      "registro por fora grava origem equipe, dia à meia-noite UTC e marca o comprovante",
+      resp8.origem === "equipe" && resp8.respondidoEm.toISOString() === `${diaDeSaoPaulo()}T00:00:00.000Z` &&
+        resp8.registradoPorId === coordU.id && resp8.respondidoPorNome === "Sr. Cliente" && c8.usadoEm !== null && resp8.comprovanteId === comp8.comprovanteId,
+    );
+    check("só pacote aguardando recebe comprovante", (await motivoDe(() => gravarComprovante({ aprovacaoId: a8.id, quem: coord, caminho: "y", nome: "y.pdf", tamanho: 1, tipo: "application/pdf" }))) === MOTIVO_JA_RESPONDIDO);
+    await anularResposta({ respostaId: r8.respostaId, quem: coord, motivo: "Registrado errado" });
+    check("comprovante já usado recusa", (await motivoDe(() => porFora(comp8.comprovanteId))) === MOTIVO_COMPROVANTE);
+    check("comprovante: projetista = null", (await comprovanteParaEquipe(comp8.comprovanteId, projetistaU.id)) === null);
+    check("comprovante: coordenador recebe o caminho", (await comprovanteParaEquipe(comp8.comprovanteId, coordU.id))?.caminho === comp8Caminho);
+    check("comprovante: conta do cliente = null", (await comprovanteParaEquipe(comp8.comprovanteId, contaA1.id)) === null);
+    const daquiA25h = new Date(Date.now() + 25 * 3600_000);
+    const apagados = await limparComprovantesNaoUsados(daquiA25h);
+    const sobrou = await prisma.comprovanteAprovacaoEntrega.findMany({ where: { aprovacaoId: { in: [a8.id, a9.id] } }, select: { id: true } });
+    check(
+      "limpeza apaga o não usado depois de 24 h e mantém o usado",
+      apagados >= 2 && sobrou.length === 1 && sobrou[0].id === comp8.comprovanteId,
+    );
+    const compNovo = await gravarComprovante({ aprovacaoId: a9.id, quem: coord, caminho: `smoke/${tag}-c9b.pdf`, nome: "c9b.pdf", tamanho: 10, tipo: "application/pdf" });
+    await limparComprovantesNaoUsados(new Date());
+    check("limpeza antes de 24 h não apaga", (await prisma.comprovanteAprovacaoEntrega.count({ where: { id: compNovo.comprovanteId } })) === 1);
   } finally {
     const remover = async (rotulo: string, id: string, apagar: () => Promise<unknown>) => {
       try {
