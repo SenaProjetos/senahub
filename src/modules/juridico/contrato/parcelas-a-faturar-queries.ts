@@ -7,15 +7,16 @@ const dia = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 /**
  * As parcelas de contrato por entrega a faturar (L2) — leitura para o financeiro. Só contrato de
  * cliente vigente (assinado ou vencido: a vigência acabou, o dinheiro não). A regra da lista está em
- * `parcelas-a-faturar.ts`.
+ * `parcelas-a-faturar.ts`. Com `projetoId`, só as daquele projeto (o seletor da aprovação da entrega).
  */
-export async function parcelasAFaturar(): Promise<ParcelaAFaturar[]> {
+export async function parcelasAFaturar(filtro: { projetoId?: string } = {}): Promise<ParcelaAFaturar[]> {
   const contratos = await prisma.documentoJuridico.findMany({
     where: {
       formaCobranca: "por_entrega",
       statusContrato: { in: ["assinado", "vencido"] },
       vinculoId: null,
       clienteId: { not: null },
+      ...(filtro.projetoId ? { projetoId: filtro.projetoId } : {}),
     },
     select: {
       id: true,
