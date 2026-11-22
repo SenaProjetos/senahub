@@ -42,6 +42,8 @@ export function ResponderAprovacao({
 }) {
   const router = useRouter();
   const [escolha, setEscolha] = useState<Resposta | null>(null);
+  // A última escolha fica para o título não sumir durante a animação de fechar.
+  const [ultima, setUltima] = useState<Resposta>("aprovado");
   const [texto, setTexto] = useState("");
   const [enviando, startTransition] = useTransition();
   const idTexto = useId();
@@ -51,6 +53,7 @@ export function ResponderAprovacao({
 
   function abrir(r: Resposta) {
     setEscolha(r);
+    setUltima(r);
     setTexto("");
     fe.limpar();
   }
@@ -63,7 +66,13 @@ export function ResponderAprovacao({
   function enviar() {
     if (!escolha) return;
     startTransition(async () => {
-      const r = await responderAprovacaoEntrega({ aprovacaoId, resposta: escolha, texto: texto || null, impressaoDigital });
+      const r = await responderAprovacaoEntrega({ aprovacaoId, resposta: escolha, texto: texto || null, impressaoDigital }).catch(
+        () => null,
+      );
+      if (!r) {
+        toast.error("Não foi possível enviar. Verifique a conexão e tente de novo.");
+        return;
+      }
       if (!r.ok) {
         if (!fe.registrar(r)) toast.error(r.error);
         router.refresh();
@@ -87,7 +96,7 @@ export function ResponderAprovacao({
       <Dialog open={escolha !== null} onOpenChange={mudarAberto}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{escolha ? ROTULO_RESPOSTA[escolha] : ""}</DialogTitle>
+            <DialogTitle>{ROTULO_RESPOSTA[escolha ?? ultima]}</DialogTitle>
             <DialogDescription className="break-words">{titulo}</DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-4">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Paperclip } from "lucide-react";
@@ -40,11 +40,14 @@ const tamanho = (b: number) => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 
 export function RegistrarRespostaDialog({
   aprovacaoId,
   titulo,
+  enviadoEm,
   aberto,
   onFechar,
 }: {
   aprovacaoId: string;
   titulo: string;
+  /** ISO do envio do pedido: a data da resposta não pode ser antes dele (o servidor confere de novo). */
+  enviadoEm: string;
   aberto: boolean;
   onFechar: () => void;
 }) {
@@ -58,9 +61,17 @@ export function RegistrarRespostaDialog({
   const [erroArquivo, setErroArquivo] = useState<string | null>(null);
   const [enviandoArquivo, setEnviandoArquivo] = useState(false);
   const [enviando, startTransition] = useTransition();
+  const envio = useRef<AbortController | null>(null);
   const ids = { texto: useId(), dia: useId(), nome: useId(), arquivo: useId(), erroArquivo: useId() };
   const pedeTexto = resposta !== "aprovado";
   const ocupado = enviando || enviandoArquivo;
+
+  /** Fechar no meio do envio do comprovante cancela o envio (o arquivo de até 20 MB pode demorar). */
+  function fechar() {
+    if (enviando) return;
+    envio.current?.abort();
+    onFechar();
+  }
 
   async function escolherArquivo(file: File | undefined) {
     setErroArquivo(null);
@@ -72,10 +83,16 @@ export function RegistrarRespostaDialog({
       return;
     }
     setEnviandoArquivo(true);
+    const controle = new AbortController();
+    envio.current = controle;
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`/api/portal/aprovacoes/${encodeURIComponent(aprovacaoId)}/comprovante`, { method: "POST", body: fd });
+      const res = await fetch(`/api/portal/aprovacoes/${encodeURIComponent(aprovacaoId)}/comprovante`, {
+        method: "POST",
+        body: fd,
+        signal: controle.signal,
+      });
       const corpo = (await res.json().catch(() => ({}))) as { comprovanteId?: string; nome?: string; tamanho?: number; error?: string };
       if (!res.ok || !corpo.comprovanteId) {
         setErroArquivo(corpo.error ?? "Não foi possível enviar o comprovante. Tente de novo.");
@@ -83,8 +100,9 @@ export function RegistrarRespostaDialog({
       }
       setComprovante({ id: corpo.comprovanteId, nome: corpo.nome ?? file.name, tamanho: corpo.tamanho ?? file.size });
     } catch {
-      setErroArquivo("Não foi possível enviar o comprovante. Tente de novo.");
+      if (!controle.signal.aborted) setErroArquivo("Não foi possível enviar o comprovante. Tente de novo.");
     } finally {
+      if (envio.current === controle) envio.current = null;
       setEnviandoArquivo(false);
     }
   }
@@ -99,7 +117,11 @@ export function RegistrarRespostaDialog({
         dia,
         respondidoPorNome: nome,
         comprovanteId: comprovante.id,
-      });
+      }).catch(() => null);
+      if (!r) {
+        toast.error("Não foi possível enviar. Verifique a conexão e tente de novo.");
+        return;
+      }
       if (!r.ok) {
         toast.error(r.error);
         return;
@@ -113,7 +135,7 @@ export function RegistrarRespostaDialog({
   const pode = !ocupado && comprovante !== null && nome.trim().length > 0 && dia.length === 10 && (!pedeTexto || texto.trim().length > 0);
 
   return (
-    <Dialog open={aberto} onOpenChange={(o) => !o && !ocupado && onFechar()}>
+    <Dialog open={aberto} onOpenChange={(o) => !o && fechar()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Registrar resposta recebida por fora</DialogTitle>
@@ -146,7 +168,7 @@ export function RegistrarRespostaDialog({
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={ids.dia}>Data da resposta</Label>
-              <Input id={ids.dia} type="date" max={hoje} value={dia} onChange={(e) => setDia(e.target.value)} disabled={ocupado} />
+              <Input id={ids.dia} type="date" min={diaDeSaoPaulo(new Date(enviadoEm))} max={hoje} value={dia} onChange={(e) => setDia(e.target.value)} disabled={ocupado} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={ids.nome}>Quem respondeu</Label>
@@ -183,7 +205,7 @@ export function RegistrarRespostaDialog({
           </div>
         </DialogBody>
         <DialogFooter>
-          <Button variant="ghost" onClick={onFechar} disabled={ocupado}>
+          <Button variant="ghost" onClick={fechar} disabled={enviando}>
             Cancelar
           </Button>
           <Button onClick={registrar} disabled={!pode}>

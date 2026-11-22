@@ -21,6 +21,8 @@ export const TAMANHO_MAX_COMPROVANTE_LABEL = "20 MB";
 export const EXTENSOES_COMPROVANTE = ["pdf", "png", "jpg", "jpeg", "eml", "msg"] as const;
 /** Comprovante enviado e não usado em uma resposta por este tempo é apagado pelo job diário. */
 export const COMPROVANTE_VALIDADE_MS = 24 * 3600_000;
+/** Comprovantes enviados e ainda sem uso, por pessoa e pedido — acima disso, registre ou espere a limpeza. */
+export const COMPROVANTES_SEM_USO_MAX = 5;
 
 export const MOTIVO_NAO_ENCONTRADO = "Pedido não encontrado.";
 export const MOTIVO_JA_RESPONDIDO = "Este pedido já foi respondido.";
@@ -35,11 +37,14 @@ export const MOTIVO_ITEM_FORA = "Um dos arquivos escolhidos não está nas Entre
 export const MOTIVO_PARCELA = "Esta parcela não é de um contrato deste projeto.";
 export const MOTIVO_DATA_FUTURA = "A data da resposta não pode ser depois de hoje.";
 export const MOTIVO_DATA_ANTES_DO_ENVIO = "A data da resposta não pode ser antes do envio do pedido.";
+export const MOTIVO_DATA_INVALIDA = "Informe uma data válida.";
 export const MOTIVO_COMPROVANTE = "Anexe o comprovante da resposta antes de registrar.";
 export const MOTIVO_PEDIDO_MUDOU = "Este pedido mudou. Recarregue a página.";
 export const MOTIVO_TIPO_COMPROVANTE = "Anexe PDF, imagem (PNG ou JPG) ou e-mail (EML ou MSG).";
 export const MOTIVO_COMPROVANTE_GRANDE = `O comprovante passa de ${TAMANHO_MAX_COMPROVANTE_LABEL}.`;
 export const MOTIVO_CONTEUDO_COMPROVANTE = "O conteúdo do arquivo não corresponde à extensão.";
+export const MOTIVO_COMPROVANTES_DEMAIS =
+  "Você já enviou vários comprovantes a este pedido sem registrar a resposta. Registre a resposta com um deles.";
 
 export const ROTULO_RESPOSTA: Record<Resposta, string> = {
   aprovado: "Aprovado",
@@ -83,9 +88,27 @@ export function motivoParaAnular(p: { status: StatusAprovacao; respostaAtiva: bo
 
 /** `dia` e `hoje` em "YYYY-MM-DD" (dia de São Paulo); o envio também é comparado pelo dia de São Paulo. */
 export function motivoDaDataPorFora(p: { dia: string; enviadoEm: Date; hoje: string }): string | null {
+  if (!diaValido(p.dia)) return MOTIVO_DATA_INVALIDA;
   if (p.dia > p.hoje) return MOTIVO_DATA_FUTURA;
   if (p.dia < diaDeSaoPaulo(p.enviadoEm)) return MOTIVO_DATA_ANTES_DO_ENVIO;
   return null;
+}
+
+/** "YYYY-MM-DD" que existe no calendário (31/02 não). */
+export function diaValido(dia: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dia);
+  if (!m) return false;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+}
+
+/**
+ * O instante gravado para uma resposta registrada por fora (só o dia é conhecido): meio-dia de São Paulo (15:00Z), que
+ * cai no mesmo dia em `diaDeSaoPaulo` — a meia-noite UTC cairia no dia anterior (21h) e a marca da parcela mostraria a
+ * data errada.
+ */
+export function instanteDoDiaPorFora(dia: string): Date {
+  return new Date(`${dia}T15:00:00.000Z`);
 }
 
 export function extensaoDoComprovante(nome: string): string {

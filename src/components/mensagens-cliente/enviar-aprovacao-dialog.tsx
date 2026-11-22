@@ -59,17 +59,21 @@ export function EnviarAprovacaoDialog({ projetoId }: { projetoId: string }) {
   const idMensagem = useId();
   const grupos = useMemo(() => agrupar(form?.candidatos ?? []), [form]);
 
-  function abrir() {
-    setAberto(true);
+  function carregar() {
     setForm(null);
     setErroCarga(null);
+    void carregarFormularioAprovacao({ projetoId })
+      .then((r) => (r.ok ? setForm(r.data) : setErroCarga(r.error)))
+      .catch(() => setErroCarga("Não foi possível carregar as Entregas."));
+  }
+
+  function abrir() {
+    setAberto(true);
     setTitulo("");
     setMensagem("");
     setMarcados(new Set());
     setParcelaId("");
-    void carregarFormularioAprovacao({ projetoId })
-      .then((r) => (r.ok ? setForm(r.data) : setErroCarga(r.error)))
-      .catch(() => setErroCarga("Não foi possível carregar as Entregas. Tente de novo."));
+    carregar();
   }
 
   function alternar(ids: string[], marcar: boolean) {
@@ -91,7 +95,11 @@ export function EnviarAprovacaoDialog({ projetoId }: { projetoId: string }) {
         mensagem: mensagem || null,
         uploadIds: [...marcados],
         parcelaId: parcelaId || null,
-      });
+      }).catch(() => null);
+      if (!r) {
+        toast.error("Não foi possível enviar. Verifique a conexão e tente de novo.");
+        return;
+      }
       if (!r.ok) {
         toast.error(r.error);
         return;
@@ -144,9 +152,19 @@ export function EnviarAprovacaoDialog({ projetoId }: { projetoId: string }) {
               />
             </div>
 
-            {erroCarga && <p className="text-sm text-destructive">{erroCarga}</p>}
+            {erroCarga && (
+              <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+                <span>{erroCarga}</span>
+                <Button size="sm" variant="outline" onClick={carregar}>
+                  Tentar de novo
+                </Button>
+              </div>
+            )}
             {!form && !erroCarga && (
               <div className="space-y-2" aria-busy="true">
+                <span className="sr-only" role="status">
+                  Carregando as Entregas…
+                </span>
                 <Skeleton className="h-4 w-1/3" />
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-2/3" />

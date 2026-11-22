@@ -14,7 +14,8 @@
  */
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { removerArquivo, salvarArquivo } from "../src/lib/storage";
+import { existsSync } from "node:fs";
+import { removerArquivo, resolverCaminho, salvarArquivo } from "../src/lib/storage";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
 import {
@@ -34,7 +35,9 @@ import {
 import { impressaoDigital } from "../src/modules/portal/aprovacao-entrega/itens";
 import {
   MOTIVO_CANCELADO,
+  COMPROVANTES_SEM_USO_MAX,
   MOTIVO_COMPROVANTE,
+  MOTIVO_COMPROVANTES_DEMAIS,
   MOTIVO_DESATUALIZADO,
   MOTIVO_ITEM_FORA,
   MOTIVO_JA_ANULADA,
@@ -45,9 +48,11 @@ import {
   MOTIVO_TEXTO_OBRIGATORIO,
 } from "../src/modules/portal/aprovacao-entrega/regras";
 import { diaDeSaoPaulo } from "../src/lib/data";
-import { avisarAnulacao, avisarEnvio, avisarResposta, type DepsAvisos } from "../src/modules/portal/aprovacao-entrega/avisos";
+import { avisarAnulacao, avisarEnvio, avisarResposta, gestoresDoFinanceiro, type DepsAvisos } from "../src/modules/portal/aprovacao-entrega/avisos";
 import { aprovacoesParaCliente, aprovacoesParaEquipe } from "../src/modules/portal/aprovacao-entrega/queries";
 import { parcelasAFaturar } from "../src/modules/juridico/contrato/parcelas-a-faturar-queries";
+
+const arquivoExiste = async (rel: string) => existsSync(resolverCaminho(rel));
 
 async function main() {
   const tag = `SMKAPROVACAO_${Date.now()}`;
@@ -207,6 +212,21 @@ async function main() {
       include: { parcelasEntrega: true },
     });
     contratos.push(contratoOutro.id);
+    // Contrato do MESMO projeto, mas de outro cliente: a parcela não pode ser ligada.
+    const contratoOutroCliente = await prisma.documentoJuridico.create({
+      data: {
+        titulo: `${tag} contrato outro cliente`,
+        tipo: "contrato",
+        clienteId: cliB.id,
+        projetoId: proj.id,
+        statusContrato: "assinado",
+        valor: 1000,
+        formaCobranca: "por_entrega",
+        parcelasEntrega: { create: [{ descricao: "Entrega B", percentual: 100, ordem: 0 }] },
+      },
+      include: { parcelasEntrega: true },
+    });
+    contratos.push(contratoOutroCliente.id);
 
     // ── Envio ──
     const candidatos = await candidatosDoProjeto(proj.id);
@@ -214,6 +234,7 @@ async function main() {
     const base = { projetoId: proj.id, quem: coord, titulo: "Entrega BS", mensagem: "Confira", parcelaId: null as string | null };
     check("arquivo fora das Entregas recusa", (await motivoDe(() => enviarAprovacao({ ...base, uploadIds: [e1.up.id, naoMarcada.up.id] }))) === MOTIVO_ITEM_FORA);
     check("parcela de outro projeto recusa", (await motivoDe(() => enviarAprovacao({ ...base, uploadIds: [e1.up.id], parcelaId: contratoOutro.parcelasEntrega[0].id }))) === MOTIVO_PARCELA);
+    check("parcela de contrato de outro cliente no mesmo projeto recusa", (await motivoDe(() => enviarAprovacao({ ...base, uploadIds: [e1.up.id], parcelaId: contratoOutroCliente.parcelasEntrega[0].id }))) === MOTIVO_PARCELA);
     check("projetista não envia", (await motivoDe(() => enviarAprovacao({ ...base, quem: projetista, uploadIds: [e1.up.id] }))) === MOTIVO_NAO_ENCONTRADO);
 
     const a1 = await enviarAprovacao({ ...base, uploadIds: [e2.up.id, e1.up.id], parcelaId: parcela.id });
@@ -302,7 +323,8 @@ async function main() {
     // ── Cancelar ──
     check("cancelar aguardando", (await motivoDe(() => cancelarAprovacao({ aprovacaoId: a6.id, quem: coord }))) === null);
     check("cancelar de novo recusa", (await motivoDe(() => cancelarAprovacao({ aprovacaoId: a6.id, quem: coord }))) === MOTIVO_CANCELADO);
-    check("responder cancelado recusa", (await motivoDe(() => responderPeloPortal({ aprovacaoId: a6.id, conta: c1, resposta: "aprovado", texto: null, impressaoDigital: pac6.impressaoDigital }))) === MOTIVO_CANCELADO);
+    check("cliente respondendo cancelado = não encontrado (não confirma que existe)", (await motivoDe(() => responderPeloPortal({ aprovacaoId: a6.id, conta: c1, resposta: "aprovado", texto: null, impressaoDigital: pac6.impressaoDigital }))) === MOTIVO_NAO_ENCONTRADO);
+    check("equipe registrando por fora em cancelado = cancelado", (await motivoDe(() => registrarPorFora({ aprovacaoId: a6.id, quem: coord, resposta: "aprovado", texto: null, dia: diaDeSaoPaulo(), respondidoPorNome: "X", comprovanteId: "x" }))) === MOTIVO_CANCELADO);
     check("projetista não cancela", (await motivoDe(() => cancelarAprovacao({ aprovacaoId: a5.id, quem: projetista }))) === MOTIVO_NAO_ENCONTRADO);
 
     // ── Anular ──
@@ -420,8 +442,8 @@ async function main() {
     const resp8 = await prisma.respostaAprovacaoEntrega.findUniqueOrThrow({ where: { id: r8.respostaId } });
     const c8 = await prisma.comprovanteAprovacaoEntrega.findUniqueOrThrow({ where: { id: comp8.comprovanteId } });
     check(
-      "registro por fora grava origem equipe, dia à meia-noite UTC e marca o comprovante",
-      resp8.origem === "equipe" && resp8.respondidoEm.toISOString() === `${diaDeSaoPaulo()}T00:00:00.000Z` &&
+      "registro por fora grava origem equipe, o dia (meio-dia de SP) e marca o comprovante",
+      resp8.origem === "equipe" && diaDeSaoPaulo(resp8.respondidoEm) === diaDeSaoPaulo() &&
         resp8.registradoPorId === coordU.id && resp8.respondidoPorNome === "Sr. Cliente" && c8.usadoEm !== null && resp8.comprovanteId === comp8.comprovanteId,
     );
     check("só pacote aguardando recebe comprovante", (await motivoDe(() => gravarComprovante({ aprovacaoId: a8.id, quem: coord, caminho: "y", nome: "y.pdf", tamanho: 1, tipo: "application/pdf" }))) === MOTIVO_JA_RESPONDIDO);
@@ -431,12 +453,42 @@ async function main() {
     check("comprovante: coordenador recebe o caminho", (await comprovanteParaEquipe(comp8.comprovanteId, coordU.id))?.caminho === comp8Caminho);
     check("comprovante: conta do cliente = null", (await comprovanteParaEquipe(comp8.comprovanteId, contaA1.id)) === null);
     const daquiA25h = new Date(Date.now() + 25 * 3600_000);
+    const arquivoVelho = `smoke/${tag}-c9-disco.pdf`;
+    await salvarArquivo(arquivoVelho, Buffer.from("%PDF-1.4 velho"));
+    noDisco.push(arquivoVelho);
+    await prisma.comprovanteAprovacaoEntrega.update({ where: { id: compOutra.comprovanteId }, data: { caminho: arquivoVelho } });
     const apagados = await limparComprovantesNaoUsados(daquiA25h);
+    check("limpeza tira o arquivo do disco", !(await arquivoExiste(arquivoVelho)));
     const sobrou = await prisma.comprovanteAprovacaoEntrega.findMany({ where: { aprovacaoId: { in: [a8.id, a9.id] } }, select: { id: true } });
     check(
       "limpeza apaga o não usado depois de 24 h e mantém o usado",
       apagados >= 2 && sobrou.length === 1 && sobrou[0].id === comp8.comprovanteId,
     );
+    // Coordenador de OUTRO projeto: não baixa o comprovante nem cancela pedido daqui.
+    const coordQ = await novoInterno("coordq");
+    await prisma.projetoMembro.create({ data: { projetoId: outroProj.id, userId: coordQ.id, papel: "coordenador" } });
+    check("coordenador de outro projeto: comprovante = null", (await comprovanteParaEquipe(comp8.comprovanteId, coordQ.id)) === null);
+    check("coordenador de outro projeto não cancela", (await motivoDe(() => cancelarAprovacao({ aprovacaoId: a9.id, quem: { userId: coordQ.id, nome: coordQ.name } }))) === MOTIVO_NAO_ENCONTRADO);
+
+    // Teto de comprovantes sem uso por pessoa e pedido.
+    const a11 = await enviarAprovacao({ ...base, uploadIds: [e3.up.id] });
+    for (let i = 0; i < COMPROVANTES_SEM_USO_MAX; i++) {
+      await gravarComprovante({ aprovacaoId: a11.id, quem: coord, caminho: `smoke/${tag}-c11-${i}.pdf`, nome: `c${i}.pdf`, tamanho: 10, tipo: "application/pdf" });
+    }
+    check("comprovante além do teto sem uso recusa", (await motivoDe(() => gravarComprovante({ aprovacaoId: a11.id, quem: coord, caminho: `smoke/${tag}-c11-x.pdf`, nome: "cx.pdf", tamanho: 10, tipo: "application/pdf" }))) === MOTIVO_COMPROVANTES_DEMAIS);
+
+    // Marca da parcela com resposta por fora: o dia mostrado é o dia informado.
+    const a10 = await enviarAprovacao({ ...base, uploadIds: [e3.up.id], parcelaId: parcela.id });
+    const comp10 = await gravarComprovante({ aprovacaoId: a10.id, quem: coord, caminho: `smoke/${tag}-c10.pdf`, nome: "c10.pdf", tamanho: 10, tipo: "application/pdf" });
+    await registrarPorFora({ aprovacaoId: a10.id, quem: coord, resposta: "aprovado", texto: null, dia: diaDeSaoPaulo(), respondidoPorNome: "Sr. Cliente", comprovanteId: comp10.comprovanteId });
+    const m10 = (await parcelasAFaturar({ projetoId: proj.id })).find((p) => p.parcelaId === parcela.id)?.aceite;
+    check("marca da parcela por fora: dia = o informado", m10?.tipo === "aceita" && m10.em === diaDeSaoPaulo() && m10.titulo === base.titulo);
+
+    // Quem gere o financeiro é só interno (conta do portal com financeiro:gerir nunca entra).
+    await prisma.permissaoUsuario.create({ data: { userId: contaA2.id, recurso: "financeiro", acao: "gerir", permitido: true, motivo: `smoke ${tag}` } });
+    const gestores = (await gestoresDoFinanceiro()).filter((id) => id === contaA2.id);
+    check("gestores do financeiro: conta externa com financeiro:gerir fica fora", gestores.length === 0);
+
     const compNovo = await gravarComprovante({ aprovacaoId: a9.id, quem: coord, caminho: `smoke/${tag}-c9b.pdf`, nome: "c9b.pdf", tamanho: 10, tipo: "application/pdf" });
     await limparComprovantesNaoUsados(new Date());
     check("limpeza antes de 24 h não apaga", (await prisma.comprovanteAprovacaoEntrega.count({ where: { id: compNovo.comprovanteId } })) === 1);

@@ -33,11 +33,19 @@ export const hrefDoCliente = (projetoId: string) => `/portal/${projetoId}#aprova
 export const hrefDaEquipe = (projetoId: string) => `/projetos/${projetoId}/cliente#aprovacoes`;
 export const HREF_FINANCEIRO = "/financeiro/contas";
 
+/** Quem gere o financeiro: só pessoa INTERNA ativa (o financeiro é só interno, `lib/so-interno.ts`). */
+export async function gestoresDoFinanceiro(): Promise<string[]> {
+  const gestores = await prisma.user.findMany({
+    where: { AND: [wherePermissao("financeiro", "gerir"), { tipo: "interno", ativo: true }] },
+    select: { id: true },
+  });
+  return gestores.map((u) => u.id);
+}
+
 const avisosPadrao = (): DepsAvisos => ({
   notificar: (ids, n, o) => notificarMuitos(ids, n, o),
   enviarEmail: smtpConfigurado() ? enviarEmailTemplate : null,
-  gestoresFinanceiro: async () =>
-    (await prisma.user.findMany({ where: wherePermissao("financeiro", "gerir"), select: { id: true } })).map((u) => u.id),
+  gestoresFinanceiro: gestoresDoFinanceiro,
 });
 
 const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? "";

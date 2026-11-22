@@ -3,7 +3,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { diaDeSaoPaulo } from "@/lib/data";
-import { removerArquivo } from "@/lib/storage";
+import { promises as fs } from "node:fs";
+import { resolverCaminho } from "@/lib/storage";
 import { alcanceDoPortal } from "@/modules/projetos/arquivos/link-publico-regras";
 import { conteudoDoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import { parcelasAFaturar } from "@/modules/juridico/contrato/parcelas-a-faturar-queries";
@@ -11,6 +12,8 @@ import { contaPodeVerConversa, podeVerConversaDoProjeto } from "@/modules/portal
 import { candidatosDasEntregas, impressaoDigital, itemDesatualizado, type Candidato } from "./itens";
 import {
   COMPROVANTE_VALIDADE_MS,
+  COMPROVANTES_SEM_USO_MAX,
+  MOTIVO_COMPROVANTES_DEMAIS,
   ITENS_MAX,
   MENSAGEM_MAX,
   MOTIVO_ANULACAO_MAX,
@@ -25,6 +28,7 @@ import {
   MOTIVO_SEM_ITENS,
   NOME_POR_FORA_MAX,
   TITULO_MAX,
+  instanteDoDiaPorFora,
   motivoDaDataPorFora,
   motivoDoComprovante,
   motivoDoTexto,
@@ -88,9 +92,11 @@ export async function candidatosDoProjeto(projetoId: string): Promise<Candidato[
   return conteudo ? candidatosDasEntregas(conteudo) : [];
 }
 
-/** Parcelas que podem ser ligadas: o mesmo filtro de "Parcelas a faturar", só deste projeto. */
+/** Parcelas que podem ser ligadas: o mesmo filtro de "Parcelas a faturar", só deste projeto E do cliente dele. */
 export async function parcelasDoProjeto(projetoId: string): Promise<{ id: string; rotulo: string }[]> {
-  const lista = await parcelasAFaturar({ projetoId });
+  const projeto = await prisma.projeto.findUnique({ where: { id: projetoId }, select: { clienteId: true } });
+  if (!projeto?.clienteId) return [];
+  const lista = await parcelasAFaturar({ projetoId, clienteId: projeto.clienteId });
   return lista.map((p) => ({ id: p.parcelaId, rotulo: `${p.contrato} — ${p.numero}. ${p.descricao}` }));
 }
 
@@ -98,7 +104,12 @@ export async function parcelasDoProjeto(projetoId: string): Promise<{ id: string
  * Ids dos pacotes AGUARDANDO (entre `aprovacaoIds`) com algum item desatualizado: upload excluído, substituído ou fora
  * das Entregas atuais. Pacote respondido nunca vira desatualizado (o aceite é a prova).
  */
-export async function desatualizadosDoProjeto(projetoId: string, aprovacaoIds: string[]): Promise<Set<string>> {
+export async function desatualizadosDoProjeto(
+  projetoId: string,
+  aprovacaoIds: string[],
+  /** As Entregas atuais, quando quem chama já as leu (evita montar a árvore duas vezes). */
+  entregasProntas?: ReadonlySet<string>,
+): Promise<Set<string>> {
   const fora = new Set<string>();
   if (aprovacaoIds.length === 0) return fora;
   const aguardando = await prisma.aprovacaoEntrega.findMany({
@@ -110,7 +121,7 @@ export async function desatualizadosDoProjeto(projetoId: string, aprovacaoIds: s
     where: { aprovacaoId: { in: aguardando.map((a) => a.id) } },
     select: { aprovacaoId: true, uploadId: true },
   });
-  const nasEntregas = new Set((await candidatosDoProjeto(projetoId)).map((c) => c.uploadId));
+  const nasEntregas = entregasProntas ?? new Set((await candidatosDoProjeto(projetoId)).map((c) => c.uploadId));
   const uploads = await prisma.upload.findMany({
     where: { id: { in: [...new Set(itens.map((i) => i.uploadId))] }, substituidoPorId: { not: undefined } },
     select: { id: true, excluidoEm: true, substituidoPorId: true },
@@ -259,6 +270,8 @@ export async function responderPeloPortal(p: {
 }): Promise<{ projetoId: string; respostaId: string }> {
   const a = await pacote(p.aprovacaoId);
   if (!(await contaPodeVerConversa(p.conta.userId, a.projetoId))) throw naoEncontrado();
+  // O cliente não vê pedido cancelado: responder um dá a mesma frase da porta (não confirma que existe).
+  if (a.status === "cancelado") throw naoEncontrado();
   if (p.impressaoDigital !== a.impressaoDigital) throw new ActionError(MOTIVO_PEDIDO_MUDOU);
   const motivoTexto = motivoDoTexto(p.resposta, p.texto);
   if (motivoTexto) throw new ActionError(motivoTexto);
@@ -292,9 +305,11 @@ export async function registrarPorFora(p: {
 }): Promise<{ projetoId: string; respostaId: string }> {
   const a = await pacote(p.aprovacaoId);
   await exigirEquipe(p.quem.userId, a.projetoId);
+  // Status antes do comprovante: em pedido respondido ou cancelado, a frase certa é a do status.
+  const motivoStatus = motivoParaCancelar(a.status);
+  if (motivoStatus) throw new ActionError(motivoStatus);
   const motivoTexto = motivoDoTexto(p.resposta, p.texto);
   if (motivoTexto) throw new ActionError(motivoTexto);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.dia)) throw new ActionError("Informe a data da resposta.");
   const motivoData = motivoDaDataPorFora({ dia: p.dia, enviadoEm: a.enviadoEm, hoje: diaDeSaoPaulo() });
   if (motivoData) throw new ActionError(motivoData);
   const nome = obrigatorio(
@@ -320,7 +335,7 @@ export async function registrarPorFora(p: {
         respondidoPorNome: nome,
         registradoPorId: p.quem.userId,
         registradoPorNome: p.quem.nome,
-        respondidoEm: new Date(`${p.dia}T00:00:00.000Z`),
+        respondidoEm: instanteDoDiaPorFora(p.dia),
         comprovanteId: p.comprovanteId,
       });
     });
@@ -410,6 +425,10 @@ export async function gravarComprovante(p: {
   await exigirComprovanteAceito({ aprovacaoId: p.aprovacaoId, userId: p.quem.userId });
   const motivo = motivoDoComprovante({ nome: p.nome, tamanho: p.tamanho });
   if (motivo) throw new ActionError(motivo);
+  const semUso = await prisma.comprovanteAprovacaoEntrega.count({
+    where: { aprovacaoId: p.aprovacaoId, enviadoPorId: p.quem.userId, usadoEm: null },
+  });
+  if (semUso >= COMPROVANTES_SEM_USO_MAX) throw new ActionError(MOTIVO_COMPROVANTES_DEMAIS);
   const c = await prisma.comprovanteAprovacaoEntrega.create({
     data: { aprovacaoId: p.aprovacaoId, enviadoPorId: p.quem.userId, caminho: p.caminho, nome: p.nome, tamanho: p.tamanho, tipo: p.tipo },
     select: { id: true },
@@ -434,8 +453,10 @@ export async function comprovanteParaEquipe(
 }
 
 /**
- * Job diário: apaga (registro e arquivo) o comprovante enviado há mais de 24 h e nunca usado numa resposta. A linha só
- * sai com `usadoEm` ainda nulo na hora de apagar (um registro por fora no mesmo instante vence).
+ * Job diário: apaga (arquivo e registro) o comprovante enviado há mais de 24 h e nunca usado numa resposta. O ARQUIVO sai
+ * primeiro: se o disco recusar (arquivo preso no Windows), a linha fica e a próxima rodada tenta de novo — nunca sobra
+ * arquivo sem linha. A linha só sai com `usadoEm` ainda nulo (um registro por fora no mesmo instante vence; aí o arquivo
+ * já apagado é o risco aceito: a rota de download responde 404).
  */
 export async function limparComprovantesNaoUsados(agora: Date = new Date()): Promise<number> {
   const limite = new Date(agora.getTime() - COMPROVANTE_VALIDADE_MS);
@@ -445,14 +466,16 @@ export async function limparComprovantesNaoUsados(agora: Date = new Date()): Pro
   });
   let n = 0;
   for (const c of velhos) {
-    const r = await prisma.comprovanteAprovacaoEntrega.deleteMany({ where: { id: c.id, usadoEm: null } });
-    if (r.count !== 1) continue;
-    n += 1;
     try {
-      await removerArquivo(c.caminho);
+      await fs.unlink(resolverCaminho(c.caminho));
     } catch (e) {
-      console.error("[aprovacao-entrega] arquivo do comprovante não removido:", c.caminho, e);
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+        console.error("[aprovacao-entrega] arquivo do comprovante não removido (tenta amanhã):", c.caminho, e);
+        continue;
+      }
     }
+    const r = await prisma.comprovanteAprovacaoEntrega.deleteMany({ where: { id: c.id, usadoEm: null } });
+    if (r.count === 1) n += 1;
   }
   return n;
 }

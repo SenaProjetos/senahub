@@ -40,7 +40,11 @@ export function AnularRespostaDialog({
 
   function anular() {
     startTransition(async () => {
-      const r = await anularRespostaAprovacao({ respostaId, motivo });
+      const r = await anularRespostaAprovacao({ respostaId, motivo }).catch(() => null);
+      if (!r) {
+        toast.error("Não foi possível enviar. Verifique a conexão e tente de novo.");
+        return;
+      }
       if (!r.ok) {
         toast.error(r.error);
         router.refresh();

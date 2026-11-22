@@ -3,6 +3,7 @@ import {
   MOTIVO_CANCELADO,
   MOTIVO_DATA_ANTES_DO_ENVIO,
   MOTIVO_DATA_FUTURA,
+  MOTIVO_DATA_INVALIDA,
   MOTIVO_DESATUALIZADO,
   MOTIVO_DESATUALIZADO_EQUIPE,
   MOTIVO_JA_ANULADA,
@@ -12,6 +13,7 @@ import {
   TAMANHO_MAX_COMPROVANTE,
   conteudoDoComprovanteConfere,
   contaComoAceite,
+  instanteDoDiaPorFora,
   motivoDaDataPorFora,
   motivoDoComprovante,
   motivoDoTexto,
@@ -19,6 +21,7 @@ import {
   motivoParaCancelar,
   motivoParaResponder,
 } from "./regras";
+import { diaDeSaoPaulo } from "@/lib/data";
 
 describe("aprovação da entrega — regras", () => {
   it("com ressalvas conta como aceite, não aprovado não", () => {
@@ -74,6 +77,19 @@ describe("aprovação da entrega — regras", () => {
     const enviadoEm = new Date("2026-12-11T02:30:00Z");
     expect(motivoDaDataPorFora({ dia: "2026-12-13", enviadoEm, hoje: "2026-12-12" })).toBe(MOTIVO_DATA_FUTURA);
     expect(motivoDaDataPorFora({ dia: "2026-12-12", enviadoEm, hoje: "2026-12-12" })).toBeNull();
+  });
+
+  it("data por fora inexistente recusa", () => {
+    const enviadoEm = new Date("2026-01-11T12:00:00Z");
+    expect(motivoDaDataPorFora({ dia: "2026-02-31", enviadoEm, hoje: "2026-12-12" })).toBe(MOTIVO_DATA_INVALIDA);
+    expect(motivoDaDataPorFora({ dia: "2026-13-01", enviadoEm, hoje: "2026-12-12" })).toBe(MOTIVO_DATA_INVALIDA);
+    expect(motivoDaDataPorFora({ dia: "ontem", enviadoEm, hoje: "2026-12-12" })).toBe(MOTIVO_DATA_INVALIDA);
+  });
+
+  it("instante do dia por fora cai no mesmo dia de São Paulo", () => {
+    const i = instanteDoDiaPorFora("2026-12-10");
+    expect(diaDeSaoPaulo(i)).toBe("2026-12-10");
+    expect(instanteDoDiaPorFora("2026-12-10").getTime()).toBeLessThan(instanteDoDiaPorFora("2026-12-11").getTime());
   });
 
   it("comprovante: .docx recusa, 20 MB + 1 recusa, .MSG aceita", () => {

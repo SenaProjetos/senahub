@@ -75,11 +75,13 @@ async function montar(projetoId: string, lado: "cliente" | "equipe"): Promise<Ap
     },
   });
   if (pacotes.length === 0) return [];
+  // Uma montagem das Entregas por leitura: serve ao "desatualizado" e ao link de cada item.
+  const nasEntregas = new Set((await candidatosDoProjeto(projetoId)).map((c) => c.uploadId));
   const desatualizados = await desatualizadosDoProjeto(
     projetoId,
     pacotes.filter((p) => p.status === "aguardando").map((p) => p.id),
+    nasEntregas,
   );
-  const nasEntregas = new Set((await candidatosDoProjeto(projetoId)).map((c) => c.uploadId));
   const equipe = lado === "equipe";
 
   const lista = pacotes.map<AprovacaoDTO>((p) => {

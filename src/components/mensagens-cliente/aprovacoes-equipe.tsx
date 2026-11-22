@@ -37,7 +37,7 @@ export function AprovacoesEquipe({ projetoId, aprovacoes }: { projetoId: string;
   const confirm = useConfirm();
   const [registrando, setRegistrando] = useState<AprovacaoDTO | null>(null);
   const [anulando, setAnulando] = useState<{ respostaId: string; titulo: string } | null>(null);
-  const [, startCancelar] = useTransition();
+  const [cancelando, startCancelar] = useTransition();
 
   async function aoEscolher(a: AprovacaoDTO, item: AcaoItemAcao) {
     if (item.id === ACAO_REGISTRAR_POR_FORA) {
@@ -49,7 +49,7 @@ export function AprovacoesEquipe({ projetoId, aprovacoes }: { projetoId: string;
       if (ativa) setAnulando({ respostaId: ativa.id, titulo: a.titulo });
       return;
     }
-    if (item.id !== ACAO_CANCELAR) return;
+    if (item.id !== ACAO_CANCELAR || cancelando) return;
     // Confirmar ANTES da transição (ADR-0002, regra 4).
     const ok = await confirm({
       title: item.confirmar?.titulo ?? "Cancelar este pedido?",
@@ -90,7 +90,8 @@ export function AprovacoesEquipe({ projetoId, aprovacoes }: { projetoId: string;
               return (
                 <LinhaComMenu
                   key={a.id}
-                  itens={itens}
+                  // Uma ação só: sem menu de contexto, fica o `...` (ADR-0002, regra 4).
+                  itens={itens.length > 1 ? itens : []}
                   onSelect={(item) => void aoEscolher(a, item)}
                   render={<li className="flex flex-wrap items-start justify-between gap-2 px-2 py-3" />}
                 >
@@ -107,6 +108,7 @@ export function AprovacoesEquipe({ projetoId, aprovacoes }: { projetoId: string;
           key={registrando.id}
           aprovacaoId={registrando.id}
           titulo={registrando.titulo}
+          enviadoEm={registrando.enviadoEm}
           aberto
           onFechar={() => setRegistrando(null)}
         />
@@ -169,6 +171,7 @@ function RespostaDaEquipe({ r }: { r: RespostaDTO }) {
   return (
     <div className="space-y-0.5 rounded-md bg-muted/50 px-3 py-2 text-sm">
       <p className={anulada ? "text-muted-foreground line-through" : "font-medium"}>
+        {anulada && <span className="sr-only">(Resposta anulada) </span>}
         {ROTULO_RESPOSTA[r.resposta]} <span className="font-normal text-muted-foreground">— {quem}</span>
       </p>
       {r.texto && <p className={`whitespace-pre-wrap break-words ${anulada ? "text-muted-foreground line-through" : ""}`}>{r.texto}</p>}

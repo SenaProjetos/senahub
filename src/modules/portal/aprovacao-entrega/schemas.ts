@@ -29,7 +29,7 @@ export const enviarAprovacaoSchema = z.object({
     .array(z.string({ error: MOTIVO_SEM_ITENS }).min(1, MOTIVO_SEM_ITENS), { error: MOTIVO_SEM_ITENS })
     .min(1, MOTIVO_SEM_ITENS)
     .max(ITENS_MAX, `Um pedido aceita até ${ITENS_MAX} arquivos.`),
-  parcelaId: z.string({ error: "Parcela inválida." }).min(1).nullable().optional(),
+  parcelaId: z.string({ error: "Parcela inválida." }).min(1, "Parcela inválida.").nullable().optional(),
 });
 
 export const cancelarAprovacaoSchema = z.object({ aprovacaoId });

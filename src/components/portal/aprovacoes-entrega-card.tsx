@@ -78,7 +78,7 @@ function ItemLink({ projetoId, i }: { projetoId: string; i: ItemDTO }) {
   if (!i.nasEntregas) {
     return (
       <span className="min-w-0">
-        {rotulo} <span className="text-xs text-muted-foreground">(fora das Entregas)</span>
+        {rotulo} <span className="text-xs text-muted-foreground">(não está mais disponível)</span>
       </span>
     );
   }
@@ -97,10 +97,11 @@ function RespostaDoCliente({ r }: { r: RespostaDTO }) {
   const quem =
     r.origem === "portal"
       ? `por ${r.respondidoPorNome} em ${formatarDataHora(r.respondidoEm)}`
-      : `${ROTULO_REGISTRADA_PELA_EQUIPE} em ${formatarData(r.respondidoEm)}`;
+      : `resposta de ${r.respondidoPorNome} em ${formatarData(r.respondidoEm)} · ${ROTULO_REGISTRADA_PELA_EQUIPE}`;
   return (
     <div className="space-y-0.5 rounded-md bg-muted/50 px-3 py-2 text-sm">
       <p className={anulada ? "text-muted-foreground line-through" : "font-medium"}>
+        {anulada && <span className="sr-only">(Resposta anulada) </span>}
         {ROTULO_RESPOSTA[r.resposta]} <span className="font-normal text-muted-foreground">— {quem}</span>
       </p>
       {r.texto && <p className={`whitespace-pre-wrap break-words ${anulada ? "text-muted-foreground line-through" : ""}`}>{r.texto}</p>}

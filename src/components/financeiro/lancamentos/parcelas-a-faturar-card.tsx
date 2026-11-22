@@ -31,10 +31,10 @@ const SITUACAO: Record<ParcelaAFaturarSituacao, { tom: "success" | "info" | "war
 };
 
 /** Aceite do cliente pelo pacote de entrega ligado à parcela — só sinaliza; o botão Faturar não muda. */
-const ACEITE: Record<MarcaAceite["tipo"], { tom: "success" | "warning" | "neutral" }> = {
+const ACEITE: Record<MarcaAceite["tipo"], { tom: "success" | "danger" | "neutral" }> = {
   aceita: { tom: "success" },
   aguardando: { tom: "neutral" },
-  nao_aprovada: { tom: "warning" },
+  nao_aprovada: { tom: "danger" },
 };
 
 function textoDoAceite(a: MarcaAceite): string {
@@ -85,7 +85,10 @@ export function ParcelasAFaturarCard({ parcelas }: { parcelas: ParcelaAFaturar[]
                   </p>
                   {p.aceite && (
                     <p className="mt-0.5" title={`Pedido de aprovação: ${p.aceite.titulo}`}>
-                      <StatusBadge tone={ACEITE[p.aceite.tipo].tom}>{textoDoAceite(p.aceite)}</StatusBadge>
+                      <StatusBadge tone={ACEITE[p.aceite.tipo].tom} className="h-auto max-w-full whitespace-normal text-left">
+                        {textoDoAceite(p.aceite)}
+                        <span className="sr-only"> — pedido de aprovação: {p.aceite.titulo}</span>
+                      </StatusBadge>
                     </p>
                   )}
                 </div>
