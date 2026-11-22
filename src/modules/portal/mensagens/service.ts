@@ -13,6 +13,8 @@ import {
   MOTIVO_DECISAO_NAO_MARCADA,
   MOTIVO_NAO_ENCONTRADA,
   RESUMO_MAX,
+  motivoDoTipoDoAnexo,
+  motivoParaNaoAnexar,
   motivoParaNaoEnviar,
   type LadoMensagem,
 } from "./regras";
@@ -278,6 +280,94 @@ export async function desmarcarDecisao(p: { mensagemId: string; userId: string }
   });
   if (count === 0) throw new ActionError(MOTIVO_DECISAO_NAO_MARCADA);
   return { projetoId };
+}
+
+// ── Anexos ──────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A mensagem aceita anexo desta pessoa? Confere, nesta ordem: a mensagem existe; a pessoa ainda passa pela porta do
+ * lado da mensagem (conta externa com acesso ao projeto pelo portal, ou a audiência do escritório); o tipo do arquivo
+ * (quando o nome já é conhecido); e as regras do anexo (`motivoParaNaoAnexar`: só o autor, só mensagem com anexos,
+ * janela, limite). A rota pergunta isto ANTES de ler o corpo, sem o nome (não recebe 100 MB para recusar), e de novo
+ * com o nome antes de gravar no disco; `gravarAnexo` repete as regras sob a trava da mensagem.
+ * Lança `ActionError` — inexistente, sem acesso e de outra pessoa são todos `MOTIVO_NAO_ENCONTRADA`.
+ */
+export async function exigirMensagemAnexavel(p: {
+  mensagemId: string;
+  userId: string;
+  nome?: string;
+}): Promise<{ projetoId: string; conversaId: string }> {
+  const m = await prisma.mensagemPortal.findUnique({
+    where: { id: p.mensagemId },
+    select: { conversaId: true, autorId: true, lado: true, criadaEm: true, comAnexos: true },
+  });
+  if (!m || m.autorId !== p.userId) throw naoEncontrada();
+  const conversa = await prisma.conversaPortal.findUnique({ where: { id: m.conversaId }, select: { projetoId: true } });
+  if (!conversa) throw naoEncontrada();
+  await exigirLado(p.userId, conversa.projetoId, m.lado);
+  const tipo = p.nome === undefined ? null : motivoDoTipoDoAnexo(p.nome);
+  if (tipo) throw new ActionError(tipo);
+  const anexos = await prisma.anexoMensagemPortal.count({ where: { mensagemId: p.mensagemId } });
+  const motivo = motivoParaNaoAnexar({ ...m, userId: p.userId, agora: new Date(), anexos });
+  if (motivo) throw new ActionError(motivo);
+  return { projetoId: conversa.projetoId, conversaId: m.conversaId };
+}
+
+/**
+ * Registra um anexo já gravado no disco (a rota apaga o arquivo se isto lançar). Confere a porta de novo e, numa
+ * transação, trava a linha da mensagem (`FOR UPDATE`): dois envios ao mesmo tempo contam um depois do outro e não
+ * passam de 5. Leituras planas e em sequência dentro da transação.
+ */
+export async function gravarAnexo(p: {
+  mensagemId: string;
+  userId: string;
+  caminho: string;
+  nome: string;
+  tamanho: number;
+  tipo: string;
+}): Promise<{ anexoId: string }> {
+  await exigirMensagemAnexavel({ mensagemId: p.mensagemId, userId: p.userId, nome: p.nome });
+  return prisma.$transaction(async (tx) => {
+    const travada = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM mensagem_portal WHERE id = ${p.mensagemId} FOR UPDATE`;
+    if (travada.length === 0) throw naoEncontrada();
+    const m = await tx.mensagemPortal.findUnique({
+      where: { id: p.mensagemId },
+      select: { autorId: true, criadaEm: true, comAnexos: true },
+    });
+    if (!m) throw naoEncontrada();
+    const anexos = await tx.anexoMensagemPortal.count({ where: { mensagemId: p.mensagemId } });
+    const motivo = motivoParaNaoAnexar({ ...m, userId: p.userId, agora: new Date(), anexos });
+    if (motivo) throw new ActionError(motivo);
+    const a = await tx.anexoMensagemPortal.create({
+      data: { mensagemId: p.mensagemId, caminho: p.caminho, nome: p.nome, tamanho: p.tamanho, tipo: p.tipo.slice(0, 200) },
+      select: { id: true },
+    });
+    return { anexoId: a.id };
+  });
+}
+
+/**
+ * Quem baixa um anexo: o lado do cliente pela porta do portal (conta externa ativa com acesso ao projeto da conversa),
+ * o escritório pela audiência (`podeVerConversaDoProjeto`). O `tipo` diz qual porta — e a porta confere o tipo no
+ * banco, então quem se diz do outro lado não entra. null = não pode ou não existe (a rota responde 404 igual).
+ */
+export async function anexoParaUsuario(
+  anexoId: string,
+  user: { id: string; tipo: "interno" | "externo"; mustChangePassword: boolean },
+): Promise<{ caminho: string; nome: string; tipo: string } | null> {
+  const anexo = await prisma.anexoMensagemPortal.findUnique({
+    where: { id: anexoId },
+    select: { caminho: true, nome: true, tipo: true, mensagemId: true },
+  });
+  if (!anexo) return null;
+  const projetoId = await projetoDaMensagem(anexo.mensagemId);
+  if (!projetoId) return null;
+  // Conta com troca de senha pendente não entra no portal; `contaPodeVerConversa` ainda relê ativo, tipo e a troca de
+  // senha no banco (a sessão pode estar velha).
+  if (user.mustChangePassword && user.tipo === "externo") return null;
+  const pode = user.tipo === "externo" ? await contaPodeVerConversa(user.id, projetoId) : await podeVerConversaDoProjeto(user.id, projetoId);
+  return pode ? { caminho: anexo.caminho, nome: anexo.nome, tipo: anexo.tipo } : null;
 }
 
 /** O cliente liga ou desliga o e-mail de mensagem nova da equipe (o sino fica). Grava só `notif_portal_mensagem`. */

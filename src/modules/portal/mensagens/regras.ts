@@ -2,6 +2,8 @@
  * Regras puras da conversa do cliente com a coordenação (spec 2026-11-21-portal-mensagens-coordenacao).
  * Sem I/O: o serviço lê o estado e pergunta aqui; a mesma frase serve de erro da ação e de motivo na tela.
  */
+import { EXTENSOES_ANEXO, extensaoDoAnexo } from "@/modules/portal/pedido-revisao/regras";
+
 export const TEXTO_MAX = 5000;
 export const RESUMO_MAX = 300;
 export const ANEXOS_MAX = 5;
@@ -12,6 +14,7 @@ export const MOTIVO_TEXTO_VAZIO = "Escreva a mensagem ou anexe um arquivo.";
 export const MOTIVO_TEXTO_LONGO = "A mensagem passa de 5.000 caracteres.";
 export const MOTIVO_ANEXOS_MAX = "Cada mensagem aceita até 5 anexos.";
 export const MOTIVO_JANELA_ANEXO = "O prazo para anexar a esta mensagem acabou. Envie uma nova mensagem.";
+export const MOTIVO_TIPO_ANEXO = "Anexe PDF, imagem (PNG ou JPG), DWG ou DXF.";
 export const MOTIVO_DECISAO_JA_MARCADA = "Esta mensagem já está marcada como decisão.";
 export const MOTIVO_DECISAO_NAO_MARCADA = "Esta mensagem não está marcada como decisão.";
 export const ROTULO_DECISAO_PORTAL = "Registrada pela coordenação";
@@ -41,6 +44,21 @@ export function motivoParaNaoAnexar(p: {
   if (p.autorId !== p.userId || !p.comAnexos) return MOTIVO_NAO_ENCONTRADA;
   if (p.agora.getTime() - p.criadaEm.getTime() > JANELA_ANEXO_MS) return MOTIVO_JANELA_ANEXO;
   if (p.anexos >= ANEXOS_MAX) return MOTIVO_ANEXOS_MAX;
+  return null;
+}
+
+/** Os mesmos tipos do pedido de revisão (PDF, PNG, JPG, DWG, DXF), pela extensão do nome; null = entra. */
+export function motivoDoTipoDoAnexo(nome: string): string | null {
+  return (EXTENSOES_ANEXO as readonly string[]).includes(extensaoDoAnexo(nome)) ? null : MOTIVO_TIPO_ANEXO;
+}
+
+/** Abre no navegador só PDF e imagem, e só quando pedido; o tipo da resposta vem da extensão, nunca do navegador de quem enviou. */
+export function tipoParaAbrirNoNavegador(nome: string, pediuInline: boolean): string | null {
+  if (!pediuInline) return null;
+  const ext = extensaoDoAnexo(nome);
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "png") return "image/png";
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
   return null;
 }
 

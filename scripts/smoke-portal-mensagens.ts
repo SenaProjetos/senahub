@@ -10,7 +10,9 @@
  * conta de outro cliente e de cliente inativo recusam; quem é avisado (coordenador membro; sem coordenador, os globais;
  * nunca o autor); e-mail um por vez até ler; duas mensagens simultâneas = uma conversa e um e-mail; opt-outs; decisão
  * (marca, marca de novo, desmarca, histórico, "Registrada pela coordenação" no portal, sem nome de quem marcou);
- * texto vazio sem anexo.
+ * texto vazio sem anexo; anexos (só o autor, só em mensagem com anexos, janela de 15 min, até 5 — dois ao mesmo tempo no
+ * quinto = um —, tipo fora da lista; quem baixa: coordenador, gestor e contas do cliente sim, projetista, coordenador de
+ * outro projeto e outro cliente não).
  *
  * Uso: npm run smoke:portal-mensagens
  */
@@ -23,7 +25,9 @@ import {
   contasDoClienteDoProjeto,
   definirAvisoPortalMensagem,
   desmarcarDecisao,
+  anexoParaUsuario,
   enviarMensagem,
+  gravarAnexo,
   marcarDecisao,
   marcarLida,
   podeVerConversaDoProjeto,
@@ -32,7 +36,10 @@ import {
 import { conversaParaCliente, conversaParaEquipe, conversasDaEquipe } from "../src/modules/portal/mensagens/queries";
 import { avisarMensagemNova, type AvisarMensagem } from "../src/modules/portal/mensagens/avisos";
 import {
+  MOTIVO_ANEXOS_MAX,
   MOTIVO_DECISAO_JA_MARCADA,
+  MOTIVO_JANELA_ANEXO,
+  MOTIVO_TIPO_ANEXO,
   MOTIVO_DECISAO_NAO_MARCADA,
   MOTIVO_NAO_ENCONTRADA,
   MOTIVO_TEXTO_VAZIO,
@@ -450,6 +457,89 @@ async function main() {
         (primeiraRespondida === -1 || listaGestor.slice(primeiraRespondida).every((c) => !c.aguardando)) &&
         listaGestor.filter((c) => c.projetoId === projCorrida.id).length === 1 &&
         listaProjetista.every((c) => ![projP.id, projSemCoord.id, projCorrida.id].includes(c.projetoId)),
+    );
+
+    // ── anexos ──────────────────────────────────────────────────────────────────────────────
+    const doCliente = await enviar(projP.id, cliente(contaA1), "Segue a planta com as mudanças.", true);
+    const anexar = (mensagemId: string, userId: string, nome = "planta.pdf") =>
+      gravarAnexo({ mensagemId, userId, caminho: `portal/mensagens/smoke/${tag}/${nome}`, nome, tamanho: 1234, tipo: "application/pdf" });
+    const primeiro = await anexar(doCliente.mensagemId, contaA1.id);
+    const deOutraConta = await motivoDe(() => anexar(doCliente.mensagemId, contaA2.id));
+    const daEquipeNoCliente = await motivoDe(() => anexar(doCliente.mensagemId, coord.id));
+    const tipoErrado = await motivoDe(() => anexar(doCliente.mensagemId, contaA1.id, "virus.exe"));
+    for (let i = 0; i < 3; i += 1) await anexar(doCliente.mensagemId, contaA1.id, `folha-${i}.pdf`);
+    // Quatro gravados: dois ao mesmo tempo disputam o quinto — a trava da mensagem deixa passar um.
+    const corridaAnexo = await Promise.all([
+      motivoDe(() => anexar(doCliente.mensagemId, contaA1.id, "corrida-1.pdf")),
+      motivoDe(() => anexar(doCliente.mensagemId, contaA1.id, "corrida-2.pdf")),
+    ]);
+    const sexto = await motivoDe(() => anexar(doCliente.mensagemId, contaA1.id, "sexto.pdf"));
+    const anexosGravados = await prisma.anexoMensagemPortal.count({ where: { mensagemId: doCliente.mensagemId } });
+    check(
+      "[anexo] autor anexa; outra conta, a equipe e tipo fora da lista recusam; dois ao mesmo tempo no quinto = um; sexto recusa",
+      typeof primeiro.anexoId === "string" &&
+        deOutraConta === MOTIVO_NAO_ENCONTRADA &&
+        daEquipeNoCliente === MOTIVO_NAO_ENCONTRADA &&
+        tipoErrado === MOTIVO_TIPO_ANEXO &&
+        corridaAnexo.filter((m) => m === null).length === 1 &&
+        corridaAnexo.filter((m) => m === MOTIVO_ANEXOS_MAX).length === 1 &&
+        sexto === MOTIVO_ANEXOS_MAX &&
+        anexosGravados === 5,
+    );
+    const semAnexos = await enviar(projP.id, cliente(contaA1), "Sem arquivo.");
+    const emSemAnexos = await motivoDe(() => anexar(semAnexos.mensagemId, contaA1.id));
+    // Mensagem de 16 minutos atrás (criada direto no banco só para o teste da janela).
+    const velha = await prisma.mensagemPortal.create({
+      data: {
+        conversaId: doCliente.conversaId,
+        autorId: contaA1.id,
+        autorNome: contaA1.name,
+        lado: "cliente",
+        texto: "Antiga",
+        comAnexos: true,
+        criadaEm: new Date(Date.now() - 16 * 60_000),
+      },
+      select: { id: true },
+    });
+    const foraDaJanela = await motivoDe(() => anexar(velha.id, contaA1.id));
+    const daEquipe = await enviar(projP.id, equipe(coord), "Segue o detalhe.", true);
+    const anexoEquipe = await motivoDe(() => anexar(daEquipe.mensagemId, coord.id, "detalhe.png"));
+    const projetistaNaEquipe = await motivoDe(() => anexar(daEquipe.mensagemId, projetista.id));
+    const inexistente = await motivoDe(() => anexar("nao-existe", contaA1.id));
+    check(
+      "[anexo] mensagem sem anexos e mensagem inexistente = 'não encontrada'; fora da janela de 15 min recusa; coordenador anexa à própria; projetista não",
+      emSemAnexos === MOTIVO_NAO_ENCONTRADA &&
+        inexistente === MOTIVO_NAO_ENCONTRADA &&
+        foraDaJanela === MOTIVO_JANELA_ANEXO &&
+        anexoEquipe === null &&
+        projetistaNaEquipe === MOTIVO_NAO_ENCONTRADA,
+    );
+    const quem = (u: { id: string; tipo: "interno" | "externo" }) =>
+      anexoParaUsuario(primeiro.anexoId, { id: u.id, tipo: u.tipo, mustChangePassword: false });
+    const baixa = {
+      coord: await quem({ id: coord.id, tipo: "interno" }),
+      gestor: await quem({ id: gestor.id, tipo: "interno" }),
+      contaA1: await quem({ id: contaA1.id, tipo: "externo" }),
+      contaA2: await quem({ id: contaA2.id, tipo: "externo" }),
+      projetista: await quem({ id: projetista.id, tipo: "interno" }),
+      coordOutro: await quem({ id: coordOutro.id, tipo: "interno" }),
+      perfilSemVer: await quem({ id: perfilSemVer.id, tipo: "interno" }),
+      contaB: await quem({ id: contaB.id, tipo: "externo" }),
+      contaInativo: await quem({ id: contaInativo.id, tipo: "externo" }),
+      // Conta externa que se diz interna (e o contrário) não passa pela porta do outro lado.
+      contaComoInterno: await quem({ id: contaA1.id, tipo: "interno" }),
+      coordComoExterno: await quem({ id: coord.id, tipo: "externo" }),
+    };
+    const inexistenteBaixa = await anexoParaUsuario("nao-existe", { id: coord.id, tipo: "interno", mustChangePassword: false });
+    check(
+      "[anexo] baixar: coordenador, gestor global e as contas do cliente recebem o caminho; projetista, outro coordenador, perfil sem ver, outro cliente e inativo recebem null",
+      [baixa.coord, baixa.gestor, baixa.contaA1, baixa.contaA2].every(
+        (b) => b?.caminho === `portal/mensagens/smoke/${tag}/planta.pdf` && b.nome === "planta.pdf" && b.tipo === "application/pdf",
+      ) &&
+        [baixa.projetista, baixa.coordOutro, baixa.perfilSemVer, baixa.contaB, baixa.contaInativo, baixa.contaComoInterno, baixa.coordComoExterno].every(
+          (b) => b === null,
+        ) &&
+        inexistenteBaixa === null,
     );
 
     // ── texto vazio ─────────────────────────────────────────────────────────────────────────

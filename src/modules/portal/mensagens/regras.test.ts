@@ -7,12 +7,15 @@ import {
   MOTIVO_NAO_ENCONTRADA,
   MOTIVO_TEXTO_LONGO,
   MOTIVO_TEXTO_VAZIO,
+  MOTIVO_TIPO_ANEXO,
   aguardandoResposta,
   contaNaoLida,
   ladoOposto,
   motivoParaNaoAnexar,
+  motivoDoTipoDoAnexo,
   motivoParaNaoEnviar,
   precisaDeEmail,
+  tipoParaAbrirNoNavegador,
 } from "./regras";
 
 describe("motivoParaNaoEnviar", () => {
@@ -79,5 +82,22 @@ describe("contaNaoLida", () => {
     expect(contaNaoLida({ lado: "equipe", criadaEm: antes }, "cliente", lida)).toBe(false);
     expect(contaNaoLida({ lado: "cliente", criadaEm: depois }, "cliente", lida)).toBe(false);
     expect(contaNaoLida({ lado: "equipe", criadaEm: antes }, "cliente", null)).toBe(true);
+  });
+});
+
+describe("tipo do anexo", () => {
+  it("aceita PDF, imagem, DWG e DXF pela extensão (sem caixa)", () => {
+    for (const n of ["a.pdf", "b.PNG", "c.jpg", "d.jpeg", "e.dwg", "f.DXF"]) expect(motivoDoTipoDoAnexo(n)).toBeNull();
+  });
+  it("recusa outro tipo e nome sem extensão", () => {
+    for (const n of ["a.exe", "b.html", "c.svg", "semextensao", "x.pdf.exe"]) expect(motivoDoTipoDoAnexo(n)).toBe(MOTIVO_TIPO_ANEXO);
+  });
+  it("abre no navegador só PDF e imagem, e só quando pedido", () => {
+    expect(tipoParaAbrirNoNavegador("a.pdf", true)).toBe("application/pdf");
+    expect(tipoParaAbrirNoNavegador("a.PNG", true)).toBe("image/png");
+    expect(tipoParaAbrirNoNavegador("a.jpeg", true)).toBe("image/jpeg");
+    expect(tipoParaAbrirNoNavegador("a.pdf", false)).toBeNull();
+    expect(tipoParaAbrirNoNavegador("a.dwg", true)).toBeNull();
+    expect(tipoParaAbrirNoNavegador("a.svg", true)).toBeNull();
   });
 });
