@@ -2,7 +2,7 @@
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
 resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap, faturar entrega]
+tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap, faturar entrega, aba cliente, mensagens de clientes, conversa com o cliente, decisão do cliente]
 palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, gerar parcelas, receita do projeto, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
@@ -44,6 +44,8 @@ disciplinas técnicas, responsáveis, prazos, progresso, revisões e situação.
 - **Paginação** padrão (12/24/48 por página): o tamanho que você escolhe **fica guardado para aquela lista**.
 - O botão **Novo projeto** e as ações de edição aparecem apenas para quem tem
   **`projetos:gerir`**.
+- O cabeçalho mostra **Mensagens de clientes** (com o número de conversas esperando resposta) e **Novo projeto**.
+  O **Guia de uso** e as exportações ficam no menu **⋯**.
 
 ## Criar um projeto
 
@@ -949,6 +951,27 @@ marcações**.
 - Se um modelo marcado ganhou revisão nova, o pedido mostra **Modelo substituído**; se saiu das Entregas (ou o IFC
   enviado pelo cliente foi excluído), **Modelo retirado**. Nos dois casos, só recusar.
 
+## Conversa com o cliente (aba Cliente)
+
+A aba **Cliente** do projeto é a conversa que o cliente vê no card **Fale com a coordenação** do portal: as mesmas
+mensagens, os mesmos anexos (até 5 por mensagem, PDF, PNG, JPG, DWG ou DXF, até 100 MB cada).
+
+- **Quem vê a aba:** a coordenação do projeto (membro com papel **Coordenador** e quem tem o perfil de acesso
+  Coordenador e enxerga o projeto) e quem tem acesso a todos os projetos. Projetistas não veem a aba.
+- **Mensagens não se editam nem se apagam.** Cada mensagem mostra o nome de quem escreveu e a hora.
+- **Marcar como decisão do cliente:** no **⋯** da mensagem. O resumo é opcional (até 300 caracteres) e **o cliente vê
+  esse resumo** no card **Decisões** do portal, com a marca **Registrada pela coordenação**. **Remover marca de
+  decisão** tira a marca; o histórico fica guardado.
+- **Avisos:** quando o cliente escreve, os coordenadores do projeto recebem um aviso no sino e, no máximo, um e-mail por
+  conversa até lerem (se o projeto não tem coordenador, o aviso vai a quem tem acesso a todos os projetos). O e-mail não
+  traz o texto, só o link. Cada pessoa desliga em **Preferências → Mensagens de clientes no portal** (sino e e-mail).
+
+### Página Mensagens de clientes
+
+O botão **Mensagens de clientes**, no topo de **Projetos**, reúne as conversas de todos os projetos que você pode
+atender. Primeiro vêm as que **aguardam resposta**, com o número de mensagens não lidas. O filtro **Só os projetos em
+que sou coordenador** vem ligado para quem é coordenador; desligue para ver as conversas dos outros projetos.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |
@@ -961,6 +984,7 @@ marcações**.
 | Ver a aba **Resultados** (previsto × apontado) | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
 | Ver o custo em R$ na aba Resultados | acesso ao financeiro (`financeiro:ver` ou sócio) |
 | Ver e responder pedidos de revisão do cliente | `arquivos:alterar_status` (aceitar exige também `uploads:validar`) |
+| Ver e responder a conversa com o cliente (aba Cliente) | Coordenação do projeto ou acesso a todos os projetos |
 
 ## Erros possíveis e soluções
 

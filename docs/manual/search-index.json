@@ -342,7 +342,12 @@
         "pedir revisão no modelo",
         "contrato",
         "assinar contrato",
-        "assinatura de contrato"
+        "assinatura de contrato",
+        "mensagens",
+        "conversa",
+        "coordenação",
+        "decisão",
+        "fale com a coordenação"
       ],
       "sinonimos": [
         "área do cliente",
@@ -552,7 +557,11 @@
         "ordem das disciplinas",
         "filtrar disciplinas",
         "mudar status da disciplina",
-        "aceite do cliente"
+        "aceite do cliente",
+        "aba cliente",
+        "mensagens de clientes",
+        "conversa com o cliente",
+        "decisão do cliente"
       ],
       "sinonimos": [
         "obras",

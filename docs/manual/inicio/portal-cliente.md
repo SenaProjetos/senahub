@@ -2,8 +2,8 @@
 titulo: Portal do cliente (Meus projetos)
 descricao: Visão externa, somente leitura, onde o cliente acompanha seus projetos.
 resumo: O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.
-tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas, contrato, assinatura]
-palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação, andamento, fase, linha do tempo, resumo, e-mail]
+tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas, contrato, assinatura, mensagens, conversa, coordenação, decisão]
+palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação, andamento, fase, linha do tempo, resumo, e-mail, mensagens, conversa, coordenação, decisão]
 sinonimos: [área do cliente, portal externo, acompanhamento de projeto]
 ---
 
@@ -159,6 +159,17 @@ O pedido aparece no card **Pedidos de revisão** como **Modelo 3D · N marcaçõ
 passam a mostrar **Em revisão** e a equipe trabalha nos pontos marcados; **Recusado** — a resposta explica o motivo.
 Se um modelo marcado ganhar revisão nova antes da resposta, o pedido mostra **Modelo substituído**; se sair das
 Entregas, **Modelo retirado**. Cancelar, limite de pedidos e anexos seguem as regras da prancha.
+
+## Fale com a coordenação
+
+No card **Fale com a coordenação**, na página do projeto, você conversa direto com a equipe do escritório, sem sair do portal.
+
+- **Quem participa:** qualquer conta da sua empresa lê e escreve. Cada mensagem mostra quem enviou e quando.
+- **Enviar:** escreva e clique em enviar. Dá para anexar até 5 arquivos por mensagem (PDF, imagem PNG ou JPG, DWG ou DXF, até 100 MB cada); os anexos sobem logo depois de enviar, em até 15 minutos.
+- **Mensagens não se editam nem se apagam.** Se errou, escreva outra mensagem com a correção.
+- **Ver anteriores** carrega as mensagens mais antigas. A conversa se atualiza sozinha, sem recarregar a página.
+- **Avisos:** quando a equipe responde, você recebe um aviso no sino e um e-mail (no máximo um e-mail por conversa até você abrir as mensagens; o e-mail traz só o link, não o texto). A chave **Avisar por e-mail** desliga só o e-mail: o sino continua.
+- **Decisões:** quando você combina algo importante com a equipe, ela pode marcar a mensagem como decisão. O card passa a ter a lista **Decisões**, com o resumo e a marca **Registrada pela coordenação**.
 
 ## Briefing do projeto
 

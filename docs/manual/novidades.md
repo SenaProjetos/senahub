@@ -20,6 +20,13 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Conversa com a coordenação no portal do cliente (novembro/2026)
+
+- A página do projeto no portal ganhou o card **Fale com a coordenação**: o cliente escreve para a equipe, anexa até 5 arquivos por mensagem e vê a resposta aparecer na hora, sem recarregar. A chave **Avisar por e-mail** desliga só o e-mail; o sino continua.
+- No escritório, o projeto ganhou a aba **Cliente** (só para a coordenação), com a mesma conversa. No **⋯** de cada mensagem, **Marcar como decisão do cliente** (com um resumo opcional) coloca a decisão na lista **Decisões** do portal, com a marca **Registrada pela coordenação**.
+- Em **Projetos**, o botão **Mensagens de clientes** mostra as conversas aguardando resposta. O **Guia de uso** e as exportações foram para o menu **⋯**.
+- Quando o cliente escreve, a coordenação recebe um aviso no sino e, no máximo, um e-mail por conversa até ler. Dá para desligar em **Preferências → Mensagens de clientes no portal**.
+
 ## Contratos agora podem ser assinados pelo portal do cliente (novembro/2026)
 
 - No **Jurídico**, a versão atual de um contrato de cliente ou aditivo ganhou o botão **Pedir assinatura no portal**. O cliente recebe um aviso no sino e por e-mail e assina na página do projeto, no card **Contratos**.
