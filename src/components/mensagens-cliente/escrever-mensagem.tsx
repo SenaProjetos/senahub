@@ -1,15 +1,41 @@
 "use client";
 
-import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { toast } from "sonner";
 import { Paperclip, Send, X } from "lucide-react";
-import { ANEXOS_MAX, MOTIVO_ANEXOS_MAX, TEXTO_MAX, motivoDoTipoDoAnexo } from "@/modules/portal/mensagens/regras";
+import {
+  ANEXOS_MAX,
+  MOTIVO_ANEXOS_MAX,
+  MOTIVO_TEXTO_LONGO,
+  TEXTO_MAX,
+  TEXTO_MAX_ROTULO,
+  motivoDoTipoDoAnexo,
+} from "@/modules/portal/mensagens/regras";
 import { EXTENSOES_ANEXO, TAMANHO_MAX_ANEXO, TAMANHO_MAX_ANEXO_LABEL } from "@/modules/portal/pedido-revisao/regras";
 import { formatarBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 /** A partir daqui o contador de caracteres aparece. */
 const AVISO_TAMANHO = TEXTO_MAX - 500;
+/** Os limites dos anexos, ditos na tela (e lidos pelo leitor de tela no botão Anexar). */
+const LIMITES_ANEXO = `Até ${ANEXOS_MAX} arquivos de até ${TAMANHO_MAX_ANEXO_LABEL} cada: PDF, imagem (PNG ou JPG), DWG ou DXF.`;
+
+/**
+ * Tela de toque (celular, tablet): Enter quebra a linha e só o botão Enviar manda — a mensagem não se apaga nem se
+ * edita, então um Enter sem querer no teclado virtual pesaria. Começa em `false` (o servidor não sabe) e se acerta
+ * depois de montar.
+ */
+function useToque(): boolean {
+  const [toque, setToque] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: coarse)");
+    const atualizar = () => setToque(mq.matches);
+    atualizar();
+    mq.addEventListener("change", atualizar);
+    return () => mq.removeEventListener("change", atualizar);
+  }, []);
+  return toque;
+}
 
 /** Rota de anexo da conversa (a mesma para os dois lados; o servidor confere quem é o autor). */
 function urlDoAnexoPadrao(mensagemId: string): string {
@@ -31,20 +57,21 @@ async function enviarAnexos(url: string, arquivos: readonly File[], aoProgredir:
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         // 413 da borda (Cloudflare) não traz JSON: diz o limite em vez de "falha no envio".
-        const padrao = res.status === 413 ? `arquivo acima de ${TAMANHO_MAX_ANEXO_LABEL}.` : "falha no envio.";
+        const padrao = res.status === 413 ? `Arquivo acima de ${TAMANHO_MAX_ANEXO_LABEL}.` : "Falha no envio.";
         falhas.push(`${arquivo.name}: ${data.error ?? padrao}`);
       }
     } catch {
-      falhas.push(`${arquivo.name}: falha de conexão.`);
+      falhas.push(`${arquivo.name}: Falha de conexão.`);
     }
   }
   return falhas;
 }
 
 /**
- * Campo de escrever da conversa do cliente com a coordenação — o mesmo no portal e na aba Cliente. Enter envia,
- * Shift+Enter quebra a linha. A ação vem por prop (`enviar`); os anexos sobem depois de a mensagem existir
- * (`comAnexos`), um por requisição, e cada falha vira um aviso. Ao fim, `aoTerminar` (recarregar a conversa).
+ * Campo de escrever da conversa do cliente com a coordenação — o mesmo no portal e na aba Cliente. No computador,
+ * Enter envia e Shift+Enter quebra a linha; em tela de toque, Enter quebra a linha e só o botão envia. A ação vem por
+ * prop (`enviar`); os anexos sobem depois de a mensagem existir (`comAnexos`), um por requisição, e cada falha vira um
+ * aviso. Ao fim, `aoTerminar` (recarregar a conversa) e o foco volta ao campo.
  */
 export function EscreverMensagem({
   enviar,
@@ -62,9 +89,12 @@ export function EscreverMensagem({
   const [enviando, setEnviando] = useState(false);
   const [progresso, setProgresso] = useState<{ atual: number; total: number } | null>(null);
   const refArquivo = useRef<HTMLInputElement>(null);
+  const refTexto = useRef<HTMLTextAreaElement>(null);
   const idTexto = useId();
   const idAjuda = useId();
   const idArquivo = useId();
+  const idLimites = useId();
+  const toque = useToque();
 
   const tamanho = texto.trim().length;
   const longo = tamanho > TEXTO_MAX;
@@ -111,6 +141,8 @@ export function EscreverMensagem({
     } finally {
       setProgresso(null);
       setEnviando(false);
+      // O foco volta ao campo para a próxima mensagem (o botão Enviar fica desabilitado com o campo vazio).
+      refTexto.current?.focus();
     }
   }
 
@@ -121,9 +153,17 @@ export function EscreverMensagem({
 
   function aoTeclar(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    // Toque: Enter é quebra de linha (lido na hora, não só do estado: vale até antes de o efeito acertar `toque`).
+    if (window.matchMedia("(pointer: coarse)").matches) return;
     e.preventDefault();
     void mandar();
   }
+
+  const situacao = progresso
+    ? `Enviando anexo ${Math.max(progresso.atual, 1)} de ${progresso.total}…`
+    : enviando
+      ? "Enviando…"
+      : "";
 
   return (
     <form onSubmit={aoSubmeter} className="space-y-2">
@@ -131,6 +171,7 @@ export function EscreverMensagem({
         Mensagem
       </label>
       <textarea
+        ref={refTexto}
         id={idTexto}
         rows={3}
         value={texto}
@@ -141,7 +182,7 @@ export function EscreverMensagem({
         aria-invalid={longo || undefined}
         // readOnly (não disabled) enquanto envia: o foco fica no campo para a próxima mensagem.
         readOnly={enviando}
-        className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary aria-invalid:border-destructive read-only:opacity-60"
+        className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring aria-invalid:border-destructive read-only:opacity-60"
       />
       {arquivos.length > 0 && (
         <ul className="space-y-1">
@@ -159,18 +200,26 @@ export function EscreverMensagem({
                 disabled={enviando}
                 onClick={() => setArquivos(arquivos.filter((_, j) => j !== i))}
               >
-                <X className="size-3.5" />
+                <X className="size-3.5" aria-hidden />
               </button>
             </li>
           ))}
         </ul>
       )}
+      <p id={idLimites} className="text-xs text-muted-foreground">
+        {arquivos.length > 0 ? `${arquivos.length} de ${ANEXOS_MAX} anexos. ` : ""}
+        {LIMITES_ANEXO}
+      </p>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p id={idAjuda} className="min-w-0 text-xs text-muted-foreground">
           {longo ? (
-            <span className="text-destructive">A mensagem passa de 5.000 caracteres ({tamanho.toLocaleString("pt-BR")}).</span>
+            <span className="text-destructive">
+              {MOTIVO_TEXTO_LONGO} ({tamanho.toLocaleString("pt-BR")})
+            </span>
           ) : tamanho > AVISO_TAMANHO ? (
-            `${tamanho.toLocaleString("pt-BR")} de 5.000 caracteres.`
+            `${tamanho.toLocaleString("pt-BR")} de ${TEXTO_MAX_ROTULO} caracteres.`
+          ) : toque ? (
+            "Toque em Enviar para mandar; Enter quebra a linha."
           ) : (
             "Enter envia; Shift+Enter quebra a linha."
           )}
@@ -194,20 +243,18 @@ export function EscreverMensagem({
             variant="outline"
             disabled={enviando || arquivos.length >= ANEXOS_MAX}
             onClick={() => refArquivo.current?.click()}
-            title={`Até ${ANEXOS_MAX} arquivos de até ${TAMANHO_MAX_ANEXO_LABEL}: PDF, imagem (PNG ou JPG), DWG ou DXF.`}
+            aria-describedby={idLimites}
           >
             <Paperclip className="size-4" aria-hidden /> Anexar
           </Button>
-          <Button type="submit" size="sm" disabled={!podeEnviar}>
+          {/* O nome do botão é fixo; o andamento vai para a região viva ao lado (o rótulo visível ainda muda). */}
+          <Button type="submit" size="sm" disabled={!podeEnviar} aria-label="Enviar mensagem">
             <Send className="size-4" aria-hidden />
-            <span role="status">
-              {progresso
-                ? `Enviando anexo ${Math.max(progresso.atual, 1)} de ${progresso.total}…`
-                : enviando
-                  ? "Enviando…"
-                  : "Enviar"}
-            </span>
+            {situacao || "Enviar"}
           </Button>
+          <span role="status" className="sr-only">
+            {situacao}
+          </span>
         </div>
       </div>
     </form>

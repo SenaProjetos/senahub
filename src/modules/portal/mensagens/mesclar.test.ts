@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ConversaDTO, MensagemDTO } from "./queries";
-import { estadoInicial, juntarAnteriores, mesclarConversa } from "./mesclar";
+import { estadoInicial, juntarAnteriores, mesclarConversa, novasDoOutroLado } from "./mesclar";
 
-function msg(id: string, criadaEm: string, decisao: MensagemDTO["decisao"] = null): MensagemDTO {
-  return { id, lado: "cliente", autorNome: "Cliente", texto: id, criadaEm, anexos: [], decisao, minha: false };
+function msg(
+  id: string,
+  criadaEm: string,
+  decisao: MensagemDTO["decisao"] = null,
+  lado: MensagemDTO["lado"] = "cliente",
+): MensagemDTO {
+  return { id, lado, autorNome: "Cliente", texto: id, criadaEm, anexos: [], decisao, minha: false };
 }
 
 function conversa(mensagens: MensagemDTO[], extra: Partial<ConversaDTO> = {}): ConversaDTO {
@@ -48,5 +53,23 @@ describe("juntarAnteriores", () => {
     const r = juntarAnteriores(atual, conversa([msg("a", t(1)), msg("b", t(2))], { temAnteriores: false }));
     expect(r.mensagens.map((m) => m.id)).toEqual(["a", "b", "c"]);
     expect(r.temAnteriores).toBe(false);
+  });
+});
+
+describe("novasDoOutroLado", () => {
+  const lista = [msg("a", t(1)), msg("b", t(2), null, "equipe"), msg("c", t(3)), msg("d", t(4))];
+
+  it("conta só as do outro lado depois da última já conhecida", () => {
+    expect(novasDoOutroLado(lista, "equipe", t(2))).toBe(2);
+    expect(novasDoOutroLado(lista, "cliente", t(1))).toBe(1);
+    expect(novasDoOutroLado(lista, "equipe", t(4))).toBe(0);
+  });
+
+  it("sem referência (primeira carga) não anuncia nada", () => {
+    expect(novasDoOutroLado(lista, "equipe", null)).toBe(0);
+  });
+
+  it("anteriores carregadas por 'Ver anteriores' não contam", () => {
+    expect(novasDoOutroLado([msg("x", t(0)), ...lista], "equipe", t(4))).toBe(0);
   });
 });

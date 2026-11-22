@@ -43,6 +43,20 @@ export function mesclarConversa(atual: EstadoConversa, novo: ConversaDTO): Estad
   };
 }
 
+/**
+ * Quantas mensagens do OUTRO lado chegaram depois de `conhecidaAte` (a hora da mais recente que a tela já tinha) — o
+ * que o leitor de tela anuncia depois de uma recarga. Sem referência (primeira carga), nada; as anteriores trazidas
+ * por "Ver anteriores" são mais antigas e não contam.
+ */
+export function novasDoOutroLado(
+  mensagens: readonly MensagemDTO[],
+  meuLado: MensagemDTO["lado"],
+  conhecidaAte: string | null,
+): number {
+  if (conhecidaAte === null) return 0;
+  return mensagens.filter((m) => m.lado !== meuLado && m.criadaEm > conhecidaAte).length;
+}
+
 /** "Ver anteriores": a página anterior entra no começo (sem repetir o que já está na tela). */
 export function juntarAnteriores(atual: EstadoConversa, pagina: ConversaDTO): EstadoConversa {
   const ids = new Set(atual.mensagens.map((m) => m.id));

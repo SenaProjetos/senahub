@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Bookmark, MessagesSquare } from "lucide-react";
+import { Bookmark, MessagesSquare, UserX } from "lucide-react";
 import {
   carregarConversaEquipe,
   desmarcarDecisaoDoCliente,
@@ -11,7 +11,7 @@ import {
 } from "@/modules/portal/mensagens/actions";
 import { ACAO_MARCAR_DECISAO, ACAO_REMOVER_DECISAO, itensDaMensagem } from "@/modules/portal/mensagens/acoes";
 import { estadoInicial, juntarAnteriores, mesclarConversa, type EstadoConversa } from "@/modules/portal/mensagens/mesclar";
-import type { ConversaDTO, MensagemDTO } from "@/modules/portal/mensagens/queries";
+import type { ConversaEquipeDTO, MensagemDTO } from "@/modules/portal/mensagens/queries";
 import { formatarData } from "@/lib/utils";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
 import { BotaoAcoes } from "@/components/ui/acoes-menu";
@@ -22,7 +22,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { MensagemItem } from "./mensagem-item";
 import { EscreverMensagem } from "./escrever-mensagem";
 import { MarcarDecisaoDialog } from "./marcar-decisao-dialog";
-import { useConversaAoVivo } from "./use-conversa-ao-vivo";
+import { useAnuncioDeNovas, useConversaAoVivo } from "./use-conversa-ao-vivo";
 
 const BASE_DOWNLOAD = "/api/portal/mensagens/anexos";
 /** Até esta distância do fim da lista conta como "lendo o fim": mensagem nova rola junto. */
@@ -33,10 +33,12 @@ const PERTO_DO_FIM_PX = 80;
  * equipe à direita), e as Decisões ao lado (abaixo no celular). Mesma recarga, leitura e "ao vivo" do card do portal
  * (`mesclar.ts`, `useConversaAoVivo`). A página só chega aqui para quem é audiência da conversa: todo mundo que vê
  * pode marcar decisão (o serviço confere de novo). O menu da mensagem é só o `...` (uma ação por vez, ADR-0002 regra 4).
+ * Sem conta do cliente no portal (`clienteLe`), avisa que ninguém do outro lado lê — e ainda deixa enviar.
  */
-export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inicial: ConversaDTO }) {
+export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inicial: ConversaEquipeDTO }) {
   const confirm = useConfirm();
   const [estado, setEstado] = useState<EstadoConversa>(() => estadoInicial(inicial));
+  const [clienteLe, setClienteLe] = useState(inicial.clienteLe);
   const [carregandoAnteriores, setCarregandoAnteriores] = useState(false);
   const [marcando, setMarcando] = useState<MensagemDTO | null>(null);
   const [, startRemover] = useTransition();
@@ -62,12 +64,14 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
         return;
       }
       setEstado((atual) => mesclarConversa(atual, r.data));
+      setClienteLe(r.data.clienteLe);
     } catch (e) {
       console.warn("[projeto] conversa do cliente não recarregou:", e);
     }
   }, [projetoId]);
 
   useConversaAoVivo({ projetoId, carregar });
+  const anuncio = useAnuncioDeNovas(estado.mensagens, "equipe", "do cliente");
 
   // Lida até a última mensagem carregada — só com a conversa na tela e a aba visível; uma vez por mensagem nova.
   const marcarLida = useCallback(() => {
@@ -184,7 +188,10 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
             <div
               ref={lista}
               onScroll={aoRolar}
-              className="max-h-[min(36rem,60svh)] space-y-2 overflow-y-auto overscroll-contain pr-1"
+              role="region"
+              aria-label="Mensagens da conversa"
+              tabIndex={0}
+              className="max-h-[min(36rem,60svh)] space-y-2 overflow-y-auto overscroll-contain rounded-sm pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {estado.temAnteriores && (
                 <div className="flex justify-center">
@@ -193,7 +200,7 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
                   </Button>
                 </div>
               )}
-              <ol className="space-y-2" aria-label="Mensagens da conversa">
+              <ol className="space-y-2">
                 {estado.mensagens.map((m) => (
                   <MensagemItem
                     key={m.id}
@@ -218,6 +225,17 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
             </div>
           )}
 
+          <span role="status" className="sr-only">
+            {anuncio}
+          </span>
+
+          {!clienteLe && (
+            <div className="flex items-start gap-2 rounded-sm border border-dashed px-3 py-2 text-sm text-muted-foreground">
+              <UserX className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <p>Nenhuma conta do cliente acessa o portal deste projeto: ninguém do lado do cliente lê esta conversa.</p>
+            </div>
+          )}
+
           <EscreverMensagem enviar={enviar} aoTerminar={carregar} placeholder="Escreva para o cliente…" />
         </CardContent>
       </Card>
@@ -232,7 +250,7 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
             <ul className="space-y-3">
               {estado.decisoes.map((d) => (
                 <li key={d.mensagemId} className="flex min-w-0 gap-2 text-sm">
-                  <Bookmark className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+                  <Bookmark className="mt-0.5 size-4 shrink-0 text-foreground" aria-hidden />
                   <div className="min-w-0 space-y-0.5">
                     <p className="whitespace-pre-wrap break-words">{d.resumo ?? d.trecho}</p>
                     <p className="text-xs text-muted-foreground">
@@ -244,7 +262,7 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Nenhuma decisão marcada. Use o ⋯ de uma mensagem para marcar o que o cliente decidiu.
+              Nenhuma decisão marcada. Use Ações da mensagem, em cada mensagem, para marcar o que o cliente decidiu.
             </p>
           )}
         </CardContent>

@@ -40,7 +40,12 @@ export function MensagemItem({
           </time>
           {acoes && <span className="ml-auto shrink-0">{acoes}</span>}
         </div>
-        {m.texto && <p className="text-sm whitespace-pre-wrap break-words">{m.texto}</p>}
+        {m.texto ? (
+          <p className="text-sm whitespace-pre-wrap break-words">{m.texto}</p>
+        ) : (
+          // Mensagem sem texto cujos anexos não subiram: fica de pé (nada se apaga), e diz o porquê de estar vazia.
+          m.anexos.length === 0 && <p className="text-sm italic text-muted-foreground">(anexo não enviado)</p>
+        )}
         {m.anexos.length > 0 && (
           <ul className="space-y-1">
             {m.anexos.map((a) => {
@@ -52,10 +57,11 @@ export function MensagemItem({
                   <a
                     href={href}
                     {...(abreNoNavegador ? { target: "_blank", rel: "noopener noreferrer" } : { rel: "noopener" })}
-                    className="min-w-0 truncate text-primary hover:underline focus-visible:outline-2 focus-visible:outline-ring"
+                    className="min-w-0 truncate text-foreground underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
                     title={a.nome}
                   >
                     {a.nome}
+                    {abreNoNavegador && <span className="sr-only"> (abre em nova aba)</span>}
                   </a>
                   <span className="shrink-0 font-mono text-muted-foreground">{formatarBytes(a.tamanho)}</span>
                 </li>

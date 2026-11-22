@@ -68,7 +68,7 @@ export function MarcarDecisaoDialog({
               rows={3}
               maxLength={RESUMO_MAX}
               aria-describedby={idAjuda}
-              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus:border-primary"
+              className="w-full resize-y rounded-sm border bg-background px-2 py-1.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring"
               value={resumo}
               onChange={(e) => setResumo(e.target.value)}
             />

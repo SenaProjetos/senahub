@@ -48,9 +48,10 @@ export default async function MensagensClientePage({ searchParams }: { searchPar
             href={soMinhas ? `${BASE}?todos=1` : BASE}
             className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
           >
-            <Marca className="size-4 text-primary" aria-hidden />
-            Só os projetos em que sou coordenador
-            <span className="sr-only">{soMinhas ? "(ligado — mostrar todos)" : "(desligado — filtrar)"}</span>
+            <Marca className="size-4 text-foreground" aria-hidden />
+            Só os projetos em que sou coordenador:
+            <span className="font-medium">{soMinhas ? "ligado" : "desligado"}</span>
+            <span className="sr-only">{soMinhas ? "(mostrar todos)" : "(filtrar)"}</span>
           </Link>
         </div>
       )}

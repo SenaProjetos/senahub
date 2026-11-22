@@ -19,7 +19,7 @@ import { CollapsibleSection } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { MensagemItem } from "@/components/mensagens-cliente/mensagem-item";
 import { EscreverMensagem } from "@/components/mensagens-cliente/escrever-mensagem";
-import { useConversaAoVivo } from "@/components/mensagens-cliente/use-conversa-ao-vivo";
+import { useAnuncioDeNovas, useConversaAoVivo } from "@/components/mensagens-cliente/use-conversa-ao-vivo";
 
 const BASE_DOWNLOAD = "/api/portal/mensagens/anexos";
 /** Até esta distância do fim da lista conta como "lendo o fim": mensagem nova rola junto. */
@@ -71,6 +71,7 @@ export function ConversaCard({
   }, [projetoId]);
 
   useConversaAoVivo({ projetoId, carregar });
+  const anuncio = useAnuncioDeNovas(estado.mensagens, "cliente", "da coordenação");
 
   // Lida até a última mensagem carregada — só com o card na tela e a aba visível; uma vez por mensagem nova.
   const marcarLida = useCallback(() => {
@@ -187,7 +188,11 @@ export function ConversaCard({
           <CollapsibleSection
             titulo="Decisões"
             descricao="O que ficou combinado, registrado pela coordenação."
-            resumo={<span className="text-xs text-muted-foreground">{estado.decisoes.length}</span>}
+            resumo={
+              <span className="text-xs text-muted-foreground">
+                {estado.decisoes.length === 1 ? "1 decisão" : `${estado.decisoes.length} decisões`}
+              </span>
+            }
           >
             <ul className="space-y-2">
               {estado.decisoes.map((d) => (
@@ -206,7 +211,10 @@ export function ConversaCard({
           <div
             ref={lista}
             onScroll={aoRolar}
-            className="max-h-[min(32rem,60svh)] space-y-2 overflow-y-auto overscroll-contain pr-1"
+            role="region"
+            aria-label="Mensagens da conversa"
+            tabIndex={0}
+            className="max-h-[min(32rem,60svh)] space-y-2 overflow-y-auto overscroll-contain rounded-sm pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {estado.temAnteriores && (
               <div className="flex justify-center">
@@ -215,7 +223,7 @@ export function ConversaCard({
                 </Button>
               </div>
             )}
-            <ol className="space-y-2" aria-label="Mensagens da conversa">
+            <ol className="space-y-2">
               {estado.mensagens.map((m) => (
                 <MensagemItem key={m.id} m={m} meuLado="cliente" baseDownload={BASE_DOWNLOAD} />
               ))}
@@ -227,6 +235,10 @@ export function ConversaCard({
             <p>Nenhuma mensagem ainda. Escreva abaixo para falar com a coordenação do projeto.</p>
           </div>
         )}
+
+        <span role="status" className="sr-only">
+          {anuncio}
+        </span>
 
         <EscreverMensagem enviar={enviar} aoTerminar={carregar} />
       </CardContent>

@@ -117,7 +117,7 @@ export default async function PortalProjetoPage({
         titulo="Fale com a coordenação"
         mensagem="Não foi possível carregar as mensagens agora. Tente de novo."
       >
-        <Suspense fallback={null}>
+        <Suspense fallback={<MensagensCarregando />}>
           <MensagensDoProjeto projetoId={projeto.id} userId={user.id} />
         </Suspense>
       </LimiteErroEntregas>
@@ -268,6 +268,17 @@ function CardCarregando({ titulo, linhas }: { titulo: string; linhas: string[] }
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+function MensagensCarregando() {
+  return (
+    <div>
+      <span role="status" className="sr-only">
+        Carregando as mensagens…
+      </span>
+      <CardCarregando titulo="Fale com a coordenação" linhas={["w-2/3", "w-1/2", "w-full"]} />
+    </div>
   );
 }
 
