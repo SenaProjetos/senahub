@@ -1,0 +1,281 @@
+import "server-only";
+import { randomUUID } from "node:crypto";
+import { Prisma } from "@/generated/prisma/client";
+import { prisma } from "@/lib/prisma";
+import { ActionError } from "@/lib/action-error";
+import { can } from "@/lib/permissions";
+import { whereAudiencia, wherePermissao } from "@/lib/audiencias";
+import { escopoProjeto } from "@/modules/projetos/queries";
+import { acessoDoUsuarioAoProjetoDoPortal } from "@/modules/portal/acesso";
+import { podeVerConversa, type FatosAudiencia } from "./audiencia";
+import {
+  MOTIVO_DECISAO_JA_MARCADA,
+  MOTIVO_DECISAO_NAO_MARCADA,
+  MOTIVO_NAO_ENCONTRADA,
+  RESUMO_MAX,
+  motivoParaNaoEnviar,
+  type LadoMensagem,
+} from "./regras";
+
+/**
+ * Conversa do cliente com a coordenação (spec `docs/superpowers/specs/2026-11-21-portal-mensagens-coordenacao-design.md`).
+ *
+ * Duas portas, conferidas AQUI (não na tela nem só na action): o lado do cliente pela regra de acesso do portal
+ * (`acessoDoUsuarioAoProjetoDoPortal` + conta externa ativa), o lado da equipe pela audiência (`podeVerConversa`).
+ * Qualquer recusa é a mesma frase, `MOTIVO_NAO_ENCONTRADA` — nunca diz se a conversa existe.
+ *
+ * Mensagem e anexo nunca se editam nem se apagam. Avisos ficam em `avisos.ts`, chamados depois do commit.
+ */
+
+export type Autor = { userId: string; nome: string; lado: LadoMensagem };
+
+const naoEncontrada = () => new ActionError(MOTIVO_NAO_ENCONTRADA);
+
+// ── Audiência do escritório ─────────────────────────────────────────────────────────────────
+
+/**
+ * Junta os fatos de `podeVerConversa` para várias pessoas × vários projetos com poucas consultas. É a ÚNICA montagem
+ * de fatos: `audienciaDoProjeto` (muitas pessoas, um projeto), `podeVerConversaDoProjeto` (uma, uma) e
+ * `conversasDaEquipe` (uma, muitas) passam por aqui — a regra é sempre `podeVerConversa`.
+ */
+export async function fatosDaAudiencia(
+  userIds: readonly string[],
+  projetoIds: readonly string[],
+): Promise<(userId: string, projetoId: string) => FatosAudiencia | null> {
+  const ids = [...new Set(userIds)];
+  const projs = [...new Set(projetoIds)];
+  if (ids.length === 0 || projs.length === 0) return () => null;
+  const pessoas = await prisma.user.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, ativo: true, tipo: true, superUsuario: true, perfilId: true, perfil: { select: { chave: true } } },
+  });
+  const membros = await prisma.projetoMembro.findMany({
+    where: { userId: { in: ids }, projetoId: { in: projs } },
+    select: { userId: true, projetoId: true, papel: true },
+  });
+  const papel = new Map(membros.map((m) => [`${m.userId}:${m.projetoId}`, m.papel ?? null]));
+  const fatos = new Map<string, { base: Omit<FatosAudiencia, "papelNoProjeto" | "enxergaProjeto">; enxerga: Set<string> }>();
+  for (const u of pessoas) {
+    const escopoGlobalPerfil = await can(u, "escopo", "global");
+    const enxerga =
+      u.tipo === "interno" && u.ativo
+        ? new Set(
+            (
+              await prisma.projeto.findMany({
+                where: { id: { in: projs }, ...escopoProjeto({ id: u.id, superUsuario: u.superUsuario, escopoGlobalPerfil, tipo: u.tipo }) },
+                select: { id: true },
+              })
+            ).map((p) => p.id),
+          )
+        : new Set<string>();
+    fatos.set(u.id, {
+      base: {
+        ativo: u.ativo,
+        tipo: u.tipo,
+        superUsuario: u.superUsuario,
+        escopoGlobalPerfil,
+        perfilChave: u.perfil?.chave ?? null,
+      },
+      enxerga,
+    });
+  }
+  return (userId, projetoId) => {
+    const f = fatos.get(userId);
+    if (!f) return null;
+    return { ...f.base, papelNoProjeto: papel.get(`${userId}:${projetoId}`) ?? null, enxergaProjeto: f.enxerga.has(projetoId) };
+  };
+}
+
+/**
+ * Ids internos ativos que veem a conversa do projeto. Candidatos: superusuário, escopo global (o do perfil e o de
+ * `whereAudiencia("global")`), membro do projeto e perfil Coordenador — e cada um passa por `podeVerConversa`.
+ */
+export async function audienciaDoProjeto(projetoId: string): Promise<string[]> {
+  const candidatos = await prisma.user.findMany({
+    where: {
+      ativo: true,
+      tipo: "interno",
+      OR: [
+        { superUsuario: true },
+        whereAudiencia("global"),
+        wherePermissao("escopo", "global"),
+        { projetosMembro: { some: { projetoId } } },
+        { perfil: { chave: "coordenador" } },
+      ],
+    },
+    select: { id: true },
+  });
+  const ids = candidatos.map((c) => c.id);
+  const fatos = await fatosDaAudiencia(ids, [projetoId]);
+  return ids.filter((id) => {
+    const f = fatos(id, projetoId);
+    return f !== null && podeVerConversa(f);
+  });
+}
+
+export async function podeVerConversaDoProjeto(userId: string, projetoId: string): Promise<boolean> {
+  const f = (await fatosDaAudiencia([userId], [projetoId]))(userId, projetoId);
+  return f !== null && podeVerConversa(f);
+}
+
+// ── Lado do cliente ─────────────────────────────────────────────────────────────────────────
+
+/** Conta externa ativa com acesso ao projeto pelo portal (cliente ativo, termo e senha em dia, projeto do cliente). */
+export async function contaPodeVerConversa(userId: string, projetoId: string): Promise<boolean> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, ativo: true, tipo: true, mustChangePassword: true },
+  });
+  if (!u || !u.ativo || u.tipo !== "externo") return false;
+  const acesso = await acessoDoUsuarioAoProjetoDoPortal({ id: u.id, tipo: u.tipo, mustChangePassword: u.mustChangePassword }, projetoId);
+  return acesso.ok;
+}
+
+/** Contas externas ativas do cliente do projeto, com o cliente ativo (os destinatários quando a equipe escreve). */
+export async function contasDoClienteDoProjeto(
+  projetoId: string,
+): Promise<{ userId: string; nome: string; email: string | null }[]> {
+  const projeto = await prisma.projeto.findUnique({
+    where: { id: projetoId },
+    select: { clienteId: true, cliente: { select: { ativo: true } } },
+  });
+  if (!projeto?.clienteId || !projeto.cliente?.ativo) return [];
+  const contas = await prisma.user.findMany({
+    where: { tipo: "externo", ativo: true, clienteId: projeto.clienteId },
+    select: { id: true, name: true, email: true },
+    orderBy: { name: "asc" },
+  });
+  return contas.map((c) => ({ userId: c.id, nome: c.name, email: c.email || null }));
+}
+
+/** O lado de quem fala, conferido no banco: a mesma porta de leitura e de escrita. */
+async function exigirLado(userId: string, projetoId: string, lado: LadoMensagem): Promise<void> {
+  const pode = lado === "cliente" ? await contaPodeVerConversa(userId, projetoId) : await podeVerConversaDoProjeto(userId, projetoId);
+  if (!pode) throw naoEncontrada();
+}
+
+/** O lado pelo tipo da pessoa (`marcarLida` serve aos dois): externo = cliente, interno = equipe. */
+async function ladoComAcesso(userId: string, projetoId: string): Promise<LadoMensagem | null> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { tipo: true } });
+  if (!u) return null;
+  const lado: LadoMensagem = u.tipo === "externo" ? "cliente" : "equipe";
+  const pode = lado === "cliente" ? await contaPodeVerConversa(userId, projetoId) : await podeVerConversaDoProjeto(userId, projetoId);
+  return pode ? lado : null;
+}
+
+// ── Escritas ────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Uma transação: cria a conversa se não existe (`ON CONFLICT DO NOTHING` — duas primeiras mensagens ao mesmo tempo
+ * dão UMA conversa), trava a linha dela, grava a mensagem com a hora lida sob a trava (a ordem da trava é a ordem das
+ * mensagens, e `ultimoLado` fica com a mais recente) e marca o autor como tendo lido até a própria mensagem.
+ */
+export async function enviarMensagem(p: {
+  projetoId: string;
+  autor: Autor;
+  texto: string;
+  comAnexos: boolean;
+}): Promise<{ mensagemId: string; conversaId: string }> {
+  await exigirLado(p.autor.userId, p.projetoId, p.autor.lado);
+  const motivo = motivoParaNaoEnviar({ texto: p.texto, comAnexos: p.comAnexos });
+  if (motivo) throw new ActionError(motivo);
+  const texto = p.texto.trim();
+
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      INSERT INTO conversa_portal (id, "projetoId", "criadaEm")
+      VALUES (${randomUUID()}, ${p.projetoId}, ${new Date()})
+      ON CONFLICT ("projetoId") DO NOTHING`;
+    const travada = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM conversa_portal WHERE "projetoId" = ${p.projetoId} FOR UPDATE`;
+    const conversaId = travada[0]?.id;
+    if (!conversaId) throw naoEncontrada();
+    const criadaEm = new Date();
+    const m = await tx.mensagemPortal.create({
+      data: {
+        conversaId,
+        autorId: p.autor.userId,
+        autorNome: p.autor.nome,
+        lado: p.autor.lado,
+        texto,
+        comAnexos: p.comAnexos,
+        criadaEm,
+      },
+      select: { id: true },
+    });
+    await tx.conversaPortal.update({
+      where: { id: conversaId },
+      data: { ultimaMensagemEm: criadaEm, ultimoLado: p.autor.lado },
+    });
+    await tx.$executeRaw`
+      INSERT INTO leitura_conversa_portal (id, "conversaId", "userId", "lidaAte")
+      VALUES (${randomUUID()}, ${conversaId}, ${p.autor.userId}, ${criadaEm})
+      ON CONFLICT ("conversaId", "userId")
+      DO UPDATE SET "lidaAte" = GREATEST(leitura_conversa_portal."lidaAte", EXCLUDED."lidaAte")`;
+    return { mensagemId: m.id, conversaId };
+  });
+}
+
+/**
+ * Marca como lida até `ate` (a última mensagem carregada na tela), limitado a agora e sem nunca recuar. Sem conversa
+ * ainda, não há o que marcar.
+ */
+export async function marcarLida(p: { projetoId: string; userId: string; ate: Date }): Promise<void> {
+  if (!(await ladoComAcesso(p.userId, p.projetoId))) throw naoEncontrada();
+  const conversa = await prisma.conversaPortal.findUnique({ where: { projetoId: p.projetoId }, select: { id: true } });
+  if (!conversa) return;
+  const agora = new Date();
+  const ate = Number.isNaN(p.ate.getTime()) || p.ate > agora ? agora : p.ate;
+  await prisma.$executeRaw`
+    INSERT INTO leitura_conversa_portal (id, "conversaId", "userId", "lidaAte")
+    VALUES (${randomUUID()}, ${conversa.id}, ${p.userId}, ${ate})
+    ON CONFLICT ("conversaId", "userId")
+    DO UPDATE SET "lidaAte" = GREATEST(leitura_conversa_portal."lidaAte", EXCLUDED."lidaAte")`;
+}
+
+/** Projeto da mensagem (para conferir a audiência, emitir e revalidar). null = mensagem inexistente. */
+export async function projetoDaMensagem(mensagemId: string): Promise<string | null> {
+  const m = await prisma.mensagemPortal.findUnique({ where: { id: mensagemId }, select: { conversaId: true } });
+  if (!m) return null;
+  const c = await prisma.conversaPortal.findUnique({ where: { id: m.conversaId }, select: { projetoId: true } });
+  return c?.projetoId ?? null;
+}
+
+async function exigirEquipeNaMensagem(mensagemId: string, userId: string): Promise<void> {
+  const projetoId = await projetoDaMensagem(mensagemId);
+  if (!projetoId || !(await podeVerConversaDoProjeto(userId, projetoId))) throw naoEncontrada();
+}
+
+/** Marca a mensagem como decisão do cliente. Uma marca ativa por mensagem: o índice parcial decide a corrida. */
+export async function marcarDecisao(p: { mensagemId: string; userId: string; resumo: string | null }): Promise<void> {
+  await exigirEquipeNaMensagem(p.mensagemId, p.userId);
+  const resumo = p.resumo?.trim() || null;
+  if (resumo && resumo.length > RESUMO_MAX) throw new ActionError(`O resumo passa de ${RESUMO_MAX} caracteres.`);
+  try {
+    await prisma.decisaoMensagemPortal.create({ data: { mensagemId: p.mensagemId, resumo, marcadaPorId: p.userId } });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new ActionError(MOTIVO_DECISAO_JA_MARCADA);
+    throw e;
+  }
+}
+
+/** Remove a marca ativa: preenche quem e quando (nunca apaga — o histórico das marcações fica). */
+export async function desmarcarDecisao(p: { mensagemId: string; userId: string }): Promise<void> {
+  await exigirEquipeNaMensagem(p.mensagemId, p.userId);
+  const { count } = await prisma.decisaoMensagemPortal.updateMany({
+    where: { mensagemId: p.mensagemId, removidaEm: null },
+    data: { removidaEm: new Date(), removidaPorId: p.userId },
+  });
+  if (count === 0) throw new ActionError(MOTIVO_DECISAO_NAO_MARCADA);
+}
+
+/** O cliente liga ou desliga o e-mail de mensagem nova da equipe (o sino fica). Grava só `notif_portal_mensagem`. */
+export async function definirAvisoPortalMensagem(userId: string, quer: boolean): Promise<void> {
+  const pref = await prisma.userPreference.findUnique({ where: { userId }, select: { dados: true } });
+  const dados = { ...((pref?.dados as Record<string, unknown> | null) ?? {}), notif_portal_mensagem: quer };
+  await prisma.userPreference.upsert({
+    where: { userId },
+    create: { userId, dados: dados as Prisma.InputJsonObject },
+    update: { dados: dados as Prisma.InputJsonObject },
+  });
+}

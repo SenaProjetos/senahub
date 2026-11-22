@@ -329,6 +329,48 @@ A equipe pediu sua assinatura no documento **{{documento}}**. Você pode ler o P
 Sena Projetos`,
   },
   {
+    slug: "portal-mensagem-equipe",
+    grupo: "Projetos",
+    label: "Mensagem nova da coordenação no portal (cliente)",
+    descricao:
+      "Enviado a cada conta ativa do cliente quando a coordenação escreve na conversa do projeto pelo portal. No máximo um por conversa até a pessoa abrir a conversa; depois de ler, a próxima mensagem pode gerar outro. O cliente desliga em Meus projetos (o sino continua). Não leva o texto da mensagem.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome da conta do portal", exemplo: "Mariana" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      { nome: "autor", descricao: "Nome de quem escreveu", exemplo: "Carla Mendes" },
+      { nome: "url", descricao: "Link da conversa no portal", exemplo: "https://app/portal/abc#mensagens" },
+    ],
+    assuntoPadrao: "Mensagem nova da coordenação: {{projeto}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+**{{autor}}** escreveu na conversa do projeto **{{projeto}}**. Entre no portal para ler e responder.
+
+[Abrir a conversa no portal]({{url}})
+
+Sena Projetos`,
+  },
+  {
+    slug: "portal-mensagem-cliente",
+    grupo: "Projetos",
+    label: "Mensagem nova do cliente no portal (coordenação)",
+    descricao:
+      "Enviado aos coordenadores do projeto (sem nenhum, à gestão) quando o cliente escreve na conversa do portal. No máximo um por conversa até a pessoa abrir a conversa. Desliga em Preferências (\"Mensagens de clientes\"), junto com o sino. Não leva o texto da mensagem.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome de quem recebe", exemplo: "Carla" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      { nome: "autor", descricao: "Nome da conta do cliente que escreveu", exemplo: "Mariana Souza" },
+      { nome: "url", descricao: "Link da aba Cliente do projeto", exemplo: "https://app/projetos/abc/cliente" },
+    ],
+    assuntoPadrao: "Mensagem do cliente: {{projeto}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+**{{autor}}** escreveu na conversa do projeto **{{projeto}}** pelo portal.
+
+[Abrir a conversa]({{url}})
+
+Sena Projetos`,
+  },
+  {
     slug: "holerite",
     grupo: "RH",
     label: "Holerite",

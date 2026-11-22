@@ -18,4 +18,16 @@ describe("modelos de e-mail do portal", () => {
     expect(meta?.assuntoPadrao).toBe("Assinatura pendente: {{documento}}");
     expect(meta?.corpoPadrao).toContain("{{url}}");
   });
+
+  it.each(["portal-mensagem-equipe", "portal-mensagem-cliente"])(
+    "modelo de mensagem nova da conversa (%s) existe com as variáveis do aviso e sem o texto da mensagem",
+    (slug) => {
+      const meta = metaTemplate(slug);
+      expect(meta).toBeDefined();
+      expect(meta?.grupo).toBe("Projetos");
+      expect(meta?.variaveis.map((v) => v.nome)).toEqual(["nome", "projeto", "autor", "url"]);
+      expect(meta?.corpoPadrao).toContain("{{url}}");
+      expect(meta?.corpoPadrao).not.toMatch(/\{\{(texto|mensagem)\}\}/);
+    },
+  );
 });

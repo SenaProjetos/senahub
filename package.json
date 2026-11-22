@@ -94,6 +94,7 @@
     "smoke:pedido-revisao-cliente": "tsx --tsconfig tsconfig.server.json scripts/smoke-pedido-revisao-cliente.ts",
     "smoke:portal-briefing": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-briefing.ts",
     "smoke:portal-assinatura": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-assinatura.ts",
+    "smoke:portal-mensagens": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-mensagens.ts",
     "smoke:portal-modelo3d": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-modelo3d.ts",
     "smoke:portal-financeiro": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-financeiro.ts",
     "smoke:vinculo-projeto-ficha": "tsx --tsconfig tsconfig.server.json scripts/smoke-vinculo-projeto-ficha.ts",
