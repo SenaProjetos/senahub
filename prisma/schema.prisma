@@ -1331,6 +1331,8 @@ model Projeto {
   /// Resumo diário do portal já enviado (uma linha por conta, dia e canal).
   avisosPortal AvisoPortalEnviado[]
   pedidosRevisaoCliente PedidoRevisaoCliente[]
+  /// Conversa do cliente com a coordenação no portal (uma por projeto, criada na 1ª mensagem).
+  conversaPortal ConversaPortal?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -10096,4 +10098,87 @@ model RetencaoLancamento {
 
   @@unique([lancamentoId, imposto])
   @@map("lancamento_retencao")
+}
+
+enum LadoMensagemPortal {
+  cliente
+  equipe
+}
+
+/// Conversa do cliente com a coordenação, no portal (uma por projeto; nasce na 1ª mensagem). Spec 2026-11-21.
+model ConversaPortal {
+  id               String                  @id @default(cuid())
+  projetoId        String                  @unique
+  projeto          Projeto                 @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  criadaEm         DateTime                @default(now())
+  ultimaMensagemEm DateTime?
+  ultimoLado       LadoMensagemPortal?
+  mensagens        MensagemPortal[]
+  leituras         LeituraConversaPortal[]
+
+  @@map("conversa_portal")
+}
+
+/// Mensagem da conversa: nunca se edita nem se apaga (só some em cascata com a conversa).
+model MensagemPortal {
+  id         String                  @id @default(cuid())
+  conversaId String
+  conversa   ConversaPortal          @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  /// Id do usuário, sem relação (padrão dos vizinhos do portal).
+  autorId    String
+  /// Retrato do nome no envio.
+  autorNome  String
+  lado       LadoMensagemPortal
+  texto      String                  @db.Text
+  comAnexos  Boolean                 @default(false)
+  criadaEm   DateTime                @default(now())
+  anexos     AnexoMensagemPortal[]
+  decisoes   DecisaoMensagemPortal[]
+
+  @@index([conversaId, criadaEm])
+  @@map("mensagem_portal")
+}
+
+model AnexoMensagemPortal {
+  id         String         @id @default(cuid())
+  mensagemId String
+  mensagem   MensagemPortal @relation(fields: [mensagemId], references: [id], onDelete: Cascade)
+  caminho    String
+  nome       String
+  tamanho    Int
+  tipo       String
+  criadoEm   DateTime       @default(now())
+
+  @@index([mensagemId])
+  @@map("anexo_mensagem_portal")
+}
+
+/// Até onde cada pessoa leu a conversa e quando foi avisada por e-mail (um aviso até ela abrir de novo).
+model LeituraConversaPortal {
+  id             String         @id @default(cuid())
+  conversaId     String
+  conversa       ConversaPortal @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  userId         String
+  lidaAte        DateTime?
+  emailAvisadoEm DateTime?
+
+  @@unique([conversaId, userId])
+  @@map("leitura_conversa_portal")
+}
+
+/// Marca de decisão numa mensagem (só a equipe marca). Uma ativa por mensagem: índice parcial na migração
+/// (`removidaEm IS NULL`), fora do schema.prisma.
+model DecisaoMensagemPortal {
+  id            String         @id @default(cuid())
+  mensagemId    String
+  mensagem      MensagemPortal @relation(fields: [mensagemId], references: [id], onDelete: Cascade)
+  /// Até 300 caracteres.
+  resumo        String?
+  marcadaPorId  String
+  marcadaEm     DateTime       @default(now())
+  removidaPorId String?
+  removidaEm    DateTime?
+
+  @@index([mensagemId])
+  @@map("decisao_mensagem_portal")
 }
