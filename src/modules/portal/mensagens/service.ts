@@ -328,6 +328,8 @@ export async function exigirMensagemAnexavel(p: {
   mensagemId: string;
   userId: string;
   nome?: string;
+  /** Instante do começo da requisição (a rota o captura antes de ler o corpo); a janela é medida nele. */
+  agora?: Date;
 }): Promise<{ projetoId: string; conversaId: string }> {
   const m = await prisma.mensagemPortal.findUnique({
     where: { id: p.mensagemId },
@@ -340,7 +342,7 @@ export async function exigirMensagemAnexavel(p: {
   const tipo = p.nome === undefined ? null : motivoDoTipoDoAnexo(p.nome);
   if (tipo) throw new ActionError(tipo);
   const anexos = await prisma.anexoMensagemPortal.count({ where: { mensagemId: p.mensagemId } });
-  const motivo = motivoParaNaoAnexar({ ...m, userId: p.userId, agora: new Date(), anexos });
+  const motivo = motivoParaNaoAnexar({ ...m, userId: p.userId, agora: p.agora ?? new Date(), anexos });
   if (motivo) throw new ActionError(motivo);
   return { projetoId: conversa.projetoId, conversaId: m.conversaId };
 }
@@ -348,7 +350,9 @@ export async function exigirMensagemAnexavel(p: {
 /**
  * Registra um anexo já gravado no disco (a rota apaga o arquivo se isto lançar). Confere a porta de novo e, numa
  * transação, trava a linha da mensagem (`FOR UPDATE`): dois envios ao mesmo tempo contam um depois do outro e não
- * passam de 5. Leituras planas e em sequência dentro da transação.
+ * passam de 5. Leituras planas e em sequência dentro da transação. A janela de 15 minutos é medida em `agora`, o
+ * começo da requisição: um arquivo grande que começou a subir no prazo não perde a vaga por terminar de chegar depois.
+ * O limite de anexos e o autor continuam conferidos sob a trava.
  */
 export async function gravarAnexo(p: {
   mensagemId: string;
@@ -357,8 +361,10 @@ export async function gravarAnexo(p: {
   nome: string;
   tamanho: number;
   tipo: string;
+  agora?: Date;
 }): Promise<{ anexoId: string }> {
-  await exigirMensagemAnexavel({ mensagemId: p.mensagemId, userId: p.userId, nome: p.nome });
+  const agora = p.agora ?? new Date();
+  await exigirMensagemAnexavel({ mensagemId: p.mensagemId, userId: p.userId, nome: p.nome, agora });
   return prisma.$transaction(async (tx) => {
     const travada = await tx.$queryRaw<{ id: string }[]>`
       SELECT id FROM mensagem_portal WHERE id = ${p.mensagemId} FOR UPDATE`;
@@ -369,7 +375,7 @@ export async function gravarAnexo(p: {
     });
     if (!m) throw naoEncontrada();
     const anexos = await tx.anexoMensagemPortal.count({ where: { mensagemId: p.mensagemId } });
-    const motivo = motivoParaNaoAnexar({ ...m, userId: p.userId, agora: new Date(), anexos });
+    const motivo = motivoParaNaoAnexar({ ...m, userId: p.userId, agora, anexos });
     if (motivo) throw new ActionError(motivo);
     const a = await tx.anexoMensagemPortal.create({
       data: { mensagemId: p.mensagemId, caminho: p.caminho, nome: p.nome, tamanho: p.tamanho, tipo: p.tipo.slice(0, 200) },

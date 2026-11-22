@@ -2,7 +2,7 @@
 
 import { defineAction, ActionError } from "@/lib/with-action";
 import { avisarMensagemNova, emitirAtualizacaoDaConversa } from "./avisos";
-import { conversaParaCliente, conversaParaEquipe, type ConversaDTO } from "./queries";
+import { conversaParaCliente, conversaParaEquipe } from "./queries";
 import { MOTIVO_NAO_ENCONTRADA } from "./regras";
 import {
   carregarConversaSchema,
@@ -44,7 +44,7 @@ async function emitirSemFalhar(projetoId: string): Promise<void> {
   }
 }
 
-function exigirConversa(c: ConversaDTO | null): ConversaDTO {
+function exigirConversa<T>(c: T | null): T {
   if (!c) throw new ActionError(MOTIVO_NAO_ENCONTRADA);
   return c;
 }
@@ -100,6 +100,7 @@ export const salvarAvisoPortalMensagem = defineAction(
     entidadeId: (data) => (data as { userId: string }).userId,
   },
   async (input, ctx) => {
+    if (ctx.user.tipo !== "externo") throw new ActionError(MOTIVO_NAO_ENCONTRADA);
     await definirAvisoPortalMensagem(ctx.user.id, input.quer);
     return { userId: ctx.user.id };
   },

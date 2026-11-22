@@ -32,6 +32,9 @@ function respostaDaRecusa(erro: unknown): NextResponse {
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ mensagemId: string }> }) {
+  // A janela de 15 minutos vale para o COMEÇO do envio: um arquivo grande que começou no prazo não é recusado por
+  // terminar de chegar depois. Todas as conferências abaixo (e a sob a trava, em `gravarAnexo`) usam este instante.
+  const agora = new Date();
   const { mensagemId } = await ctx.params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
@@ -39,7 +42,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ mensagemId: st
 
   // Porta e regras antes de ler o corpo (o nome do arquivo só chega nele: o tipo é conferido depois).
   try {
-    await exigirMensagemAnexavel({ mensagemId, userId: user.id });
+    await exigirMensagemAnexavel({ mensagemId, userId: user.id, agora });
   } catch (erro) {
     return respostaDaRecusa(erro);
   }
@@ -67,7 +70,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ mensagemId: st
   const nome = nomeArquivoLimpo(file.name || "arquivo");
   let destino: { projetoId: string; conversaId: string };
   try {
-    destino = await exigirMensagemAnexavel({ mensagemId, userId: user.id, nome });
+    destino = await exigirMensagemAnexavel({ mensagemId, userId: user.id, nome, agora });
   } catch (erro) {
     return respostaDaRecusa(erro);
   }
@@ -100,6 +103,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ mensagemId: st
       nome,
       tamanho: salvo.tamanho,
       tipo: file.type || "application/octet-stream",
+      agora,
     });
   } catch (erro) {
     await removerArquivo(salvo.caminho);
@@ -113,7 +117,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ mensagemId: st
     resultado: "sucesso",
     entidade: "AnexoMensagemPortal",
     entidadeId: anexo.anexoId,
-    detalhe: { mensagemId, projetoId: destino.projetoId, nome, tamanho: salvo.tamanho },
+    // Sem o nome do arquivo: ele pode revelar o conteúdo da conversa (a auditoria não é porta para lê-la).
+    detalhe: { mensagemId, projetoId: destino.projetoId, extensao: extensaoDoAnexo(nome), tamanho: salvo.tamanho },
     ip: await getClientIp(),
   });
   // As telas abertas dos dois lados recarregam (sem sino nem e-mail: a mensagem já avisou). Falha não desfaz o anexo.

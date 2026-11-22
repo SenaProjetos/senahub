@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { PAPEL_COORDENADOR, podeVerConversa } from "./audiencia";
 import { aguardandoResposta, ladoOposto, ROTULO_DECISAO_PORTAL, type LadoMensagem } from "./regras";
-import { contaPodeVerConversa, fatosDaAudiencia, podeVerConversaDoProjeto } from "./service";
+import { contaPodeVerConversa, contasDoClienteDoProjeto, fatosDaAudiencia, podeVerConversaDoProjeto } from "./service";
 
 /**
  * Leituras da conversa do portal. Cada uma confere a porta do seu lado (conta do portal ou audiência) e devolve null
@@ -29,12 +29,19 @@ export type ConversaDTO = {
   decisoes: { mensagemId: string; resumo: string | null; trecho: string; mensagemEm: string; marcadaPor: string }[];
 };
 
+/**
+ * A conversa vista pela equipe leva também `clienteLe`: o projeto tem cliente ativo com pelo menos uma conta externa
+ * ativa no portal. Sem isso, a equipe escreve para ninguém — a tela avisa (e ainda deixa enviar).
+ */
+export type ConversaEquipeDTO = ConversaDTO & { clienteLe: boolean };
+
 /** Mensagens por página (as mais recentes; `antesDe` = id da mais antiga já carregada). */
 export const POR_PAGINA = 50;
 const TRECHO_MAX = 140;
 
-function trechoDe(texto: string): string {
-  const t = texto.replace(/\s+/g, " ").trim();
+/** Trecho da mensagem decidida; mensagem só de anexos mostra os nomes deles (ou que tinha anexos). */
+function trechoDe(texto: string, nomesDosAnexos: readonly string[] = []): string {
+  const t = texto.replace(/\s+/g, " ").trim() || nomesDosAnexos.join(", ") || "(mensagem com anexos)";
   return t.length > TRECHO_MAX ? `${t.slice(0, TRECHO_MAX - 1)}…` : t;
 }
 
@@ -43,9 +50,15 @@ export async function conversaParaCliente(projetoId: string, userId: string, ant
   return montarConversa(projetoId, userId, "cliente", antesDe);
 }
 
-export async function conversaParaEquipe(projetoId: string, userId: string, antesDe?: string): Promise<ConversaDTO | null> {
+export async function conversaParaEquipe(
+  projetoId: string,
+  userId: string,
+  antesDe?: string,
+): Promise<ConversaEquipeDTO | null> {
   if (!(await podeVerConversaDoProjeto(userId, projetoId))) return null;
-  return montarConversa(projetoId, userId, "equipe", antesDe);
+  const conversa = await montarConversa(projetoId, userId, "equipe", antesDe);
+  const clienteLe = (await contasDoClienteDoProjeto(projetoId)).length > 0;
+  return { ...conversa, clienteLe };
 }
 
 async function montarConversa(projetoId: string, userId: string, meuLado: LadoMensagem, antesDe?: string): Promise<ConversaDTO> {
@@ -104,6 +117,16 @@ async function montarConversa(projetoId: string, userId: string, meuLado: LadoMe
       : new Map<string, string>();
   const quemMarcou = (id: string) => (meuLado === "cliente" ? ROTULO_DECISAO_PORTAL : (nomes.get(id) ?? "—"));
   const decisaoPorMensagem = new Map(ativas.map((d) => [d.mensagemId, d]));
+  // Decisão em mensagem sem texto (só anexos): o trecho é o nome dos anexos dela.
+  const semTexto = ativas.filter((d) => d.mensagem.texto.trim() === "").map((d) => d.mensagemId);
+  const anexosSemTexto = semTexto.length
+    ? await prisma.anexoMensagemPortal.findMany({
+        where: { mensagemId: { in: semTexto } },
+        orderBy: { criadoEm: "asc" },
+        select: { mensagemId: true, nome: true },
+      })
+    : [];
+  const nomesDosAnexos = (mensagemId: string) => anexosSemTexto.filter((a) => a.mensagemId === mensagemId).map((a) => a.nome);
 
   const leitura = await prisma.leituraConversaPortal.findUnique({
     where: { conversaId_userId: { conversaId: conversa.id, userId } },
@@ -137,7 +160,7 @@ async function montarConversa(projetoId: string, userId: string, meuLado: LadoMe
     decisoes: ativas.map((d) => ({
       mensagemId: d.mensagemId,
       resumo: d.resumo,
-      trecho: trechoDe(d.mensagem.texto),
+      trecho: trechoDe(d.mensagem.texto, nomesDosAnexos(d.mensagemId)),
       mensagemEm: d.mensagem.criadaEm.toISOString(),
       marcadaPor: quemMarcou(d.marcadaPorId),
     })),

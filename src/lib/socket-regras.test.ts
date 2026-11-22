@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ROOM_INTERNOS, aceitaEvento, contaNaPresenca, roomsIniciais } from "./socket-regras";
+import { ROOM_INTERNOS, aceitaEvento, conexaoAceita, contaNaPresenca, roomsIniciais } from "./socket-regras";
 
 const EVENTOS = ["entrar-canal", "entrar-documento", "sair-documento", "solicitar-presenca", "digitando"];
 
@@ -25,5 +25,11 @@ describe("socket-regras", () => {
   it("externo não conta na presença", () => {
     expect(contaNaPresenca(true)).toBe(false);
     expect(contaNaPresenca(false)).toBe(true);
+  });
+
+  it("conexão só de usuário que existe e está ativo (sessão de conta desativada não conecta)", () => {
+    expect(conexaoAceita({ ativo: true })).toBe(true);
+    expect(conexaoAceita({ ativo: false })).toBe(false);
+    expect(conexaoAceita(null)).toBe(false);
   });
 });

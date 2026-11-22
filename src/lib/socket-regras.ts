@@ -19,6 +19,11 @@ export function aceitaEvento(externo: boolean, evento: string): boolean {
   return !externo;
 }
 
+/** Handshake: a sessão é de um usuário que existe e está ativo (conta desativada não conecta, mesmo com cookie vivo). */
+export function conexaoAceita(usuario: { ativo: boolean } | null): boolean {
+  return usuario !== null && usuario.ativo;
+}
+
 /** Só conta interna entra no mapa de presença. */
 export function contaNaPresenca(externo: boolean): boolean {
   return !externo;

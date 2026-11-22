@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { podeObservarCanal, type ModeradorChat } from "@/modules/chat/acesso";
 import { moderadorChatPorId } from "@/modules/chat/moderador";
-import { ROOM_INTERNOS, aceitaEvento, contaNaPresenca, roomsIniciais } from "@/lib/socket-regras";
+import { ROOM_INTERNOS, aceitaEvento, conexaoAceita, contaNaPresenca, roomsIniciais } from "@/lib/socket-regras";
 
 /**
  * IMPORTANTE: o `server.ts` (rodado por tsx) e o código do Next (Server Actions,
@@ -50,9 +50,11 @@ export function initSocket(server: HttpServer): SocketServer {
         headers: new Headers({ cookie }),
       });
       if (!session) return nextFn(new Error("não autenticado"));
+      // Tipo e ativo vêm do banco, não do objeto da sessão: conta desativada (ou sem linha) não conecta, e
+      // tipo ≠ interno = externo (falha fechada).
+      const usuario = await prisma.user.findUnique({ where: { id: session.user.id }, select: { tipo: true, ativo: true } });
+      if (!conexaoAceita(usuario)) return nextFn(new Error("não autenticado"));
       socket.data.userId = session.user.id;
-      // O tipo vem do banco, não do objeto da sessão; sem linha ou tipo ≠ interno = externo (falha fechada).
-      const usuario = await prisma.user.findUnique({ where: { id: session.user.id }, select: { tipo: true } });
       const externo = usuario?.tipo !== "interno";
       socket.data.externo = externo;
       // Moderação resolvida no handshake (superusuário ou `chat:moderar`): troca de permissão só

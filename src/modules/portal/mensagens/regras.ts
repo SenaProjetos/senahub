@@ -8,10 +8,18 @@ export const TEXTO_MAX = 5000;
 export const RESUMO_MAX = 300;
 export const ANEXOS_MAX = 5;
 export const JANELA_ANEXO_MS = 15 * 60_000;
+/** "5.000": o limite como a tela e as mensagens escrevem. */
+export const TEXTO_MAX_ROTULO = TEXTO_MAX.toLocaleString("pt-BR");
+
+/**
+ * Evento Socket.io de "a conversa mudou" (payload só `{ projetoId }`, nunca o texto). Aqui, no arquivo puro, para o
+ * servidor (`avisos.ts`) e a tela (`use-conversa-ao-vivo.ts`) usarem o mesmo nome.
+ */
+export const EVENTO_CONVERSA = "portal-conversa";
 
 export const MOTIVO_NAO_ENCONTRADA = "Conversa não encontrada.";
 export const MOTIVO_TEXTO_VAZIO = "Escreva a mensagem ou anexe um arquivo.";
-export const MOTIVO_TEXTO_LONGO = "A mensagem passa de 5.000 caracteres.";
+export const MOTIVO_TEXTO_LONGO = `A mensagem passa de ${TEXTO_MAX_ROTULO} caracteres.`;
 export const MOTIVO_ANEXOS_MAX = "Cada mensagem aceita até 5 anexos.";
 export const MOTIVO_JANELA_ANEXO = "O prazo para anexar a esta mensagem acabou. Envie uma nova mensagem.";
 export const MOTIVO_TIPO_ANEXO = "Anexe PDF, imagem (PNG ou JPG), DWG ou DXF.";

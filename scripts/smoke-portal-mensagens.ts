@@ -12,7 +12,8 @@
  * (marca, marca de novo, desmarca, histórico, "Registrada pela coordenação" no portal, sem nome de quem marcou);
  * texto vazio sem anexo; anexos (só o autor, só em mensagem com anexos, janela de 15 min, até 5 — dois ao mesmo tempo no
  * quinto = um —, tipo fora da lista; quem baixa: coordenador, gestor e contas do cliente sim, projetista, coordenador de
- * outro projeto e outro cliente não).
+ * outro projeto e outro cliente não; conta com troca de senha pendente não; janela medida no começo da requisição); e-mail
+ * que falha devolve a reserva (a próxima mensagem avisa); a aba Cliente diz quando nenhuma conta do cliente lê.
  *
  * Uso: npm run smoke:portal-mensagens
  */
@@ -27,6 +28,7 @@ import {
   desmarcarDecisao,
   anexoParaUsuario,
   enviarMensagem,
+  exigirMensagemAnexavel,
   gravarAnexo,
   marcarDecisao,
   marcarLida,
@@ -138,6 +140,8 @@ async function main() {
     const projSemCoord = await novoProjeto(cliA.id, "semcoord");
     const projCorrida = await novoProjeto(cliA.id, "corrida");
     const projInativo = await novoProjeto(cliInativo.id, "inativo");
+    const cliSemConta = await novoCliente("semconta");
+    const projSemConta = await novoProjeto(cliSemConta.id, "semconta");
 
     const contaA1 = await novaConta(cliA.id, "a1");
     const contaA2 = await novaConta(cliA.id, "a2");
@@ -489,6 +493,7 @@ async function main() {
     const semAnexos = await enviar(projP.id, cliente(contaA1), "Sem arquivo.");
     const emSemAnexos = await motivoDe(() => anexar(semAnexos.mensagemId, contaA1.id));
     // Mensagem de 16 minutos atrás (criada direto no banco só para o teste da janela).
+    const criadaVelha = new Date(Date.now() - 16 * 60_000);
     const velha = await prisma.mensagemPortal.create({
       data: {
         conversaId: doCliente.conversaId,
@@ -497,11 +502,30 @@ async function main() {
         lado: "cliente",
         texto: "Antiga",
         comAnexos: true,
-        criadaEm: new Date(Date.now() - 16 * 60_000),
+        criadaEm: criadaVelha,
       },
       select: { id: true },
     });
     const foraDaJanela = await motivoDe(() => anexar(velha.id, contaA1.id));
+    // A rota mede a janela no COMEÇO da requisição (`agora`): o envio que começou no minuto 10 entra, mesmo que o corpo
+    // termine de chegar depois dos 15 minutos.
+    const comecouNoPrazo = new Date(criadaVelha.getTime() + 10 * 60_000);
+    const portaNoPrazo = await motivoDe(() => exigirMensagemAnexavel({ mensagemId: velha.id, userId: contaA1.id, agora: comecouNoPrazo }));
+    const gravouNoPrazo = await motivoDe(() =>
+      gravarAnexo({
+        mensagemId: velha.id,
+        userId: contaA1.id,
+        caminho: `portal/mensagens/smoke/${tag}/lento.pdf`,
+        nome: "lento.pdf",
+        tamanho: 1234,
+        tipo: "application/pdf",
+        agora: comecouNoPrazo,
+      }),
+    );
+    check(
+      "[anexo] janela medida no começo da requisição: começou no minuto 10, entra (porta e gravação sob a trava)",
+      portaNoPrazo === null && gravouNoPrazo === null,
+    );
     const daEquipe = await enviar(projP.id, equipe(coord), "Segue o detalhe.", true);
     const anexoEquipe = await motivoDe(() => anexar(daEquipe.mensagemId, coord.id, "detalhe.png"));
     const projetistaNaEquipe = await motivoDe(() => anexar(daEquipe.mensagemId, projetista.id));
@@ -531,6 +555,15 @@ async function main() {
       coordComoExterno: await quem({ id: coord.id, tipo: "externo" }),
     };
     const inexistenteBaixa = await anexoParaUsuario("nao-existe", { id: coord.id, tipo: "interno", mustChangePassword: false });
+    // Troca de senha pendente: pela sessão e pelo banco (sessão velha que ainda diz que não).
+    const trocaNaSessao = await anexoParaUsuario(primeiro.anexoId, { id: contaA1.id, tipo: "externo", mustChangePassword: true });
+    await prisma.user.update({ where: { id: contaA2.id }, data: { mustChangePassword: true } });
+    const trocaNoBanco = await anexoParaUsuario(primeiro.anexoId, { id: contaA2.id, tipo: "externo", mustChangePassword: false });
+    await prisma.user.update({ where: { id: contaA2.id }, data: { mustChangePassword: false } });
+    check(
+      "[anexo] conta externa com troca de senha pendente (na sessão ou no banco) recebe null",
+      trocaNaSessao === null && trocaNoBanco === null,
+    );
     check(
       "[anexo] baixar: coordenador, gestor global e as contas do cliente recebem o caminho; projetista, outro coordenador, perfil sem ver, outro cliente e inativo recebem null",
       [baixa.coord, baixa.gestor, baixa.contaA1, baixa.contaA2].every(
@@ -540,6 +573,32 @@ async function main() {
           (b) => b === null,
         ) &&
         inexistenteBaixa === null,
+    );
+
+    // ── e-mail que falha devolve a reserva ──────────────────────────────────────────────────
+    const depsFalha: AvisarMensagem = { ...deps, enviarEmail: async () => false };
+    limpar();
+    const mFalha = await enviar(projQ.id, equipe(coordOutro), "Primeira do projeto Q.");
+    await avisarMensagemNova(mFalha.mensagemId, depsFalha);
+    const leituraFalha = await prisma.leituraConversaPortal.findUnique({
+      where: { conversaId_userId: { conversaId: mFalha.conversaId, userId: contaA1.id } },
+      select: { emailAvisadoEm: true },
+    });
+    limpar();
+    const mDepois = await enviar(projQ.id, equipe(coordOutro), "Segunda do projeto Q.");
+    await avisarMensagemNova(mDepois.mensagemId, deps);
+    check(
+      "[e-mail] envio que devolve false libera a reserva (emailAvisadoEm volta a nulo) e a próxima mensagem e-maila de novo",
+      leituraFalha !== null && leituraFalha.emailAvisadoEm === null && emailsPara(contaA1.email) === 1,
+    );
+
+    // ── a aba Cliente diz quando ninguém do cliente lê ──────────────────────────────────────
+    const leP = await conversaParaEquipe(projP.id, coord.id);
+    const leInativo = await conversaParaEquipe(projInativo.id, gestor.id);
+    const leSemConta = await conversaParaEquipe(projSemConta.id, gestor.id);
+    check(
+      "[equipe] clienteLe: projeto com conta ativa do cliente sim; cliente inativo e cliente sem conta do portal não",
+      leP?.clienteLe === true && leInativo?.clienteLe === false && leSemConta?.clienteLe === false,
     );
 
     // ── texto vazio ─────────────────────────────────────────────────────────────────────────

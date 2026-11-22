@@ -9,7 +9,7 @@ import { whereAudiencia } from "@/lib/audiencias";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { destinatariosDaEquipe, ehPapelDeCoordenacao } from "./audiencia";
-import { precisaDeEmail } from "./regras";
+import { EVENTO_CONVERSA, precisaDeEmail } from "./regras";
 import { audienciaDoProjeto, contasDoClienteDoProjeto } from "./service";
 
 /**
@@ -35,18 +35,21 @@ const avisosPadrao = (): AvisarMensagem => ({
   emitir: emitParaUsuario,
 });
 
-export const EVENTO_CONVERSA = "portal-conversa";
 export const hrefDoCliente = (projetoId: string) => `/portal/${projetoId}#mensagens`;
 export const hrefDaEquipe = (projetoId: string) => `/projetos/${projetoId}/cliente`;
 
 const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? "";
 
-/** Avisa a tela aberta dos dois lados que a conversa mudou (mensagem nova, decisão marcada ou desmarcada). */
+/**
+ * Avisa a tela aberta dos dois lados que a conversa mudou (mensagem nova, decisão marcada ou desmarcada).
+ * `audiencia` = a de `audienciaDoProjeto`, quando quem chama já a calculou (o aviso de mensagem nova): não lê de novo.
+ */
 export async function emitirAtualizacaoDaConversa(
   projetoId: string,
   emitir: AvisarMensagem["emitir"] = emitParaUsuario,
+  audienciaPronta?: readonly string[],
 ): Promise<number> {
-  const audiencia = await audienciaDoProjeto(projetoId);
+  const audiencia = audienciaPronta ?? (await audienciaDoProjeto(projetoId));
   const contas = (await contasDoClienteDoProjeto(projetoId)).map((c) => c.userId);
   let n = 0;
   for (const id of new Set([...audiencia, ...contas])) {
@@ -112,6 +115,8 @@ export async function avisarMensagemNova(
   });
   if (!projeto) return zero;
   const app = (process.env.APP_URL ?? "").replace(/\/+$/, "");
+  // Uma leitura da audiência por aviso: serve aos destinatários (cliente escreveu) e à emissão do fim.
+  const audienciaIds = await audienciaDoProjeto(projeto.id);
 
   let sinos = 0;
   let emails = 0;
@@ -124,7 +129,7 @@ export async function avisarMensagemNova(
   let texto: { titulo: string; corpo: string };
 
   if (m.lado === "cliente") {
-    const audiencia = new Set(await audienciaDoProjeto(projeto.id));
+    const audiencia = new Set(audienciaIds);
     const membros = await prisma.projetoMembro.findMany({
       where: { projetoId: projeto.id, user: { ativo: true, tipo: "interno" } },
       select: { userId: true, papel: true },
@@ -202,7 +207,7 @@ export async function avisarMensagemNova(
 
   let emitidos = 0;
   try {
-    emitidos = await emitirAtualizacaoDaConversa(projeto.id, deps.emitir);
+    emitidos = await emitirAtualizacaoDaConversa(projeto.id, deps.emitir, audienciaIds);
   } catch (e) {
     console.error("[portal-mensagens] emissão falhou:", e);
   }
