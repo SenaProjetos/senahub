@@ -13,7 +13,9 @@ export function roomsIniciais(p: { userId: string; externo: boolean }): string[]
 }
 
 /** Eventos de entrada do cliente socket (`entrar-canal`, `entrar-documento`, `digitando`…): só interno. */
-export function aceitaEvento(externo: boolean, _evento: string): boolean {
+export function aceitaEvento(externo: boolean, evento: string): boolean {
+  // Hoje nenhum evento de entrada é do cliente; o nome fica na assinatura para uma exceção futura sem mudar quem chama.
+  void evento;
   return !externo;
 }
 

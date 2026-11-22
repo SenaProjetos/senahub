@@ -18,7 +18,6 @@ import {
   enviarMensagem,
   marcarDecisao,
   marcarLida,
-  projetoDaMensagem,
 } from "./service";
 
 /**
@@ -37,8 +36,7 @@ async function avisarSemFalhar(mensagemId: string): Promise<void> {
   }
 }
 
-async function emitirSemFalhar(projetoId: string | null): Promise<void> {
-  if (!projetoId) return;
+async function emitirSemFalhar(projetoId: string): Promise<void> {
   try {
     await emitirAtualizacaoDaConversa(projetoId);
   } catch (e) {
@@ -151,11 +149,13 @@ export const marcarDecisaoDoCliente = defineAction(
     entidade: "MensagemPortal",
     interno: true,
     schema: marcarDecisaoSchema,
+    // O resumo é o que o cliente decidiu: fica fora da auditoria, como o texto da mensagem.
+    redact: ["resumo"],
     entidadeId: (_data, input) => input.mensagemId,
   },
   async (input, { user }) => {
-    await marcarDecisao({ mensagemId: input.mensagemId, userId: user.id, resumo: input.resumo ?? null });
-    await emitirSemFalhar(await projetoDaMensagem(input.mensagemId));
+    const { projetoId } = await marcarDecisao({ mensagemId: input.mensagemId, userId: user.id, resumo: input.resumo ?? null });
+    await emitirSemFalhar(projetoId);
     return { ok: true };
   },
 );
@@ -170,8 +170,8 @@ export const desmarcarDecisaoDoCliente = defineAction(
     entidadeId: (_data, input) => input.mensagemId,
   },
   async (input, { user }) => {
-    await desmarcarDecisao({ mensagemId: input.mensagemId, userId: user.id });
-    await emitirSemFalhar(await projetoDaMensagem(input.mensagemId));
+    const { projetoId } = await desmarcarDecisao({ mensagemId: input.mensagemId, userId: user.id });
+    await emitirSemFalhar(projetoId);
     return { ok: true };
   },
 );

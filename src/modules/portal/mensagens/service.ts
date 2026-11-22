@@ -241,14 +241,23 @@ export async function projetoDaMensagem(mensagemId: string): Promise<string | nu
   return c?.projetoId ?? null;
 }
 
-async function exigirEquipeNaMensagem(mensagemId: string, userId: string): Promise<void> {
+/** Confere a audiência no projeto da mensagem e devolve o projeto (a action emite para ele sem ler de novo). */
+async function exigirEquipeNaMensagem(mensagemId: string, userId: string): Promise<string> {
   const projetoId = await projetoDaMensagem(mensagemId);
   if (!projetoId || !(await podeVerConversaDoProjeto(userId, projetoId))) throw naoEncontrada();
+  return projetoId;
 }
 
-/** Marca a mensagem como decisão do cliente. Uma marca ativa por mensagem: o índice parcial decide a corrida. */
-export async function marcarDecisao(p: { mensagemId: string; userId: string; resumo: string | null }): Promise<void> {
-  await exigirEquipeNaMensagem(p.mensagemId, p.userId);
+/**
+ * Marca a mensagem como decisão do cliente. Uma marca ativa por mensagem: o índice parcial decide a corrida.
+ * Devolve o projeto da mensagem (para a emissão depois do commit).
+ */
+export async function marcarDecisao(p: {
+  mensagemId: string;
+  userId: string;
+  resumo: string | null;
+}): Promise<{ projetoId: string }> {
+  const projetoId = await exigirEquipeNaMensagem(p.mensagemId, p.userId);
   const resumo = p.resumo?.trim() || null;
   if (resumo && resumo.length > RESUMO_MAX) throw new ActionError(`O resumo passa de ${RESUMO_MAX} caracteres.`);
   try {
@@ -257,16 +266,18 @@ export async function marcarDecisao(p: { mensagemId: string; userId: string; res
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") throw new ActionError(MOTIVO_DECISAO_JA_MARCADA);
     throw e;
   }
+  return { projetoId };
 }
 
 /** Remove a marca ativa: preenche quem e quando (nunca apaga — o histórico das marcações fica). */
-export async function desmarcarDecisao(p: { mensagemId: string; userId: string }): Promise<void> {
-  await exigirEquipeNaMensagem(p.mensagemId, p.userId);
+export async function desmarcarDecisao(p: { mensagemId: string; userId: string }): Promise<{ projetoId: string }> {
+  const projetoId = await exigirEquipeNaMensagem(p.mensagemId, p.userId);
   const { count } = await prisma.decisaoMensagemPortal.updateMany({
     where: { mensagemId: p.mensagemId, removidaEm: null },
     data: { removidaEm: new Date(), removidaPorId: p.userId },
   });
   if (count === 0) throw new ActionError(MOTIVO_DECISAO_NAO_MARCADA);
+  return { projetoId };
 }
 
 /** O cliente liga ou desliga o e-mail de mensagem nova da equipe (o sino fica). Grava só `notif_portal_mensagem`. */
