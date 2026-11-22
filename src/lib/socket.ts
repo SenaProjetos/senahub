@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { podeObservarCanal, type ModeradorChat } from "@/modules/chat/acesso";
 import { moderadorChatPorId } from "@/modules/chat/moderador";
+import { ROOM_INTERNOS, aceitaEvento, contaNaPresenca, roomsIniciais } from "@/lib/socket-regras";
 
 /**
  * IMPORTANTE: o `server.ts` (rodado por tsx) e o código do Next (Server Actions,
@@ -50,9 +51,13 @@ export function initSocket(server: HttpServer): SocketServer {
       });
       if (!session) return nextFn(new Error("não autenticado"));
       socket.data.userId = session.user.id;
+      // O tipo vem do banco, não do objeto da sessão; sem linha ou tipo ≠ interno = externo (falha fechada).
+      const usuario = await prisma.user.findUnique({ where: { id: session.user.id }, select: { tipo: true } });
+      const externo = usuario?.tipo !== "interno";
+      socket.data.externo = externo;
       // Moderação resolvida no handshake (superusuário ou `chat:moderar`): troca de permissão só
-      // vale após reconectar — mesma regra que valia para o papel.
-      socket.data.moderador = await moderadorChatPorId(session.user.id);
+      // vale após reconectar — mesma regra que valia para o papel. Só interno modera.
+      socket.data.moderador = externo ? null : await moderadorChatPorId(session.user.id);
       socket.data.nome = session.user.name;
       socket.data.image = (session.user as { image?: string | null }).image ?? null;
       nextFn();
@@ -63,32 +68,39 @@ export function initSocket(server: HttpServer): SocketServer {
 
   io.on("connection", async (socket) => {
     const userId = socket.data.userId as string;
+    // Conta externa (cliente do portal): só o room próprio; fora da presença, dos canais e dos documentos.
+    const externo = socket.data.externo !== false;
     const presenca = presencaMap();
-    presenca.set(userId, (presenca.get(userId) ?? 0) + 1);
-    io.emit("presenca", { userId, online: true });
+    if (contaNaPresenca(externo)) {
+      presenca.set(userId, (presenca.get(userId) ?? 0) + 1);
+      io.to(ROOM_INTERNOS).emit("presenca", { userId, online: true });
+    }
 
-    // Entra no room próprio e nos rooms dos canais de que é membro.
-    socket.join(`user:${userId}`);
+    // Entra no room próprio (e, sendo interno, no dos internos e nos dos canais de que é membro).
+    for (const room of roomsIniciais({ userId, externo })) socket.join(room);
 
-    // Snapshot de quem já está online (inclui o próprio, já inserido acima).
-    socket.emit("presenca-inicial", usuariosOnline());
-    try {
-      const canais = await prisma.canalMembro.findMany({
-        where: { userId },
-        select: { canalId: true },
-      });
-      for (const c of canais) socket.join(`canal:${c.canalId}`);
-      // #2: confirma ENTREGA das mensagens recebidas enquanto o usuário estava offline
-      // (cobre logar DEPOIS do envio). Sem esperar, para não atrasar a conexão.
-      void marcarEntregasAoConectar(userId, canais.map((c) => c.canalId)).catch(() => {});
-    } catch {
-      // sem DB no contexto → ignora (live cai para refresh)
+    if (!externo) {
+      // Snapshot de quem já está online (inclui o próprio, já inserido acima).
+      socket.emit("presenca-inicial", usuariosOnline());
+      try {
+        const canais = await prisma.canalMembro.findMany({
+          where: { userId },
+          select: { canalId: true },
+        });
+        for (const c of canais) socket.join(`canal:${c.canalId}`);
+        // #2: confirma ENTREGA das mensagens recebidas enquanto o usuário estava offline
+        // (cobre logar DEPOIS do envio). Sem esperar, para não atrasar a conexão.
+        void marcarEntregasAoConectar(userId, canais.map((c) => c.canalId)).catch(() => {});
+      } catch {
+        // sem DB no contexto → ignora (live cai para refresh)
+      }
     }
 
     // Cliente pede para entrar em um canal recém-criado (ex.: nova DM) ou observado (admin).
     // O room recebe as mensagens ao vivo, então só entra quem poderia ler o canal pela API:
     // membro, ou quem observa aquele tipo (`podeObservarCanal` — Anotações só superusuário).
     socket.on("entrar-canal", async (canalId: string) => {
+      if (!aceitaEvento(externo, "entrar-canal")) return;
       if (typeof canalId !== "string" || !canalId) return;
       try {
         const canal = await prisma.canal.findUnique({
@@ -108,6 +120,7 @@ export function initSocket(server: HttpServer): SocketServer {
     // se ver. Transiente (entra ao montar o viewer, sai ao desmontar/trocar de página) — ao
     // contrário dos canais de chat, que o usuário permanece "dentro" pela sessão toda.
     socket.on("entrar-documento", (documentoId: string) => {
+      if (!aceitaEvento(externo, "entrar-documento")) return;
       if (typeof documentoId !== "string" || !documentoId) return;
       socket.join(`documento:${documentoId}`);
       socket.data.documentoAtual = documentoId;
@@ -121,6 +134,7 @@ export function initSocket(server: HttpServer): SocketServer {
       socket.emit("presenca-documento-inicial", { documentoId, usuarios: quemVeDocumento(documentoId, userId) });
     });
     socket.on("sair-documento", (documentoId: string) => {
+      if (!aceitaEvento(externo, "sair-documento")) return;
       if (typeof documentoId !== "string" || !documentoId) return;
       socket.leave(`documento:${documentoId}`);
       if (socket.data.documentoAtual === documentoId) socket.data.documentoAtual = undefined;
@@ -131,11 +145,13 @@ export function initSocket(server: HttpServer): SocketServer {
     // corrida em que o listener `presenca-inicial` é registrado DEPOIS da conexão
     // (o socket é singleton, criado pelo provider antes do ChatView montar).
     socket.on("solicitar-presenca", () => {
+      if (!aceitaEvento(externo, "solicitar-presenca")) return;
       socket.emit("presenca-inicial", usuariosOnline());
     });
 
     // Relay efêmero de "está digitando" para o room do canal — sem persistir (C5-1).
     socket.on("digitando", (p: { canalId: string; digitando: boolean }) => {
+      if (!aceitaEvento(externo, "digitando")) return;
       if (typeof p.canalId !== "string" || typeof p.digitando !== "boolean") return;
       socket.to(`canal:${p.canalId}`).emit("digitando", {
         canalId: p.canalId,
@@ -146,10 +162,11 @@ export function initSocket(server: HttpServer): SocketServer {
     });
 
     socket.on("disconnect", () => {
+      if (!contaNaPresenca(externo)) return; // externo nunca entrou na presença nem em documento
       const n = (presenca.get(userId) ?? 1) - 1;
       if (n <= 0) {
         presenca.delete(userId);
-        io.emit("presenca", { userId, online: false });
+        io.to(ROOM_INTERNOS).emit("presenca", { userId, online: false });
       } else {
         presenca.set(userId, n);
       }
