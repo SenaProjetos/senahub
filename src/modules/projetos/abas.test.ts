@@ -46,6 +46,11 @@ describe("ABAS_CONFIGURAVEIS", () => {
     expect(ABAS_CONFIGURAVEIS[i + 1]).toBe("/estudos");
     expect(ABA_LABEL["/estudos"]).toBe("Estudos");
   });
+
+  it('"/cliente" (conversa com o cliente do portal) é configurável e tem rótulo', () => {
+    expect(ABAS_CONFIGURAVEIS).toContain("/cliente");
+    expect(ABA_LABEL["/cliente"]).toBe("Cliente");
+  });
 });
 
 describe("ordenarPorAtividade", () => {

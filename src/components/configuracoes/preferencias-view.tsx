@@ -71,6 +71,7 @@ export function PreferenciasView({
   notifEtapaProxima: notifEtapaProximaInicial,
   notifAtividadeConcluida: notifAtividadeConcluidaInicial,
   notifPedidoRevisaoCliente: notifPedidoRevisaoClienteInicial,
+  notifMensagemCliente: notifMensagemClienteInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -105,6 +106,7 @@ export function PreferenciasView({
   notifEtapaProxima: boolean;
   notifAtividadeConcluida: boolean;
   notifPedidoRevisaoCliente: boolean;
+  notifMensagemCliente: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -140,6 +142,7 @@ export function PreferenciasView({
   const [notifEtapaProxima, setNotifEtapaProxima] = useState(notifEtapaProximaInicial);
   const [notifAtividadeConcluida, setNotifAtividadeConcluida] = useState(notifAtividadeConcluidaInicial);
   const [notifPedidoRevisaoCliente, setNotifPedidoRevisaoCliente] = useState(notifPedidoRevisaoClienteInicial);
+  const [notifMensagemCliente, setNotifMensagemCliente] = useState(notifMensagemClienteInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -364,6 +367,13 @@ export function PreferenciasView({
       descricao: "Um cliente pediu, pelo portal, revisão de uma prancha de projeto que você coordena.",
       valor: notifPedidoRevisaoCliente,
       set: setNotifPedidoRevisaoCliente,
+    },
+    {
+      chave: "notif_mensagem_cliente",
+      titulo: "Mensagens de clientes no portal",
+      descricao: "Um cliente escreveu para a coordenação, pelo portal, num projeto cuja conversa você acompanha (sino e e-mail).",
+      valor: notifMensagemCliente,
+      set: setNotifMensagemCliente,
     },
   ];
 

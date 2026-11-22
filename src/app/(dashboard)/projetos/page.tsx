@@ -16,6 +16,8 @@ import { listarClientes } from "@/modules/clientes/queries";
 import { ProjetosView } from "@/components/projetos/projetos-view";
 import { parseListParams, pageCount } from "@/lib/list-params";
 import { porPaginaDaLista } from "@/modules/usuarios/preferencias/por-pagina";
+import { conversasDaEquipe } from "@/modules/portal/mensagens/queries";
+import { audienciaDeAlgumProjeto } from "@/modules/portal/mensagens/service";
 
 export const metadata: Metadata = { title: "Projetos" };
 
@@ -91,6 +93,16 @@ export default async function ProjetosPage({
     : [[], [], [], [], [], null];
   // D11: projeto novo nasce no padrão mais atual, então o formulário só oferece os cards válidos
   // nele. O filtro da lista segue com o catálogo inteiro (projeto antigo usa card que saiu).
+  // "Mensagens de clientes": só para quem é audiência da conversa de algum projeto; o total aguardando segue o filtro
+  // padrão da lista (coordenador de algum projeto = só os dele).
+  const audienciaConversa = user.tipo === "interno" ? await audienciaDeAlgumProjeto(user.id) : null;
+  const mensagensClientes = audienciaConversa?.audiencia
+    ? {
+        aguardando: (await conversasDaEquipe(user.id, { soMinhas: audienciaConversa.coordenadorDeAlgum })).filter(
+          (c) => c.aguardando,
+        ).length,
+      }
+    : null;
   const catalogoProjetoNovo = versaoAtual ? catalogo.filter((d) => valeNaVersao(d, versaoAtual.numero)) : catalogo;
 
   return (
@@ -116,6 +128,7 @@ export default async function ProjetosPage({
       internos={internos}
       prontasPorProjeto={prontas}
       mostrarGuia={user.tipo === "interno"}
+      mensagensClientes={mensagensClientes}
     />
   );
 }

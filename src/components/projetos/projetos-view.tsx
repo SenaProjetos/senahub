@@ -16,6 +16,7 @@ import {
   CalendarClock,
   ShieldCheck,
   BookOpenText,
+  MessagesSquare,
 } from "lucide-react";
 import type { ProjetoListItem } from "@/modules/projetos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
@@ -126,6 +127,7 @@ export function ProjetosView({
   modelosEap = [],
   prontasPorProjeto,
   mostrarGuia,
+  mensagensClientes = null,
 }: {
   items: ProjetoListItem[];
   podeGerir: boolean;
@@ -158,6 +160,8 @@ export function ProjetosView({
    * projeto dele —, e um botão visível que responde 404 é a assimetria "vê o link e toma 404".
    */
   mostrarGuia: boolean;
+  /** Botão "Mensagens de clientes" (conversas do portal): null = a pessoa não é audiência de projeto nenhum. */
+  mensagensClientes?: { aguardando: number } | null;
 }) {
   const setParams = useSetParams();
   const [q, setQ] = useState(busca);
@@ -203,6 +207,23 @@ export function ProjetosView({
         acoes={
           <>
           <div className="flex flex-wrap items-center gap-2">
+            {mensagensClientes && (
+              <Button
+                variant="outline"
+                size="sm"
+                render={<Link href="/projetos/mensagens-cliente" />}
+                aria-label={
+                  mensagensClientes.aguardando > 0
+                    ? `Mensagens de clientes: ${mensagensClientes.aguardando} aguardando resposta`
+                    : "Mensagens de clientes"
+                }
+                title="Mensagens de clientes"
+              >
+                <MessagesSquare className="size-4" aria-hidden />
+                <span className="hidden sm:inline">Mensagens de clientes</span>
+                {mensagensClientes.aguardando > 0 && <Badge className="h-5 px-1.5">{mensagensClientes.aguardando}</Badge>}
+              </Button>
+            )}
             {mostrarGuia && (
               <Button variant="secondary" size="sm" render={<Link href="/guias/projetos" />}>
                 <BookOpenText className="size-4" /> Guia de uso

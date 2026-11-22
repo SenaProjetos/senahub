@@ -120,6 +120,38 @@ export async function podeVerConversaDoProjeto(userId: string, projetoId: string
   return f !== null && podeVerConversa(f);
 }
 
+/**
+ * A pessoa é audiência da conversa de ALGUM projeto? (lista "Mensagens de clientes" e o botão em Projetos.)
+ * `podeVerConversa` só cresce com o papel e com o enxergar, então perguntar no melhor caso — coordenador de algum
+ * projeto, enxerga algum projeto — é o mesmo que "existe um projeto em que ela vê". `coordenadorDeAlgum` liga o
+ * filtro "Só os projetos em que sou coordenador" da lista.
+ */
+export async function audienciaDeAlgumProjeto(userId: string): Promise<{ audiencia: boolean; coordenadorDeAlgum: boolean }> {
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, ativo: true, tipo: true, superUsuario: true, perfilId: true, perfil: { select: { chave: true } } },
+  });
+  if (!u) return { audiencia: false, coordenadorDeAlgum: false };
+  const coordenadorDeAlgum = (await prisma.projetoMembro.count({ where: { userId, papel: "coordenador" } })) > 0;
+  const escopoGlobalPerfil = await can(u, "escopo", "global");
+  const base = {
+    ativo: u.ativo,
+    tipo: u.tipo,
+    superUsuario: u.superUsuario,
+    escopoGlobalPerfil,
+    perfilChave: u.perfil?.chave ?? null,
+    papelNoProjeto: coordenadorDeAlgum ? "coordenador" : null,
+  };
+  if (podeVerConversa({ ...base, enxergaProjeto: false })) return { audiencia: true, coordenadorDeAlgum };
+  // Só o perfil Coordenador ainda depende de enxergar um projeto pelo escopo de dados.
+  if (base.perfilChave !== "coordenador" || !u.ativo || u.tipo !== "interno") return { audiencia: false, coordenadorDeAlgum };
+  const algum = await prisma.projeto.findFirst({
+    where: escopoProjeto({ id: u.id, superUsuario: u.superUsuario, escopoGlobalPerfil, tipo: u.tipo }),
+    select: { id: true },
+  });
+  return { audiencia: podeVerConversa({ ...base, enxergaProjeto: algum !== null }), coordenadorDeAlgum };
+}
+
 // ── Lado do cliente ─────────────────────────────────────────────────────────────────────────
 
 /** Conta externa ativa com acesso ao projeto pelo portal (cliente ativo, termo e senha em dia, projeto do cliente). */

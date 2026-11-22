@@ -12,6 +12,7 @@ import { listarClientes } from "@/modules/clientes/queries";
 import { canalDoProjeto } from "@/modules/chat/queries";
 import { liberacaoDosEstudos } from "@/modules/estudos/queries";
 import { origemComercialDoProjeto } from "@/modules/comercial/vinculo/queries";
+import { podeVerConversaDoProjeto } from "@/modules/portal/mensagens/service";
 import { modelosPorFonte } from "@/modules/documentos/queries";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import {
@@ -63,6 +64,7 @@ export default async function ProjetoLayout({
     podeComercialGerir,
     podeComercialVer,
     origemComercial,
+    podeConversaCliente,
   ] = await Promise.all([
     can(user, "projetos", "gerir"),
     can(user, "financeiro", "ver"),
@@ -98,6 +100,8 @@ export default async function ProjetoLayout({
     can(user, "comercial", "ver"),
     // De onde veio o projeto, do lado comercial (link com a ficha do funil).
     origemComercialDoProjeto(id),
+    // Cliente (conversa do portal com a coordenação): a mesma audiência de toda leitura e escrita da conversa.
+    podeVerConversaDoProjeto(user.id, id),
   ]);
   const podeEstudos = user.tipo === "interno" && podeFerramentas && liberacaoEstudos.liberado;
   // Linkar mexe no projeto e lê a ficha: exige `projetos:gerir` e `comercial:gerir`.
@@ -241,6 +245,7 @@ export default async function ProjetoLayout({
               ...(podeServicos ? ["/servicos"] : []),
               "/arquivos",
               ...(podeProblemas && user.tipo === "interno" ? ["/problemas"] : []),
+              ...(podeConversaCliente ? ["/cliente"] : []),
               ...(podeArts ? ["/arts"] : []),
               ...(podeCoordenacao ? ["/coordenacao"] : []),
               ...(podeCustos ? ["/custos"] : []),

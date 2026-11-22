@@ -9,7 +9,8 @@ import {
   marcarConversaLidaCliente,
   salvarAvisoPortalMensagem,
 } from "@/modules/portal/mensagens/actions";
-import type { ConversaDTO, MensagemDTO } from "@/modules/portal/mensagens/queries";
+import type { ConversaDTO } from "@/modules/portal/mensagens/queries";
+import { estadoInicial, juntarAnteriores, mesclarConversa, type EstadoConversa } from "@/modules/portal/mensagens/mesclar";
 import { formatarData } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,48 +19,11 @@ import { CollapsibleSection } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { MensagemItem } from "@/components/mensagens-cliente/mensagem-item";
 import { EscreverMensagem } from "@/components/mensagens-cliente/escrever-mensagem";
-import { useConversaAoVivo } from "./use-conversa-ao-vivo";
+import { useConversaAoVivo } from "@/components/mensagens-cliente/use-conversa-ao-vivo";
 
 const BASE_DOWNLOAD = "/api/portal/mensagens/anexos";
 /** Até esta distância do fim da lista conta como "lendo o fim": mensagem nova rola junto. */
 const PERTO_DO_FIM_PX = 80;
-
-type Estado = Pick<ConversaDTO, "mensagens" | "temAnteriores" | "decisoes" | "naoLidas">;
-
-/** Mesma ordem do servidor: data, depois id. */
-function vemAntes(a: MensagemDTO, b: MensagemDTO): boolean {
-  return a.criadaEm < b.criadaEm || (a.criadaEm === b.criadaEm && a.id < b.id);
-}
-
-/**
- * Junta a página mais recente recém-lida com o que a tela já tinha: as anteriores já carregadas ("Ver anteriores")
- * ficam, com a marca de decisão atualizada pela lista de decisões. Sem nenhuma mensagem em comum e com mais páginas
- * no servidor, a tela recomeça da página nova (não deixa buraco no meio).
- */
-function mesclar(atual: Estado, novo: ConversaDTO): Estado {
-  const ids = new Set(novo.mensagens.map((m) => m.id));
-  const primeira = novo.mensagens[0];
-  const emComum = atual.mensagens.some((m) => ids.has(m.id));
-  if (!primeira || (!emComum && novo.temAnteriores)) {
-    return { mensagens: novo.mensagens, temAnteriores: novo.temAnteriores, decisoes: novo.decisoes, naoLidas: novo.naoLidas };
-  }
-  const decisao = new Map(novo.decisoes.map((d) => [d.mensagemId, d]));
-  const antigas = atual.mensagens
-    .filter((m) => !ids.has(m.id) && vemAntes(m, primeira))
-    .map((m) => {
-      const d = decisao.get(m.id);
-      return {
-        ...m,
-        decisao: d ? { resumo: d.resumo, marcadaPor: d.marcadaPor, marcadaEm: m.decisao?.marcadaEm ?? "" } : null,
-      };
-    });
-  return {
-    mensagens: [...antigas, ...novo.mensagens],
-    temAnteriores: antigas.length > 0 ? atual.temAnteriores : novo.temAnteriores,
-    decisoes: novo.decisoes,
-    naoLidas: novo.naoLidas,
-  };
-}
 
 /**
  * Card "Fale com a coordenação" do portal: a conversa do projeto (as mensagens do cliente à direita), "Ver anteriores",
@@ -75,12 +39,7 @@ export function ConversaCard({
   inicial: ConversaDTO;
   querEmail: boolean;
 }) {
-  const [estado, setEstado] = useState<Estado>(() => ({
-    mensagens: inicial.mensagens,
-    temAnteriores: inicial.temAnteriores,
-    decisoes: inicial.decisoes,
-    naoLidas: inicial.naoLidas,
-  }));
+  const [estado, setEstado] = useState<EstadoConversa>(() => estadoInicial(inicial));
   const [carregandoAnteriores, setCarregandoAnteriores] = useState(false);
   const [querEmail, setQuerEmail] = useState(querEmailInicial);
   const [salvandoAviso, startAviso] = useTransition();
@@ -105,7 +64,7 @@ export function ConversaCard({
         console.warn("[portal] conversa não recarregou:", r.error);
         return;
       }
-      setEstado((atual) => mesclar(atual, r.data));
+      setEstado((atual) => mesclarConversa(atual, r.data));
     } catch (e) {
       console.warn("[portal] conversa não recarregou:", e);
     }
@@ -178,15 +137,7 @@ export function ConversaCard({
         return;
       }
       if (lista.current) alturaAntesDeAnteriores.current = lista.current.scrollHeight;
-      setEstado((atual) => {
-        const ids = new Set(atual.mensagens.map((m) => m.id));
-        return {
-          ...atual,
-          mensagens: [...r.data.mensagens.filter((m) => !ids.has(m.id)), ...atual.mensagens],
-          temAnteriores: r.data.temAnteriores,
-          decisoes: r.data.decisoes,
-        };
-      });
+      setEstado((atual) => juntarAnteriores(atual, r.data));
     } catch {
       toast.error("Não foi possível carregar as mensagens anteriores. Tente de novo.");
     } finally {
