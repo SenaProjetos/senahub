@@ -15,6 +15,8 @@ import { temModelo3dNoPortal } from "@/modules/portal/modelo3d/regras";
 import { briefingDoPortal } from "@/modules/portal/briefing-queries";
 import { BriefingCard } from "@/components/portal/briefing-card";
 import { ContratosCard } from "@/components/portal/contratos-card";
+import { AprovacoesEntregaCard } from "@/components/portal/aprovacoes-entrega-card";
+import { aprovacoesParaCliente } from "@/modules/portal/aprovacao-entrega/queries";
 import { contratosDoPortal } from "@/modules/portal/contratos/queries";
 import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
@@ -72,6 +74,17 @@ export default async function PortalProjetoPage({
           )}
         </div>
       )}
+
+      {/* Aprovações de entrega: só aparecem quando a coordenação enviou um pacote; pendentes no topo; leitura e limite de
+          erro próprios. O sino e o e-mail levam a `#aprovacoes`. */}
+      <LimiteErroEntregas
+        titulo="Aprovações de entrega"
+        mensagem="Não foi possível carregar as aprovações agora. Tente de novo; se continuar, fale com a coordenação."
+      >
+        <Suspense fallback={null}>
+          <AprovacoesDoProjeto projetoId={projeto.id} userId={user.id} />
+        </Suspense>
+      </LimiteErroEntregas>
 
       {/* Contratos: só aparecem quando a equipe pediu a assinatura pelo portal; leitura e limite de erro próprios. */}
       <LimiteErroEntregas
@@ -168,6 +181,11 @@ async function AndamentoEEntregas({
       />
     </div>
   );
+}
+
+async function AprovacoesDoProjeto({ projetoId, userId }: { projetoId: string; userId: string }) {
+  const aprovacoes = await aprovacoesParaCliente(projetoId, userId);
+  return aprovacoes ? <AprovacoesEntregaCard projetoId={projetoId} aprovacoes={aprovacoes} /> : null;
 }
 
 async function ContratosDoProjeto({ projetoId, clienteId }: { projetoId: string; clienteId: string }) {
