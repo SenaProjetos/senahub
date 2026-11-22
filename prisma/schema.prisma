@@ -10272,7 +10272,7 @@ model RespostaAprovacaoEntrega {
   respondidoPorNome String
   registradoPorId   String?
   registradoPorNome String?
-  /// Portal: o instante da resposta. Equipe: meia-noite UTC do dia (São Paulo) informado.
+  /// Portal: o instante da resposta. Equipe: meio-dia de São Paulo do dia informado (`instanteDoDiaPorFora`).
   respondidoEm      DateTime
   registradoEm      DateTime                     @default(now())
   impressaoDigital  String

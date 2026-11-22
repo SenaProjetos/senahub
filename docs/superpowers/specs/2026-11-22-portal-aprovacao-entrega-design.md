@@ -186,7 +186,7 @@ ligada ao pacote, se o cliente já aceitou.
   registre a resposta por fora."); ninguém é notificado.
 - Comprovante enviado e não usado: linha própria de anexo pendente, apagada (registro e arquivo) pelo job diário depois
   de 24 h sem uso.
-- Data informada no registro por fora é dia de São Paulo (`lib/data.ts`).
+- Data informada no registro por fora é dia de São Paulo (`lib/data.ts`); gravada como meio-dia de São Paulo, para cair no mesmo dia em qualquer leitura (a meia-noite UTC caía no dia anterior na marca da parcela).
 
 ## O que fica para quem constrói
 

@@ -86,7 +86,7 @@ function ItemLink({ projetoId, i }: { projetoId: string; i: ItemDTO }) {
     ? `/portal/${encodeURIComponent(projetoId)}/prancha/${encodeURIComponent(i.uploadId)}`
     : `/api/portal/projetos/${encodeURIComponent(projetoId)}/arquivos/${encodeURIComponent(i.uploadId)}`;
   return (
-    <a href={href} className="min-w-0 font-medium text-primary underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-ring">
+    <a href={href} className="min-w-0 font-medium underline underline-offset-2 hover:text-primary focus-visible:outline-2 focus-visible:outline-ring">
       {rotulo}
     </a>
   );
