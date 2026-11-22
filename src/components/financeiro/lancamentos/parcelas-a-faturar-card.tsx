@@ -7,6 +7,7 @@ import { Receipt } from "lucide-react";
 import { faturarParcelaEntrega } from "@/modules/juridico/actions";
 import type { ParcelaAFaturar, ParcelaAFaturarSituacao } from "@/modules/juridico/contrato/parcelas-a-faturar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import type { MarcaAceite } from "@/modules/portal/aprovacao-entrega/marca";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +29,19 @@ const SITUACAO: Record<ParcelaAFaturarSituacao, { tom: "success" | "info" | "war
   sem_marco: { tom: "warning", texto: "Sem marco" },
   aguardando_marco: { tom: "neutral", texto: "Aguardando o marco" },
 };
+
+/** Aceite do cliente pelo pacote de entrega ligado à parcela — só sinaliza; o botão Faturar não muda. */
+const ACEITE: Record<MarcaAceite["tipo"], { tom: "success" | "warning" | "neutral" }> = {
+  aceita: { tom: "success" },
+  aguardando: { tom: "neutral" },
+  nao_aprovada: { tom: "warning" },
+};
+
+function textoDoAceite(a: MarcaAceite): string {
+  if (a.tipo === "aguardando") return "Aguardando aceite do cliente";
+  if (a.tipo === "nao_aprovada") return `Não aprovada pelo cliente em ${formatarData(a.em)}`;
+  return `Aceita pelo cliente em ${formatarData(a.em)}${a.ressalvas ? " (com ressalvas)" : ""}`;
+}
 
 const LIMITE = 6;
 const hoje = () => new Date().toLocaleDateString("en-CA");
@@ -69,6 +83,11 @@ export function ParcelasAFaturarCard({ parcelas }: { parcelas: ParcelaAFaturar[]
                     {p.marco ? ` · marco: ${p.marco}` : ""}
                     {p.projeto ? ` · ${formatarCodigo(p.projeto.codigo)}` : ""}
                   </p>
+                  {p.aceite && (
+                    <p className="mt-0.5" title={`Pedido de aprovação: ${p.aceite.titulo}`}>
+                      <StatusBadge tone={ACEITE[p.aceite.tipo].tom}>{textoDoAceite(p.aceite)}</StatusBadge>
+                    </p>
+                  )}
                 </div>
                 <StatusBadge tone={s.tom}>{s.texto}</StatusBadge>
                 <span className="w-24 text-right font-mono text-xs text-muted-foreground">
