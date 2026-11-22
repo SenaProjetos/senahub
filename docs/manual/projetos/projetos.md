@@ -2,7 +2,7 @@
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
 resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap, faturar entrega, aba cliente, mensagens de clientes, conversa com o cliente, decisão do cliente]
+tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap, faturar entrega, aba cliente, mensagens de clientes, conversa com o cliente, decisão do cliente, aprovação de entrega, aceite do cliente]
 palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, gerar parcelas, receita do projeto, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
@@ -972,6 +972,29 @@ O botão **Mensagens de clientes**, no topo de **Projetos**, reúne as conversas
 atender. Primeiro vêm as que **aguardam resposta**, com o número de mensagens não lidas. O filtro **Só os projetos em
 que sou coordenador** vem ligado para quem é coordenador; desligue para ver as conversas dos outros projetos.
 
+### Aprovações de entrega
+
+Abaixo da conversa, a aba **Cliente** tem a seção **Aprovações de entrega**: o pedido formal para o cliente aprovar um
+conjunto de arquivos. Quem vê e usa é a mesma coordenação que vê a conversa.
+
+- **Enviar para aprovação:** dê um título, escreva uma mensagem (opcional) e marque os arquivos. Só aparecem os arquivos
+  que o cliente vê hoje nas **Entregas** do portal (sem download bloqueado), por disciplina e fase; **Marcar a fase**
+  marca todos de uma vez. Se houver contrato por entrega deste projeto, dá para ligar o pedido a uma **parcela**: em
+  **Parcelas a faturar**, ela mostra se o cliente já aceitou. Nada trava nem fatura sozinho.
+- O pedido **não muda depois de enviado**: ele guarda a lista exata dos arquivos (com a impressão digital de cada um).
+  Para mudar algo, cancele e envie outro.
+- **Situações:** Aguardando, Aprovado, Aprovado com ressalvas, Não aprovado, Cancelado e **Desatualizado** (um arquivo
+  do pedido foi substituído, excluído ou saiu das Entregas antes da resposta: cancele e envie de novo). Uma resposta
+  já dada nunca fica desatualizada.
+- **Registrar resposta recebida por fora** (no **⋯**): para o cliente que respondeu por e-mail, WhatsApp ou papel.
+  Informe a resposta, o texto (obrigatório em ressalvas e não aprovo), a data, quem respondeu e anexe o
+  **comprovante** (PDF, PNG, JPG, EML ou MSG, até 20 MB). O cliente não vê o comprovante.
+- **Anular resposta** (no **⋯**): com motivo obrigatório. Nada é apagado: a resposta fica riscada, com o motivo (o
+  cliente também vê), e o pedido volta a aguardar.
+- **Avisos:** quando o cliente responde, os coordenadores do projeto recebem um aviso no sino; se o pedido está ligado a
+  uma parcela e a resposta conta como aceite, quem gere o financeiro também. Dá para desligar em **Preferências →
+  Aprovações de entrega do cliente**.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |
@@ -985,6 +1008,7 @@ que sou coordenador** vem ligado para quem é coordenador; desligue para ver as 
 | Ver o custo em R$ na aba Resultados | acesso ao financeiro (`financeiro:ver` ou sócio) |
 | Ver e responder pedidos de revisão do cliente | `arquivos:alterar_status` (aceitar exige também `uploads:validar`) |
 | Ver e responder a conversa com o cliente (aba Cliente) | Coordenação do projeto ou acesso a todos os projetos |
+| Enviar, cancelar, registrar por fora e anular aprovações de entrega | Coordenação do projeto ou acesso a todos os projetos |
 
 ## Erros possíveis e soluções
 

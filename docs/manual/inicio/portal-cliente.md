@@ -2,7 +2,7 @@
 titulo: Portal do cliente (Meus projetos)
 descricao: Visão externa, somente leitura, onde o cliente acompanha seus projetos.
 resumo: O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.
-tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas, contrato, assinatura, mensagens, conversa, coordenação, decisão]
+tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas, contrato, assinatura, mensagens, conversa, coordenação, decisão, aprovação de entrega, aceite]
 palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação, andamento, fase, linha do tempo, resumo, e-mail, mensagens, conversa, coordenação, decisão]
 sinonimos: [área do cliente, portal externo, acompanhamento de projeto]
 ---
@@ -170,6 +170,24 @@ No card **Fale com a coordenação**, na página do projeto, você conversa dire
 - **Ver anteriores** carrega as mensagens mais antigas. A conversa se atualiza sozinha, sem recarregar a página.
 - **Avisos:** quando a equipe responde, você recebe um aviso no sino e um e-mail (no máximo um e-mail por conversa até você abrir as mensagens; o e-mail traz só o link, não o texto). A chave **Avisar por e-mail** desliga só o e-mail: o sino continua.
 - **Decisões:** quando você combina algo importante com a equipe, ela pode marcar a mensagem como decisão. O card passa a ter a lista **Decisões**, com o resumo e a marca **Registrada pela coordenação**.
+
+## Aprovações de entrega
+
+Quando a coordenação envia uma entrega para a sua aprovação, a página do projeto mostra o card **Aprovações de
+entrega** (e você recebe um aviso no sino e por e-mail). Os pedidos que esperam a sua resposta ficam no topo.
+
+- **O que vem no pedido:** um título, uma mensagem da coordenação (quando houver) e a lista dos arquivos que fazem parte
+  da entrega, com disciplina, fase e revisão. Clique no nome para abrir a prancha (PDF) ou baixar o arquivo.
+- **Responder:** escolha **Aprovo**, **Aprovo com ressalvas** ou **Não aprovo**. Nas duas últimas, escreva as ressalvas
+  ou o motivo. A resposta é **definitiva** e fica registrada com o seu nome, a data, a hora e a lista exata dos
+  arquivos. Basta uma conta da sua empresa responder.
+- **Aprovo com ressalvas** conta como aceite da entrega; as ressalvas ficam registradas para a equipe.
+- **"Um dos arquivos foi atualizado depois do envio":** um arquivo do pedido mudou antes da sua resposta. O pedido deixa
+  de aceitar resposta e a coordenação envia um novo.
+- Uma resposta dada fora do portal (por e-mail, por exemplo) pode ser registrada pela equipe: ela aparece como
+  **Registrada pela coordenação**, com a data.
+- Se a coordenação **anular** uma resposta (por exemplo, quando ela foi marcada por engano), a resposta continua
+  visível, riscada, com o motivo, e o pedido volta a esperar a sua resposta.
 
 ## Briefing do projeto
 

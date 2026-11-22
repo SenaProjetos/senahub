@@ -20,6 +20,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Aprovação formal da entrega pelo portal do cliente (novembro/2026)
+
+- Na aba **Cliente** do projeto, a coordenação envia ao cliente um pedido de **aprovação de entrega** com os arquivos
+  das Entregas. O cliente responde no portal: **Aprovo**, **Aprovo com ressalvas** ou **Não aprovo**. A resposta fica
+  registrada com o nome, a data e a lista exata dos arquivos.
+- Resposta dada fora do portal pode ser **registrada pela coordenação**, com comprovante. Uma resposta errada pode ser
+  **anulada** com motivo; ela continua visível, riscada.
+- O pedido pode ser ligado a uma parcela do contrato: em **Parcelas a faturar**, a parcela mostra se o cliente já
+  aceitou. O financeiro continua decidindo quando faturar.
+
 ## Conversa com a coordenação no portal do cliente (novembro/2026)
 
 - A página do projeto no portal ganhou o card **Fale com a coordenação**: o cliente escreve para a equipe, anexa até 5 arquivos por mensagem e vê a resposta aparecer na hora, sem recarregar. A chave **Avisar por e-mail** desliga só o e-mail; o sino continua.

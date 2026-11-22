@@ -347,7 +347,10 @@
         "conversa",
         "coordenação",
         "decisão",
-        "fale com a coordenação"
+        "fale com a coordenação",
+        "aprovação de entrega",
+        "aprovar entrega",
+        "aceite da entrega"
       ],
       "sinonimos": [
         "área do cliente",
@@ -561,7 +564,10 @@
         "aba cliente",
         "mensagens de clientes",
         "conversa com o cliente",
-        "decisão do cliente"
+        "decisão do cliente",
+        "aprovação de entrega",
+        "registrar resposta por fora",
+        "anular resposta"
       ],
       "sinonimos": [
         "obras",

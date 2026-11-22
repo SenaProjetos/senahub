@@ -121,6 +121,11 @@ tarefa**), quem gere o financeiro recebe a notificação **"Marco concluído —
 leva à lista **Parcelas a faturar**. O marco **nunca fatura sozinho**. Dá para desligar em
 **Preferências → Parcelas a faturar**.
 
+**Aceite do cliente.** Quando a coordenação liga um pedido de **aprovação de entrega** a uma parcela (aba **Cliente** do
+projeto), a linha da parcela em **Parcelas a faturar** mostra **Aguardando aceite do cliente**, **Aceita pelo cliente
+em …** (com a marca **com ressalvas**, quando for o caso) ou **Não aprovada pelo cliente em …**. Vale o aceite mais
+recente; resposta anulada não conta. É só um sinal: o botão **Faturar** continua igual.
+
 ## Cobrança lançada à mão
 
 Quando a nota sai por outro caminho e a receita é lançada direto no financeiro, o sistema procura a
