@@ -1333,6 +1333,8 @@ model Projeto {
   pedidosRevisaoCliente PedidoRevisaoCliente[]
   /// Conversa do cliente com a coordenação no portal (uma por projeto, criada na 1ª mensagem).
   conversaPortal ConversaPortal?
+  /// Pacotes de entrega enviados ao cliente para aprovação formal (portal/aprovacao-entrega).
+  aprovacoesEntrega AprovacaoEntrega[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3669,6 +3671,9 @@ model ContratoParcelaEntrega {
 
   lancamentoId String?     @unique
   lancamento   Lancamento? @relation(fields: [lancamentoId], references: [id], onDelete: SetNull)
+
+  /// Pacotes de entrega ligados a esta parcela — só sinalizam o aceite em Parcelas a faturar, nunca faturam.
+  aprovacoesEntrega AprovacaoEntrega[]
 
   @@index([contratoId])
   @@index([marcoId])
@@ -10181,4 +10186,123 @@ model DecisaoMensagemPortal {
 
   @@index([mensagemId])
   @@map("decisao_mensagem_portal")
+}
+
+/// Aprovação formal da entrega (spec 2026-11-22-portal-aprovacao-entrega-design.md). Pacote de arquivos das Entregas
+/// que a coordenação envia ao cliente; a resposta (portal ou registrada pela equipe com comprovante) mora em
+/// `RespostaAprovacaoEntrega`. Pacote e itens nunca se editam. Único escritor: `modules/portal/aprovacao-entrega/service.ts`.
+enum StatusAprovacaoEntrega {
+  aguardando
+  respondido
+  cancelado
+}
+
+enum RespostaEntrega {
+  aprovado
+  aprovado_com_ressalvas
+  nao_aprovado
+}
+
+enum OrigemRespostaEntrega {
+  portal
+  equipe
+}
+
+model AprovacaoEntrega {
+  id               String                  @id @default(cuid())
+  projetoId        String
+  projeto          Projeto                 @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  titulo           String
+  mensagem         String?                 @db.Text
+  status           StatusAprovacaoEntrega  @default(aguardando)
+  /// SHA-256 (hex) das linhas `uploadId|hashSha256` dos itens, ordenadas por uploadId (`itens.ts`).
+  impressaoDigital String
+  /// Parcela do contrato que o aceite sinaliza (opcional). `SetNull`: a parcela sumir não apaga a prova.
+  parcelaId        String?
+  parcela          ContratoParcelaEntrega? @relation(fields: [parcelaId], references: [id], onDelete: SetNull)
+  enviadoPorId     String
+  enviadoPorNome   String
+  enviadoEm        DateTime                @default(now())
+  canceladoPorId   String?
+  canceladoEm      DateTime?
+
+  itens        AprovacaoEntregaItem[]
+  respostas    RespostaAprovacaoEntrega[]
+  comprovantes ComprovanteAprovacaoEntrega[]
+
+  @@index([projetoId, enviadoEm])
+  @@index([parcelaId])
+  @@map("aprovacao_entrega")
+}
+
+/// Foto de um arquivo do pacote no envio — sem relação com `Upload` de propósito: é a prova do que o cliente viu.
+model AprovacaoEntregaItem {
+  id              String           @id @default(cuid())
+  aprovacaoId     String
+  aprovacao       AprovacaoEntrega @relation(fields: [aprovacaoId], references: [id], onDelete: Cascade)
+  uploadId        String
+  revisaoId       String?
+  documentoId     String?
+  disciplinaId    String?
+  disciplinaNome  String
+  faseSigla       String?
+  documentoTitulo String
+  revisaoRotulo   String
+  nomeArquivo     String
+  hashSha256      String
+  ordem           Int
+
+  @@index([aprovacaoId])
+  @@index([uploadId])
+  @@map("aprovacao_entrega_item")
+}
+
+/// Resposta a um pacote. No máximo UMA não anulada por pacote (índice parcial `resposta_aprovacao_entrega_uma_ativa`,
+/// fora do schema). Anular preenche `anuladaEm`; nunca se apaga.
+model RespostaAprovacaoEntrega {
+  id                String                       @id @default(cuid())
+  aprovacaoId       String
+  aprovacao         AprovacaoEntrega             @relation(fields: [aprovacaoId], references: [id], onDelete: Cascade)
+  resposta          RespostaEntrega
+  texto             String?                      @db.Text
+  origem            OrigemRespostaEntrega
+  /// Conta do portal que respondeu (origem portal); nulo na resposta registrada por fora.
+  respondidoPorId   String?
+  /// Nome da conta (portal) ou o nome digitado de quem respondeu por fora.
+  respondidoPorNome String
+  registradoPorId   String?
+  registradoPorNome String?
+  /// Portal: o instante da resposta. Equipe: meia-noite UTC do dia (São Paulo) informado.
+  respondidoEm      DateTime
+  registradoEm      DateTime                     @default(now())
+  impressaoDigital  String
+  comprovanteId     String?                      @unique
+  comprovante       ComprovanteAprovacaoEntrega? @relation(fields: [comprovanteId], references: [id], onDelete: NoAction)
+  anuladaEm         DateTime?
+  anuladaPorId      String?
+  anuladaPorNome    String?
+  motivoAnulacao    String?
+
+  @@index([aprovacaoId])
+  @@map("resposta_aprovacao_entrega")
+}
+
+/// Comprovante da resposta recebida por fora. Enviado ANTES de registrar; sem uso por 24 h, o job apaga.
+model ComprovanteAprovacaoEntrega {
+  id           String           @id @default(cuid())
+  aprovacaoId  String
+  aprovacao    AprovacaoEntrega @relation(fields: [aprovacaoId], references: [id], onDelete: Cascade)
+  enviadoPorId String
+  caminho      String
+  nome         String
+  tamanho      Int
+  tipo         String
+  criadoEm     DateTime         @default(now())
+  usadoEm      DateTime?
+
+  resposta RespostaAprovacaoEntrega?
+
+  @@index([aprovacaoId])
+  @@index([usadoEm, criadoEm])
+  @@map("comprovante_aprovacao_entrega")
 }
