@@ -350,6 +350,29 @@ Sena Projetos`,
 Sena Projetos`,
   },
   {
+    slug: "portal-aprovacao-entrega",
+    grupo: "Projetos",
+    label: "Pedido de aprovação de entrega pelo portal (cliente)",
+    descricao:
+      "Enviado a cada conta ativa do cliente quando a coordenação envia um pacote de entrega para aprovação no portal. Não tem opção de desligar: é um pedido formal da equipe ao cliente. Sem SMTP configurado, só o sino do portal.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome da conta do portal", exemplo: "Mariana" },
+      { nome: "titulo", descricao: "Título do pedido de aprovação", exemplo: "Entrega BS — Estrutural e Hidráulica" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      { nome: "url", descricao: "Link das aprovações no portal", exemplo: "https://app/portal/abc#aprovacoes" },
+    ],
+    assuntoPadrao: "Aprovação pendente: {{titulo}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+A coordenação enviou **{{titulo}}**, do projeto **{{projeto}}**, para a sua aprovação.
+
+Abra o portal para ver os arquivos e responder: Aprovo, Aprovo com ressalvas ou Não aprovo.
+
+[Ver e responder]({{url}})
+
+Sena Projetos`,
+  },
+  {
     slug: "portal-mensagem-cliente",
     grupo: "Projetos",
     label: "Mensagem nova do cliente no portal (coordenação)",

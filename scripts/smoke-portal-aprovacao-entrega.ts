@@ -41,6 +41,9 @@ import {
   MOTIVO_TEXTO_OBRIGATORIO,
 } from "../src/modules/portal/aprovacao-entrega/regras";
 import { diaDeSaoPaulo } from "../src/lib/data";
+import { avisarAnulacao, avisarEnvio, avisarResposta, type DepsAvisos } from "../src/modules/portal/aprovacao-entrega/avisos";
+import { aprovacoesParaCliente, aprovacoesParaEquipe } from "../src/modules/portal/aprovacao-entrega/queries";
+import { parcelasAFaturar } from "../src/modules/juridico/contrato/parcelas-a-faturar-queries";
 
 async function main() {
   const tag = `SMKAPROVACAO_${Date.now()}`;
@@ -155,6 +158,7 @@ async function main() {
     const contaInativo = await novaConta(cliInativo.id, "inat");
     const coordU = await novoInterno("coord");
     const projetistaU = await novoInterno("projetista");
+    const financeiroU = await novoInterno("financeiro");
     await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: coordU.id, papel: "coordenador" } });
     await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: projetistaU.id, papel: "projetista" } });
     await prisma.projetoMembro.create({ data: { projetoId: projInativo.id, userId: coordU.id, papel: "coordenador" } });
@@ -313,6 +317,83 @@ async function main() {
     check("anular volta a aguardar e a anulada fica no banco", depois.status === "aguardando" && anulada.anuladaEm !== null && anulada.motivoAnulacao === "Cliente marcou errado" && anulada.anuladaPorId === coordU.id);
     const r1b = await responderPeloPortal({ aprovacaoId: a1.id, conta: c2, resposta: "aprovado", texto: null, impressaoDigital: pac1.impressaoDigital });
     check("depois de anular, nova resposta entra", (await prisma.respostaAprovacaoEntrega.count({ where: { aprovacaoId: a1.id } })) === 2 && r1b.respostaId !== r1.respostaId);
+
+    // ── Leituras e avisos (Task 3) ──
+    const sinos: { userId: string; titulo: string; categoria: string | null }[] = [];
+    const emails: { to: string; slug: string }[] = [];
+    const deps: DepsAvisos = {
+      notificar: async (ids, n, o) => {
+        for (const userId of ids) sinos.push({ userId, titulo: n.titulo, categoria: o?.categoria ?? null });
+      },
+      enviarEmail: async (to, slug) => {
+        emails.push({ to, slug });
+        return true;
+      },
+      gestoresFinanceiro: async () => [financeiroU.id],
+    };
+    const limparAvisos = () => {
+      sinos.length = 0;
+      emails.length = 0;
+    };
+    const sinosDe = (id: string) => sinos.filter((s) => s.userId === id);
+
+    const a7 = await enviarAprovacao({ ...base, uploadIds: [e1.up.id], parcelaId: parcela.id });
+    const pac7 = await prisma.aprovacaoEntrega.findUniqueOrThrow({ where: { id: a7.id } });
+    limparAvisos();
+    await avisarEnvio(a7.id, deps);
+    check(
+      "envio: 1 sino + 1 e-mail por conta ativa do cliente, nada a outro cliente",
+      sinosDe(contaA1.id).length === 1 && sinosDe(contaA2.id).length === 1 && sinosDe(contaB.id).length === 0 &&
+        emails.filter((e) => e.slug === "portal-aprovacao-entrega").length === 2 && sinos.every((s) => s.categoria === null),
+    );
+    limparAvisos();
+    await avisarEnvio(a7.id, { ...deps, enviarEmail: null });
+    check("envio sem SMTP: só sinos", sinos.length === 2 && emails.length === 0);
+    limparAvisos();
+    await avisarEnvio(ai2.id, deps);
+    check("envio a cliente inativo: ninguém", sinos.length === 0 && emails.length === 0);
+
+    const r7 = await responderPeloPortal({ aprovacaoId: a7.id, conta: c1, resposta: "aprovado_com_ressalvas", texto: "Detalhe", impressaoDigital: pac7.impressaoDigital });
+    limparAvisos();
+    await avisarResposta(r7.respostaId, deps);
+    check(
+      "resposta do cliente: coordenador e financeiro avisados, projetista não",
+      sinosDe(coordU.id).length === 1 && sinosDe(projetistaU.id).length === 0 && sinosDe(financeiroU.id).length === 1 &&
+        sinos.every((s) => s.categoria === "aprovacao_entrega"),
+    );
+    const mAceita = (await parcelasAFaturar({ projetoId: proj.id })).find((p) => p.parcelaId === parcela.id)?.aceite;
+    check("parcela marcada aceita com ressalvas", mAceita?.tipo === "aceita" && mAceita.ressalvas === true);
+    check("parcelasAFaturar({ projetoId }) traz só as do projeto", (await parcelasAFaturar({ projetoId: proj.id })).every((p) => p.projeto?.id === proj.id));
+
+    await anularResposta({ respostaId: r7.respostaId, quem: coord, motivo: "Engano" });
+    limparAvisos();
+    await avisarAnulacao(r7.respostaId, deps);
+    check("anulação: sino às contas do cliente e ao financeiro", sinosDe(contaA1.id).length === 1 && sinosDe(contaA2.id).length === 1 && sinosDe(financeiroU.id).length === 1);
+    const mDepois = (await parcelasAFaturar({ projetoId: proj.id })).find((p) => p.parcelaId === parcela.id)?.aceite;
+    check("depois de anular, a marca ignora a anulada", mDepois?.tipo === "aceita" && mDepois.titulo === "Entrega BS");
+
+    const r7b = await responderPeloPortal({ aprovacaoId: a7.id, conta: c1, resposta: "nao_aprovado", texto: "Não", impressaoDigital: pac7.impressaoDigital });
+    limparAvisos();
+    await avisarResposta(r7b.respostaId, deps);
+    check("não aprovo com parcela: financeiro não é avisado", sinosDe(financeiroU.id).length === 0 && sinosDe(coordU.id).length === 1);
+
+    const doCliente = await aprovacoesParaCliente(proj.id, contaA1.id);
+    const daEquipe = await aprovacoesParaEquipe(proj.id, coordU.id);
+    const p7c = doCliente?.find((x) => x.id === a7.id);
+    check(
+      "cliente: sem cancelado, sem nomes internos nem parcela",
+      !!doCliente && !doCliente.some((x) => x.status === "cancelado") && p7c?.enviadoPorNome === null && p7c?.parcela === null &&
+        p7c.respostas.every((r) => r.registradoPorNome === null && r.comprovante === null && (r.anulada?.por ?? null) === null),
+    );
+    check("cliente: pendentes no topo", doCliente !== null && doCliente.findIndex((x) => x.status !== "aguardando") >= doCliente.filter((x) => x.status === "aguardando").length);
+    check(
+      "equipe: vê cancelado, nome de quem anulou e a parcela",
+      !!daEquipe && daEquipe.some((x) => x.status === "cancelado") &&
+        daEquipe.find((x) => x.id === a7.id)?.respostas.some((r) => r.anulada?.por === coord.nome) === true &&
+        daEquipe.find((x) => x.id === a7.id)?.parcela?.id === parcela.id,
+    );
+    check("projetista: leitura da equipe = null", (await aprovacoesParaEquipe(proj.id, projetistaU.id)) === null);
+    check("outro cliente: leitura do cliente = null", (await aprovacoesParaCliente(proj.id, contaB.id)) === null);
   } finally {
     const remover = async (rotulo: string, id: string, apagar: () => Promise<unknown>) => {
       try {

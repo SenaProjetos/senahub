@@ -1,3 +1,4 @@
+import type { MarcaAceite } from "@/modules/portal/aprovacao-entrega/marca";
 import { motivoNaoFatura, ordenarParcelas, valoresDasParcelas } from "./parcelas-entrega";
 
 /**
@@ -45,6 +46,11 @@ export type ParcelaAFaturar = {
   situacao: ParcelaAFaturarSituacao;
   /** `YYYY-MM-DD` da previsão no caixa (data do marco ou da assinatura); nulo sem previsão. */
   previsao: string | null;
+  /**
+   * Aceite do cliente pelos pacotes de entrega ligados à parcela (`portal/aprovacao-entrega`). Só sinaliza: nada trava
+   * nem fatura. A função pura devolve `null`; quem lê do banco preenche.
+   */
+  aceite: MarcaAceite | null;
 };
 
 const PESO: Record<ParcelaAFaturarSituacao, number> = {
@@ -85,6 +91,7 @@ export function listarParcelasAFaturar(contratos: readonly ContratoParaLista[]):
         marco: p.marco?.nome ?? null,
         situacao,
         previsao: lancamento?.status === "previsao" ? lancamento.vencimento : null,
+        aceite: null,
       });
     });
   }

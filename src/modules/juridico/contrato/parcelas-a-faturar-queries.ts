@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { marcaDaParcela, type PacoteDaParcela } from "@/modules/portal/aprovacao-entrega/marca";
 import { listarParcelasAFaturar, type ParcelaAFaturar } from "./parcelas-a-faturar";
 
 const dia = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
@@ -38,7 +39,7 @@ export async function parcelasAFaturar(filtro: { projetoId?: string } = {}): Pro
     },
   });
 
-  return listarParcelasAFaturar(
+  const lista = listarParcelasAFaturar(
     contratos.map((c) => ({
       id: c.id,
       titulo: c.titulo,
@@ -62,4 +63,30 @@ export async function parcelasAFaturar(filtro: { projetoId?: string } = {}): Pro
       })),
     })),
   );
+  return comAceite(lista);
+}
+
+/** Preenche `aceite` com os pacotes de entrega ligados a cada parcela listada (só a resposta ATIVA conta). */
+async function comAceite(lista: ParcelaAFaturar[]): Promise<ParcelaAFaturar[]> {
+  if (lista.length === 0) return lista;
+  const pacotes = await prisma.aprovacaoEntrega.findMany({
+    where: { parcelaId: { in: lista.map((p) => p.parcelaId) } },
+    select: {
+      parcelaId: true,
+      titulo: true,
+      status: true,
+      enviadoEm: true,
+      respostas: { where: { anuladaEm: null }, select: { resposta: true, respondidoEm: true }, take: 1 },
+    },
+  });
+  if (pacotes.length === 0) return lista;
+  const porParcela = new Map<string, PacoteDaParcela[]>();
+  for (const p of pacotes) {
+    if (!p.parcelaId) continue;
+    const r = p.respostas[0] ?? null;
+    const arr = porParcela.get(p.parcelaId) ?? [];
+    arr.push({ titulo: p.titulo, status: p.status, enviadoEm: p.enviadoEm, resposta: r ? { resposta: r.resposta, respondidoEm: r.respondidoEm } : null });
+    porParcela.set(p.parcelaId, arr);
+  }
+  return lista.map((p) => ({ ...p, aceite: marcaDaParcela(porParcela.get(p.parcelaId) ?? []) }));
 }
