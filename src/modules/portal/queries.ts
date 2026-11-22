@@ -55,6 +55,11 @@ export async function querResumoPorEmail(userId: string): Promise<boolean> {
   return (await filtrarPorCategoria([userId], "portal_resumo")).length === 1;
 }
 
+/** O cliente quer e-mail de mensagem nova da coordenação? (categoria `portal_mensagem`; sem preferência = sim). */
+export async function querMensagemPorEmail(userId: string): Promise<boolean> {
+  return (await filtrarPorCategoria([userId], "portal_mensagem")).length === 1;
+}
+
 /** Detalhe read-only de um projeto — só retorna se pertencer ao cliente, e com o cliente ativo. */
 export async function projetoDoCliente(clienteId: string, projetoId: string) {
   const p = await prisma.projeto.findFirst({

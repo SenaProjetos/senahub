@@ -5,7 +5,9 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Box, CalendarDays, Download, FileStack, MapPin } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
+import { clienteDoUsuario, projetoDoCliente, querMensagemPorEmail } from "@/modules/portal/queries";
+import { conversaParaCliente } from "@/modules/portal/mensagens/queries";
+import { ConversaCard } from "@/components/portal/mensagens/conversa-card";
 import { andamentoDoPortal } from "@/modules/portal/andamento-queries";
 import { pedidosDoProjetoNoPortal, uploadsComPedidoAguardando } from "@/modules/portal/pedido-revisao/queries";
 import { modelosDoPortal } from "@/modules/portal/modelo3d/queries";
@@ -109,6 +111,17 @@ export default async function PortalProjetoPage({
         </Suspense>
       </LimiteErroEntregas>
 
+      {/* Conversa com a coordenação: aparece mesmo sem mensagem (é por onde o cliente começa); leitura e limite de
+          erro próprios. O sino e o e-mail levam a `#mensagens`. */}
+      <LimiteErroEntregas
+        titulo="Fale com a coordenação"
+        mensagem="Não foi possível carregar as mensagens agora. Tente de novo."
+      >
+        <Suspense fallback={null}>
+          <MensagensDoProjeto projetoId={projeto.id} userId={user.id} />
+        </Suspense>
+      </LimiteErroEntregas>
+
       <PortalDocumentos projetoId={projeto.id} docs={recebidos} />
     </div>
   );
@@ -170,6 +183,14 @@ async function BriefingDoProjeto({ projetoId, clienteId }: { projetoId: string; 
 async function PedidosDoProjeto({ projetoId, clienteId }: { projetoId: string; clienteId: string }) {
   const pedidos = await pedidosDoProjetoNoPortal(projetoId, clienteId);
   return <PedidosRevisaoCard pedidos={pedidos} projetoId={projetoId} />;
+}
+
+async function MensagensDoProjeto({ projetoId, userId }: { projetoId: string; userId: string }) {
+  const conversa = await conversaParaCliente(projetoId, userId);
+  // A porta da conversa é a do portal (termo, senha, cliente ativo): se ela recusar, o card não aparece.
+  if (!conversa) return null;
+  const querEmail = await querMensagemPorEmail(userId);
+  return <ConversaCard projetoId={projetoId} inicial={conversa} querEmail={querEmail} />;
 }
 
 /** Card "Entregas": as pastas do cliente pelo mesmo núcleo do link público. */
