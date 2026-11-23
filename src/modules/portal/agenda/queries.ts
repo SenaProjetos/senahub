@@ -10,7 +10,9 @@ import {
   type MarcoDaAgenda,
   type MarcoEntrada,
 } from "./marcos";
+import { itensDasReunioes, itensDosMarcos } from "./itens-resumo";
 import { motivoParaNaoEditar, motivoParaNaoImportarAta, situacaoDaReuniao, type SituacaoDaReuniao } from "./reunioes";
+import type { ItemDoResumo } from "../resumo-diario";
 
 /**
  * Leituras da agenda do portal, uma por lado (spec docs/superpowers/specs/2026-11-23-portal-agenda-contrato-design.md). A
@@ -317,4 +319,57 @@ export async function agendaParaEquipe(projetoId: string, userId: string): Promi
     }),
     semMarcosPorque: motivoSemMarcos(entrada),
   };
+}
+
+// ── Resumo diário ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * Itens da agenda para o resumo diário: a MESMA leitura da tela (mesmos marcos, mesmo filtro), então o aviso nunca fala de
+ * marco que a agenda não mostra. Regras e textos em `itens-resumo.ts`.
+ */
+export async function itensDoResumoDaAgenda(projetoId: string): Promise<ItemDoResumo[]> {
+  const entrada = await carregarEntradaDaAgenda(projetoId);
+  if (!entrada) return [];
+  const marcos = marcosDaAgenda(entrada);
+  const linhas = marcos.length
+    ? await prisma.marcoAgendaPortal.findMany({
+        where: { marcoId: { in: marcos.map((m) => m.marcoId) } },
+        select: { marcoId: true, nota: true, previsaoAnterior: true, previsaoAlteradaEm: true },
+      })
+    : [];
+  const linhaDoMarco = new Map(linhas.map((l) => [l.marcoId, l]));
+  const reunioes = await reunioesDoProjeto(projetoId);
+
+  return [
+    ...itensDosMarcos(
+      marcos.map((m) => {
+        const l = linhaDoMarco.get(m.marcoId);
+        return {
+          titulo: m.titulo,
+          combinado: m.combinado,
+          previsao: m.previsao,
+          concluido: m.situacao === "entregue",
+          nota: l?.nota ?? null,
+          previsaoAnterior: diaOuNulo(l?.previsaoAnterior ?? null),
+          previsaoAlteradaEm: diaOuNulo(l?.previsaoAlteradaEm ?? null),
+        };
+      }),
+    ),
+    ...itensDasReunioes(
+      reunioes.map((r) => ({
+        titulo: r.titulo,
+        dia: dia(r.dia),
+        horaInicio: r.horaInicio,
+        link: r.link,
+        local: r.local,
+        estado: r.estado,
+        criadaDia: diaDeSaoPaulo(r.criadaEm),
+        mudancaEm: diaOuNulo(r.mudancaEm),
+        mudancaTipo: r.mudancaTipo,
+        diaAnterior: diaOuNulo(r.diaAnterior),
+        horaAnterior: r.horaAnterior,
+        motivoCancelamento: r.motivoCancelamento,
+      })),
+    ),
+  ];
 }

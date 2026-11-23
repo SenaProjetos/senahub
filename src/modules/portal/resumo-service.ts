@@ -13,6 +13,8 @@ import { prisma } from "@/lib/prisma";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { andamentoDoPortal } from "./andamento-queries";
+import { conferirPrevisoes } from "./agenda/conferencia";
+import { itensDoResumoDaAgenda } from "./agenda/queries";
 import {
   CHAVE_CONFIG_RESUMO,
   diasParaAvaliar,
@@ -152,7 +154,7 @@ export async function rodarResumoDiario(o: {
     r.projetos += 1;
     // Um projeto com problema não pode travar os outros todo dia: conta como falha, fica no log e a rodada segue.
     try {
-      await resumirProjeto(p, r, o, app);
+      await resumirProjeto(p, r, o, app, ontem);
     } catch (e) {
       r.falhas += 1;
       console.error(`[portal] resumo diário: projeto ${p.codigo} falhou:`, e);
@@ -177,8 +179,16 @@ async function resumirProjeto(
   r: ResultadoResumo,
   o: { enviar: EnviarEmailResumo | null; notificar: NotificarSino },
   app: string,
+  ontem: string,
 ): Promise<void> {
-  const { linha } = await andamentoDoPortal(p);
+  // A agenda (marcos e reuniões) entra na mesma lista por dia. Uma falha dela não derruba o resumo do andamento.
+  await conferirPrevisoes(p.id, ontem).catch((e: unknown) => console.error("[portal] agenda: conferência da previsão falhou:", e));
+  const { linha: linhaDoAndamento } = await andamentoDoPortal(p);
+  const daAgenda = await itensDoResumoDaAgenda(p.id).catch((e: unknown) => {
+    console.error("[portal] agenda: itens do resumo falharam:", e);
+    return [];
+  });
+  const linha = [...linhaDoAndamento, ...daAgenda];
   const porDia = itensDosDias(linha, r.dias);
   if (porDia.size === 0) return;
 
