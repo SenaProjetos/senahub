@@ -14,6 +14,9 @@
  */
 import "dotenv/config";
 import { readFileSync } from "node:fs";
+import { atasParaCliente, atasParaEquipe } from "../src/modules/portal/atas/queries";
+import { avisarPendenciaFeita, avisarPendenciaReaberta, avisarPublicacao, avisarRespostaAta, avisarTarefasNovas, type DepsAvisos } from "../src/modules/portal/atas/avisos";
+import { conversaParaCliente } from "../src/modules/portal/mensagens/queries";
 import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
@@ -244,6 +247,67 @@ async function main() {
       check("conferida não aceita feito", (await motivoDe(() => marcarPendenciaFeita({ pendenciaId: pVisita.id, conta: cMarcos, comentario: null }))) === MOTIVO_PENDENCIA_ESTADO.conferida);
     }
 
+    // ── Leituras e avisos ──
+    const sinos: { userId: string; titulo: string; categoria: string | null }[] = [];
+    const emails: { to: string; slug: string }[] = [];
+    const deps: DepsAvisos = {
+      notificar: async (ids, n, o) => {
+        for (const userId of ids) sinos.push({ userId, titulo: n.titulo, categoria: o?.categoria ?? null });
+      },
+      enviarEmail: async (to, slug) => {
+        emails.push({ to, slug });
+        return true;
+      },
+    };
+    const limpar = () => {
+      sinos.length = 0;
+      emails.length = 0;
+    };
+    const sinosDe = (id: string) => sinos.filter((x) => x.userId === id);
+    const vigente = await prisma.ataVersao.findFirstOrThrow({ where: { reuniaoId: r1.reuniaoId, estado: "publicada" } });
+    limpar();
+    await avisarPublicacao(vigente.id, deps);
+    check(
+      "publicação: 1 sino + 1 e-mail por conta ativa, nada a outro cliente",
+      sinosDe(joana.id).length === 1 && sinosDe(outraConta.id).length === 1 && sinosDe(contaB.id).length === 0 &&
+        emails.filter((e) => e.slug === "portal-ata-reuniao").length === 2 && sinos.every((x) => x.categoria === null),
+    );
+    limpar();
+    await avisarPublicacao(vigente.id, { ...deps, enviarEmail: null });
+    check("publicação sem SMTP: só sinos", sinos.length === 2 && emails.length === 0);
+    await responderAta({ versaoId: vigente.id, conta: cJoana, resposta: "concorda", observacao: null });
+    limpar();
+    await avisarRespostaAta(vigente.id, deps);
+    check("resposta: sino ao coordenador (não ao projetista), categoria ata_reuniao", sinosDe(coordU.id).length === 1 && sinosDe(projetistaU.id).length === 0 && sinos.every((x) => x.categoria === "ata_reuniao"));
+    const pTopoAberta = await prisma.pendenciaCliente.findUniqueOrThrow({ where: { chave: chaveTopo } });
+    await marcarPendenciaFeita({ pendenciaId: pTopoAberta.id, conta: cJoana, comentario: null });
+    limpar();
+    await avisarPendenciaFeita(pTopoAberta.id, deps);
+    check("pendência feita: sino ao coordenador", sinosDe(coordU.id).length === 1 && sinos[0]?.categoria === "ata_reuniao");
+    await reabrirPendencia({ pendenciaId: pTopoAberta.id, quem: coord, motivo: "Faltou a planta." });
+    limpar();
+    await avisarPendenciaReaberta(pTopoAberta.id, deps);
+    check("reabertura: sino às contas do cliente", sinosDe(joana.id).length === 1 && sinosDe(outraConta.id).length === 1 && sinosDe(coordU.id).length === 0);
+    limpar();
+    await avisarTarefasNovas([{ tarefaId: "t", responsavelId: projetistaU.id, titulo: "X" }], deps);
+    check("tarefa nova: sino ao responsável", sinosDe(projetistaU.id).length === 1 && sinos[0]?.titulo === "Nova tarefa atribuída");
+
+    const doCliente = await atasParaCliente(proj.id, joana.id);
+    const daEquipe = await atasParaEquipe(proj.id, coordU.id);
+    const rc = doCliente?.reunioes.find((x) => x.id === r1.reuniaoId);
+    check(
+      "cliente: sem rascunho, sem nomes internos, sem responsável da tarefa",
+      !!rc && rc.rascunho === null && rc.vigente?.publicadaPorNome === null && rc.arquivos.length === 0 && rc.retirada === null &&
+        rc.vigente.itens.every((i) => i.responsavelId === null && i.responsavelNome === null),
+    );
+    check("cliente: pendência reaberta traz o motivo", doCliente?.pendencias.find((x) => x.id === pTopoAberta.id)?.motivoReabertura === "Faltou a planta.");
+    check("cliente: pendência cancelada não aparece", !(doCliente?.pendencias ?? []).some((x) => x.situacao === "cancelada"));
+    check("equipe: vê responsável e quem publicou", !!daEquipe && daEquipe.reunioes[0].vigente?.publicadaPorNome === coord.nome && daEquipe.reunioes[0].vigente.itens.some((i) => i.responsavelNome !== null));
+    check("projetista: leitura da equipe = null", (await atasParaEquipe(proj.id, projetistaU.id)) === null);
+    check("outro cliente: leitura do cliente = null", (await atasParaCliente(proj.id, contaB.id)) === null);
+    const conversa = await conversaParaCliente(proj.id, joana.id);
+    check("Decisões do portal trazem as da ata vigente", (conversa?.decisoesDeAtas ?? []).some((d) => d.titulo === "Telha termoacústica na cobertura" && d.reuniaoId === r1.reuniaoId));
+
     // ── Retirar ──
     await retirarAta({ reuniaoId: r1.reuniaoId, quem: coord, motivo: "Publicada no projeto errado." });
     const ret = await prisma.reuniaoProjeto.findUniqueOrThrow({ where: { id: r1.reuniaoId } });
@@ -254,6 +318,8 @@ async function main() {
     check("retirar cancela as pendências não conferidas", pRet.every((p) => p.situacao === "cancelada" || p.situacao === "conferida"));
     const v3pub = await prisma.ataVersao.findFirstOrThrow({ where: { reuniaoId: r1.reuniaoId, estado: "publicada" } });
     check("responder ata retirada recusa", (await motivoDe(() => responderAta({ versaoId: v3pub.id, conta: cJoana, resposta: "concorda", observacao: null }))) === MOTIVO_RETIRADA);
+    check("retirada some do portal e das Decisões", !((await atasParaCliente(proj.id, joana.id))?.reunioes ?? []).some((x) => x.id === r1.reuniaoId) && !((await conversaParaCliente(proj.id, joana.id))?.decisoesDeAtas ?? []).some((d) => d.reuniaoId === r1.reuniaoId));
+    check("retirada: pendências fora do portal", !((await atasParaCliente(proj.id, joana.id))?.pendencias ?? []).some((x) => x.reuniaoId === r1.reuniaoId));
     check("retirar de novo recusa", (await motivoDe(() => retirarAta({ reuniaoId: r1.reuniaoId, quem: coord, motivo: "x" }))) === MOTIVO_RETIRADA);
 
     // ── Cliente inativo e descartar ──

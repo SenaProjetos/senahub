@@ -12,12 +12,20 @@ function msg(
 }
 
 function conversa(mensagens: MensagemDTO[], extra: Partial<ConversaDTO> = {}): ConversaDTO {
-  return { projetoId: "p1", mensagens, temAnteriores: false, naoLidas: 0, decisoes: [], ...extra };
+  return { projetoId: "p1", mensagens, temAnteriores: false, naoLidas: 0, decisoes: [], decisoesDeAtas: [], ...extra };
 }
 
 const t = (min: number) => `2026-11-21T10:${String(min).padStart(2, "0")}:00.000Z`;
 
 describe("mesclarConversa", () => {
+  it("decisões das atas vêm sempre da leitura nova", () => {
+    const ata = { reuniaoId: "r1", titulo: "Piso", descricao: null, reuniaoTitulo: "Reunião", reuniaoData: "2026-11-20", comObservacoes: false };
+    const atual = estadoInicial(conversa([msg("a", t(1))]));
+    expect(atual.decisoesDeAtas).toEqual([]);
+    const r = mesclarConversa(atual, conversa([msg("a", t(1))], { decisoesDeAtas: [ata] }));
+    expect(r.decisoesDeAtas).toEqual([ata]);
+  });
+
   it("mensagem nova entra no fim e as anteriores já carregadas ficam", () => {
     const atual = estadoInicial(conversa([msg("a", t(1)), msg("b", t(2)), msg("c", t(3))], { temAnteriores: true }));
     const novo = conversa([msg("c", t(3)), msg("d", t(4))], { temAnteriores: true, naoLidas: 1 });

@@ -73,6 +73,7 @@ export function PreferenciasView({
   notifPedidoRevisaoCliente: notifPedidoRevisaoClienteInicial,
   notifMensagemCliente: notifMensagemClienteInicial,
   notifAprovacaoEntrega: notifAprovacaoEntregaInicial,
+  notifAtaReuniao: notifAtaReuniaoInicial,
   pontoEmailModo: pontoEmailModoInicial,
   mostrarAlertasPonto,
 }: {
@@ -109,6 +110,7 @@ export function PreferenciasView({
   notifPedidoRevisaoCliente: boolean;
   notifMensagemCliente: boolean;
   notifAprovacaoEntrega: boolean;
+  notifAtaReuniao: boolean;
   pontoEmailModo: PontoEmailModo;
   /** Alertas de jornada por horário são só p/ CLT/estagiário — controla a seção de e-mail. */
   mostrarAlertasPonto: boolean;
@@ -146,6 +148,7 @@ export function PreferenciasView({
   const [notifPedidoRevisaoCliente, setNotifPedidoRevisaoCliente] = useState(notifPedidoRevisaoClienteInicial);
   const [notifMensagemCliente, setNotifMensagemCliente] = useState(notifMensagemClienteInicial);
   const [notifAprovacaoEntrega, setNotifAprovacaoEntrega] = useState(notifAprovacaoEntregaInicial);
+  const [notifAtaReuniao, setNotifAtaReuniao] = useState(notifAtaReuniaoInicial);
   const [pontoEmailModo, setPontoEmailModo] = useState<PontoEmailModo>(pontoEmailModoInicial);
   const [, start] = useTransition();
 
@@ -384,6 +387,13 @@ export function PreferenciasView({
       descricao: "O cliente respondeu a um pedido de aprovação de entrega de um projeto que você coordena, ou um aceite ligado a parcela de contrato foi registrado ou anulado.",
       valor: notifAprovacaoEntrega,
       set: setNotifAprovacaoEntrega,
+    },
+    {
+      chave: "notif_ata_reuniao",
+      titulo: "Atas de reunião do cliente",
+      descricao: "O cliente respondeu a uma ata de reunião ou marcou como feita uma pendência de um projeto que você coordena.",
+      valor: notifAtaReuniao,
+      set: setNotifAtaReuniao,
     },
   ];
 

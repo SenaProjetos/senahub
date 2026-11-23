@@ -4,10 +4,10 @@ import type { ConversaDTO, MensagemDTO } from "./queries";
  * Estado da conversa na tela — o mesmo no card do portal e na aba Cliente do projeto. **Puro** (roda no navegador):
  * junta o que o servidor devolve com o que a tela já carregou.
  */
-export type EstadoConversa = Pick<ConversaDTO, "mensagens" | "temAnteriores" | "decisoes" | "naoLidas">;
+export type EstadoConversa = Pick<ConversaDTO, "mensagens" | "temAnteriores" | "decisoes" | "decisoesDeAtas" | "naoLidas">;
 
 export function estadoInicial(c: ConversaDTO): EstadoConversa {
-  return { mensagens: c.mensagens, temAnteriores: c.temAnteriores, decisoes: c.decisoes, naoLidas: c.naoLidas };
+  return { mensagens: c.mensagens, temAnteriores: c.temAnteriores, decisoes: c.decisoes, decisoesDeAtas: c.decisoesDeAtas, naoLidas: c.naoLidas };
 }
 
 /** Mesma ordem do servidor: data, depois id. */
@@ -39,6 +39,7 @@ export function mesclarConversa(atual: EstadoConversa, novo: ConversaDTO): Estad
     mensagens: [...antigas, ...novo.mensagens],
     temAnteriores: antigas.length > 0 ? atual.temAnteriores : novo.temAnteriores,
     decisoes: novo.decisoes,
+    decisoesDeAtas: novo.decisoesDeAtas,
     naoLidas: novo.naoLidas,
   };
 }

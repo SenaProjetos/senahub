@@ -350,6 +350,29 @@ Sena Projetos`,
 Sena Projetos`,
   },
   {
+    slug: "portal-ata-reuniao",
+    grupo: "Projetos",
+    label: "Ata de reunião publicada no portal (cliente)",
+    descricao:
+      "Enviado a cada conta ativa do cliente quando a coordenação publica (ou corrige) a ata de uma reunião no portal, para o cliente ler e confirmar. Não tem opção de desligar: é um pedido formal da equipe ao cliente. Sem SMTP configurado, só o sino do portal.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome da conta do portal", exemplo: "Mariana" },
+      { nome: "titulo", descricao: "Título da reunião", exemplo: "Reunião de alinhamento do executivo" },
+      { nome: "projeto", descricao: "Nome do projeto", exemplo: "Residencial Villa Verde" },
+      { nome: "url", descricao: "Link das atas no portal", exemplo: "https://app/portal/abc#atas" },
+    ],
+    assuntoPadrao: "Ata para conferir: {{titulo}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+A coordenação publicou a ata de **{{titulo}}**, do projeto **{{projeto}}**.
+
+Abra o portal para ler as decisões e as tarefas combinadas e responder: Li e concordo, ou Tenho observações.
+
+[Ler a ata]({{url}})
+
+Sena Projetos`,
+  },
+  {
     slug: "portal-aprovacao-entrega",
     grupo: "Projetos",
     label: "Pedido de aprovação de entrega pelo portal (cliente)",

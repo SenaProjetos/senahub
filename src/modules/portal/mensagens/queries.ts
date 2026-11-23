@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { PAPEL_COORDENADOR, podeVerConversa } from "./audiencia";
 import { aguardandoResposta, ladoOposto, ROTULO_DECISAO_PORTAL, type LadoMensagem } from "./regras";
 import { contaPodeVerConversa, contasDoClienteDoProjeto, fatosDaAudiencia, podeVerConversaDoProjeto } from "./service";
+import type { DecisaoDeAtaDTO } from "@/modules/portal/atas/decisoes";
+import { decisoesDasAtas } from "@/modules/portal/atas/queries";
 
 /**
  * Leituras da conversa do portal. Cada uma confere a porta do seu lado (conta do portal ou audiência) e devolve null
@@ -27,6 +29,8 @@ export type ConversaDTO = {
   temAnteriores: boolean;
   naoLidas: number;
   decisoes: { mensagemId: string; resumo: string | null; trecho: string; mensagemEm: string; marcadaPor: string }[];
+  /** Decisões das atas de reunião publicadas (versão vigente, não retirada): juntam-se às da conversa na lista "Decisões". */
+  decisoesDeAtas: DecisaoDeAtaDTO[];
 };
 
 /**
@@ -47,7 +51,8 @@ function trechoDe(texto: string, nomesDosAnexos: readonly string[] = []): string
 
 export async function conversaParaCliente(projetoId: string, userId: string, antesDe?: string): Promise<ConversaDTO | null> {
   if (!(await contaPodeVerConversa(userId, projetoId))) return null;
-  return montarConversa(projetoId, userId, "cliente", antesDe);
+  const conversa = await montarConversa(projetoId, userId, "cliente", antesDe);
+  return { ...conversa, decisoesDeAtas: await decisoesDasAtas(projetoId) };
 }
 
 export async function conversaParaEquipe(
@@ -58,11 +63,11 @@ export async function conversaParaEquipe(
   if (!(await podeVerConversaDoProjeto(userId, projetoId))) return null;
   const conversa = await montarConversa(projetoId, userId, "equipe", antesDe);
   const clienteLe = (await contasDoClienteDoProjeto(projetoId)).length > 0;
-  return { ...conversa, clienteLe };
+  return { ...conversa, decisoesDeAtas: await decisoesDasAtas(projetoId), clienteLe };
 }
 
 async function montarConversa(projetoId: string, userId: string, meuLado: LadoMensagem, antesDe?: string): Promise<ConversaDTO> {
-  const vazia: ConversaDTO = { projetoId, mensagens: [], temAnteriores: false, naoLidas: 0, decisoes: [] };
+  const vazia: ConversaDTO = { projetoId, mensagens: [], temAnteriores: false, naoLidas: 0, decisoes: [], decisoesDeAtas: [] };
   const conversa = await prisma.conversaPortal.findUnique({ where: { projetoId }, select: { id: true } });
   if (!conversa) return vazia;
 
@@ -144,6 +149,8 @@ async function montarConversa(projetoId: string, userId: string, meuLado: LadoMe
     projetoId,
     temAnteriores,
     naoLidas,
+    // Preenchido por `conversaParaCliente`/`conversaParaEquipe` (a lista das atas não depende da página).
+    decisoesDeAtas: [],
     mensagens: mensagens.map((m) => {
       const d = decisaoPorMensagem.get(m.id);
       return {
