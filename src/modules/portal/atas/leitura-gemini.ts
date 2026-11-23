@@ -67,6 +67,14 @@ function ehSeparador(linha: string): boolean {
   return /^\s*_{4,}\s*$/.test(linha);
 }
 
+/** Linha do cabeçalho que o Gemini põe antes das seções: data, "Reunião …", "Registros da reunião …", "Anexos …". */
+function ehCabecalhoDoGemini(linha: string): boolean {
+  const t = linha.trim();
+  if (!t) return true;
+  if (/^(Reunião|Registros da reunião|Anexos)/i.test(t)) return true;
+  return dataDoCabecalho(t) !== null && t.length <= 40;
+}
+
 function dataDoCabecalho(linha: string): string | null {
   const iso = (dia: string, mes: string, ano: string) => {
     const m = MESES[mes.toLowerCase().slice(0, 3)];
@@ -129,6 +137,8 @@ export function lerAnotacoes(texto: string): AnotacoesLidas {
   let secao: Secao | null = null;
   const corpo: Record<Secao, string[]> = { resumo: [], decisoes: [], etapas: [], detalhes: [] };
   const semSecao: string[] = [];
+  /** Linhas antes da primeira seção que não são o cabeçalho do Gemini: vão para o começo do resumo (nada se perde). */
+  const preambulo: string[] = [];
   let achou = false;
 
   for (const linha of linhas) {
@@ -146,6 +156,7 @@ export function lerAnotacoes(texto: string): AnotacoesLidas {
       const t = /^Reunião - (.+?)(?:\s+-\s+(?:Transcrição|Anotações do Gemini))?$/.exec(limpa);
       if (t && !titulo) titulo = `Reunião - ${t[1].trim()}`;
       semSecao.push(linha);
+      if (!ehCabecalhoDoGemini(limpa)) preambulo.push(linha);
       continue;
     }
     corpo[secao].push(linha);
@@ -157,8 +168,9 @@ export function lerAnotacoes(texto: string): AnotacoesLidas {
 
   const decisoes: DecisaoLida[] = [];
   for (const l of corpo.decisoes) {
-    const { item, texto: t } = tirarMarcador(l);
-    if (!item || !t) continue;
+    // Linha sem marcador também é decisão: nada do que estava em "Decisões" some.
+    const { texto: t } = tirarMarcador(l);
+    if (!t) continue;
     decisoes.push(decisaoDaLinha(t));
   }
   const etapas: EtapaLida[] = [];
@@ -171,7 +183,7 @@ export function lerAnotacoes(texto: string): AnotacoesLidas {
   return {
     titulo,
     data,
-    resumo: bloco(corpo.resumo),
+    resumo: bloco(preambulo.length > 0 ? [...preambulo, "", ...corpo.resumo] : corpo.resumo),
     decisoes,
     etapas,
     detalhes: bloco(corpo.detalhes),

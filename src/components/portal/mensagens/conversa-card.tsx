@@ -206,7 +206,7 @@ export function ConversaCard({
                     </p>
                   </li>
                 ) : (
-                  <li key={`a-${d.reuniaoId}-${d.titulo}`} className="space-y-0.5 text-sm">
+                  <li key={`a-${d.chave}`} className="space-y-0.5 text-sm">
                     <p className="break-words font-medium">{d.titulo}</p>
                     {d.descricao && <p className="whitespace-pre-wrap break-words">{d.descricao}</p>}
                     <p className="text-xs text-muted-foreground">

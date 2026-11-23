@@ -130,8 +130,8 @@ export function ReunioesEquipe({
                         {formatarData(r.data)}
                         {r.vigente ? ` · versão ${r.vigente.numero}` : ""}
                         {r.vigente?.publicadaPorNome ? ` · publicada por ${r.vigente.publicadaPorNome}` : ""}
-                        {abertas > 0 ? ` · ${abertas} pendência(s) do cliente aberta(s)` : ""}
-                        {atrasadas > 0 ? ` · ${atrasadas} atrasada(s)` : ""}
+                        {abertas > 0 ? ` · ${abertas === 1 ? "1 pendência do cliente aberta" : `${abertas} pendências do cliente abertas`}` : ""}
+                        {atrasadas > 0 ? ` · ${atrasadas === 1 ? "1 atrasada" : `${atrasadas} atrasadas`}` : ""}
                       </p>
                     </div>
                     {r.retirada && (

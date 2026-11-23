@@ -54,18 +54,27 @@ export async function POST(req: Request) {
   if (transcricao instanceof File && transcricao.size > 0) {
     arquivos.push({ tipo: "transcricao", file: transcricao, nome: nomeArquivoLimpo(transcricao.name || "transcricao.txt") });
   }
+  if (anotacoes.size === 0) return NextResponse.json({ error: "O arquivo das anotações está vazio." }, { status: 400 });
   for (const a of arquivos) {
     const motivo = motivoDoArquivo({ nome: a.nome, tamanho: a.file.size });
     if (motivo) return NextResponse.json({ error: motivo }, { status: a.file.size > TAMANHO_MAX_ARQUIVO ? 413 : 400 });
   }
 
   // O texto sai do arquivo antes de gravar qualquer coisa: arquivo ilegível não cria reunião nem deixa sobra no disco.
+  // Os bytes são lidos uma vez e reaproveitados na gravação.
+  const bytes = await Promise.all(arquivos.map(async (a) => new Uint8Array(await a.file.arrayBuffer())));
   let texto: string;
   try {
-    texto = textoDoArquivo(arquivos[0].nome, new Uint8Array(await arquivos[0].file.arrayBuffer()));
-    if (arquivos[1]) textoDoArquivo(arquivos[1].nome, new Uint8Array(await arquivos[1].file.arrayBuffer()));
+    texto = textoDoArquivo(arquivos[0].nome, bytes[0]);
   } catch (erro) {
     return recusa(erro);
+  }
+  if (arquivos[1]) {
+    try {
+      textoDoArquivo(arquivos[1].nome, bytes[1]);
+    } catch {
+      return NextResponse.json({ error: "Não foi possível ler a transcrição. Anexe em .docx, .md ou .txt." }, { status: 400 });
+    }
   }
 
   const titulo = String(form.get("titulo") ?? "").trim() || null;
@@ -77,16 +86,19 @@ export async function POST(req: Request) {
     return recusa(erro);
   }
 
+  // A reunião já existe: se os arquivos não forem guardados, ela segue sem eles e a tela avisa (`arquivosGuardados`).
   const gravados: ArquivoNovo[] = [];
+  let arquivosGuardados = true;
   try {
-    for (const a of arquivos) {
+    for (let i = 0; i < arquivos.length; i++) {
+      const a = arquivos[i];
       const caminho = `portal/atas/${reuniaoId}/${randomBytes(12).toString("hex")}-${slug(a.nome)}`;
-      const bytes = Buffer.from(await a.file.arrayBuffer());
-      await salvarArquivo(caminho, bytes);
-      gravados.push({ tipo: a.tipo, caminho, nome: a.nome, tamanho: bytes.length });
+      await salvarArquivo(caminho, Buffer.from(bytes[i]));
+      gravados.push({ tipo: a.tipo, caminho, nome: a.nome, tamanho: bytes[i].length });
     }
     await registrarArquivosDaAta(reuniaoId, { userId: user.id, nome: user.name }, gravados);
   } catch (erro) {
+    arquivosGuardados = false;
     for (const g of gravados) await removerArquivo(g.caminho);
     console.error("[atas] arquivos da ata não gravados (a reunião segue, sem os arquivos):", erro);
   }
@@ -99,8 +111,8 @@ export async function POST(req: Request) {
     entidade: "ReuniaoProjeto",
     entidadeId: reuniaoId,
     // Sem o nome dos arquivos: pode revelar o assunto da reunião.
-    detalhe: { projetoId, arquivos: gravados.map((g) => ({ tipo: g.tipo, tamanho: g.tamanho })) },
+    detalhe: { projetoId, arquivosGuardados, arquivos: arquivosGuardados ? gravados.map((g) => ({ tipo: g.tipo, tamanho: g.tamanho })) : [] },
     ip: await getClientIp(),
   });
-  return NextResponse.json({ ok: true, reuniaoId });
+  return NextResponse.json({ ok: true, reuniaoId, arquivosGuardados });
 }

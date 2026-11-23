@@ -262,7 +262,7 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
                     </div>
                   </li>
                 ) : (
-                  <li key={`a-${d.reuniaoId}-${d.titulo}`} className="flex min-w-0 gap-2 text-sm">
+                  <li key={`a-${d.chave}`} className="flex min-w-0 gap-2 text-sm">
                     <Bookmark className="mt-0.5 size-4 shrink-0 text-foreground" aria-hidden />
                     <div className="min-w-0 space-y-0.5">
                       <p className="break-words font-medium">{d.titulo}</p>

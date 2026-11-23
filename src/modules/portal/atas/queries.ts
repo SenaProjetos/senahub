@@ -30,6 +30,9 @@ export type VersaoDTO = {
   numero: number;
   estado: EstadoVersao;
   texto: string;
+  /** Só no rascunho de uma correção: título/data propostos (nulos = os da reunião). */
+  titulo: string | null;
+  data: string | null;
   itens: ItemAtaDTO[];
   publicadaEm: string | null;
   publicadaPorNome: string | null;
@@ -84,7 +87,12 @@ async function montarReunioes(projetoId: string, lado: Lado): Promise<ReuniaoDTO
       retiradaEm: true,
       retiradaPorNome: true,
       motivoRetirada: true,
-      versoes: { orderBy: { numero: "desc" }, include: { itens: { orderBy: { ordem: "asc" } } } },
+      // O cliente nunca recebe rascunho — nem na memória do servidor.
+      versoes: {
+        where: equipe ? {} : { estado: { not: "rascunho" } },
+        orderBy: { numero: "desc" },
+        include: { itens: { orderBy: { ordem: "asc" } } },
+      },
       arquivos: equipe ? { select: { id: true, tipo: true, nome: true }, orderBy: { criadoEm: "asc" } } : false,
     },
   });
@@ -97,11 +105,14 @@ async function montarReunioes(projetoId: string, lado: Lado): Promise<ReuniaoDTO
     numero: v.numero,
     estado: v.estado,
     texto: v.texto,
+    titulo: equipe && v.estado === "rascunho" ? v.titulo : null,
+    data: equipe && v.estado === "rascunho" ? dia(v.data) : null,
     itens: v.itens.map((i) => ({
       chave: i.chave,
       tipo: i.tipo,
       titulo: i.titulo,
-      descricao: i.descricao,
+      // A descrição da tarefa da equipe é interna: o cliente vê só título e prazo ("a cargo da equipe").
+      descricao: equipe || i.tipo !== "tarefa_equipe" ? i.descricao : null,
       prazo: dia(i.prazo),
       responsavelId: equipe ? i.responsavelId : null,
       responsavelNome: equipe && i.responsavelId ? nomes.get(i.responsavelId) ?? null : null,
@@ -203,19 +214,23 @@ export async function ataParaEditar(reuniaoId: string, userId: string): Promise<
   };
 }
 
-/** Decisões da versão vigente de cada ata publicada e não retirada do projeto (para a lista "Decisões"). */
+/**
+ * Decisões da versão vigente de cada ata publicada e não retirada do projeto (para a lista "Decisões"). SEM porta
+ * própria: só para quem já passou pela porta da conversa (`conversaParaCliente` / `conversaParaEquipe`).
+ */
 export async function decisoesDasAtas(projetoId: string): Promise<DecisaoDeAtaDTO[]> {
   const versoes = await prisma.ataVersao.findMany({
     where: { estado: "publicada", reuniao: { projetoId, retiradaEm: null } },
     select: {
       resposta: true,
       reuniao: { select: { id: true, titulo: true, data: true } },
-      itens: { where: { tipo: "decisao" }, orderBy: { ordem: "asc" }, select: { titulo: true, descricao: true } },
+      itens: { where: { tipo: "decisao" }, orderBy: { ordem: "asc" }, select: { chave: true, titulo: true, descricao: true } },
     },
   });
   return versoes.flatMap((v) =>
     v.itens.map((i) => ({
       reuniaoId: v.reuniao.id,
+      chave: i.chave,
       titulo: i.titulo,
       descricao: i.descricao,
       reuniaoTitulo: v.reuniao.titulo,

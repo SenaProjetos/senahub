@@ -17,6 +17,8 @@ const versao = (estado: VersaoDTO["estado"]): VersaoDTO => ({
   numero: 1,
   estado,
   texto: "",
+  titulo: null,
+  data: null,
   itens: [],
   publicadaEm: null,
   publicadaPorNome: null,

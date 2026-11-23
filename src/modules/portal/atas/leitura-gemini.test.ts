@@ -77,6 +77,19 @@ describe("atas — leitura das anotações do Gemini", () => {
     expect(a.resumo).toContain("trocar o piso");
   });
 
+  it("texto antes da primeira seção não se perde (só o cabeçalho do Gemini sai)", () => {
+    const a = lerAnotacoes("nov. 4, 2026\nReunião em 4 de nov. de 2026 às 14:10\nRegistros da reunião Transcrição\nPauta: cobertura e prazos.\nResumo\nTudo certo.");
+    expect(a.resumo).toContain("Pauta: cobertura e prazos.");
+    expect(a.resumo).toContain("Tudo certo.");
+    expect(a.resumo).not.toContain("Registros da reunião");
+    expect(a.resumo).not.toContain("Reunião em 4 de nov");
+  });
+
+  it("linha sem marcador dentro de Decisões vira decisão (não some)", () => {
+    const a = lerAnotacoes("Decisões\nPiso porcelanato na varanda\n- Telha termoacústica\nResumo\nx");
+    expect(a.decisoes.map((d) => d.titulo)).toEqual(["Piso porcelanato na varanda", "Telha termoacústica"]);
+  });
+
   it("sugestão: membro, conta do cliente, nome do cliente, SENA Engenharia e primeiro nome ambíguo", () => {
     const c: Candidatos = {
       membros: [

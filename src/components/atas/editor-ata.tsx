@@ -1,12 +1,21 @@
 "use client";
 
-import { useId, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeft, Plus, Quote, Save, Send, Trash2 } from "lucide-react";
 import { descartarRascunhoAta, publicarAta, salvarRascunhoAta } from "@/modules/portal/atas/actions";
 import type { AtaParaEditar } from "@/modules/portal/atas/queries";
-import { DESCRICAO_ITEM_MAX, TEXTO_MAX, TITULO_ITEM_MAX, TITULO_MAX, motivoParaPublicar, type ItemRascunho } from "@/modules/portal/atas/regras";
+import {
+  DESCRICAO_ITEM_MAX,
+  MOTIVO_DATA,
+  MOTIVO_TITULO,
+  TEXTO_MAX,
+  TITULO_ITEM_MAX,
+  TITULO_MAX,
+  motivoParaPublicar,
+  type ItemRascunho,
+} from "@/modules/portal/atas/regras";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -49,8 +58,8 @@ export function EditorAta({ dados }: { dados: AtaParaEditar }) {
   const confirm = useConfirm();
   const rascunho = dados.reuniao.rascunho!;
   const voltar = `/projetos/${dados.projeto.id}/cliente#atas`;
-  const [titulo, setTitulo] = useState(dados.reuniao.titulo);
-  const [data, setData] = useState(dados.reuniao.data);
+  const [titulo, setTitulo] = useState(rascunho.titulo ?? dados.reuniao.titulo);
+  const [data, setData] = useState(rascunho.data ?? dados.reuniao.data);
   const [texto, setTexto] = useState(rascunho.texto);
   const [itens, setItens] = useState<ItemRascunho[]>(() =>
     rascunho.itens.map((i) => ({ chave: i.chave, tipo: i.tipo, titulo: i.titulo, descricao: i.descricao, responsavelId: i.responsavelId, prazo: i.prazo })),
@@ -60,7 +69,32 @@ export function EditorAta({ dados }: { dados: AtaParaEditar }) {
   const [ocupado, start] = useTransition();
   const ids = { titulo: useId(), data: useId(), texto: useId() };
   const membros = useMemo(() => new Set(dados.membros.map((m) => m.id)), [dados.membros]);
-  const motivoPublicar = motivoParaPublicar({ texto, itens, membros }) ?? (titulo.trim() ? null : "Dê um título à reunião.");
+  const motivoPublicar =
+    (titulo.trim() ? null : MOTIVO_TITULO) ?? (/^\d{4}-\d{2}-\d{2}$/.test(data) ? null : MOTIVO_DATA) ?? motivoParaPublicar({ texto, itens, membros });
+
+  // Alterações não salvas: o navegador pergunta antes de sair (fechar, recarregar, voltar); o link "Voltar" confirma.
+  const salvo = useRef(JSON.stringify({ titulo, data, texto, itens }));
+  const sujo = JSON.stringify({ titulo, data, texto, itens }) !== salvo.current;
+  useEffect(() => {
+    if (!sujo) return;
+    const aviso = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
+  }, [sujo]);
+
+  async function sair() {
+    if (sujo) {
+      const ok = await confirm({
+        title: "Sair sem salvar?",
+        description: "As alterações deste rascunho que não foram salvas se perdem.",
+        confirmLabel: "Sair sem salvar",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
+    salvo.current = JSON.stringify({ titulo, data, texto, itens });
+    router.push(voltar);
+  }
 
   const mudar = (i: number, novo: ItemRascunho) => setItens((xs) => xs.map((x, k) => (k === i ? novo : x)));
   const mover = (i: number, d: -1 | 1) =>
@@ -84,6 +118,7 @@ export function EditorAta({ dados }: { dados: AtaParaEditar }) {
       toast.error(r.error);
       return false;
     }
+    salvo.current = JSON.stringify({ titulo, data, texto, itens });
     return true;
   }
 
@@ -108,6 +143,7 @@ export function EditorAta({ dados }: { dados: AtaParaEditar }) {
       if (!r) return void toast.error(FALHA);
       if (!r.ok) return void toast.error(r.error);
       toast.success("Rascunho descartado.");
+      salvo.current = JSON.stringify({ titulo, data, texto, itens });
       router.push(voltar);
     });
   }
@@ -127,9 +163,9 @@ export function EditorAta({ dados }: { dados: AtaParaEditar }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <a href={voltar} className="inline-flex items-center gap-1 text-sm underline underline-offset-2">
+        <Button variant="link" className="h-auto px-0" onClick={() => void sair()}>
           <ArrowLeft className="size-4" aria-hidden /> Voltar para a aba Cliente
-        </a>
+        </Button>
         <p className="text-sm text-muted-foreground">
           {dados.reuniao.vigente ? `Correção da versão ${dados.reuniao.vigente.numero} (rascunho da versão ${rascunho.numero})` : "Rascunho — o cliente ainda não vê"}
         </p>

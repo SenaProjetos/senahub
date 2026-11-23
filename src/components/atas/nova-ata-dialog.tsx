@@ -41,6 +41,7 @@ export function NovaAtaDialog({ projetoId }: { projetoId: string }) {
 
   function abrir() {
     setAberto(true);
+    setModo("colar");
     setTexto("");
     setAnotacoes(null);
     setTranscricao(null);
@@ -74,8 +75,11 @@ export function NovaAtaDialog({ projetoId }: { projetoId: string }) {
       if (transcricao) fd.append("transcricao", transcricao);
       const res = await fetch(`/api/portal/atas/importar?projetoId=${encodeURIComponent(projetoId)}`, { method: "POST", body: fd }).catch(() => null);
       if (!res) return void toast.error(FALHA);
-      const corpo = (await res.json().catch(() => ({}))) as { reuniaoId?: string; error?: string };
+      const corpo = (await res.json().catch(() => ({}))) as { reuniaoId?: string; error?: string; arquivosGuardados?: boolean };
       if (!res.ok || !corpo.reuniaoId) return setErro(corpo.error ?? "Não foi possível importar o arquivo.");
+      if (corpo.arquivosGuardados === false) {
+        toast.warning("A ata foi criada, mas os arquivos não foram guardados. As anotações já estão no rascunho.");
+      }
       router.push(hrefDoEditor(projetoId, corpo.reuniaoId));
     });
   }

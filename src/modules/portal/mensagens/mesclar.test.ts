@@ -19,7 +19,7 @@ const t = (min: number) => `2026-11-21T10:${String(min).padStart(2, "0")}:00.000
 
 describe("mesclarConversa", () => {
   it("decisões das atas vêm sempre da leitura nova", () => {
-    const ata = { reuniaoId: "r1", titulo: "Piso", descricao: null, reuniaoTitulo: "Reunião", reuniaoData: "2026-11-20", comObservacoes: false };
+    const ata = { reuniaoId: "r1", chave: "k1", titulo: "Piso", descricao: null, reuniaoTitulo: "Reunião", reuniaoData: "2026-11-20", comObservacoes: false };
     const atual = estadoInicial(conversa([msg("a", t(1))]));
     expect(atual.decisoesDeAtas).toEqual([]);
     const r = mesclarConversa(atual, conversa([msg("a", t(1))], { decisoesDeAtas: [ata] }));

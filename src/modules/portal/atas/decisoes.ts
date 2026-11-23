@@ -5,6 +5,8 @@
 
 export type DecisaoDeAtaDTO = {
   reuniaoId: string;
+  /** Identidade do item (única): chave da lista na tela. */
+  chave: string;
   titulo: string;
   descricao: string | null;
   reuniaoTitulo: string;

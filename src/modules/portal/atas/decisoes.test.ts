@@ -4,6 +4,7 @@ import { decisoesCombinadas, type DecisaoDeAtaDTO } from "./decisoes";
 const daConversa = (id: string, em: string) => ({ mensagemId: id, resumo: `Resumo ${id}`, trecho: "trecho", mensagemEm: em, marcadaPor: "Registrada pela coordenação" });
 const daAta = (titulo: string, data: string, comObservacoes = false): DecisaoDeAtaDTO => ({
   reuniaoId: `r-${titulo}`,
+  chave: `k-${titulo}`,
   titulo,
   descricao: null,
   reuniaoTitulo: "Reunião X",

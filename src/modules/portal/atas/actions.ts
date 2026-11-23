@@ -126,7 +126,8 @@ export const publicarAta = defineAction(
     await semFalhar("aviso das tarefas", () => avisarTarefasNovas(r.tarefasNovas.filter((t) => t.responsavelId !== user.id)));
     revalidar(r.projetoId);
     revalidatePath("/tarefas");
-    return { projetoId: r.projetoId };
+    // Vai para a auditoria (o `novo` da ação): quais Tarefas a publicação criou, mudou de responsável ou arquivou.
+    return { projetoId: r.projetoId, tarefas: r.tarefasNovas.map((t) => t.tarefaId), tarefasArquivadas: r.tarefasArquivadas };
   },
 );
 

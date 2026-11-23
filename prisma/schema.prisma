@@ -10372,6 +10372,10 @@ model AtaVersao {
   numero            Int
   estado            EstadoAtaVersao @default(rascunho)
   texto             String          @db.Text
+  /// Título e data da reunião propostos por uma CORREÇÃO em rascunho: só vão para a reunião ao publicar (o cliente
+  /// nunca vê o que ainda não foi revisado). Nulos = os da reunião.
+  titulo            String?
+  data              DateTime?       @db.Date
   publicadaEm       DateTime?
   publicadaPorId    String?
   publicadaPorNome  String?

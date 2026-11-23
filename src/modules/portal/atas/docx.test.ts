@@ -1,6 +1,6 @@
 import { strToU8, zipSync } from "fflate";
 import { describe, expect, it } from "vitest";
-import { textoDoArquivo, textoDoDocx } from "./docx";
+import { DOCX_XML_MAX, textoDoArquivo, textoDoDocx } from "./docx";
 import { MOTIVO_TIPO_ARQUIVO } from "./regras";
 
 function docx(corpo: string): Uint8Array {
@@ -30,6 +30,12 @@ describe("atas — texto dos arquivos", () => {
 
   it(".pdf recusa", () => {
     expect(() => textoDoArquivo("ata.pdf", new Uint8Array([1]))).toThrow(MOTIVO_TIPO_ARQUIVO);
+  });
+
+  it("docx que descompacta além do teto recusa (zip bomb)", () => {
+    const enorme = docx(p("a".repeat(DOCX_XML_MAX + 10)));
+    expect(enorme.length).toBeLessThan(1024 * 1024);
+    expect(() => textoDoDocx(enorme)).toThrow(MOTIVO_TIPO_ARQUIVO);
   });
 
   it("docx corrompido recusa com a frase do tipo", () => {

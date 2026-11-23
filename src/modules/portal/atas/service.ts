@@ -215,9 +215,17 @@ export async function salvarRascunho(p: {
   });
 
   await prisma.$transaction(async (tx) => {
-    const r = await tx.ataVersao.updateMany({ where: { id: versao.id, estado: "rascunho" }, data: { texto } });
+    // Mesma ordem de trava do publicar (reunião, depois versão): salvar e publicar juntos não dão deadlock.
+    await tx.$queryRaw`SELECT id FROM reuniao_projeto WHERE id = ${reuniao.id} FOR UPDATE`;
+    // Ata já publicada: título e data da correção ficam no rascunho e só vão para a reunião ao publicar (o cliente
+    // lê os da reunião). Ata nunca publicada: o cliente não vê nada, a reunião pode mudar já.
+    const publicada = await tx.ataVersao.count({ where: { reuniaoId: reuniao.id, estado: { not: "rascunho" } } });
+    const r = await tx.ataVersao.updateMany({
+      where: { id: versao.id, estado: "rascunho" },
+      data: publicada > 0 ? { texto, titulo, data: dataDoBanco(p.data) } : { texto },
+    });
     if (r.count !== 1) throw new ActionError(MOTIVO_SEM_RASCUNHO);
-    await tx.reuniaoProjeto.update({ where: { id: reuniao.id }, data: { titulo, data: dataDoBanco(p.data) } });
+    if (publicada === 0) await tx.reuniaoProjeto.update({ where: { id: reuniao.id }, data: { titulo, data: dataDoBanco(p.data) } });
     await tx.ataItem.deleteMany({ where: { versaoId: versao.id } });
     if (itens.length > 0) await tx.ataItem.createMany({ data: itens });
   });
@@ -228,17 +236,29 @@ export async function descartarRascunho(p: { versaoId: string; quem: Equipe }): 
   const { versao, reuniao } = await reuniaoDaVersao(p.versaoId);
   await exigirEquipe(p.quem.userId, reuniao.projetoId);
   if (versao.estado !== "rascunho") throw new ActionError(MOTIVO_SEM_RASCUNHO);
-  const publicadas = await prisma.ataVersao.count({ where: { reuniaoId: reuniao.id, estado: { not: "rascunho" } } });
-  if (publicadas === 0) {
-    // Ata nunca publicada: some a reunião inteira, com os arquivos dela.
-    const arquivos = await prisma.arquivoAta.findMany({ where: { reuniaoId: reuniao.id }, select: { caminho: true } });
-    await prisma.reuniaoProjeto.delete({ where: { id: reuniao.id } });
-    for (const a of arquivos) await removerArquivo(a.caminho);
-    return { reuniaoId: reuniao.id, projetoId: reuniao.projetoId, reuniaoApagada: true };
+  // Sob a trava da reunião (a mesma do publicar): um publicar no mesmo instante espera, e a contagem relida aqui
+  // decide se a reunião inteira sai (nunca publicada) ou só o rascunho.
+  const r = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM reuniao_projeto WHERE id = ${reuniao.id} FOR UPDATE`;
+    const ainda = await tx.ataVersao.count({ where: { id: versao.id, estado: "rascunho" } });
+    if (ainda !== 1) throw new ActionError(MOTIVO_SEM_RASCUNHO);
+    const publicadas = await tx.ataVersao.count({ where: { reuniaoId: reuniao.id, estado: { not: "rascunho" } } });
+    if (publicadas > 0) {
+      await tx.ataVersao.deleteMany({ where: { id: versao.id, estado: "rascunho" } });
+      return { apagada: false, caminhos: [] as string[] };
+    }
+    const arquivos = await tx.arquivoAta.findMany({ where: { reuniaoId: reuniao.id }, select: { caminho: true } });
+    await tx.reuniaoProjeto.delete({ where: { id: reuniao.id } });
+    return { apagada: true, caminhos: arquivos.map((a) => a.caminho) };
+  });
+  for (const c of r.caminhos) {
+    try {
+      await removerArquivo(c);
+    } catch (e) {
+      console.error("[atas] arquivo da ata descartada não removido:", c, e);
+    }
   }
-  const r = await prisma.ataVersao.deleteMany({ where: { id: versao.id, estado: "rascunho" } });
-  if (r.count !== 1) throw new ActionError(MOTIVO_SEM_RASCUNHO);
-  return { reuniaoId: reuniao.id, projetoId: reuniao.projetoId, reuniaoApagada: false };
+  return { reuniaoId: reuniao.id, projetoId: reuniao.projetoId, reuniaoApagada: r.apagada };
 }
 
 // ── Publicar ───────────────────────────────────────────────────────────────────────────────
@@ -259,7 +279,7 @@ const paraItem = (i: { chave: string; tipo: ItemRascunho["tipo"]; titulo: string
 
 export type TarefaAvisada = { tarefaId: string; responsavelId: string; titulo: string };
 
-export async function publicar(p: { versaoId: string; quem: Equipe }): Promise<{ reuniaoId: string; projetoId: string; tarefasNovas: TarefaAvisada[] }> {
+export async function publicar(p: { versaoId: string; quem: Equipe }): Promise<{ reuniaoId: string; projetoId: string; tarefasNovas: TarefaAvisada[]; tarefasArquivadas: string[] }> {
   const { versao, reuniao } = await reuniaoDaVersao(p.versaoId);
   await exigirEquipe(p.quem.userId, reuniao.projetoId);
   if (versao.estado !== "rascunho") throw new ActionError(MOTIVO_SEM_RASCUNHO);
@@ -272,14 +292,30 @@ export async function publicar(p: { versaoId: string; quem: Equipe }): Promise<{
     const r = await tx.reuniaoProjeto.findUnique({ where: { id: reuniao.id }, select: { titulo: true, data: true, retiradaEm: true } });
     if (!r) throw naoEncontrada();
     if (r.retiradaEm) throw new ActionError(MOTIVO_RETIRADA);
-    const rascunho = await tx.ataVersao.findFirst({ where: { id: versao.id, estado: "rascunho" }, select: { id: true, texto: true } });
+    const rascunho = await tx.ataVersao.findFirst({ where: { id: versao.id, estado: "rascunho" }, select: { id: true, texto: true, titulo: true, data: true } });
     if (!rascunho) throw new ActionError(MOTIVO_SEM_RASCUNHO);
+    // A correção trouxe título/data novos: valem a partir desta publicação (as Tarefas novas já citam os novos).
+    if (rascunho.titulo || rascunho.data) {
+      await tx.reuniaoProjeto.update({
+        where: { id: reuniao.id },
+        data: { ...(rascunho.titulo ? { titulo: rascunho.titulo } : {}), ...(rascunho.data ? { data: rascunho.data } : {}) },
+      });
+      if (rascunho.titulo) r.titulo = rascunho.titulo;
+      if (rascunho.data) r.data = rascunho.data;
+    }
     const novos = (await tx.ataItem.findMany({ where: { versaoId: rascunho.id }, orderBy: { ordem: "asc" } })).map(paraItem);
     const motivo = motivoParaPublicar({ texto: rascunho.texto, itens: novos, membros });
     if (motivo) throw new ActionError(motivo);
     const vigente = await tx.ataVersao.findFirst({ where: { reuniaoId: reuniao.id, estado: "publicada" }, select: { id: true } });
     const anteriores = vigente ? (await tx.ataItem.findMany({ where: { versaoId: vigente.id } })).map(paraItem) : [];
-    const ligacoes = await tx.tarefaDaAta.findMany({ where: { reuniaoId: reuniao.id }, select: { chave: true, tarefaId: true } });
+    const ligacoesTodas = await tx.tarefaDaAta.findMany({ where: { reuniaoId: reuniao.id }, select: { id: true, chave: true, tarefaId: true } });
+    // Tarefa apagada à mão no quadro deixa a ligação órfã (sem FK, de propósito): ela sai, e o item volta a "criar".
+    const vivas = new Set(
+      (await tx.tarefa.findMany({ where: { id: { in: ligacoesTodas.map((l) => l.tarefaId) } }, select: { id: true } })).map((t) => t.id),
+    );
+    const orfas = ligacoesTodas.filter((l) => !vivas.has(l.tarefaId));
+    if (orfas.length > 0) await tx.tarefaDaAta.deleteMany({ where: { id: { in: orfas.map((l) => l.id) } } });
+    const ligacoes = ligacoesTodas.filter((l) => vivas.has(l.tarefaId));
     const tarefaDaChave = new Map(ligacoes.map((l) => [l.chave, l.tarefaId]));
     const pendencias = await tx.pendenciaCliente.findMany({ where: { reuniaoId: reuniao.id }, select: { chave: true, situacao: true } });
     const plano = planejarPublicacao({
@@ -289,6 +325,7 @@ export async function publicar(p: { versaoId: string; quem: Equipe }): Promise<{
       pendenciasExistentes: new Map(pendencias.map((x) => [x.chave, x.situacao as SituacaoPendencia])),
     });
     const avisar: TarefaAvisada[] = [];
+    const arquivadas: string[] = [];
     const agora = new Date();
 
     for (const i of plano.tarefas.criar) {
@@ -330,7 +367,9 @@ export async function publicar(p: { versaoId: string; quem: Equipe }): Promise<{
     }
     for (const chave of plano.tarefas.arquivar) {
       const id = tarefaDaChave.get(chave);
-      if (id) await tx.tarefa.updateMany({ where: { id, concluidaEm: null }, data: { arquivada: true } });
+      if (!id) continue;
+      const a = await tx.tarefa.updateMany({ where: { id, concluidaEm: null }, data: { arquivada: true } });
+      if (a.count === 1) arquivadas.push(id);
     }
 
     for (const i of plano.pendencias.criar) {
@@ -346,7 +385,23 @@ export async function publicar(p: { versaoId: string; quem: Equipe }): Promise<{
       });
     }
     for (const chave of plano.pendencias.reabrirCancelada) {
-      await tx.pendenciaCliente.updateMany({ where: { chave, situacao: "cancelada" }, data: { situacao: "aberta", canceladaEm: null } });
+      // Volta "limpa": nada do ciclo anterior (feito, conferência, reabertura) segue valendo.
+      await tx.pendenciaCliente.updateMany({
+        where: { chave, situacao: "cancelada" },
+        data: {
+          situacao: "aberta",
+          canceladaEm: null,
+          feitaEm: null,
+          feitaPorId: null,
+          feitaPorNome: null,
+          comentarioFeito: null,
+          conferidaEm: null,
+          conferidaPorId: null,
+          reabertaEm: null,
+          reabertaPorId: null,
+          motivoReabertura: null,
+        },
+      });
     }
     for (const u of plano.pendencias.atualizar) {
       const data: Prisma.PendenciaClienteUpdateManyMutationInput = {};
@@ -371,9 +426,9 @@ export async function publicar(p: { versaoId: string; quem: Equipe }): Promise<{
       data: { estado: "publicada", publicadaEm: agora, publicadaPorId: p.quem.userId, publicadaPorNome: p.quem.nome },
     });
     if (pub.count !== 1) throw new ActionError(MOTIVO_SEM_RASCUNHO);
-    return avisar;
+    return { avisar, arquivadas };
   });
-  return { reuniaoId: reuniao.id, projetoId: reuniao.projetoId, tarefasNovas };
+  return { reuniaoId: reuniao.id, projetoId: reuniao.projetoId, tarefasNovas: tarefasNovas.avisar, tarefasArquivadas: tarefasNovas.arquivadas };
 }
 
 export async function corrigirAta(p: { reuniaoId: string; quem: Equipe }): Promise<{ versaoId: string; projetoId: string }> {
@@ -387,6 +442,9 @@ export async function corrigirAta(p: { reuniaoId: string; quem: Equipe }): Promi
   const ultima = await prisma.ataVersao.aggregate({ where: { reuniaoId: reuniao.id }, _max: { numero: true } });
   try {
     const versaoId = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM reuniao_projeto WHERE id = ${reuniao.id} FOR UPDATE`;
+      const retirada = await tx.reuniaoProjeto.findUnique({ where: { id: reuniao.id }, select: { retiradaEm: true } });
+      if (retirada?.retiradaEm) throw new ActionError(MOTIVO_RETIRADA);
       const v = await tx.ataVersao.create({
         data: { reuniaoId: reuniao.id, numero: (ultima._max.numero ?? 0) + 1, texto: vigente.texto },
         select: { id: true },
@@ -461,15 +519,17 @@ export async function retirarAta(p: { reuniaoId: string; quem: Equipe; motivo: s
   const motivo = obrigatorio(p.motivo, MOTIVO_RETIRAR_MAX, MOTIVO_MOTIVO_RETIRAR, `O motivo passa de ${MOTIVO_RETIRAR_MAX} caracteres.`);
   const publicadas = await prisma.ataVersao.count({ where: { reuniaoId: reuniao.id, estado: { not: "rascunho" } } });
   if (publicadas === 0) throw new ActionError(MOTIVO_SEM_PUBLICADA);
-  const ligacoes = await prisma.tarefaDaAta.findMany({ where: { reuniaoId: reuniao.id }, select: { tarefaId: true } });
   const agora = new Date();
 
   await prisma.$transaction(async (tx) => {
+    // Mesma trava do publicar: uma publicação no mesmo instante termina antes, e as Tarefas dela entram no arquivamento.
+    await tx.$queryRaw`SELECT id FROM reuniao_projeto WHERE id = ${reuniao.id} FOR UPDATE`;
     const r = await tx.reuniaoProjeto.updateMany({
       where: { id: reuniao.id, retiradaEm: null },
       data: { retiradaEm: agora, retiradaPorId: p.quem.userId, retiradaPorNome: p.quem.nome, motivoRetirada: motivo },
     });
     if (r.count !== 1) throw new ActionError(MOTIVO_RETIRADA);
+    const ligacoes = await tx.tarefaDaAta.findMany({ where: { reuniaoId: reuniao.id }, select: { tarefaId: true } });
     if (ligacoes.length > 0) {
       await tx.tarefa.updateMany({ where: { id: { in: ligacoes.map((l) => l.tarefaId) }, concluidaEm: null }, data: { arquivada: true } });
     }
@@ -565,16 +625,19 @@ export type ArquivoNovo = { tipo: "anotacoes" | "transcricao"; caminho: string; 
 /** Registra os arquivos já gravados no disco (quem chama apaga os arquivos se isto lançar). */
 export async function registrarArquivosDaAta(reuniaoId: string, quem: Equipe, arquivos: readonly ArquivoNovo[]): Promise<{ id: string }[]> {
   await exigirReuniaoDaEquipe(reuniaoId, quem.userId);
-  const criados: { id: string }[] = [];
-  for (const a of arquivos) {
-    criados.push(
-      await prisma.arquivoAta.create({
-        data: { reuniaoId, tipo: a.tipo, caminho: a.caminho, nome: a.nome, tamanho: a.tamanho, enviadoPorId: quem.userId },
-        select: { id: true },
-      }),
-    );
-  }
-  return criados;
+  // Tudo ou nada: nunca fica linha apontando para arquivo que a rota apagou.
+  return prisma.$transaction(async (tx) => {
+    const criados: { id: string }[] = [];
+    for (const a of arquivos) {
+      criados.push(
+        await tx.arquivoAta.create({
+          data: { reuniaoId, tipo: a.tipo, caminho: a.caminho, nome: a.nome, tamanho: a.tamanho, enviadoPorId: quem.userId },
+          select: { id: true },
+        }),
+      );
+    }
+    return criados;
+  });
 }
 
 /** O arquivo para baixar: só a equipe da audiência (interna e ativa). `null` em qualquer recusa. */

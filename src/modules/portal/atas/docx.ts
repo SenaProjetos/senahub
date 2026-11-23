@@ -8,6 +8,9 @@ import { MOTIVO_TIPO_ARQUIVO, extensaoDoArquivo } from "./regras";
 
 const ENTIDADES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 
+/** Teto do `word/document.xml` descompactado: anotações de verdade têm dezenas de KB; acima disso é arquivo estranho. */
+export const DOCX_XML_MAX = 10 * 1024 * 1024;
+
 function decodificar(s: string): string {
   return s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (_, e: string) => {
     if (e[0] === "#") return String.fromCodePoint(e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10));
@@ -18,12 +21,13 @@ function decodificar(s: string): string {
 export function textoDoDocx(bytes: Uint8Array): string {
   let arquivos: Record<string, Uint8Array>;
   try {
-    arquivos = unzipSync(bytes, { filter: (f) => f.name === "word/document.xml" });
+    // Nada além do texto, e com teto: um .docx de 20 MB comprimido não pode virar gigabytes na memória.
+    arquivos = unzipSync(bytes, { filter: (f) => f.name === "word/document.xml" && f.originalSize <= DOCX_XML_MAX });
   } catch {
     throw new Error(MOTIVO_TIPO_ARQUIVO);
   }
   const doc = arquivos["word/document.xml"];
-  if (!doc) throw new Error(MOTIVO_TIPO_ARQUIVO);
+  if (!doc || doc.length > DOCX_XML_MAX) throw new Error(MOTIVO_TIPO_ARQUIVO);
   const xml = strFromU8(doc);
   const linhas: string[] = [];
   for (const m of xml.matchAll(/<w:p\b[^>]*\/>|<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g)) {

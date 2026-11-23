@@ -228,6 +228,25 @@ async function main() {
     check("v3: item de volta desarquiva a mesma Tarefa e reabre a mesma pendência", tFach3.arquivada === false && pTopo3.id === pTopo.id && pTopo3.situacao === "aberta");
     check("v3: ainda sem duplicar", (await prisma.tarefaDaAta.count({ where: { reuniaoId: r1.reuniaoId } })) === 2);
 
+    // Ciclo: feita → removida (cancelada) → volta: aberta e limpa.
+    await marcarPendenciaFeita({ pendenciaId: pTopo3.id, conta: cJoana, comentario: "Já mandei." });
+    const v4 = await corrigirAta({ reuniaoId: r1.reuniaoId, quem: coord });
+    const itens4 = paraRascunho(await prisma.ataItem.findMany({ where: { versaoId: v4.versaoId } }));
+    await salvarRascunho({ versaoId: v4.versaoId, quem: coord, texto: "v4", itens: itens4.filter((i) => i.chave !== chaveTopo && i.chave !== chaveCobertura), titulo: "Reunião de alinhamento", data: "2026-11-04" });
+    await publicar({ versaoId: v4.versaoId, quem: coord });
+    // A Tarefa da cobertura é apagada à mão no quadro (não arquivada).
+    await prisma.tarefa.delete({ where: { id: tCobertura } });
+    const v5 = await corrigirAta({ reuniaoId: r1.reuniaoId, quem: coord });
+    const itens5 = paraRascunho(await prisma.ataItem.findMany({ where: { versaoId: v5.versaoId } }));
+    const devolta = paraRascunho(itensV1.filter((i) => i.chave === chaveTopo || i.chave === chaveCobertura));
+    await salvarRascunho({ versaoId: v5.versaoId, quem: coord, texto: "v5", itens: [...itens5, ...devolta], titulo: "Reunião de alinhamento", data: "2026-11-04" });
+    await publicar({ versaoId: v5.versaoId, quem: coord });
+    const pTopo5 = await prisma.pendenciaCliente.findUniqueOrThrow({ where: { chave: chaveTopo } });
+    check("pendência que volta vem aberta, sem o 'feito' da volta anterior", pTopo5.situacao === "aberta" && pTopo5.feitaEm === null && pTopo5.comentarioFeito === null);
+    const lig5 = await prisma.tarefaDaAta.findUniqueOrThrow({ where: { chave: chaveCobertura } });
+    tarefasCriadas.push(lig5.tarefaId);
+    check("Tarefa apagada à mão é recriada quando o item volta", lig5.tarefaId !== tCobertura && (await prisma.tarefa.count({ where: { id: lig5.tarefaId } })) === 1);
+
     // ── Pendências ──
     const pVisita = await prisma.pendenciaCliente.findFirstOrThrow({ where: { reuniaoId: r1.reuniaoId, titulo: "Agendar visita" } });
     check("pendência vencida é atrasada", pendenciaAtrasada({ situacao: pVisita.situacao, prazo: dia(pVisita.prazo) }, "2026-11-22"));
@@ -305,6 +324,12 @@ async function main() {
       !!rc && rc.rascunho === null && rc.vigente?.publicadaPorNome === null && rc.arquivos.length === 0 && rc.retirada === null &&
         rc.vigente.itens.every((i) => i.responsavelId === null && i.responsavelNome === null),
     );
+    check(
+      "cliente: tarefa da equipe sem descrição interna; pendência com descrição",
+      !!rc && rc.vigente!.itens.filter((i) => i.tipo === "tarefa_equipe").every((i) => i.descricao === null) &&
+        rc.vigente!.itens.some((i) => i.tipo === "pendencia_cliente" && i.descricao !== null),
+    );
+    check("decisões das atas trazem a chave (lista sem chave repetida)", (await conversaParaCliente(proj.id, joana.id))!.decisoesDeAtas.every((d) => typeof d.chave === "string" && d.chave.length > 0));
     check("cliente: pendência reaberta traz o motivo", doCliente?.pendencias.find((x) => x.id === pTopoAberta.id)?.motivoReabertura === "Faltou a planta.");
     check("cliente: pendência cancelada não aparece", !(doCliente?.pendencias ?? []).some((x) => x.situacao === "cancelada"));
     check("equipe: vê responsável e quem publicou", !!daEquipe && daEquipe.reunioes[0].vigente?.publicadaPorNome === coord.nome && daEquipe.reunioes[0].vigente.itens.some((i) => i.responsavelNome !== null));
@@ -353,6 +378,21 @@ async function main() {
     const ri = await criarReuniaoComRascunho({ projetoId: projInativo.id, quem: coord, titulo: "Reunião inativo", data: "2026-11-10", texto: "Resumo\nTexto curto." });
     await publicar({ versaoId: ri.versaoId, quem: coord });
     check("conta de cliente inativo recusa", (await motivoDe(() => responderAta({ versaoId: ri.versaoId, conta: { userId: contaInativo.id, nome: contaInativo.name }, resposta: "concorda", observacao: null }))) === MOTIVO_NAO_ENCONTRADA);
+    const rp = await criarReuniaoComRascunho({ projetoId: proj.id, quem: coord, titulo: "Reunião publicada", data: "2026-11-11", texto: "Resumo\nTexto." });
+    await publicar({ versaoId: rp.versaoId, quem: coord });
+    const correcao = await corrigirAta({ reuniaoId: rp.reuniaoId, quem: coord });
+    const desc2 = await descartarRascunho({ versaoId: correcao.versaoId, quem: coord });
+    check("descartar a correção mantém a reunião publicada", !desc2.reuniaoApagada && (await prisma.ataVersao.count({ where: { reuniaoId: rp.reuniaoId, estado: "publicada" } })) === 1);
+    // Título e data de uma correção em rascunho não aparecem para o cliente antes de publicar.
+    const corr2 = await corrigirAta({ reuniaoId: rp.reuniaoId, quem: coord });
+    await salvarRascunho({ versaoId: corr2.versaoId, quem: coord, texto: "Resumo revisado.", itens: [], titulo: "Título ainda não revisado", data: "2026-11-12" });
+    const antesDePublicar = (await atasParaCliente(proj.id, joana.id))?.reunioes.find((x) => x.id === rp.reuniaoId);
+    check("correção em rascunho não muda título nem data para o cliente", antesDePublicar?.titulo === "Reunião publicada" && antesDePublicar.data === "2026-11-11");
+    const naEquipe = (await atasParaEquipe(proj.id, coordU.id))?.reunioes.find((x) => x.id === rp.reuniaoId);
+    check("a equipe vê o título e a data do rascunho no rascunho", naEquipe?.rascunho?.titulo === "Título ainda não revisado" && naEquipe.rascunho.data === "2026-11-12");
+    await publicar({ versaoId: corr2.versaoId, quem: coord });
+    const depoisDePublicar = (await atasParaCliente(proj.id, joana.id))?.reunioes.find((x) => x.id === rp.reuniaoId);
+    check("publicar a correção aplica título e data", depoisDePublicar?.titulo === "Título ainda não revisado" && depoisDePublicar.data === "2026-11-12");
     const rd = await criarReuniaoComRascunho({ projetoId: proj.id, quem: coord, texto: "texto livre" });
     const desc = await descartarRascunho({ versaoId: rd.versaoId, quem: coord });
     check("descartar o rascunho da 1ª versão apaga a reunião", desc.reuniaoApagada && (await prisma.reuniaoProjeto.count({ where: { id: rd.reuniaoId } })) === 0);
@@ -365,7 +405,7 @@ async function main() {
       }
     };
     const ligadas = await prisma.tarefaDaAta.findMany({ where: { reuniao: { projetoId: { in: projetos } } }, select: { tarefaId: true } });
-    for (const t of new Set([...tarefasCriadas, ...ligadas.map((l) => l.tarefaId)])) await remover("tarefa", t, () => prisma.tarefa.delete({ where: { id: t } }));
+    for (const t of new Set([...tarefasCriadas, ...ligadas.map((l) => l.tarefaId)])) await remover("tarefa", t, () => prisma.tarefa.deleteMany({ where: { id: t } }));
     for (const id of projetos) await remover("projeto", id, () => prisma.projeto.delete({ where: { id } }));
     for (const id of usuarios) await remover("usuário", id, () => prisma.user.delete({ where: { id } }));
     for (const id of clientes) await remover("cliente", id, () => prisma.cliente.delete({ where: { id } }));
