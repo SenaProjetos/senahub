@@ -11,6 +11,7 @@ import {
 } from "@/modules/portal/mensagens/actions";
 import { ACAO_MARCAR_DECISAO, ACAO_REMOVER_DECISAO, itensDaMensagem } from "@/modules/portal/mensagens/acoes";
 import { estadoInicial, juntarAnteriores, mesclarConversa, type EstadoConversa } from "@/modules/portal/mensagens/mesclar";
+import { decisoesCombinadas } from "@/modules/portal/atas/decisoes";
 import type { ConversaEquipeDTO, MensagemDTO } from "@/modules/portal/mensagens/queries";
 import { formatarData } from "@/lib/utils";
 import type { AcaoItemAcao } from "@/components/ui/acoes";
@@ -52,6 +53,7 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
   const leitura = useRef(0);
 
   const ultima = estado.mensagens.at(-1) ?? null;
+  const decisoes = decisoesCombinadas(estado.decisoes, estado.decisoesDeAtas);
 
   const carregar = useCallback(async () => {
     const n = ++leitura.current;
@@ -246,19 +248,35 @@ export function ConversaEquipe({ projetoId, inicial }: { projetoId: string; inic
           <CardDescription>O que ficou combinado com o cliente. Ele vê esta lista, sem o nome de quem marcou.</CardDescription>
         </CardHeader>
         <CardContent>
-          {estado.decisoes.length > 0 ? (
+          {decisoes.length > 0 ? (
             <ul className="space-y-3">
-              {estado.decisoes.map((d) => (
-                <li key={d.mensagemId} className="flex min-w-0 gap-2 text-sm">
-                  <Bookmark className="mt-0.5 size-4 shrink-0 text-foreground" aria-hidden />
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="whitespace-pre-wrap break-words">{d.resumo ?? d.trecho}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Mensagem de {formatarData(d.mensagemEm)} · marcada por {d.marcadaPor}
-                    </p>
-                  </div>
-                </li>
-              ))}
+              {decisoes.map((d) =>
+                d.origem === "conversa" ? (
+                  <li key={`m-${d.mensagemId}`} className="flex min-w-0 gap-2 text-sm">
+                    <Bookmark className="mt-0.5 size-4 shrink-0 text-foreground" aria-hidden />
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="whitespace-pre-wrap break-words">{d.resumo ?? d.trecho}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Mensagem de {formatarData(d.mensagemEm)} · marcada por {d.marcadaPor}
+                      </p>
+                    </div>
+                  </li>
+                ) : (
+                  <li key={`a-${d.reuniaoId}-${d.titulo}`} className="flex min-w-0 gap-2 text-sm">
+                    <Bookmark className="mt-0.5 size-4 shrink-0 text-foreground" aria-hidden />
+                    <div className="min-w-0 space-y-0.5">
+                      <p className="break-words font-medium">{d.titulo}</p>
+                      {d.descricao && <p className="whitespace-pre-wrap break-words">{d.descricao}</p>}
+                      <p className="text-xs text-muted-foreground">
+                        <a href="#atas" className="underline underline-offset-2">
+                          Ata de {formatarData(d.reuniaoData)} — {d.reuniaoTitulo}
+                        </a>
+                        {d.comObservacoes ? " · com observações do cliente" : ""}
+                      </p>
+                    </div>
+                  </li>
+                ),
+              )}
             </ul>
           ) : (
             <p className="text-sm text-muted-foreground">

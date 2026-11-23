@@ -11,6 +11,7 @@ import {
 } from "@/modules/portal/mensagens/actions";
 import type { ConversaDTO } from "@/modules/portal/mensagens/queries";
 import { estadoInicial, juntarAnteriores, mesclarConversa, type EstadoConversa } from "@/modules/portal/mensagens/mesclar";
+import { decisoesCombinadas } from "@/modules/portal/atas/decisoes";
 import { formatarData } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,6 +41,7 @@ export function ConversaCard({
   querEmail: boolean;
 }) {
   const [estado, setEstado] = useState<EstadoConversa>(() => estadoInicial(inicial));
+  const decisoes = decisoesCombinadas(estado.decisoes, estado.decisoesDeAtas);
   const [carregandoAnteriores, setCarregandoAnteriores] = useState(false);
   const [querEmail, setQuerEmail] = useState(querEmailInicial);
   const [salvandoAviso, startAviso] = useTransition();
@@ -184,25 +186,38 @@ export function ConversaCard({
         </label>
       </CardHeader>
       <CardContent className="space-y-3">
-        {estado.decisoes.length > 0 && (
+        {decisoes.length > 0 && (
           <CollapsibleSection
             titulo="Decisões"
             descricao="O que ficou combinado, registrado pela coordenação."
             resumo={
               <span className="text-xs text-muted-foreground">
-                {estado.decisoes.length === 1 ? "1 decisão" : `${estado.decisoes.length} decisões`}
+                {decisoes.length === 1 ? "1 decisão" : `${decisoes.length} decisões`}
               </span>
             }
           >
             <ul className="space-y-2">
-              {estado.decisoes.map((d) => (
-                <li key={d.mensagemId} className="space-y-0.5 text-sm">
-                  <p className="whitespace-pre-wrap break-words">{d.resumo ?? d.trecho}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Mensagem de {formatarData(d.mensagemEm)} · {d.marcadaPor}
-                  </p>
-                </li>
-              ))}
+              {decisoes.map((d) =>
+                d.origem === "conversa" ? (
+                  <li key={`m-${d.mensagemId}`} className="space-y-0.5 text-sm">
+                    <p className="whitespace-pre-wrap break-words">{d.resumo ?? d.trecho}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Mensagem de {formatarData(d.mensagemEm)} · {d.marcadaPor}
+                    </p>
+                  </li>
+                ) : (
+                  <li key={`a-${d.reuniaoId}-${d.titulo}`} className="space-y-0.5 text-sm">
+                    <p className="break-words font-medium">{d.titulo}</p>
+                    {d.descricao && <p className="whitespace-pre-wrap break-words">{d.descricao}</p>}
+                    <p className="text-xs text-muted-foreground">
+                      <a href="#atas" className="underline underline-offset-2">
+                        Ata de {formatarData(d.reuniaoData)} — {d.reuniaoTitulo}
+                      </a>
+                      {d.comObservacoes ? " · com as suas observações" : ""}
+                    </p>
+                  </li>
+                ),
+              )}
             </ul>
           </CollapsibleSection>
         )}
