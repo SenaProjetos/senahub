@@ -3,6 +3,7 @@ import {
   diferencaEmDiasCorridos,
   itensFixos,
   marcosDaAgenda,
+  motivoSemMarcos,
   rotuloDiferenca,
   situacaoDoMarco,
   type ContratoEntrada,
@@ -152,6 +153,27 @@ describe("agenda — datas e situação do marco", () => {
     expect(situacaoDoMarco({ concluido: false, combinado: null, previsao: "2026-01-01" })).toBe("sem_combinado");
     expect(situacaoDoMarco({ concluido: false, combinado: "2026-01-01", previsao: "2026-01-02" })).toBe("alterada");
     expect(situacaoDoMarco({ concluido: false, combinado: "2026-01-02", previsao: "2026-01-02" })).toBe("no_prazo");
+  });
+});
+
+describe("agenda — por que a equipe não vê marcos", () => {
+  it("com marcos, nada a explicar; sem contrato por entrega, também nada", () => {
+    expect(motivoSemMarcos(entrada())).toBeNull();
+    expect(motivoSemMarcos(entrada({ contratos: [contrato({ formaCobranca: "por_data" })] }))).toBeNull();
+    expect(motivoSemMarcos(entrada({ contratos: [] }))).toBeNull();
+  });
+  it("contrato ainda não assinado", () => {
+    expect(motivoSemMarcos(entrada({ contratos: [contrato({ statusContrato: "aguardando_assinatura" })] }))).toBe("O contrato ainda não foi assinado.");
+  });
+  it("cronograma em rascunho", () => {
+    expect(motivoSemMarcos(entrada({ cronograma: { aprovado: false, emRevisao: false } }))).toBe(
+      "O cronograma do projeto ainda está em rascunho — os marcos aparecem para o cliente quando ele for aprovado.",
+    );
+    expect(motivoSemMarcos(entrada({ cronograma: null }))).toContain("rascunho");
+  });
+  it("cronograma aprovado mas parcelas sem marco", () => {
+    const parcelas = [{ id: "a", descricao: "Sem marco", ordem: 1, naAssinatura: false, marcoId: null }];
+    expect(motivoSemMarcos(entrada({ contratos: [contrato({ parcelas })] }))).toBe("As parcelas do contrato não têm marco do cronograma.");
   });
 });
 

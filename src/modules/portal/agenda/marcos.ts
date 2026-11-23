@@ -131,6 +131,23 @@ export function marcosDaAgenda(e: EntradaDaAgenda): MarcoDaAgenda[] {
   return marcos.sort((a, b) => a.previsao.localeCompare(b.previsao) || a.parcelaId.localeCompare(b.parcelaId));
 }
 
+/**
+ * Só para a equipe: por que o contrato por entrega existe mas o cliente não vê marco. Nulo = nada a explicar (há marcos,
+ * ou não há contrato por entrega).
+ */
+export function motivoSemMarcos(e: EntradaDaAgenda): string | null {
+  if (marcosDaAgenda(e).length > 0) return null;
+  const porEntrega = e.contratos.filter(
+    (c) => c.tipo === "contrato" && c.vinculoId == null && c.clienteId === e.clienteId && c.projetoId === e.projetoId && c.formaCobranca === "por_entrega",
+  );
+  if (porEntrega.length === 0) return null;
+  if (!porEntrega.some((c) => contratoValido(c, e))) return "O contrato ainda não foi assinado.";
+  if (!e.cronograma?.aprovado) {
+    return "O cronograma do projeto ainda está em rascunho — os marcos aparecem para o cliente quando ele for aprovado.";
+  }
+  return "As parcelas do contrato não têm marco do cronograma.";
+}
+
 /** Assinatura, prazo do projeto e fim da vigência: fatos, sem "Combinado × Previsão". */
 export function itensFixos(e: EntradaDaAgenda): ItemFixo[] {
   const validos = e.contratos.filter((c) => contratoValido(c, e));
