@@ -215,6 +215,8 @@ model User {
   sessoes                       SessaoTrabalho[]
   cronogramasAprovados          CronogramaProjeto[]         @relation("CronogramaAprovador")
   eapBaselinesAutor             EapBaseline[]               @relation("EapBaselineAutor")
+  marcosAgendaNotas             MarcoAgendaPortal[]         @relation("MarcoAgendaNotaPor")
+  reunioesAgendadas             ReuniaoAgendada[]           @relation("ReuniaoAgendadaCriadaPor")
   eapCodigoHistorico            EapCodigoHistorico[]        @relation("EapCodigoAutor")
   eapPassosDesfazer             EapPassoDesfazer[]
   eapAtribuicoes                EapAtribuicao[]             @relation("EapAtribuicaoPessoa")
@@ -1289,6 +1291,8 @@ model Projeto {
   sessoes                 SessaoTrabalho[]
   cronograma              CronogramaProjeto?
   eapBaselines            EapBaseline[]
+  marcosAgenda            MarcoAgendaPortal[]
+  reunioesAgendadas       ReuniaoAgendada[]
   eapCatalogos            EapCatalogo[]
   saudeSnapshots          CronogramaSaudeSnapshot[]
   apuracoesValorAgregado  ValorAgregadoApuracao[]
@@ -5233,6 +5237,7 @@ model EapTarefa {
   predecessoras EapDependencia[] @relation("EapDependente")
   sucessoras    EapDependencia[] @relation("EapPredecessora")
   baselineLinhas EapBaselineLinha[]
+  agendaPortal   MarcoAgendaPortal?
   /// F7.3: parcelas de contrato por entrega que este marco dispara.
   parcelasEntrega ContratoParcelaEntrega[]
   historicoCodigo EapCodigoHistorico[]
@@ -10360,6 +10365,7 @@ model ReuniaoProjeto {
   pendencias  PendenciaCliente[]
   tarefas     TarefaDaAta[]
   arquivos    ArquivoAta[]
+  agendada    ReuniaoAgendada?
 
   @@index([projetoId, data])
   @@map("reuniao_projeto")
@@ -10466,4 +10472,82 @@ model ArquivoAta {
 
   @@index([reuniaoId])
   @@map("arquivo_ata")
+}
+/// Tipo da última mudança da reunião agendada, para o aviso do resumo diário.
+enum MudancaReuniaoAgendada {
+  remarcada
+  cancelada
+}
+
+enum EstadoReuniaoAgendada {
+  agendada
+  cancelada
+}
+
+/// Agenda do portal (spec 2026-11-23-portal-agenda-contrato-design.md): nota de motivo da coordenação e a última
+/// previsão que a rotina de aviso conferiu, por marco de entrega ligado a parcela de contrato. Linha criada sob demanda.
+model MarcoAgendaPortal {
+  id        String    @id @default(cuid())
+  projetoId String
+  projeto   Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  marcoId   String    @unique
+  marco     EapTarefa @relation(fields: [marcoId], references: [id], onDelete: Cascade)
+
+  /// Texto da coordenação para o cliente (1 a 500). Nulo = sem nota.
+  nota     String?   @db.Text
+  notaPorId String?
+  notaPor  User?     @relation("MarcoAgendaNotaPor", fields: [notaPorId], references: [id], onDelete: SetNull)
+  notaEm   DateTime?
+
+  /// Último valor conferido pela rotina do resumo diário; a mudança líquida entre duas rodadas vira aviso.
+  previsaoVista      DateTime? @db.Date
+  previsaoAnterior   DateTime? @db.Date
+  previsaoAlteradaEm DateTime? @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projetoId])
+  @@map("marco_agenda_portal")
+}
+
+/// Reunião que a coordenação agenda para o cliente. A ata, quando existe, é um `ReuniaoProjeto` ligado por `reuniaoId`
+/// (o fluxo de atas não conhece esta tabela). Hora = horário de São Paulo, texto `HH:mm`.
+model ReuniaoAgendada {
+  id        String  @id @default(cuid())
+  projetoId String
+  projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+
+  titulo         String
+  dia            DateTime @db.Date
+  horaInicio     String
+  duracaoMinutos Int?
+  link           String?
+  local          String?
+  pauta          String?  @db.Text
+
+  estado             EstadoReuniaoAgendada @default(agendada)
+  motivoCancelamento String?
+  canceladaEm        DateTime?
+
+  /// Última troca de dia/hora (só a última).
+  diaAnterior  DateTime? @db.Date
+  horaAnterior String?
+  /// Última mudança (remarcada ou cancelada) e o dia dela, para o aviso do resumo.
+  mudancaEm    DateTime?              @db.Date
+  mudancaTipo  MudancaReuniaoAgendada?
+
+  criadaPorId String?
+  criadaPor   User?    @relation("ReuniaoAgendadaCriadaPor", fields: [criadaPorId], references: [id], onDelete: SetNull)
+  criadaEm    DateTime @default(now())
+
+  /// A ata criada a partir desta reunião.
+  reuniaoId String?         @unique
+  reuniao   ReuniaoProjeto? @relation(fields: [reuniaoId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projetoId, dia])
+  @@map("reuniao_agendada")
 }
