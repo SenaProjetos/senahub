@@ -20,6 +20,8 @@ import { aprovacoesParaCliente } from "@/modules/portal/aprovacao-entrega/querie
 import { atasParaCliente } from "@/modules/portal/atas/queries";
 import { AtasCard } from "@/components/portal/atas-card";
 import { PendenciasClienteCard } from "@/components/portal/pendencias-cliente-card";
+import { AgendaCard } from "@/components/portal/agenda-card";
+import { agendaParaCliente } from "@/modules/portal/agenda/queries";
 import { contratosDoPortal } from "@/modules/portal/contratos/queries";
 import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
@@ -120,6 +122,17 @@ export default async function PortalProjetoPage({
         </Suspense>
       </LimiteErroEntregas>
 
+      {/* Agenda: datas do contrato e reuniões agendadas; só aparece quando há item; leitura e limite de erro próprios.
+          O sino e o e-mail levam a `#agenda`. */}
+      <LimiteErroEntregas
+        titulo="Agenda"
+        mensagem="Não foi possível carregar a agenda agora. Tente de novo; se continuar, fale com a coordenação."
+      >
+        <Suspense fallback={null}>
+          <AgendaDoProjeto projetoId={projeto.id} userId={user.id} />
+        </Suspense>
+      </LimiteErroEntregas>
+
       {/* Andamento, linha do tempo e entregas saem da MESMA leitura das Entregas: enquanto isso os esqueletos;
           um erro aqui fica só neste bloco. */}
       <LimiteErroEntregas>
@@ -200,6 +213,11 @@ async function AndamentoEEntregas({
 async function AprovacoesDoProjeto({ projetoId, userId }: { projetoId: string; userId: string }) {
   const aprovacoes = await aprovacoesParaCliente(projetoId, userId);
   return aprovacoes ? <AprovacoesEntregaCard projetoId={projetoId} aprovacoes={aprovacoes} /> : null;
+}
+
+async function AgendaDoProjeto({ projetoId, userId }: { projetoId: string; userId: string }) {
+  const itens = await agendaParaCliente(projetoId, userId);
+  return itens && itens.length > 0 ? <AgendaCard itens={itens} /> : null;
 }
 
 async function AtasDoProjeto({ projetoId, userId }: { projetoId: string; userId: string }) {

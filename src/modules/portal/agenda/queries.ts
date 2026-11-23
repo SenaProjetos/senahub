@@ -144,7 +144,7 @@ const estadoDaReuniao = (r: LinhaDaReuniao) => ({
 
 // ── Cliente ────────────────────────────────────────────────────────────────────────────────
 
-export type ItemAgendaCliente =
+type ItemDaAgenda =
   | { tipo: "assinatura" | "prazo" | "vigencia"; dia: string }
   | {
       tipo: "marco";
@@ -175,18 +175,19 @@ export type ItemAgendaCliente =
       temAta: boolean;
     };
 
-const diaDoItem = (i: ItemAgendaCliente): string => (i.tipo === "marco" ? i.previsao : i.dia);
-const horaDoItem = (i: ItemAgendaCliente): string => (i.tipo === "reuniao" ? i.horaInicio : "");
-/** Passado = recolhido no cartão: fato já ocorrido, marco entregue ou reunião de dia anterior. */
-const ehPassado = (i: ItemAgendaCliente, hoje: string): boolean => (i.tipo === "marco" ? i.situacao === "entregue" : i.dia < hoje);
+/** `passado` = recolhido no cartão: fato já ocorrido, marco entregue ou reunião de dia anterior. */
+export type ItemAgendaCliente = ItemDaAgenda & { passado: boolean };
+
+const diaDoItem = (i: ItemDaAgenda): string => (i.tipo === "marco" ? i.previsao : i.dia);
+const horaDoItem = (i: ItemDaAgenda): string => (i.tipo === "reuniao" ? i.horaInicio : "");
+const ehPassado = (i: ItemDaAgenda, hoje: string): boolean => (i.tipo === "marco" ? i.situacao === "entregue" : i.dia < hoje);
 
 /** Os de hoje em diante em ordem crescente; os passados depois, do mais recente para o mais antigo. */
-function ordenar(itens: ItemAgendaCliente[], hoje: string): ItemAgendaCliente[] {
-  const porData = (a: ItemAgendaCliente, b: ItemAgendaCliente) =>
-    diaDoItem(a).localeCompare(diaDoItem(b)) || horaDoItem(a).localeCompare(horaDoItem(b));
+function ordenar(itens: ItemDaAgenda[], hoje: string): ItemAgendaCliente[] {
+  const porData = (a: ItemDaAgenda, b: ItemDaAgenda) => diaDoItem(a).localeCompare(diaDoItem(b)) || horaDoItem(a).localeCompare(horaDoItem(b));
   const futuros = itens.filter((i) => !ehPassado(i, hoje)).sort(porData);
   const passados = itens.filter((i) => ehPassado(i, hoje)).sort((a, b) => porData(b, a));
-  return [...futuros, ...passados];
+  return [...futuros.map((i) => ({ ...i, passado: false })), ...passados.map((i) => ({ ...i, passado: true }))];
 }
 
 export async function agendaParaCliente(projetoId: string, userId: string): Promise<ItemAgendaCliente[] | null> {
@@ -203,10 +204,10 @@ export async function agendaParaCliente(projetoId: string, userId: string): Prom
   const reunioes = await reunioesDoProjeto(projetoId);
   const comAta = await comAtaPublicada(reunioes.map((r) => r.reuniaoId));
 
-  const itens: ItemAgendaCliente[] = [
-    ...itensFixos(entrada).map((i) => ({ tipo: i.tipo, dia: i.dia }) as ItemAgendaCliente),
+  const itens: ItemDaAgenda[] = [
+    ...itensFixos(entrada).map((i): ItemDaAgenda => ({ tipo: i.tipo, dia: i.dia })),
     ...marcos.map(
-      (m): ItemAgendaCliente => ({
+      (m): ItemDaAgenda => ({
         tipo: "marco",
         chave: m.parcelaId,
         titulo: m.titulo,
@@ -220,7 +221,7 @@ export async function agendaParaCliente(projetoId: string, userId: string): Prom
       }),
     ),
     ...reunioes.map(
-      (r): ItemAgendaCliente => ({
+      (r): ItemDaAgenda => ({
         tipo: "reuniao",
         id: r.id,
         titulo: r.titulo,
