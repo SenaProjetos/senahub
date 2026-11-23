@@ -20,6 +20,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Atas de reunião no portal do cliente (novembro/2026)
+
+- Na aba **Cliente** do projeto, a coordenação cola (ou anexa) as anotações do Gemini de uma reunião. O sistema separa
+  decisões e próximas etapas; a coordenação revisa e publica a ata no portal.
+- O cliente responde **Li e concordo** ou **Tenho observações**. Com observações, a coordenação publica uma versão
+  corrigida para ele confirmar de novo; as versões ficam guardadas.
+- As tarefas da equipe viram **Tarefas** do SenaHub; as do cliente aparecem no portal em **Pendências suas**, que ele
+  marca como feitas e a coordenação confere ou reabre. As decisões entram na lista **Decisões** do projeto.
+
 ## Aprovação formal da entrega pelo portal do cliente (novembro/2026)
 
 - Na aba **Cliente** do projeto, a coordenação envia ao cliente um pedido de **aprovação de entrega** com os arquivos

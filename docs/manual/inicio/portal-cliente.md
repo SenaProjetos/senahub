@@ -2,7 +2,7 @@
 titulo: Portal do cliente (Meus projetos)
 descricao: Visão externa, somente leitura, onde o cliente acompanha seus projetos.
 resumo: O cliente vê os projetos do seu cadastro em cartões com situação, prazo e progresso, abre cada um para detalhes, baixa as pranchas entregues e acompanha no Financeiro as parcelas em aberto e pagas.
-tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas, contrato, assinatura, mensagens, conversa, coordenação, decisão, aprovação de entrega, aceite]
+tags: [portal, cliente, meus projetos, acompanhamento, externo, somente leitura, pranchas, entregas, financeiro, parcelas, contrato, assinatura, mensagens, conversa, coordenação, decisão, aprovação de entrega, aceite, ata de reunião, pendências]
 palavras-chave: [portal, cliente, meus projetos, acompanhar projeto, progresso, prazo, situação, andamento, fase, linha do tempo, resumo, e-mail, mensagens, conversa, coordenação, decisão]
 sinonimos: [área do cliente, portal externo, acompanhamento de projeto]
 ---
@@ -188,6 +188,24 @@ entrega** (e você recebe um aviso no sino e por e-mail). Os pedidos que esperam
   **Registrada pela coordenação**, com a data.
 - Se a coordenação **anular** uma resposta (por exemplo, quando ela foi marcada por engano), a resposta continua
   visível, riscada, com o motivo, e o pedido volta a esperar a sua resposta.
+
+## Atas de reunião e pendências
+
+Depois de uma reunião, a coordenação publica a **ata** no portal (você recebe um aviso no sino e por e-mail). Ela aparece
+no card **Atas de reunião**, a mais recente primeiro, com o texto revisado pela coordenação, as **Decisões**, o que ficou
+**a cargo da equipe** (com prazo) e as **Pendências suas**.
+
+- **Li e concordo** confirma a ata. **Tenho observações** pede para você escrever o que não está de acordo. A resposta
+  fica registrada com o seu nome, a data e a versão da ata. Basta uma conta da sua empresa responder.
+- Com observações, a coordenação pode publicar uma **versão corrigida**. Ela aparece no lugar da anterior (marcada
+  "versão 2 (corrigida)") para você confirmar de novo; as versões anteriores ficam recolhidas, com a resposta que
+  tiveram.
+- As decisões das atas entram também na lista **Decisões** do card **Fale com a coordenação**, ao lado das marcadas
+  na conversa.
+- **Pendências suas** (card próprio, no topo): o que ficou a seu cargo. Atrasadas aparecem em destaque. Ao concluir,
+  use **Marquei como feito** (com um comentário, se quiser). A coordenação confere; se faltar algo, ela **reabre** a
+  pendência e você vê o motivo.
+- Se uma ata foi publicada por engano, a coordenação pode retirá-la: ela deixa de aparecer no portal.
 
 ## Briefing do projeto
 

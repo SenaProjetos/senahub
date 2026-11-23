@@ -350,7 +350,10 @@
         "fale com a coordenação",
         "aprovação de entrega",
         "aprovar entrega",
-        "aceite da entrega"
+        "aceite da entrega",
+        "ata de reunião",
+        "pendências suas",
+        "li e concordo"
       ],
       "sinonimos": [
         "área do cliente",
@@ -567,7 +570,10 @@
         "decisão do cliente",
         "aprovação de entrega",
         "registrar resposta por fora",
-        "anular resposta"
+        "anular resposta",
+        "ata de reunião",
+        "anotações do gemini",
+        "pendência do cliente"
       ],
       "sinonimos": [
         "obras",

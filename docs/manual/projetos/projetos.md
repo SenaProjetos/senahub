@@ -2,7 +2,7 @@
 titulo: Projetos
 descricao: Cadastro e acompanhamento de projetos, disciplinas, responsáveis, revisões e ciclo de vida.
 resumo: Liste e filtre projetos, crie/edite, gerencie disciplinas (com etapas por fase) e seus status, responsáveis, membros, revisões, duplicação e cancelamento/arquivamento.
-tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap, faturar entrega, aba cliente, mensagens de clientes, conversa com o cliente, decisão do cliente, aprovação de entrega, aceite do cliente]
+tags: [projetos, disciplinas, etapas, fase, status, responsáveis, membros, revisões, duplicar, cancelar, arquivar, progresso, nomenclatura versionada, sub-disciplina, receita, parcelas, valor de contrato, copiar eap, faturar entrega, aba cliente, mensagens de clientes, conversa com o cliente, decisão do cliente, aprovação de entrega, aceite do cliente, ata de reunião, gemini, pendência do cliente]
 palavras-chave: [projeto, disciplina, etapa, fase, pagamento por fase, gerar parcelas, receita do projeto, status, em andamento, em revisão, entregue, aprovado, responsável, membro, revisão, duplicar projeto, cancelar projeto, prazo, versão do padrão, trocar de versão, sub-disciplina]
 sinonimos: [obras, jobs, contratos de projeto]
 ---
@@ -995,6 +995,35 @@ conjunto de arquivos. Quem vê e usa é a mesma coordenação que vê a conversa
   uma parcela e a resposta conta como aceite, quem gere o financeiro também. Dá para desligar em **Preferências →
   Aprovações de entrega do cliente**.
 
+### Reuniões e atas
+
+A seção **Reuniões e atas** da aba **Cliente** transforma as anotações do Gemini (Google Meet) em ata para o cliente
+confirmar, com as decisões na lista **Decisões** e as tarefas acompanhadas. Quem usa é a mesma coordenação da conversa.
+
+- **Nova ata:** cole o texto das anotações (no Google Docs: Ctrl+A, copiar) ou anexe o arquivo baixado (Arquivo →
+  Fazer download → .docx, .md ou .txt, até 20 MB). A transcrição pode ser anexada junto; ela só fica guardada. Os
+  arquivos são só da equipe.
+- O sistema monta um **rascunho**: o texto (Resumo e Detalhes do Gemini) e os itens. As **Decisões** do Gemini entram
+  como decisões; as **Próximas etapas** viram tarefas. Quando o nome é de um membro do projeto, a tarefa já vem com ele
+  como responsável; quando é de uma conta do cliente (ou o nome do cliente), vira **pendência do cliente**; "SENA
+  Engenharia" e "O grupo" ficam sem responsável.
+- **Editor do rascunho:** revise o texto que o cliente vai ler ("Ver como o cliente vê"), ajuste título e data, e cada
+  item: tipo (Decisão, Tarefa da equipe, Pendência do cliente), título, descrição, responsável (membro do projeto,
+  obrigatório na tarefa da equipe) e prazo. Em atas sem a seção Decisões, **Transformar um trecho em decisão** cria a
+  decisão a partir de um parágrafo do texto.
+- **Publicar no portal** mostra o projeto e o cliente em destaque para conferir. A publicação cria as **Tarefas** da
+  equipe (aparecem no Meu trabalho e no quadro de Tarefas, com a origem "ata de …"), as **pendências** do cliente e
+  avisa o cliente.
+- **Corrigir ata (nova versão)**, no ⋯: abre um rascunho com a versão atual. Ao publicar, só o que mudou é aplicado:
+  uma tarefa editada à mão no quadro não perde o que a ata não alterou; item removido arquiva a tarefa ou cancela a
+  pendência; item que volta reaproveita a mesma tarefa ou pendência.
+- **Retirar ata** (⋯, motivo obrigatório): para ata publicada por engano. Some do portal e da lista de Decisões, as
+  tarefas abertas são arquivadas e as pendências não conferidas, canceladas. Não volta.
+- **Pendências do cliente:** quando o cliente marca **feito**, a pendência fica **Aguardando conferência**: use
+  **Conferir** ou **Reabrir** (com motivo, que o cliente vê). Atrasadas aparecem em destaque.
+- **Avisos:** a resposta do cliente à ata e a pendência marcada como feita avisam os coordenadores do projeto no sino;
+  dá para desligar em **Preferências → Atas de reunião do cliente**.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |
@@ -1009,6 +1038,7 @@ conjunto de arquivos. Quem vê e usa é a mesma coordenação que vê a conversa
 | Ver e responder pedidos de revisão do cliente | `arquivos:alterar_status` (aceitar exige também `uploads:validar`) |
 | Ver e responder a conversa com o cliente (aba Cliente) | Coordenação do projeto ou acesso a todos os projetos |
 | Enviar, cancelar, registrar por fora e anular aprovações de entrega | Coordenação do projeto ou acesso a todos os projetos |
+| Importar, publicar, corrigir e retirar atas; conferir e reabrir pendências do cliente | Coordenação do projeto ou acesso a todos os projetos |
 
 ## Erros possíveis e soluções
 
