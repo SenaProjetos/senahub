@@ -1,6 +1,7 @@
 import "server-only";
 import { LruCache } from "@/lib/cache";
 import { prisma } from "@/lib/prisma";
+import { chaveSoParaInterno, soParaInterno } from "@/lib/so-interno";
 
 /**
  * Motor de permissão por Perfil de acesso (Onda A da separação Setor × Contratação × Perfil).
@@ -30,7 +31,18 @@ export type SubjectPermissao = {
   ativo: boolean;
   superUsuario: boolean;
   perfilId: string | null;
+  /**
+   * Interno × externo. Opcional porque nem todo chamador o tem à mão; ausente, o motor lê `User.tipo` só quando a
+   * permissão pedida é de interno (`so-interno.ts`). Sem linha no banco falha FECHADO: externo.
+   */
+  tipo?: "interno" | "externo";
 };
+
+async function tipoDoSujeito(subject: SubjectPermissao): Promise<"interno" | "externo"> {
+  if (subject.tipo) return subject.tipo;
+  const u = await prisma.user.findUnique({ where: { id: subject.id }, select: { tipo: true } });
+  return u?.tipo === "interno" ? "interno" : "externo";
+}
 
 /** "recurso:acao" → permitido, por perfil. Mesmo padrão de `lib/permissions.ts`, chave própria. */
 const cachePerfil = new LruCache<string, Map<string, boolean>>({ max: 64, ttlMs: 10 * 60_000 });
@@ -89,7 +101,12 @@ export async function permissoesEfetivas(subject: SubjectPermissao): Promise<str
 
   const { PERMISSOES_CATALOGO } = await import("@/lib/permissions-catalog");
   const todas = PERMISSOES_CATALOGO.flatMap((r) => r.acoes.map((a) => `${r.recurso}:${a.acao}`));
-  if (subject.superUsuario) return todas;
+  if (subject.superUsuario) {
+    // Nem o superusuário externo leva o que é só de interno (o mesmo vale em `permissaoEfetiva`).
+    if (subject.tipo === "interno") return todas;
+    const externoSu = (await tipoDoSujeito(subject)) !== "interno";
+    return externoSu ? todas.filter((c) => !chaveSoParaInterno(c)) : todas;
+  }
 
   const doPerfil = subject.perfilId ? await loadPerfil(subject.perfilId) : new Map<string, boolean>();
   const overrides = await prisma.permissaoUsuario.findMany({
@@ -97,6 +114,7 @@ export async function permissoesEfetivas(subject: SubjectPermissao): Promise<str
     select: { recurso: true, acao: true, permitido: true, expiraEm: true },
   });
 
+  const externo = (await tipoDoSujeito(subject)) !== "interno";
   const agora = Date.now();
   const porOverride = new Map<string, boolean>();
   for (const o of overrides) {
@@ -105,12 +123,17 @@ export async function permissoesEfetivas(subject: SubjectPermissao): Promise<str
   }
 
   // Mesma ordem de resolução de `permissaoEfetiva`: override vence o perfil, inclusive negando.
-  return todas.filter((chave) => porOverride.get(chave) ?? doPerfil.get(chave) ?? false);
+  return todas.filter(
+    (chave) => !(externo && chaveSoParaInterno(chave)) && (porOverride.get(chave) ?? doPerfil.get(chave) ?? false),
+  );
 }
 
 /** Verifica se o subject pode executar `recurso:acao` pelo motor de Perfil de acesso. */
 export async function permissaoEfetiva(subject: SubjectPermissao, recurso: string, acao: string): Promise<boolean> {
   if (!subject.ativo) return false;
+  // Antes do bypass: o que é só de interno (Financeiro da empresa) nunca chega a externo, nem por perfil, override
+  // ou superusuário (decisão do dono, 2026-11-19).
+  if (soParaInterno(recurso, acao) && (await tipoDoSujeito(subject)) !== "interno") return false;
   if (subject.superUsuario) return true;
 
   const override = await overrideVigente(subject.id, recurso, acao);

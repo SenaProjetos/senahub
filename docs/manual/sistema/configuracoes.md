@@ -208,6 +208,9 @@ abre as ações dela, e a caixa de seleção permite agir em várias de uma vez:
 
 - A tela é gated em **admin, supervisor, administrativo**. Algumas sub-telas têm gates
   próprios (ex.: parâmetros de licitação podem ser restritos ao admin).
+- O **Financeiro da empresa é só de pessoa interna**: numa conta externa (cliente do portal), qualquer ação do
+  Financeiro além de **Ver apenas o próprio extrato** fica sem efeito, mesmo marcada no perfil, como permissão
+  individual ou em superusuário.
 
 ## Funcionalidades relacionadas
 

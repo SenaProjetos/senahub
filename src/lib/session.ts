@@ -204,7 +204,11 @@ export async function requirePermission(recurso: string, acao: string): Promise<
   // `canRole("supervisor", ...)` é o piso de sócio — a única pergunta legítima do tipo "o que o
   // papel X poderia" que sobra fora do arnês. Vira override individual (só leitura, §15.7) no
   // religamento do motor.
-  const ok = (await can(user, recurso, acao)) || (user.ehSocio && (await canRole("supervisor", recurso, acao)));
+  const { soParaInterno } = await import("@/lib/so-interno");
+  // O piso de sócio não fura a trava "só interno" (Financeiro da empresa): `can()` já nega a externo, e o
+  // `canRole` abaixo não sabe quem é a pessoa.
+  const pisoDeSocio = user.ehSocio && !(soParaInterno(recurso, acao) && user.tipo !== "interno");
+  const ok = (await can(user, recurso, acao)) || (pisoDeSocio && (await canRole("supervisor", recurso, acao)));
   if (!ok) redirect("/sem-permissao");
   return user;
 }

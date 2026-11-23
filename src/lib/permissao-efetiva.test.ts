@@ -3,8 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const permissaoPerfilFindMany = vi.fn();
 const permissaoUsuarioFindUnique = vi.fn();
 const permissaoUsuarioFindMany = vi.fn();
+const userFindUnique = vi.fn();
 vi.mock("@/lib/prisma", () => ({
   prisma: {
+    user: { findUnique: (...a: unknown[]) => userFindUnique(...a) },
     permissaoPerfil: { findMany: (...a: unknown[]) => permissaoPerfilFindMany(...a) },
     permissaoUsuario: {
       findUnique: (...a: unknown[]) => permissaoUsuarioFindUnique(...a),
@@ -21,7 +23,7 @@ import {
 } from "@/lib/permissao-efetiva";
 
 function subject(over: Partial<SubjectPermissao> = {}): SubjectPermissao {
-  return { id: "u1", ativo: true, superUsuario: false, perfilId: "perfil-1", ...over };
+  return { id: "u1", ativo: true, superUsuario: false, perfilId: "perfil-1", tipo: "interno", ...over };
 }
 
 describe("permissaoEfetiva", () => {
@@ -179,5 +181,57 @@ describe("permissoesEfetivas em lote", () => {
   it("faz UMA leitura de override, não uma por par do catálogo", async () => {
     await permissoesEfetivas(subject());
     expect(permissaoUsuarioFindMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("trava só interno no Financeiro (decisão do dono, 2026-11-19)", () => {
+  beforeEach(() => {
+    permissaoPerfilFindMany.mockReset();
+    permissaoUsuarioFindUnique.mockReset();
+    permissaoUsuarioFindUnique.mockResolvedValue(null);
+    permissaoUsuarioFindMany.mockReset();
+    permissaoUsuarioFindMany.mockResolvedValue([]);
+    userFindUnique.mockReset();
+    invalidatePerfil();
+    permissaoPerfilFindMany.mockResolvedValue([
+      { recurso: "financeiro", acao: "ver", permitido: true },
+      { recurso: "financeiro", acao: "extrato", permitido: true },
+      { recurso: "clientes", acao: "ver", permitido: true },
+    ]);
+  });
+
+  it("externo com financeiro:ver no perfil é negado; o extrato e outros recursos seguem", async () => {
+    const ext = subject({ tipo: "externo" });
+    expect(await permissaoEfetiva(ext, "financeiro", "ver")).toBe(false);
+    expect(await permissaoEfetiva(ext, "financeiro", "extrato")).toBe(true);
+    expect(await permissaoEfetiva(ext, "clientes", "ver")).toBe(true);
+  });
+
+  it("nem override nem superusuário abrem o Financeiro a externo", async () => {
+    permissaoUsuarioFindUnique.mockResolvedValue({ permitido: true, expiraEm: null });
+    expect(await permissaoEfetiva(subject({ tipo: "externo" }), "financeiro", "gerir")).toBe(false);
+    expect(await permissaoEfetiva(subject({ tipo: "externo", superUsuario: true }), "financeiro", "ver")).toBe(false);
+    expect(await permissaoEfetiva(subject({ tipo: "externo", superUsuario: true }), "financeiro", "extrato")).toBe(true);
+  });
+
+  it("sem tipo no sujeito, lê User.tipo só quando a permissão é de interno; sem linha = externo", async () => {
+    userFindUnique.mockResolvedValue({ tipo: "interno" });
+    expect(await permissaoEfetiva(subject({ tipo: undefined }), "financeiro", "ver")).toBe(true);
+    expect(await permissaoEfetiva(subject({ tipo: undefined }), "clientes", "ver")).toBe(true);
+    expect(userFindUnique).toHaveBeenCalledTimes(1);
+    userFindUnique.mockResolvedValue({ tipo: "externo" });
+    expect(await permissaoEfetiva(subject({ tipo: undefined }), "financeiro", "ver")).toBe(false);
+    userFindUnique.mockResolvedValue(null);
+    expect(await permissaoEfetiva(subject({ tipo: undefined }), "financeiro", "ver")).toBe(false);
+  });
+
+  it("menu: externo perde as chaves do Financeiro, menos o extrato (também como superusuário)", async () => {
+    const r = await permissoesEfetivas(subject({ tipo: "externo" }));
+    expect(r).not.toContain("financeiro:ver");
+    expect(r).toContain("financeiro:extrato");
+    expect(r).toContain("clientes:ver");
+    const su = await permissoesEfetivas(subject({ tipo: "externo", superUsuario: true }));
+    expect(su.filter((c) => c.startsWith("financeiro:"))).toEqual(["financeiro:extrato"]);
+    expect(await permissoesEfetivas(subject({ tipo: "interno" }))).toContain("financeiro:ver");
   });
 });

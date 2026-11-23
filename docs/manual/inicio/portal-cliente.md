@@ -263,6 +263,9 @@ Regras:
   da baixa e, como na cobrança por e-mail, parcelas de licitação (salvo se a cobrança de licitação estiver ligada
   em Configurações → Avisos de vencimento).
 - Cliente desativado no cadastro vê o aviso de acesso suspenso, como no resto do portal.
+- O Financeiro da empresa (lançamentos, contas, relatórios, planejador…) é só de pessoa **interna**. Mesmo que um
+  perfil de acesso ou uma permissão individual dê a uma conta do portal outra ação do Financeiro, o sistema nega: a
+  conta vê só esta tela, e o menu não mostra os outros itens.
 
 ## Casos especiais
 

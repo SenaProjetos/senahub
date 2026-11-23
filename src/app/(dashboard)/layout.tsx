@@ -63,6 +63,7 @@ export default async function DashboardLayout({
       ativo: user.ativo,
       superUsuario: eixos?.superUsuario ?? false,
       perfilId: eixos?.perfilId ?? null,
+      tipo: eixos?.tipo ?? "externo",
     }),
     // Mesmo campo de `requireInterno()`, de propósito: menu e gate divergirem produz "vê o link
     // e toma 404". Sem linha (não acontece com sessão) falha fechado.

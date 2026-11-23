@@ -249,6 +249,10 @@ client-side, cap 100, count in the confirm, partial-failure report). **Never han
   LRU per perfil, `invalidatePerfil`). The legacy per-role table `Permissao` is gone (Onda F, F1): the per-role seed
   is the constant `PERMISSOES_BASE` (`lib/permissoes-base.ts`), read only by `canRole` (sócio floor) and by
   `seedPerfisAcesso` (create-only). Catalog in `lib/permissions-catalog.ts`.
+- **Internal-only permissions** (`lib/so-interno.ts`, owner 2026-11-19): every `financeiro:*` action except `extrato` is
+  denied to an `externo` INSIDE the engine (`permissaoEfetiva` before the superuser bypass, `permissoesEfetivas` for the menu)
+  and in both sócio floors (`requirePermission`, `podeVerFinanceiro`). Pass `tipo` in the subject when you have it; without
+  it the engine reads `User.tipo` (no row = externo). The portal client's `/financeiro` is its own view (`modules/portal/financeiro*`).
 - Gates in `defineAction`: `interno: true`, `gereRh: true` (`rh:gerir`, granted person by person as a
   `PermissaoUsuario` override — "Gestão de RH" in Configurações → Usuários), `superUsuario: true`,
   `contratacoes: [...]`. The session carries `gereRh`, `gereTodasTarefas`, `escopoGlobalPerfil` already resolved.

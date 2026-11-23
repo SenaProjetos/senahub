@@ -16,6 +16,8 @@ export type SubjectAutorizacao = {
   ativo: boolean;
   superUsuario: boolean;
   perfilId: string | null;
+  /** Interno × externo; ausente, o motor lê do banco quando a permissão é só de interno (`lib/so-interno.ts`). */
+  tipo?: "interno" | "externo";
 };
 
 /**
@@ -76,6 +78,8 @@ export function podeAtuarEmDisciplinaAlheia(user: SubjectAutorizacao): Promise<b
  */
 export async function podeVerFinanceiro(user: SubjectAutorizacao): Promise<boolean> {
   if (await can(user, "financeiro", "ver")) return true;
+  // O piso de sócio não abre o Financeiro da empresa a externo (mesma trava do motor, `lib/so-interno.ts`).
+  if (user.tipo === "externo") return false;
   const socio = await prisma.socio.findUnique({ where: { userId: user.id }, select: { ativo: true } });
   return socio?.ativo === true;
 }
