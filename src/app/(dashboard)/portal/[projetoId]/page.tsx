@@ -17,6 +17,9 @@ import { BriefingCard } from "@/components/portal/briefing-card";
 import { ContratosCard } from "@/components/portal/contratos-card";
 import { AprovacoesEntregaCard } from "@/components/portal/aprovacoes-entrega-card";
 import { aprovacoesParaCliente } from "@/modules/portal/aprovacao-entrega/queries";
+import { atasParaCliente } from "@/modules/portal/atas/queries";
+import { AtasCard } from "@/components/portal/atas-card";
+import { PendenciasClienteCard } from "@/components/portal/pendencias-cliente-card";
 import { contratosDoPortal } from "@/modules/portal/contratos/queries";
 import { PedidosRevisaoCard } from "@/components/portal/pedidos-revisao-card";
 import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
@@ -83,6 +86,17 @@ export default async function PortalProjetoPage({
       >
         <Suspense fallback={null}>
           <AprovacoesDoProjeto projetoId={projeto.id} userId={user.id} />
+        </Suspense>
+      </LimiteErroEntregas>
+
+      {/* Atas de reunião e pendências do cliente: só aparecem quando há ata publicada; leitura e limite de erro próprios.
+          O sino e o e-mail levam a `#atas` e `#pendencias`. */}
+      <LimiteErroEntregas
+        titulo="Atas de reunião"
+        mensagem="Não foi possível carregar as atas agora. Tente de novo; se continuar, fale com a coordenação."
+      >
+        <Suspense fallback={null}>
+          <AtasDoProjeto projetoId={projeto.id} userId={user.id} />
         </Suspense>
       </LimiteErroEntregas>
 
@@ -186,6 +200,17 @@ async function AndamentoEEntregas({
 async function AprovacoesDoProjeto({ projetoId, userId }: { projetoId: string; userId: string }) {
   const aprovacoes = await aprovacoesParaCliente(projetoId, userId);
   return aprovacoes ? <AprovacoesEntregaCard projetoId={projetoId} aprovacoes={aprovacoes} /> : null;
+}
+
+async function AtasDoProjeto({ projetoId, userId }: { projetoId: string; userId: string }) {
+  const atas = await atasParaCliente(projetoId, userId);
+  if (!atas || (atas.reunioes.length === 0 && atas.pendencias.length === 0)) return null;
+  return (
+    <div className="space-y-6">
+      <PendenciasClienteCard pendencias={atas.pendencias} />
+      <AtasCard reunioes={atas.reunioes} />
+    </div>
+  );
 }
 
 async function ContratosDoProjeto({ projetoId, clienteId }: { projetoId: string; clienteId: string }) {
