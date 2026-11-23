@@ -1335,6 +1335,8 @@ model Projeto {
   conversaPortal ConversaPortal?
   /// Pacotes de entrega enviados ao cliente para aprovação formal (portal/aprovacao-entrega).
   aprovacoesEntrega AprovacaoEntrega[]
+  /// Reuniões do projeto com ata (portal/atas).
+  reunioesProjeto ReuniaoProjeto[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -10305,4 +10307,159 @@ model ComprovanteAprovacaoEntrega {
   @@index([aprovacaoId])
   @@index([usadoEm, criadoEm])
   @@map("comprovante_aprovacao_entrega")
+}
+
+/// Atas de reunião (spec 2026-11-22-portal-atas-reuniao-design.md). A reunião do projeto é a dona das versões da ata,
+/// das pendências do cliente, das Tarefas que ela criou e dos arquivos (anotações do Gemini e transcrição). Único
+/// escritor: `modules/portal/atas/service.ts`. Índices parciais (um rascunho / uma publicada por reunião) fora do schema.
+enum EstadoAtaVersao {
+  rascunho
+  publicada
+  substituida
+}
+
+enum RespostaAta {
+  concorda
+  observacoes
+}
+
+enum TipoItemAta {
+  decisao
+  tarefa_equipe
+  pendencia_cliente
+}
+
+enum SituacaoPendenciaCliente {
+  aberta
+  aguardando_conferencia
+  conferida
+  reaberta
+  cancelada
+}
+
+enum TipoArquivoAta {
+  anotacoes
+  transcricao
+}
+
+model ReuniaoProjeto {
+  id              String   @id @default(cuid())
+  projetoId       String
+  projeto         Projeto  @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  titulo          String
+  data            DateTime @db.Date
+  criadaPorId     String
+  criadaEm        DateTime @default(now())
+  /// "Retirar ata" (publicação por engano): some do portal; nunca volta.
+  retiradaEm      DateTime?
+  retiradaPorId   String?
+  retiradaPorNome String?
+  motivoRetirada  String?
+
+  versoes     AtaVersao[]
+  pendencias  PendenciaCliente[]
+  tarefas     TarefaDaAta[]
+  arquivos    ArquivoAta[]
+
+  @@index([projetoId, data])
+  @@map("reuniao_projeto")
+}
+
+model AtaVersao {
+  id                String          @id @default(cuid())
+  reuniaoId         String
+  reuniao           ReuniaoProjeto  @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+  numero            Int
+  estado            EstadoAtaVersao @default(rascunho)
+  texto             String          @db.Text
+  publicadaEm       DateTime?
+  publicadaPorId    String?
+  publicadaPorNome  String?
+  /// Resposta do cliente (uma por versão publicada).
+  resposta          RespostaAta?
+  observacao        String?         @db.Text
+  respondidaPorId   String?
+  respondidaPorNome String?
+  respondidaEm      DateTime?
+  criadaEm          DateTime        @default(now())
+
+  itens AtaItem[]
+
+  @@unique([reuniaoId, numero])
+  @@index([reuniaoId, estado])
+  @@map("ata_versao")
+}
+
+/// Item de uma versão. `chave` é a identidade estável entre versões (a mesma Tarefa / pendência).
+model AtaItem {
+  id            String      @id @default(cuid())
+  versaoId      String
+  versao        AtaVersao   @relation(fields: [versaoId], references: [id], onDelete: Cascade)
+  chave         String
+  tipo          TipoItemAta
+  titulo        String
+  descricao     String?     @db.Text
+  responsavelId String?
+  prazo         DateTime?   @db.Date
+  ordem         Int
+
+  @@index([versaoId])
+  @@index([chave])
+  @@map("ata_item")
+}
+
+/// Pendência do cliente nascida de um item da ata (uma linha por chave, reaproveitada se o item volta).
+model PendenciaCliente {
+  id               String                   @id @default(cuid())
+  reuniaoId        String
+  reuniao          ReuniaoProjeto           @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+  projetoId        String
+  chave            String                   @unique
+  titulo           String
+  descricao        String?                  @db.Text
+  prazo            DateTime?                @db.Date
+  situacao         SituacaoPendenciaCliente @default(aberta)
+  feitaEm          DateTime?
+  feitaPorId       String?
+  feitaPorNome     String?
+  comentarioFeito  String?
+  conferidaEm      DateTime?
+  conferidaPorId   String?
+  reabertaEm       DateTime?
+  reabertaPorId    String?
+  motivoReabertura String?
+  canceladaEm      DateTime?
+  criadaEm         DateTime                 @default(now())
+
+  @@index([reuniaoId])
+  @@index([projetoId, situacao])
+  @@map("pendencia_cliente")
+}
+
+/// Liga o item (pela chave) à Tarefa que a ata criou. `tarefaId` sem relação de propósito (Tarefa pesa no `tsc`).
+model TarefaDaAta {
+  id        String         @id @default(cuid())
+  reuniaoId String
+  reuniao   ReuniaoProjeto @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+  chave     String         @unique
+  tarefaId  String         @unique
+
+  @@index([reuniaoId])
+  @@map("tarefa_da_ata")
+}
+
+/// Arquivo interno da reunião (anotações originais, transcrição). O cliente nunca vê.
+model ArquivoAta {
+  id           String         @id @default(cuid())
+  reuniaoId    String
+  reuniao      ReuniaoProjeto @relation(fields: [reuniaoId], references: [id], onDelete: Cascade)
+  tipo         TipoArquivoAta
+  caminho      String
+  nome         String
+  tamanho      Int
+  enviadoPorId String
+  criadoEm     DateTime       @default(now())
+
+  @@index([reuniaoId])
+  @@map("arquivo_ata")
 }
