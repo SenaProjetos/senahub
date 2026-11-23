@@ -51,11 +51,11 @@ describe("catálogo", () => {
     expect(new Set(chaves).size).toBe(chaves.length);
   });
 
-  it("o motor só-estudo exige validação, existe no registro e fica fora da galeria", () => {
+  it("o motor só-estudo exige validação, existe no registro e aparece na galeria (o card leva ao projeto)", () => {
     const f = FERRAMENTAS.find((x) => x.key === "cargas-demanda");
     expect(f?.exigeValidacao).toBe(true);
     expect(f?.soEstudo).toBe(true);
-    expect(Object.values(porDisciplina()).flat().some((x) => x.key === "cargas-demanda")).toBe(false);
+    expect(Object.values(porDisciplina()).flat().some((x) => x.key === "cargas-demanda")).toBe(true);
   });
 
   it("as calculadoras de instalações exigem validação do engenheiro", () => {

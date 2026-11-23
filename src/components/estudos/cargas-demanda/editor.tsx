@@ -164,6 +164,12 @@ export function EstudoCargasDemandaEditor({ projetoId, estudo, conteudoInicial, 
     { n: 2, rotulo: "Demandas" },
     { n: 3, rotulo: "Centros e entradas" },
   ];
+  // O que fazer em cada etapa, em uma frase (a tela abre vazia: sem isto a pessoa não sabe por onde começar).
+  const GUIA: Record<Etapa, string> = {
+    1: "Escolha a concessionária, o tipo de empreendimento, a tensão e a ligação. Depois crie um levantamento para cada tipo de unidade (flat tipo, condomínio, loja), com pavimentos e ambientes.",
+    2: "Crie um cálculo por área útil (apartamentos) ou por carga instalada (condomínio, incêndio, lojas). Traga as cargas do levantamento e confira o FD de cada linha.",
+    3: "Crie os CMDs e distribua neles os apartamentos e os medidores. Confira o CPG e a entrada, preencha o responsável técnico e baixe o relatório.",
+  };
 
   return (
     <div className="space-y-5">
@@ -242,6 +248,10 @@ export function EstudoCargasDemandaEditor({ projetoId, estudo, conteudoInicial, 
           </button>
         ))}
       </nav>
+
+      <p className="text-sm text-muted-foreground">
+        <strong className="font-semibold text-foreground">Etapa {etapa} de 3 · {ETAPAS[etapa - 1].rotulo}.</strong> {GUIA[etapa]}
+      </p>
 
       {etapa === 1 && <EtapaLevantamento conteudo={conteudo} atualizar={atualizar} podeEditar={podeEditar} onContinuar={() => setEtapa(2)} />}
       {etapa === 2 && <EtapaDemandas conteudo={conteudo} atualizar={atualizar} podeEditar={podeEditar} onContinuar={() => setEtapa(3)} />}

@@ -24,14 +24,27 @@ import { fmtNum } from "@/modules/ferramentas/memoria";
 import type { EstudoResumo } from "@/modules/estudos/queries";
 import { TIPO_ESTUDO_DESCRICAO, TIPO_ESTUDO_ROTULO } from "@/modules/estudos/tipos";
 
-type Props = { projetoId: string; estudos: EstudoResumo[]; podeEditar: boolean; emValidacao: boolean; tiposLiberados: TipoDeEstudo[] };
+type Props = {
+  projetoId: string;
+  estudos: EstudoResumo[];
+  podeEditar: boolean;
+  emValidacao: boolean;
+  tiposLiberados: TipoDeEstudo[];
+  /** Vem da galeria de Ferramentas (`?novo=`): abre o "Novo estudo" já com este tipo marcado. */
+  abrirNovoDoTipo?: TipoDeEstudo | null;
+};
 
-export function EstudosView({ projetoId, estudos, podeEditar, emValidacao, tiposLiberados }: Props) {
+export function EstudosView({ projetoId, estudos, podeEditar, emValidacao, tiposLiberados, abrirNovoDoTipo = null }: Props) {
   const router = useRouter();
   const confirm = useConfirm();
   const [, startTransition] = useTransition();
-  const [novoAberto, setNovoAberto] = useState(false);
   const noLimite = estudos.length >= MAX_ESTUDOS_POR_PROJETO;
+  const [novoAberto, setNovoAberto] = useState(abrirNovoDoTipo !== null && podeEditar && !noLimite);
+  // O `?novo=` só serve para abrir o diálogo uma vez: ao fechar, sai da URL (senão um F5 abriria de novo).
+  function aoMudarNovo(v: boolean) {
+    setNovoAberto(v);
+    if (!v && abrirNovoDoTipo) router.replace(`/projetos/${projetoId}/estudos`);
+  }
 
   async function executar(estudo: EstudoResumo, item: AcaoItemAcao) {
     if (item.confirmar) {
@@ -106,7 +119,7 @@ export function EstudosView({ projetoId, estudos, podeEditar, emValidacao, tipos
         </ul>
       )}
 
-      <NovoEstudoDialog projetoId={projetoId} aberto={novoAberto} onOpenChange={setNovoAberto} tipos={tiposLiberados} />
+      <NovoEstudoDialog projetoId={projetoId} aberto={novoAberto} onOpenChange={aoMudarNovo} tipos={tiposLiberados} tipoInicial={abrirNovoDoTipo} />
     </div>
   );
 }
@@ -155,16 +168,19 @@ function NovoEstudoDialog({
   aberto,
   onOpenChange,
   tipos,
+  tipoInicial,
 }: {
   projetoId: string;
   aberto: boolean;
   onOpenChange: (v: boolean) => void;
   tipos: TipoDeEstudo[];
+  tipoInicial: TipoDeEstudo | null;
 }) {
   const router = useRouter();
   const [pendente, startTransition] = useTransition();
   const [nome, setNome] = useState("");
-  const [tipo, setTipo] = useState<TipoDeEstudo>(TIPO_ESTUDO_CARGAS);
+  // O estudo por concessionária (passo a passo) é o padrão quando liberado; o por ambiente continua à escolha.
+  const [tipo, setTipo] = useState<TipoDeEstudo>(tipoInicial ?? (tipos.includes(TIPO_ESTUDO_CARGAS_DEMANDA) ? TIPO_ESTUDO_CARGAS_DEMANDA : TIPO_ESTUDO_CARGAS));
   // O tipo escolhido sempre é um dos liberados (quem não gere as ferramentas vê só os já validados).
   const tipoEfetivo = tipos.includes(tipo) ? tipo : (tipos[0] ?? TIPO_ESTUDO_CARGAS);
 

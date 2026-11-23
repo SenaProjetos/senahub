@@ -21,11 +21,12 @@ valores da concessionária escolhida.
 
 ## Como acessar
 
-- Abra o projeto → aba **Estudos** → **Novo estudo** → escolha **Cargas e demanda por concessionária** → **Criar estudo**.
+- Pelas **Ferramentas**: abra **Cargas e demanda**, escolha o projeto e confirme o **Criar estudo**.
+- Ou pelo projeto: aba **Estudos** → **Novo estudo** → **Cargas e demanda por concessionária** (já vem marcado) → **Criar estudo**.
 - Ver exige a permissão de usar as ferramentas e enxergar o projeto. Editar é do **responsável de disciplina**
   do projeto (ou de quem atua em disciplina alheia).
-- Enquanto o motor de cálculo estiver **em validação**, só quem gere as ferramentas vê a aba. O aviso aparece no
-  topo do estudo.
+- O motor foi validado pelo engenheiro em 23/11/2026 e este tipo de estudo está liberado a todos que usam as ferramentas.
+  Se uma fórmula ou tabela mudar, ele volta a "em validação" (só quem gere as ferramentas vê, com aviso no topo).
 
 ## Como usar
 

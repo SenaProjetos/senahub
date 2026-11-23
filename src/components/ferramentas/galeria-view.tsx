@@ -70,6 +70,11 @@ export function GaleriaView({ podeVerEmValidacao }: { podeVerEmValidacao: boolea
                             {f.norma}
                           </Badge>
                         )}
+                        {f.soEstudo && (
+                          <Badge variant="outline" className="text-xs">
+                            Estudo do projeto
+                          </Badge>
+                        )}
                         {situacaoValidacao(f) === "em_validacao" && (
                           <Badge variant="outline" className="text-xs border-warning text-warning-text">
                             Em validação
