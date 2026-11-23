@@ -1,13 +1,14 @@
-# Portal do cliente — agenda do contrato
+# Portal do cliente — agenda (contrato e reuniões)
 
 Pedido do dono em 2026-11-23. Item 3 da série "próximos 6 do portal" (ordem combinada: aprovação da entrega ✓ → atas ✓ →
 **agenda** → conta de obra → confirmação de recebimento → comparar revisões).
 
 ## Por quê
 
-A ideia original era uma agenda com as próximas reuniões e os marcos que a equipe quisesse compartilhar. O dono reduziu o
-escopo, e foi a decisão certa: o cliente deve ver **apenas as datas estabelecidas em contrato**. Nada de cronograma interno,
-nada de reunião futura.
+A ideia original era uma agenda com as próximas reuniões e os marcos que a equipe quisesse compartilhar. O dono delimitou:
+dos marcos, o cliente vê **apenas as datas estabelecidas em contrato** (nada de cronograma interno); e a coordenação também
+**agenda as reuniões** na mesma agenda (correção do dono depois da primeira versão desta spec, que as tinha deixado de
+fora por engano).
 
 O portal hoje evita datas de cronograma de propósito (a EAP muda toda semana e uma data solta vira promessa; a única data
 futura que ele mostra é o "Prazo" do projeto, no cabeçalho). Esta agenda é a exceção deliberada, e só para o que foi
@@ -23,13 +24,13 @@ informação ou pagamento que não veio). Por isso a agenda mostra o combinado e
 coordenação explicar o motivo, em vez de só mostrar um número que cresce.
 
 Sucesso = o cliente abre o portal e vê, num cartão, as datas do contrato; quando um marco combinado desliza, ele vê a data
-original, a nova previsão, quantos dias de diferença e (se a coordenação escreveu) o motivo; e fica sabendo pelo resumo diário,
-sem e-mail novo.
+original, a nova previsão, quantos dias de diferença e (se a coordenação escreveu) o motivo; vê as reuniões marcadas, com
+hora e link, e sabe se uma foi remarcada ou cancelada; e fica sabendo de tudo isso pelo resumo diário, sem e-mail novo.
 
 ## Decisões do dono (2026-11-23)
 
-1. **Só datas de contrato.** Sem reunião futura, sem cronograma interno. A fonte são o contrato e os marcos da EAP que o
-   contrato por entrega aponta (`ContratoParcelaEntrega.marcoId`).
+1. **Marcos: só datas de contrato.** Sem cronograma interno. A fonte são o contrato e os marcos da EAP que o contrato por
+   entrega aponta (`ContratoParcelaEntrega.marcoId`).
 2. **Marco que escorrega mostra as duas datas** (opção C): "Combinado" e "Previsão atual", com os dias de diferença.
 3. **Nota de motivo opcional por marco**, escrita pela coordenação, visível ao cliente. Sem nota, nada aparece. (Motivo
    automático pelo estado do sistema fica como evolução, não entra agora.)
@@ -43,8 +44,14 @@ sem e-mail novo.
    "Previsão atual". Só um aditivo de contrato mudaria o combinado, e isso é outro assunto.
 8. **Construção: abordagem 1** (ver "Abordagens"): tabela própria por marco, com a nota e a última previsão que o cliente
    viu; o job diário compara e detecta a mudança.
+9. **A coordenação agenda reuniões na agenda do projeto** (título, dia, hora, link ou local, pauta opcional). Elas aparecem
+   para o cliente assim que são marcadas, e a ata importada depois pertence à mesma reunião.
+10. **O cliente só vê a reunião** (opção A): dia, hora, link ou local, pauta. Sem confirmar presença e sem pedir remarcação
+    na agenda — para remarcar ele usa a conversa com a coordenação, que já existe.
+11. **Reunião remarcada ou cancelada continua visível** ("Remarcada: era 10/12 às 14h", "Cancelada") e entra no resumo
+    diário, para o cliente não ir à reunião errada.
 
-## O que o cliente vê (`/portal/[projetoId]`, cartão "Agenda do contrato")
+## O que o cliente vê (`/portal/[projetoId]`, cartão "Agenda")
 
 O cartão fica no topo da página, abaixo das aprovações/atas/contratos e acima do Andamento (âncora `#agenda`, para o sino e
 o e-mail). Não aparece quando não há nenhum item. Leitura e limite de erro próprios, como os outros cartões.
@@ -57,6 +64,13 @@ Itens, em ordem de data (o mais próximo primeiro; entregues e passados no fim, 
 | Entrega (marco) | Combinado + Previsão atual | contrato **por entrega** vigente, cronograma **aprovado**, parcela com marco |
 | Prazo do projeto | `Projeto.prazoContrato` | projeto com prazo de contrato |
 | Fim da vigência | vencimento efetivo do contrato (com aditivos) | contrato com `dataVencimento` |
+| Reunião | dia + hora (horário de Brasília), link ou local, pauta | reunião agendada pela coordenação (qualquer situação) |
+
+Cada **reunião** mostra: título, dia e hora, o link (botão "Entrar", só `https`) e/ou o local, a pauta (se houver) e a
+situação — **Agendada**, **Remarcada** (com o dia e a hora anteriores), **Cancelada** (com o motivo, se a coordenação
+escreveu) ou **Realizada** (o dia passou e não foi cancelada; se já há ata publicada, um atalho "Ver ata" para `#atas`).
+Reunião agendada, remarcada ou cancelada aparece até o dia dela; depois de passada, recolhida com as outras. Nunca mostra
+quem agendou.
 
 Cada **marco de entrega** mostra:
 
@@ -71,9 +85,30 @@ Cada **marco de entrega** mostra:
 
 Nada de valor, percentual da parcela, status de cobrança, nome de linha da EAP, responsável, horas ou disciplina.
 
-## O que a equipe vê (`/projetos/[id]/cliente`, seção "Agenda do contrato")
+## O que a equipe vê (`/projetos/[id]/cliente`, seção "Agenda")
 
-Abaixo de "Reuniões e atas". Lista os mesmos marcos, na visão da equipe: descrição da parcela, contrato, combinado,
+Abaixo de "Reuniões e atas", em dois blocos: **Reuniões agendadas** e **Marcos do contrato**.
+
+### Reuniões agendadas
+
+- **Agendar reunião**: título (até 120), dia, hora de início, duração em minutos (opcional), link (opcional, `https`), local
+  (opcional, até 200) e pauta (opcional, até 1.000). Valida: dia de hoje em diante (horário de São Paulo); hora no formato
+  `HH:mm`. Vale na hora para o cliente — não há rascunho.
+- **Editar / remarcar**: muda dia, hora, duração, link, local ou pauta. Se muda dia ou hora, guarda o dia e a hora
+  anteriores (só a última troca) e a situação vira Remarcada; mudar só link, local ou pauta não marca como remarcada. Uma
+  reunião de dia passado ou cancelada não edita.
+- **Cancelar**: motivo opcional (até 300), visível ao cliente, com confirmação. Não volta (agende outra).
+- **Importar ata** (a partir do dia da reunião, reunião não cancelada, ainda sem ata): abre o fluxo de "Nova ata" que já
+  existe com título e dia da reunião já preenchidos; a ata criada fica ligada à reunião. A partir daí o item mostra
+  "Ver ata". O fluxo de atas não muda em nada além de aceitar essa ligação.
+- Cada linha: situação, dia e hora, e quem agendou (só para a equipe). Ações pelo descritor puro `itensDeReuniaoAgendada`
+  (ADR-0002), o mesmo array no menu de contexto e no `...`; item proibido pelo estado fica desabilitado com a mesma frase
+  da recusa do servidor ("Reunião já realizada.", "Reunião cancelada.", "A ata só pode ser importada a partir do dia da
+  reunião.", "Esta reunião já tem ata.").
+
+### Marcos do contrato
+
+Lista os marcos, na visão da equipe: descrição da parcela, contrato, combinado,
 previsão atual, diferença, nota atual (e quem escreveu e quando) e a situação. Ações por marco:
 
 - **Escrever nota** / **Editar nota** (texto simples, até 500 caracteres, obrigatório não vazio ao salvar);
@@ -150,10 +185,27 @@ Rotina (primeiro passo da rodada do resumo diário, antes de montar os itens):
 Isto soma só a diferença líquida entre duas rodadas: a coordenação pode mexer na EAP dez vezes ao dia e o cliente recebe, no
 máximo, um aviso por dia por marco.
 
+### Reuniões agendadas (regras puras, testadas)
+
+- **Situação** (`situacaoDaReuniao`): `cancelada` se cancelada; senão, `realizada` se o dia (São Paulo) é anterior a hoje;
+  senão `remarcada` se tem dia/hora anteriores gravados; senão `agendada`. Uma reunião remarcada cujo dia já passou é
+  `realizada`.
+- **Validação** (a mesma no schema e no serviço): título 1–120 depois do trim; dia `YYYY-MM-DD` não anterior a hoje (SP);
+  hora `HH:mm` 00:00–23:59; duração 5–600 minutos ou vazia; link só `https://` com até 500 caracteres, sem credenciais
+  embutidas; local ≤ 200; pauta ≤ 1.000; motivo de cancelamento ≤ 300. Hoje com hora já passada é aceito (reunião de agora).
+- **Escrita**: `defineAction`, `interno: true`, audiência da conversa; texto livre do cliente-facing vai em `redact`.
+  Editar e cancelar são `updateMany` condicionado ao estado lido (`estado = agendada`, e dia não passado); 0 linhas = "A
+  reunião mudou. Atualize a página." Duas coordenadoras editando ao mesmo tempo: uma vence, a outra recebe a recusa.
+- **Ata ligada**: a reunião agendada ganha `reuniaoId` (único, o `ReuniaoProjeto` criado pela ata) na MESMA transação em que
+  a ata é criada a partir dela; se outra pessoa ligar antes, a segunda recebe "Esta reunião já tem ata." Reunião
+  `ReuniaoProjeto` retirada (`retiradaEm`): o atalho "Ver ata" some, a reunião agendada continua `realizada`.
+- A reunião agendada é **de um projeto**; o cliente vê só as do projeto dele.
+
 ### Avisos no resumo diário
 
 O resumo continua o job `portal-resumo-diario` (07:00), as mesmas reservas por conta/projeto/dia/canal (`AvisoPortalEnviado`),
-o mesmo opt-out (`portal_resumo`) e o mesmo sino. Dois tipos de item novos, que entram na mesma lista por dia:
+o mesmo opt-out (`portal_resumo`) e o mesmo sino. Cinco tipos de item novos (dois de marco, três de reunião), que entram na
+mesma lista por dia:
 
 - **Marco próximo**: o resumo só avalia dias até ontem, então o item tem `dia` = previsão atual − 8 dias (corridos) e sai na
   manhã de previsão − 7. O texto **não conta dias** (a rodada pode recuperar dias perdidos e o número ficaria errado):
@@ -163,6 +215,15 @@ o mesmo opt-out (`portal_resumo`) e o mesmo sino. Dois tipos de item novos, que 
 - **Previsão alterada**: dia do item = `previsaoAlteradaEm`. Texto: "Entrega do projeto básico: previsão alterada de 02/04
   para 20/04 (combinado: 15/03)" e, se houver nota, a nota na linha seguinte. Marco fora da `BL-00` sai sem o trecho
   "(combinado: …)". Texto escapado para Markdown, como o resto do resumo.
+- **Reunião marcada**: dia do item = dia (São Paulo) em que foi criada. Texto: "Reunião agendada: <título>, 12/12/2026
+  às 14:00." (mais "Link: …" ou "Local: …"). Reunião criada e cancelada no mesmo dia não gera aviso.
+- **Reunião remarcada ou cancelada**: dia do item = dia da última mudança (`mudancaEm`); várias edições no mesmo dia viram
+  um aviso só, com o estado final. Texto: "Reunião remarcada: <título>, de 10/12 às 14:00 para 12/12 às 15:00." /
+  "Reunião cancelada: <título> (12/12/2026)." e o motivo, se houver. Cancelada é final (não volta). Uma reunião marcada e
+  remarcada no mesmo dia só gera o aviso de "marcada", com os valores atuais.
+- **Lembrete da reunião**: o item tem `dia` = dia da reunião − 2 e sai na manhã de reunião − 1. O texto **não diz
+  "amanhã"** (a rodada pode recuperar dias perdidos): "Lembrete: <título>, 12/12/2026 às 14:00." Não gera para reunião
+  cancelada nem para reunião marcada com menos de 2 dias de antecedência (o aviso de "marcada" já cobriu).
 
 A fonte dos itens do aviso é a mesma da tela (a mesma função de leitura, e o mesmo filtro de "quais marcos entram"). O
 aviso nunca fala de marco que a agenda não mostra.
@@ -177,7 +238,10 @@ aviso nunca fala de marco que a agenda não mostra.
 
 ## Não-objetivos
 
-- Reuniões futuras e convites (`.ics`): ficam fora. As reuniões continuam nas atas.
+- Convites (`.ics`), integração com Google Agenda/Meet (o link é digitado) e confirmação de presença ou pedido de
+  remarcação pelo cliente: ficam fora (o cliente só vê; para remarcar, usa a conversa).
+- Reunião interna da equipe (a agenda é do cliente) e reunião recorrente (cada uma é agendada à parte).
+- Excluir reunião agendada: ela se cancela (fica o rastro que o cliente já viu).
 - Qualquer data de cronograma interno (fases, atividades, marcos sem parcela, restrições, caminho crítico).
 - Valor, percentual ou situação de cobrança de parcela.
 - Motivo automático do atraso. É evolução possível (ex.: "Aguardando sua aprovação" pelo estado de uma aprovação de
@@ -193,6 +257,7 @@ aviso nunca fala de marco que a agenda não mostra.
 - Alarme: nenhum aviso por ajuste interno intermediário; no máximo um por marco por dia.
 - Vazar o interno: nome de linha da EAP, pessoa da equipe, horas, custo, valor da parcela.
 - Divergir do financeiro: a previsão da agenda tem de ser a mesma que alimenta a previsão de recebimento.
+- Cliente ir à reunião errada: remarcada e cancelada ficam visíveis e avisadas, nunca somem em silêncio.
 - Nota que acusa: o texto é da coordenação, escrito e revisado por ela; o sistema nunca gera frase de culpa.
 
 ## Abordagens
@@ -205,6 +270,15 @@ aviso nunca fala de marco que a agenda não mostra.
    filtrar ruído; histórico completo ninguém pediu.
 3. Calcular tudo na hora, sem guardar nada. Rejeitada: o aviso "previsão alterada" é impossível sem um valor anterior.
 
+**Reuniões — onde guardar (escolha do agente, o dono pediu o resultado):**
+
+- **R1. Tabela própria `ReuniaoAgendada`, ligada à ata depois por `reuniaoId` (escolhida).** O agendamento e a ata são
+  ciclos diferentes (a ata só existe depois, e às vezes nunca); a ligação é um vínculo opcional. O fluxo de atas — que acaba
+  de ser entregue, tem smoke e assume "toda reunião tem versão" — não muda.
+- R2. Estender `ReuniaoProjeto` com hora, link, local, estado e permitir reunião sem versão. Rejeitada: toda leitura de ata
+  (lista da equipe, cartão do cliente, avisos, contadores) teria de aprender a filtrar reunião sem ata, e um esquecido vira
+  reunião vazia aparecendo como ata ao cliente.
+
 ## Modelo de dados (migração aditiva)
 
 `MarcoAgendaPortal` (tabela `marco_agenda_portal`):
@@ -214,8 +288,20 @@ aviso nunca fala de marco que a agenda não mostra.
 - `previsaoVista` (`@db.Date`, nulo), `previsaoAnterior` (`@db.Date`, nulo), `previsaoAlteradaEm` (`@db.Date`, nulo);
 - `createdAt`, `updatedAt`.
 
-A linha nasce sob demanda (rotina de aviso ou primeira nota). Só objetos novos; nenhuma coluna existente muda. Checar no
-`migration.sql` que não há `ALTER` de tabela existente.
+A linha nasce sob demanda (rotina de aviso ou primeira nota).
+
+`ReuniaoAgendada` (tabela `reuniao_agendada`):
+
+- `id`, `projetoId` (FK `Projeto`, cascade; índice `[projetoId, dia]`);
+- `titulo`, `dia` (`@db.Date`), `horaInicio` (texto `HH:mm`, horário de São Paulo), `duracaoMinutos` (inteiro, nulo),
+  `link` (nulo), `local` (nulo), `pauta` (nulo);
+- `estado` (`agendada | cancelada`), `motivoCancelamento` (nulo), `canceladaEm` (timestamp, nulo);
+- `diaAnterior` (`@db.Date`, nulo), `horaAnterior` (nulo) — a última troca de dia/hora;
+- `mudancaEm` (`@db.Date`, nulo) e `mudancaTipo` (`remarcada | cancelada`, nulo) — a última mudança, para o aviso;
+- `criadaPorId` (FK `User`, SetNull), `criadaEm`; `reuniaoId` (`ReuniaoProjeto`, **único**, nulo, SetNull) — a ata ligada;
+- `createdAt`, `updatedAt`.
+
+Só objetos novos; nenhuma coluna existente muda. Checar no `migration.sql` que não há `ALTER` de tabela existente.
 
 ## Decisões do agente (corrigíveis)
 
@@ -227,17 +313,29 @@ Coisas que o dono não decidiu e eu escolhi, para ele conferir:
 4. **Marco entregue** mostra "Entregue em", mantém o combinado e esconde a nota; não gera aviso.
 5. **Previsão alterada vale nos dois sentidos** (adiantar também avisa).
 6. **Marco próximo**: aviso 7 dias corridos antes da previsão atual, sem contar dias no texto.
+7. **Primeira conferência nunca avisa** (senão o deploy dispara um aviso por marco).
+8. **Aviso de alteração sai na mesma manhã** (`dia = ontem` do passo de conferência).
+9. **Sem `.ics`** e sem rota de API nova.
+10. **Assinatura do contrato e prazos aparecem como fatos**, sem "Combinado × Previsão" (não há previsão para eles).
+11. **Sem permissão nova no catálogo**; o gate é o da conversa.
+12. Lista com **no máximo uma linha por marco** mesmo com dois contratos apontando o mesmo marco.
 13. **Cronograma em revisão** segura o aviso de "previsão alterada" (a tela segue ao vivo).
 14. **Só `tipo = "contrato"`** conta para assinatura, vigência e marcos (aditivo/proposta/procuração ficam fora), assinado
     dentro ou fora do portal.
 15. **O item "Prazo do projeto" fica na agenda e o "Prazo" do cabeçalho continua como está** (não mexo em outra tela); a
     pequena repetição é aceita.
-7. **Primeira conferência nunca avisa** (senão o deploy dispara um aviso por marco).
-8. **Aviso de alteração sai na mesma manhã** (`dia = ontem` do passo de conferência).
-9. **Sem `.ics`**, sem lembrete próprio, sem rota de API nova.
-10. **Assinatura do contrato e prazos aparecem como fatos**, sem "Combinado × Previsão" (não há previsão para eles).
-11. **Sem permissão nova no catálogo**; o gate é o da conversa.
-12. Lista com **no máximo uma linha por marco** mesmo com dois contratos apontando o mesmo marco.
+16. **Reunião agendada em tabela própria**, ligada à ata depois (abordagem R1), para o fluxo de atas não mudar.
+17. **Reunião vale na hora para o cliente** (sem rascunho) e, sendo da agenda do cliente, não há reunião interna.
+18. **Hora de início + duração opcional** (sem hora de fim), sempre horário de São Paulo; link só `https`; local e pauta
+    opcionais.
+19. **Remarcar = editar o dia ou a hora no lugar**, guardando só a troca anterior; cancelar é final, com motivo opcional que
+    o cliente lê; não existe excluir.
+20. **Reunião de dia passado não edita nem cancela**; vira "Realizada" sozinha, com "Ver ata" quando há ata publicada.
+21. **Importar ata** só a partir do dia da reunião, e a ata nasce ligada à reunião agendada.
+22. **Avisos de reunião**: marcada (dia da criação), remarcada/cancelada (dia da mudança) e um lembrete na manhã de
+    véspera, sem escrever "amanhã" no texto.
+23. **Nome da seção da equipe: "Agenda"**, com os blocos Reuniões agendadas e Marcos do contrato; o cartão do cliente fica
+    "Agenda" também (âncora `#agenda`).
 
 ## O que fica para quem constrói
 
@@ -253,7 +351,16 @@ Coisas que o dono não decidiu e eu escolhi, para ele conferir:
   previsão; marco fora da `BL-00`; marco entregue; marco apagado; contrato por data (sem marcos); outro cliente/cliente
   inativo; allow-list do DTO (sem valor, percentual, nome de linha, pessoa); nota (audiência, 500, entregue recusa, remover);
   primeira conferência sem aviso; mudança e volta ao mesmo valor sem aviso; alteração nos dois sentidos; itens do resumo
-  ("em 7 dias" e "alterada") com a reserva por dia.
+  ("marco próximo" e "alterada") com a reserva por dia. Reuniões: agendar (validações, link não-`https`, dia passado);
+  editar/remarcar (só link muda = não remarca; guarda dia e hora anteriores); cancelar (final, motivo visível); duas
+  edições ao mesmo tempo; reunião de dia passado recusa; importar ata liga a reunião (e a segunda tentativa recusa);
+  outro cliente/projeto/cliente inativo não vê; projetista não vê nem escreve; avisos (marcada, remarcada/cancelada,
+  criada e cancelada no mesmo dia = nada, lembrete com antecedência curta = nada) com a reserva por dia.
+- **Atas**: o único ponto de contato é o `criarAta` aceitar o id da reunião agendada e ligá-la na mesma transação. Rodar o
+  `smoke:portal-atas` inteiro depois para provar que nada mais mudou. A lista "Reuniões e atas" da equipe continua mostrando
+  só `ReuniaoProjeto`; a reunião agendada sem ata aparece apenas no bloco "Reuniões agendadas".
+- Estender o item do resumo também para as reuniões (mesma decisão do tipo irmão acima); o texto dos itens sai de uma
+  função pura única, usada pelo resumo.
 - Manual (`docs/manual/...`, inclusive `inicio/portal-cliente.md` pela rotina de stage por HEAD) e `novidades.md`.
 - Tela: 390×844 sem rolagem horizontal; 1366×768 com o menu aberto; o cartão e a seção seguem `CabecalhoPagina`/a ordem das
   outras seções.
