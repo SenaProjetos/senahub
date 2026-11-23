@@ -557,3 +557,33 @@ export async function exigirReuniaoDaEquipe(reuniaoId: string, userId: string): 
 }
 
 export { diaIso };
+
+// ── Arquivos internos (anotações originais e transcrição) ──────────────────────────────────
+
+export type ArquivoNovo = { tipo: "anotacoes" | "transcricao"; caminho: string; nome: string; tamanho: number };
+
+/** Registra os arquivos já gravados no disco (quem chama apaga os arquivos se isto lançar). */
+export async function registrarArquivosDaAta(reuniaoId: string, quem: Equipe, arquivos: readonly ArquivoNovo[]): Promise<{ id: string }[]> {
+  await exigirReuniaoDaEquipe(reuniaoId, quem.userId);
+  const criados: { id: string }[] = [];
+  for (const a of arquivos) {
+    criados.push(
+      await prisma.arquivoAta.create({
+        data: { reuniaoId, tipo: a.tipo, caminho: a.caminho, nome: a.nome, tamanho: a.tamanho, enviadoPorId: quem.userId },
+        select: { id: true },
+      }),
+    );
+  }
+  return criados;
+}
+
+/** O arquivo para baixar: só a equipe da audiência (interna e ativa). `null` em qualquer recusa. */
+export async function arquivoParaEquipe(arquivoId: string, userId: string): Promise<{ caminho: string; nome: string } | null> {
+  const a = await prisma.arquivoAta.findUnique({ where: { id: arquivoId }, select: { caminho: true, nome: true, reuniaoId: true } });
+  if (!a) return null;
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { tipo: true, ativo: true } });
+  if (!u || u.tipo !== "interno" || !u.ativo) return null;
+  const r = await prisma.reuniaoProjeto.findUnique({ where: { id: a.reuniaoId }, select: { projetoId: true } });
+  if (!r || !(await podeVerConversaDoProjeto(userId, r.projetoId))) return null;
+  return { caminho: a.caminho, nome: a.nome };
+}

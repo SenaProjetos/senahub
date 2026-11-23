@@ -13,7 +13,10 @@
  * Uso: npm run smoke:portal-atas
  */
 import "dotenv/config";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { strToU8, zipSync } from "fflate";
+import { resolverCaminho, salvarArquivo } from "../src/lib/storage";
+import { textoDoArquivo } from "../src/modules/portal/atas/docx";
 import { atasParaCliente, atasParaEquipe } from "../src/modules/portal/atas/queries";
 import { avisarPendenciaFeita, avisarPendenciaReaberta, avisarPublicacao, avisarRespostaAta, avisarTarefasNovas, type DepsAvisos } from "../src/modules/portal/atas/avisos";
 import { conversaParaCliente } from "../src/modules/portal/mensagens/queries";
@@ -21,6 +24,7 @@ import { prisma } from "../src/lib/prisma";
 import { proximoCodigoProjeto } from "../src/modules/projetos/numbering";
 import { TERMOS, tipoTermoPorTipo } from "../src/modules/legal/termos";
 import {
+  arquivoParaEquipe,
   conferirPendencia,
   corrigirAta,
   criarReuniaoComRascunho,
@@ -28,6 +32,7 @@ import {
   marcarPendenciaFeita,
   publicar,
   reabrirPendencia,
+  registrarArquivosDaAta,
   responderAta,
   retirarAta,
   salvarRascunho,
@@ -321,6 +326,28 @@ async function main() {
     check("retirada some do portal e das Decisões", !((await atasParaCliente(proj.id, joana.id))?.reunioes ?? []).some((x) => x.id === r1.reuniaoId) && !((await conversaParaCliente(proj.id, joana.id))?.decisoesDeAtas ?? []).some((d) => d.reuniaoId === r1.reuniaoId));
     check("retirada: pendências fora do portal", !((await atasParaCliente(proj.id, joana.id))?.pendencias ?? []).some((x) => x.reuniaoId === r1.reuniaoId));
     check("retirar de novo recusa", (await motivoDe(() => retirarAta({ reuniaoId: r1.reuniaoId, quem: coord, motivo: "x" }))) === MOTIVO_RETIRADA);
+
+    // ── Arquivos (importar por .docx) ──
+    const xml = `<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${[
+      "19 de jan. de 2026",
+      "Reunião - Clube Exemplo",
+      "Resumo",
+      "Alinhamento do anteprojeto.",
+      "Próximas etapas sugeridas",
+    ].map((t) => `<w:p><w:r><w:t>${t}</w:t></w:r></w:p>`).join("")}<w:p><w:pPr><w:numPr><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>Joana Prado vai enviar o programa de necessidades.</w:t></w:r></w:p></w:body></w:document>`;
+    const docx = zipSync({ "word/document.xml": strToU8(xml) });
+    const rArq = await criarReuniaoComRascunho({ projetoId: proj.id, quem: coord, texto: textoDoArquivo("ata.docx", docx) });
+    const reArq = await prisma.reuniaoProjeto.findUniqueOrThrow({ where: { id: rArq.reuniaoId } });
+    const itArq = await prisma.ataItem.findMany({ where: { versaoId: rArq.versaoId } });
+    check("docx: título, data e pendência da Joana", reArq.titulo === "Reunião - Clube Exemplo" && dia(reArq.data) === "2026-01-19" && itArq.length === 1 && itArq[0].tipo === "pendencia_cliente");
+    const caminhoArq = `smoke/${tag}-ata.docx`;
+    await salvarArquivo(caminhoArq, Buffer.from(docx));
+    const [arq] = await registrarArquivosDaAta(rArq.reuniaoId, coord, [{ tipo: "anotacoes", caminho: caminhoArq, nome: "ata.docx", tamanho: docx.length }]);
+    check("arquivo: coordenador recebe o caminho", (await arquivoParaEquipe(arq.id, coordU.id))?.caminho === caminhoArq);
+    check("arquivo: projetista = null", (await arquivoParaEquipe(arq.id, projetistaU.id)) === null);
+    check("arquivo: conta do cliente = null", (await arquivoParaEquipe(arq.id, joana.id)) === null);
+    await descartarRascunho({ versaoId: rArq.versaoId, quem: coord });
+    check("descartar apaga o arquivo do disco", !existsSync(resolverCaminho(caminhoArq)));
 
     // ── Cliente inativo e descartar ──
     const ri = await criarReuniaoComRascunho({ projetoId: projInativo.id, quem: coord, titulo: "Reunião inativo", data: "2026-11-10", texto: "Resumo\nTexto curto." });
