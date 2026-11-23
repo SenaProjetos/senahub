@@ -48,6 +48,7 @@ npm run smoke:portal-briefing   # briefing no portal: pedir (sem conta/cliente i
 npm run smoke:portal-assinatura    # assinatura de contrato pelo portal: miolo com trava (uma transição, parcelas uma vez), pedir (recusas, alçada, avisos, corrida), outro cliente/inativo/cancelado/versão substituída, duas contas e equipe × cliente ao mesmo tempo, arquivo
 npm run smoke:portal-aprovacao-entrega # aprovação formal da entrega: envio só com arquivos das Entregas e parcela do projeto, foto + impressão digital, uma resposta (duas contas, cliente × por fora ao mesmo tempo), outro cliente/inativo, desatualizado só enquanto aguarda (substituído, excluído, fora das Entregas), anular (volta a aguardar, dois = um), comprovante (outro pacote, outra pessoa, já usado, limpeza de 24 h), avisos e marca da parcela
 npm run smoke:portal-atas          # atas de reunião: importar (itens sugeridos, docx), publicar (Tarefas e pendências), versão nova só aplica o que mudou (edição manual sobrevive, remove/volta sem duplicar), resposta única e substituída, pendência feito/conferir/reabrir com corrida, retirar, outro cliente/inativo/projetista, avisos, Decisões combinadas
+npm run smoke:portal-agenda    # agenda do portal: marcos (Combinado = BL-00 × previsão atual, fora da BL-00, entregue, rascunho, só contrato por entrega vigente, allow-list), nota de motivo (audiência, 500, entregue, corrida), reuniões agendadas (validações, remarcar/cancelar, corrida, dia passado), ata ligada à reunião (antes do dia, corrida, retirada), conferência da previsão (1ª vez, mudança líquida, em revisão) e itens do resumo diário (escapado, uma vez por dia)
 npm run smoke:portal-mensagens    # conversa do cliente com a coordenação no portal: audiência (projetista, coordenador de outro projeto, perfil Coordenador sem ver o projeto, gestor global), outro cliente/inativo, 1 e-mail até ler, opt-out, decisão marca/desmarca com histórico, anexos (autor, janela, 5, outro cliente)
 npm run smoke:portal-modelo3d       # modelos 3D do portal: realinhamento grava a origem, lista (realinhado no lugar da origem, recebido do cliente sim, Geral e fora das Entregas não), rota só U ou descendente/recebido, sem conversão = preparando, bloqueio de download tira, ETag/304
 npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
@@ -911,6 +912,22 @@ de apontamento por marcação via `criarPendenciaNoTx` (`pendencias/criar-servic
 `criarPendencia`). A cota é recalculada no servidor pela `CalibracaoPrancha` (sem escala = recusa). As ações do cliente não têm
 permissão de catálogo: o serviço confere conta externa + `uploadLiberadoNoAlcance`. Anexos depois de criar o pedido, um por
 requisição (`/api/portal/pedidos/[id]/anexos`, até 5, linha do pedido travada). Smoke: `npm run smoke:pedido-revisao-cliente`.
+
+**Agenda do portal** (`modules/portal/agenda/`, cartão "Agenda" em `/portal/[projetoId]` e seção "Agenda" em `/projetos/[id]/cliente`,
+spec `docs/superpowers/specs/2026-11-23-portal-agenda-contrato-design.md`): o cliente vê SÓ datas de contrato (assinatura, marcos de
+entrega ligados a parcela, prazo do projeto, fim da vigência = `dataVencimento`, aditivo de cliente não prorroga) e as reuniões que
+a coordenação agenda. Marco = `ContratoParcelaEntrega.marcoId` de contrato `tipo = contrato`, `por_entrega`, assinado/vencido, com
+cronograma APROVADO; **"Combinado" é sempre a `BL-00`** (`EapBaselineLinha`, nunca a replanejada), "Previsão atual" é `fimPrevisto` da linha,
+entregue = status `con`. DTO do cliente por allow-list, marco identificado pelo id da PARCELA (nunca id/nome de linha da EAP, valor,
+percentual ou nome de pessoa). Regras puras testadas: `marcos.ts`, `reunioes.ts`, `itens-resumo.ts`, `acoes.ts` (ADR-0002). Escrita só
+em `service.ts` (audiência da conversa, `updateMany` condicionado ao `updatedAt` lido): nota de motivo por marco
+(`MarcoAgendaPortal`, 1–500, some do cliente quando entregue) e `ReuniaoAgendada` (dia/hora de São Paulo, link só `https`, remarcar =
+editar dia/hora guardando só o anterior, cancelar é final, não existe excluir). A ata nasce ligada à reunião (`criarReuniaoComRascunho`
+aceita `agendadaId`, liga na MESMA transação; o fluxo de atas não conhece mais nada da agenda). **Avisos vivem no resumo diário** (sem e-mail
+novo): `conferirPrevisoes` roda no começo de `resumirProjeto` e grava a mudança LÍQUIDA entre duas rodadas (`previsaoVista`/`Anterior`/
+`AlteradaEm`; 1ª vez nunca avisa, cronograma em revisão segura); os itens (`itensDoResumoDaAgenda`) usam o `dia` que faz sair na
+manhã certa (marco próximo = previsão − 8; lembrete = reunião − 2) e o texto não conta dias nem diz "amanhã"; o que vem do banco sai
+escapado e o item vai `seguro` (o resumo não escapa de novo). Smoke: `npm run smoke:portal-agenda`.
 
 **Estudos (levantamento de cargas por projeto)** (`modules/estudos/`, aba `/projetos/[id]/estudos`, spec
 `docs/superpowers/specs/2026-11-02-lote5d-estudos-design.md`): `EstudoProjeto` guarda o estudo inteiro como UM documento JSON
