@@ -1024,6 +1024,28 @@ confirmar, com as decisões na lista **Decisões** e as tarefas acompanhadas. Qu
 - **Avisos:** a resposta do cliente à ata e a pendência marcada como feita avisam os coordenadores do projeto no sino;
   dá para desligar em **Preferências → Atas de reunião do cliente**.
 
+### Agenda
+
+A seção **Agenda** da aba **Cliente** tem dois blocos: as **reuniões** que você marca para o cliente e os **marcos do
+contrato** com a nota de motivo. Quem usa é a coordenação do projeto (a mesma da conversa com o cliente).
+
+- **Agendar reunião:** título, dia, hora (horário de Brasília), duração, link, local e pauta (os três últimos são
+  opcionais). Vale na hora: o cliente já vê a reunião no portal. O link precisa começar com `https://`.
+- **Editar / remarcar** (⋯): mudar o **dia ou a hora** marca a reunião como **Remarcada** (o cliente vê "era 10/12 às
+  14:00" e recebe o aviso). Mudar só o link, o local ou a pauta não remarca. Reunião cancelada ou de dia passado não pode
+  mais ser editada.
+- **Cancelar reunião** (⋯): o motivo é opcional e o cliente o lê. Não volta; agende outra se precisar. Não existe excluir.
+- **Importar ata** (⋯, a partir do dia da reunião): abre o fluxo de **Nova ata** já ligado àquela reunião. Depois que a ata
+  é publicada, a reunião ganha o atalho **Ver ata**.
+- **Marcos do contrato:** são as entregas ligadas às parcelas de contratos cobrados por entrega. Cada uma mostra o
+  **Combinado** (a data da linha de base original), a **Previsão atual** e a diferença em dias. Se o cliente ainda não
+  vê os marcos, a seção diz por quê (cronograma em rascunho, contrato não assinado, parcela sem marco).
+- **Escrever nota** (⋯ do marco): texto de até 500 caracteres que o cliente lê junto das datas. Use para explicar o
+  motivo de uma mudança (por exemplo, "aguardando a aprovação do cliente"). **Remover nota** tira o texto do portal. Em
+  marco já entregue a nota não aparece mais para o cliente.
+- **Avisos ao cliente:** vão no resumo diário das 7h (reunião marcada, remarcada, cancelada, lembrete, entrega próxima e
+  previsão alterada); não há e-mail separado.
+
 ## Permissões (resumo)
 
 | Ação | Permissão |
@@ -1038,6 +1060,7 @@ confirmar, com as decisões na lista **Decisões** e as tarefas acompanhadas. Qu
 | Ver e responder pedidos de revisão do cliente | `arquivos:alterar_status` (aceitar exige também `uploads:validar`) |
 | Ver e responder a conversa com o cliente (aba Cliente) | Coordenação do projeto ou acesso a todos os projetos |
 | Enviar, cancelar, registrar por fora e anular aprovações de entrega | Coordenação do projeto ou acesso a todos os projetos |
+| Agendar reuniões e escrever notas de motivo dos marcos (Agenda) | Coordenação do projeto ou acesso a todos os projetos |
 | Importar, publicar, corrigir e retirar atas; conferir e reabrir pendências do cliente | Coordenação do projeto ou acesso a todos os projetos |
 
 ## Erros possíveis e soluções

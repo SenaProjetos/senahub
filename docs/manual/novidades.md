@@ -20,6 +20,17 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Agenda no portal do cliente (novembro/2026)
+
+- O portal ganhou o card **Agenda**: as datas combinadas em contrato (assinatura, entregas, prazo do projeto, fim da
+  vigência) e as **reuniões** marcadas pela coordenação, com dia, hora e link.
+- Cada entrega mostra a data **Combinada** e a **Previsão atual**, com os dias de diferença. A coordenação pode escrever
+  uma **nota** explicando o motivo quando a previsão muda.
+- Na aba **Cliente** do projeto, a coordenação **agenda, remarca e cancela** reuniões, importa a ata da reunião
+  já ligada a ela e escreve as notas dos marcos.
+- O cliente é avisado no **resumo diário** que já existe: reunião marcada, remarcada ou cancelada, lembrete na véspera,
+  entrega próxima e previsão alterada. Nenhum e-mail novo.
+
 ## Atas de reunião no portal do cliente (novembro/2026)
 
 - Na aba **Cliente** do projeto, a coordenação cola (ou anexa) as anotações do Gemini de uma reunião. O sistema separa

@@ -189,6 +189,22 @@ entrega** (e você recebe um aviso no sino e por e-mail). Os pedidos que esperam
 - Se a coordenação **anular** uma resposta (por exemplo, quando ela foi marcada por engano), a resposta continua
   visível, riscada, com o motivo, e o pedido volta a esperar a sua resposta.
 
+## Agenda
+
+O card **Agenda** reúne as **datas combinadas em contrato** e as **reuniões** marcadas pela coordenação. Ele só aparece
+quando há alguma coisa para mostrar.
+
+- **Contrato assinado**, **Prazo do projeto** e **Fim da vigência do contrato** são datas fixas.
+- **Entregas combinadas** (nos contratos cobrados por entrega, depois que o cronograma do projeto é aprovado): cada
+  entrega mostra a data **Combinada** e a **Previsão atual**, com a diferença em dias. O combinado é a data original e
+  não muda; a previsão acompanha o andamento do projeto. Quando a entrega atrasa ou adianta, o selo muda para **Previsão
+  alterada**. A coordenação pode escrever uma **nota** explicando o motivo (por exemplo, "aguardando a aprovação do
+  projeto básico"); ela aparece abaixo das datas. Entrega concluída mostra **Entregue em** e o combinado continua visível.
+- **Reuniões:** dia, hora (horário de Brasília), botão **Entrar na reunião** quando há link, local e pauta. Reunião
+  remarcada mostra "Remarcada: era 10/12 às 14:00"; reunião cancelada fica visível como **Cancelada**, com o motivo
+  quando a coordenação o escreve. Para pedir uma remarcação, use **Fale com a coordenação**.
+- O que já passou fica recolhido em **Ver o que já passou**. Pagamentos continuam no **Financeiro**.
+
 ## Atas de reunião e pendências
 
 Depois de uma reunião, a coordenação publica a **ata** no portal (você recebe um aviso no sino e por e-mail). Ela aparece
@@ -242,6 +258,9 @@ tempo** — e o botão **Abrir no portal**. Dia sem novidade não manda nada. O 
   **Meus projetos**. O aviso no sino continua.
 - Se o servidor ficou fora alguns dias, o cliente recebe um e-mail só com os dias que faltaram.
 - O escritório liga e desliga o resumo em Configurações → **Portal do cliente**.
+- A **Agenda** também entra no resumo: reunião marcada, remarcada ou cancelada, um lembrete na véspera da reunião,
+  entrega prevista para daqui a uma semana e entrega com a previsão alterada (com a nota da coordenação, se houver). Se a
+  coordenação mexer na previsão várias vezes no mesmo dia, o cliente recebe só o resultado final.
 
 ## Financeiro
 
