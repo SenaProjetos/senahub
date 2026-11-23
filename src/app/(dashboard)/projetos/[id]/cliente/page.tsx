@@ -23,7 +23,11 @@ export default async function ClienteProjetoPage({ params }: { params: Promise<{
   if (!conversa) notFound();
   const aprovacoes = await aprovacoesParaEquipe(id, user.id);
   const atas = await atasParaEquipe(id, user.id);
-  const agenda = await agendaParaEquipe(id, user.id);
+  // A agenda é um bloco à parte: se a leitura falhar, a conversa e as atas continuam na tela.
+  const agenda = await agendaParaEquipe(id, user.id).catch((e: unknown) => {
+    console.error("[agenda] leitura da equipe falhou:", e);
+    return null;
+  });
   return (
     <div className="space-y-6">
       <ConversaEquipe projetoId={id} inicial={conversa} />

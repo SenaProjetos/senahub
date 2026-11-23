@@ -10,7 +10,7 @@
  * O que o resumo precisa de um item: o dia, o rótulo (disciplina ou "Agenda") e o texto. `ItemLinhaDoTempo` é atribuível a
  * isto. `seguro` = o texto já vem escapado para o Markdown (itens da agenda), então a lista não escapa de novo.
  */
-export type ItemDoResumo = { dia: string; disciplina: string; texto: string; seguro?: boolean };
+export type ItemDoResumo = { dia: string; disciplina: string; texto: string; seguro?: boolean; puro?: string };
 
 export const CHAVE_CONFIG_RESUMO = "portal.resumoDiario";
 export type ConfigResumo = { ativo: boolean; desde: string | null; ultimoDia: string | null };
@@ -89,6 +89,6 @@ export function textoDoSino(porDia: ReadonlyMap<string, ItemDoResumo[]>): string
   const itens = diasEmOrdem(porDia).flatMap((d) => porDia.get(d)!);
   if (itens.length === 0) return "";
   // O texto da agenda pode ter uma segunda linha (motivo): o sino mostra só a primeira.
-  const primeiro = `${itens[0].disciplina} · ${itens[0].texto.split("\n")[0]}`;
+  const primeiro = `${itens[0].disciplina} · ${(itens[0].puro ?? itens[0].texto).split("\n")[0]}`;
   return itens.length > 1 ? `${primeiro} e mais ${itens.length - 1}` : primeiro;
 }

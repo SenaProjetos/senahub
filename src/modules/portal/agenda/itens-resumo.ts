@@ -4,8 +4,9 @@
  *
  * O resumo só avalia dias até ontem e cada dia uma vez, então cada item tem o `dia` que o faz sair na manhã certa:
  * "marco próximo" = previsão − 8 (sai na manhã de previsão − 7); lembrete de reunião = dia − 2 (sai na véspera). Os textos
- * não contam dias nem dizem "amanhã": a rodada pode recuperar dias perdidos. O que vem do banco sai escapado para o
- * Markdown do e-mail e o item vai marcado `seguro` (o resumo não escapa de novo).
+ * não contam dias nem dizem "amanhã": a rodada pode recuperar dias perdidos. Cada item sai em duas versões do MESMO texto:
+ * `texto` (Markdown do e-mail: o que vem do banco escapado, o link como autolink `<url>`, que não mexe nos `_` da URL) e
+ * `puro` (sem escape, para o sino). O item vai marcado `seguro` (o resumo não escapa `texto` de novo).
  */
 import { escaparMarkdown, somarDiasIso, type ItemDoResumo } from "../resumo-diario";
 
@@ -37,7 +38,11 @@ export type ReuniaoParaAviso = {
 export type DecisaoConferencia = { acao: "nada" } | { acao: "gravar_vista" } | { acao: "alterou"; anterior: string };
 
 const ROTULO = "Agenda";
-const esc = escaparMarkdown;
+
+/** Como cada trecho vindo do banco entra no texto: escapado (e-mail) ou como está (sino). */
+type Formato = { e: (s: string) => string; link: (url: string) => string };
+const MARKDOWN: Formato = { e: escaparMarkdown, link: (url) => `<${url}>` };
+const PURO: Formato = { e: (s) => s, link: (url) => url };
 
 const dataCompleta = (dia: string) => dia.split("-").reverse().join("/");
 const dataSemAno = (dia: string) => dataCompleta(dia).slice(0, 5);
@@ -48,19 +53,26 @@ function datas(...dias: string[]): string[] {
   return dias.map(mesmoAno ? dataSemAno : dataCompleta);
 }
 
-const item = (dia: string, texto: string): ItemDoResumo => ({ dia, disciplina: ROTULO, texto, seguro: true });
-const motivo = (m: string | null) => (m ? `\n  Motivo: ${esc(m)}` : "");
+/** O mesmo texto nas duas versões. */
+const item = (dia: string, texto: (f: Formato) => string): ItemDoResumo => ({
+  dia,
+  disciplina: ROTULO,
+  texto: texto(MARKDOWN),
+  puro: texto(PURO),
+  seguro: true,
+});
+const motivo = (f: Formato, m: string | null) => (m ? `\n  Motivo: ${f.e(m)}` : "");
 
 export function itensDosMarcos(marcos: MarcoParaAviso[]): ItemDoResumo[] {
   const itens: ItemDoResumo[] = [];
   for (const m of marcos) {
     if (m.concluido) continue;
-    const titulo = esc(m.titulo);
-    itens.push(item(somarDiasIso(m.previsao, -8), `${titulo}: entrega prevista para ${dataCompleta(m.previsao)}.`));
+    itens.push(item(somarDiasIso(m.previsao, -8), (f) => `${f.e(m.titulo)}: entrega prevista para ${dataCompleta(m.previsao)}.`));
     if (m.previsaoAlteradaEm && m.previsaoAnterior) {
-      const [de, para, comb] = datas(m.previsaoAnterior, m.previsao, ...(m.combinado ? [m.combinado] : []));
+      const anterior = m.previsaoAnterior;
+      const [de, para, comb] = datas(anterior, m.previsao, ...(m.combinado ? [m.combinado] : []));
       const combinado = comb ? ` (combinado: ${comb})` : "";
-      itens.push(item(m.previsaoAlteradaEm, `${titulo}: previsão alterada de ${de} para ${para}${combinado}${motivo(m.nota)}`));
+      itens.push(item(m.previsaoAlteradaEm, (f) => `${f.e(m.titulo)}: previsão alterada de ${de} para ${para}${combinado}${motivo(f, m.nota)}`));
     }
   }
   return itens;
@@ -69,32 +81,35 @@ export function itensDosMarcos(marcos: MarcoParaAviso[]): ItemDoResumo[] {
 export function itensDasReunioes(reunioes: ReuniaoParaAviso[]): ItemDoResumo[] {
   const itens: ItemDoResumo[] = [];
   for (const r of reunioes) {
-    const titulo = esc(r.titulo);
     if (r.estado === "cancelada") {
       // Criada e cancelada no mesmo dia: o cliente nunca precisou saber.
       if (r.mudancaEm && r.mudancaEm !== r.criadaDia) {
-        itens.push(item(r.mudancaEm, `Reunião cancelada: ${titulo} (${dataCompleta(r.dia)}).${motivo(r.motivoCancelamento)}`));
+        itens.push(item(r.mudancaEm, (f) => `Reunião cancelada: ${f.e(r.titulo)} (${dataCompleta(r.dia)}).${motivo(f, r.motivoCancelamento)}`));
       }
       continue;
     }
-    const onde = [r.link ? ` Link: ${esc(r.link)}.` : "", r.local ? ` Local: ${esc(r.local)}.` : ""].join("");
-    itens.push(item(r.criadaDia, `Reunião agendada: ${titulo}, ${dataCompleta(r.dia)} às ${r.horaInicio}.${onde}`));
+    itens.push(
+      item(r.criadaDia, (f) => {
+        const onde = [r.link ? ` Link: ${f.link(r.link)}.` : "", r.local ? ` Local: ${f.e(r.local)}.` : ""].join("");
+        return `Reunião agendada: ${f.e(r.titulo)}, ${dataCompleta(r.dia)} às ${r.horaInicio}.${onde}`;
+      }),
+    );
 
     if (r.mudancaTipo === "remarcada" && r.mudancaEm && r.mudancaEm !== r.criadaDia) {
-      const texto =
-        r.diaAnterior && r.horaAnterior
-          ? (() => {
-              const [de, para] = datas(r.diaAnterior, r.dia);
-              return `Reunião remarcada: ${titulo}, de ${de} às ${r.horaAnterior} para ${para} às ${r.horaInicio}.`;
-            })()
-          : `Reunião remarcada: ${titulo}, para ${dataCompleta(r.dia)} às ${r.horaInicio}.`;
-      itens.push(item(r.mudancaEm, texto));
+      const { diaAnterior, horaAnterior } = r;
+      itens.push(
+        item(r.mudancaEm, (f) => {
+          if (!diaAnterior || !horaAnterior) return `Reunião remarcada: ${f.e(r.titulo)}, para ${dataCompleta(r.dia)} às ${r.horaInicio}.`;
+          const [de, para] = datas(diaAnterior, r.dia);
+          return `Reunião remarcada: ${f.e(r.titulo)}, de ${de} às ${horaAnterior} para ${para} às ${r.horaInicio}.`;
+        }),
+      );
     }
 
     const diaDoLembrete = somarDiasIso(r.dia, -2);
     const ultimoAviso = r.mudancaEm && r.mudancaEm > r.criadaDia ? r.mudancaEm : r.criadaDia;
     if (ultimoAviso < diaDoLembrete) {
-      itens.push(item(diaDoLembrete, `Lembrete: ${titulo}, ${dataCompleta(r.dia)} às ${r.horaInicio}.`));
+      itens.push(item(diaDoLembrete, (f) => `Lembrete: ${f.e(r.titulo)}, ${dataCompleta(r.dia)} às ${r.horaInicio}.`));
     }
   }
   return itens;

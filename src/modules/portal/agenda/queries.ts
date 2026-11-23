@@ -11,7 +11,10 @@ import {
   type MarcoEntrada,
 } from "./marcos";
 import { itensDasReunioes, itensDosMarcos } from "./itens-resumo";
-import { motivoParaNaoEditar, motivoParaNaoImportarAta, situacaoDaReuniao, type SituacaoDaReuniao } from "./reunioes";
+import { linkValido, motivoParaNaoEditar, motivoParaNaoImportarAta, situacaoDaReuniao, type SituacaoDaReuniao } from "./reunioes";
+
+/** O link só sai com a validação da escrita refeita: linha gravada por outro caminho nunca entrega um `href` perigoso. */
+const linkSeguro = (link: string | null): string | null => (link && linkValido(link) ? link : null);
 import type { ItemDoResumo } from "../resumo-diario";
 
 /**
@@ -228,7 +231,7 @@ export async function agendaParaCliente(projetoId: string, userId: string): Prom
         dia: dia(r.dia),
         horaInicio: r.horaInicio,
         duracaoMinutos: r.duracaoMinutos,
-        link: r.link,
+        link: linkSeguro(r.link),
         local: r.local,
         pauta: r.pauta,
         situacao: situacaoDaReuniao(estadoDaReuniao(r), hoje),
@@ -361,7 +364,7 @@ export async function itensDoResumoDaAgenda(projetoId: string): Promise<ItemDoRe
         titulo: r.titulo,
         dia: dia(r.dia),
         horaInicio: r.horaInicio,
-        link: r.link,
+        link: linkSeguro(r.link),
         local: r.local,
         estado: r.estado,
         criadaDia: diaDeSaoPaulo(r.criadaEm),

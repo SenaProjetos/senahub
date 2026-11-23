@@ -35,7 +35,7 @@ export async function POST(req: Request) {
   const params = new URL(req.url).searchParams;
   const projetoId = params.get("projetoId") ?? "";
   // Reunião da agenda de onde a ata nasce (opcional): a rota só repassa, o serviço confere.
-  const agendadaId = params.get("agendadaId") || null;
+  const agendadaId = (params.get("agendadaId") ?? "").slice(0, 64) || null;
   if (user.tipo !== "interno" || !projetoId || !(await podeVerConversaDoProjeto(user.id, projetoId))) {
     return NextResponse.json({ error: MOTIVO_NAO_ENCONTRADA }, { status: 404 });
   }

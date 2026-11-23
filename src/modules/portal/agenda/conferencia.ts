@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { carregarEntradaDaAgenda } from "./queries";
 import { decidirConferencia } from "./itens-resumo";
@@ -34,12 +35,18 @@ export async function conferirPrevisoes(projetoId: string, ontem: string): Promi
       const vista = vistaDoMarco.get(m.marcoId) ?? null;
       const d = decidirConferencia({ vista, atual: m.previsao, concluido: m.situacao === "entregue", emRevisao });
       if (d.acao === "gravar_vista") {
-        await prisma.marcoAgendaPortal.upsert({
-          where: { marcoId: m.marcoId },
-          create: { projetoId, marcoId: m.marcoId, previsaoVista: dataDoBanco(m.previsao) },
-          update: { previsaoVista: dataDoBanco(m.previsao) },
-        });
-        r.gravadas += 1;
+        // Só preenche o que está vazio: outra rodada que já gravou (ou já avisou uma mudança) não é sobrescrita.
+        const preencheu = await prisma.marcoAgendaPortal.updateMany({ where: { marcoId: m.marcoId, previsaoVista: null }, data: { previsaoVista: dataDoBanco(m.previsao) } });
+        if (preencheu.count === 1) r.gravadas += 1;
+        else {
+          try {
+            await prisma.marcoAgendaPortal.create({ data: { projetoId, marcoId: m.marcoId, previsaoVista: dataDoBanco(m.previsao) } });
+            r.gravadas += 1;
+          } catch (e) {
+            // Linha já existe com o valor visto (outra rodada ao mesmo tempo): nada a fazer.
+            if (!(e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")) throw e;
+          }
+        }
       } else if (d.acao === "alterou") {
         // Condicionado ao valor lido: outra rodada ao mesmo tempo não grava duas vezes.
         const gravou = await prisma.marcoAgendaPortal.updateMany({

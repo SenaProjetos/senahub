@@ -204,6 +204,11 @@ describe("agenda — itens fixos", () => {
     expect(r.find((i) => i.tipo === "prazo")?.dia).toBe("2026-11-30");
   });
 
+  it("prazo do projeto gravado como data (meia-noite UTC) mostra o mesmo dia, não o anterior", () => {
+    const r = itensFixos(entrada({ prazoContrato: new Date("2026-12-01T00:00:00.000Z"), contratos: [] }));
+    expect(r.find((i) => i.tipo === "prazo")?.dia).toBe("2026-12-01");
+  });
+
   it("só contratos válidos entram nos itens fixos", () => {
     expect(itensFixos(entrada({ contratos: [contrato({ tipo: "aditivo" }), contrato({ statusContrato: "rascunho" })] }))).toEqual([]);
   });

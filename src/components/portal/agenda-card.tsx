@@ -137,7 +137,7 @@ function ReuniaoDaAgenda({ r }: { r: Reuniao }) {
         <div className="flex flex-wrap gap-2 pt-0.5">
           {r.link && !cancelada && (
             <Button size="sm" variant="outline" render={<a href={r.link} target="_blank" rel="noopener noreferrer" />}>
-              <ExternalLink className="size-4" aria-hidden /> Entrar na reunião
+              <ExternalLink className="size-4" aria-hidden /> Entrar na reunião <span className="sr-only">(abre em nova aba)</span>
             </Button>
           )}
           {r.temAta && (

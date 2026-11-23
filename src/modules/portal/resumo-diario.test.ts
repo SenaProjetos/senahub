@@ -114,6 +114,10 @@ describe("itens seguros (agenda)", () => {
     const m = new Map([["2026-11-18", [seguro, item("2026-11-18", "Estrutural", "*oi*")]]]);
     expect(listaEmMarkdown(m)).toBe("- **Agenda** · A \\*b\\*\n  Motivo: x\n- **Estrutural** · \\*oi\\*");
   });
+  it("o sino usa o texto puro (sem barras de escape) quando o item traz", () => {
+    const m = new Map([["2026-11-18", [{ dia: "2026-11-18", disciplina: "Agenda", texto: "Parcela \\[EP\\]: prevista",puro: "Parcela [EP]: prevista", seguro: true }]]]);
+    expect(textoDoSino(m)).toBe("Agenda · Parcela [EP]: prevista");
+  });
   it("o sino mostra só a primeira linha do texto", () => {
     const m = new Map([["2026-11-18", [{ dia: "2026-11-18", disciplina: "Agenda", texto: "Marco: previsão alterada\n  Motivo: x", seguro: true }]]]);
     expect(textoDoSino(m)).toBe("Agenda · Marco: previsão alterada");

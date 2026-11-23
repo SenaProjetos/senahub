@@ -35,6 +35,7 @@ import {
   MOTIVO_REUNIAO_MUDOU,
   MOTIVO_REUNIAO_PASSADA,
 } from "../src/modules/portal/agenda/reunioes";
+import { MOTIVO_NAO_ENCONTRADA } from "../src/modules/portal/atas/regras";
 import { criarReuniaoComRascunho, publicar, retirarAta } from "../src/modules/portal/atas/service";
 import { CHAVE_CONFIG_RESUMO, somarDiasIso } from "../src/modules/portal/resumo-diario";
 import { rodarResumoDiario, salvarConfigResumo } from "../src/modules/portal/resumo-service";
@@ -209,10 +210,27 @@ async function main() {
     const json = JSON.stringify(itensA);
     check(
       "allow-list: sem valor, percentual, id nem nome de linha da EAP, nem pessoa da equipe",
-      !json.includes("98765") && !json.includes("percentual") && !json.includes("secreta") && ![m1.id, m2.id, m3.id, m4.id].some((id) => json.includes(id)) && !json.includes("Carlos") && !json.includes("notaPor"),
+      !json.includes("98765") && !json.includes("percentual") && !json.includes("secreta") && ![m1.id, m2.id, m3.id, m4.id].some((id) => json.includes(id)) && !json.includes("Carlos") && !json.includes("notaPor") && !json.includes("criadaPor"),
     );
     const primeiroPassado = itensA!.findIndex((i) => i.passado);
     check("entregues e passados vêm no fim, marcados como passado", primeiroPassado > 0 && itensA!.slice(primeiroPassado).every((i) => i.passado));
+    check("prazo do projeto (gravado como data) mostra o mesmo dia, não o anterior", itensA?.some((i) => i.tipo === "prazo" && i.dia === mais(300)) === true);
+    // Contrato de OUTRO cliente apontando um marco deste projeto: não vira marco para o cliente A.
+    const m5 = await novoMarco(proj.id, "Linha interna secreta EPSILON", mais(50));
+    const contratoDeOutro = await prisma.documentoJuridico.create({
+      data: {
+        titulo: `${tag} Contrato de outro cliente`,
+        tipo: "contrato",
+        projetoId: proj.id,
+        clienteId: cliB.id,
+        statusContrato: "assinado",
+        formaCobranca: "por_entrega",
+        parcelasEntrega: { create: [{ descricao: "Entrega de outro cliente", percentual: new Prisma.Decimal("100"), ordem: 0, marcoId: m5.id }] },
+      },
+    });
+    contratos.push(contratoDeOutro.id);
+    const depoisDoOutro = await agendaParaCliente(proj.id, joana.id);
+    check("contrato de outro cliente no mesmo projeto não vira marco", depoisDoOutro?.filter((i) => i.tipo === "marco").length === 4 && !JSON.stringify(depoisDoOutro).includes("outro cliente"));
     check("outro cliente não vê a agenda", (await agendaParaCliente(proj.id, contaB.id)) === null);
     check("cliente inativo não vê a agenda", (await agendaParaCliente(projInativo.id, contaInativo.id)) === null);
     const itensR = await agendaParaCliente(projRascunho.id, joana.id);
@@ -258,6 +276,12 @@ async function main() {
     check("a reunião vale na hora para o cliente", noCliente?.tipo === "reuniao" && noCliente.situacao === "agendada" && noCliente.horaInicio === "14:00" && noCliente.link === base.link);
     check("outro cliente não vê a reunião", !JSON.stringify(await agendaParaCliente(proj.id, contaB.id)).includes(rA.id));
 
+    // Link gravado fora do caminho normal (seed, importação): o cliente nunca recebe um href perigoso.
+    const perigosa = await prisma.reuniaoAgendada.create({ data: { projetoId: proj.id, titulo: "Link ruim", dia: d(mais(5)), horaInicio: "09:00", link: "javascript:alert(1)", criadaPorId: coordU.id } });
+    const comLinkRuim = (await agendaParaCliente(proj.id, joana.id))!.find((i) => i.tipo === "reuniao" && i.id === perigosa.id);
+    check("link que não é https gravado direto no banco chega ao cliente como vazio", comLinkRuim?.tipo === "reuniao" && comLinkRuim.link === null);
+    check("e não vai para o resumo diário", !(await itensDoResumoDaAgenda(proj.id)).some((i) => i.texto.includes("javascript")));
+
     // ── Remarcar e cancelar ──
     await editarReuniao({ ...base, id: rA.id, link: "https://meet.google.com/zzz-zzzz-zzz" });
     let linha = await prisma.reuniaoAgendada.findUniqueOrThrow({ where: { id: rA.id } });
@@ -287,6 +311,13 @@ async function main() {
     check("reunião de dia passado não edita nem cancela", (await motivoDe(() => editarReuniao({ ...base, id: passada.id }))) === MOTIVO_REUNIAO_PASSADA && (await motivoDe(() => cancelarReuniao({ id: passada.id, motivo: null, userId: coordU.id }))) === MOTIVO_REUNIAO_PASSADA);
     const equipe = { userId: coordU.id, nome: coordU.name };
     const atasAntes = await prisma.reuniaoProjeto.count({ where: { projetoId: proj.id } });
+    const doOutroProjeto = await prisma.reuniaoAgendada.create({ data: { projetoId: projRascunho.id, titulo: "De outro projeto", dia: d(ontem), horaInicio: "10:00", criadaPorId: coordU.id } });
+    check(
+      "agendadaId de reunião de outro projeto recusa e não deixa ata nem ligação",
+      (await motivoDe(() => criarReuniaoComRascunho({ projetoId: proj.id, quem: equipe, texto: "Resumo\nTexto.", agendadaId: doOutroProjeto.id }))) === MOTIVO_NAO_ENCONTRADA &&
+        (await prisma.reuniaoProjeto.count({ where: { projetoId: proj.id } })) === atasAntes &&
+        (await prisma.reuniaoAgendada.findUniqueOrThrow({ where: { id: doOutroProjeto.id } })).reuniaoId === null,
+    );
     check(
       "importar ata antes do dia da reunião recusa e não deixa ata",
       (await motivoDe(() => criarReuniaoComRascunho({ projetoId: proj.id, quem: equipe, texto: "Resumo\nTexto.", agendadaId: rA.id }))) === MOTIVO_ATA_ANTES_DO_DIA &&
@@ -326,9 +357,10 @@ async function main() {
     await mover(m4.id, mais(40));
     check("mudou e voltou ao mesmo valor antes da rodada: nada", (await conferirPrevisoes(proj.id, ontem)).alteradas === 0);
     await mover(m2.id, mais(12));
-    const alterou = await conferirPrevisoes(proj.id, ontem);
-    const l2 = await prisma.marcoAgendaPortal.findUniqueOrThrow({ where: { marcoId: m2.id } });
-    check("previsão mudou: guarda de → para e o dia (ontem)", alterou.alteradas === 1 && diaIso(l2.previsaoAnterior) === mais(8) && diaIso(l2.previsaoVista) === mais(12) && diaIso(l2.previsaoAlteradaEm) === ontem);
+    const duasRodadas = await Promise.all([conferirPrevisoes(proj.id, ontem), conferirPrevisoes(proj.id, ontem)]);
+    const alterou = { alteradas: duasRodadas[0].alteradas + duasRodadas[1].alteradas };
+    const l2 =await prisma.marcoAgendaPortal.findUniqueOrThrow({ where: { marcoId: m2.id } });
+    check("previsão mudou (duas rodadas ao mesmo tempo): grava uma vez só, de → para e o dia (ontem)", alterou.alteradas === 1 && diaIso(l2.previsaoAnterior) === mais(8) && diaIso(l2.previsaoVista) === mais(12) && diaIso(l2.previsaoAlteradaEm) === ontem);
     check("repetir a conferência sem mudança não grava de novo", (await conferirPrevisoes(proj.id, "2000-01-01")).alteradas === 0 && diaIso((await prisma.marcoAgendaPortal.findUniqueOrThrow({ where: { marcoId: m2.id } })).previsaoAlteradaEm) === ontem);
     await prisma.cronogramaProjeto.update({ where: { projetoId: proj.id }, data: { emRevisao: true } });
     await mover(m2.id, mais(20));
@@ -344,7 +376,7 @@ async function main() {
 
     // ── Resumo diário ──
     await mover(m1.id, mais(37)); // alterada na rodada (era 30)
-    const rP = await agendarReuniao({ ...base, titulo: "Reunião *do dia*", dia: mais(3), local: "Sala [A]" });
+    await agendarReuniao({ ...base, titulo: "Reunião *do dia*", dia: mais(3), local: "Sala [A]" });
     const rQ = await agendarReuniao({ ...base, titulo: "Lembrete certo", dia: mais(2) });
     await prisma.reuniaoAgendada.update({ where: { id: rQ.id }, data: { criadaEm: new Date(Date.now() - 4 * 86_400_000) } });
     const rR = await agendarReuniao({ ...base, titulo: "Cancelada depois", dia: mais(9) });

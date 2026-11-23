@@ -87,8 +87,22 @@ describe("agenda — itens dos marcos", () => {
 describe("agenda — itens das reuniões", () => {
   it("marcada: dia da criação, data completa e link ou local", () => {
     const [i] = itensDasReunioes([reuniao({ link: "https://meet.google.com/abc", local: "Sala 2" })]).filter((x) => x.dia === "2026-11-20");
-    expect(i.texto).toBe("Reunião agendada: Alinhamento, 12/12/2026 às 14:00. Link: https://meet.google.com/abc. Local: Sala 2.");
+    expect(i.texto).toBe("Reunião agendada: Alinhamento, 12/12/2026 às 14:00. Link: <https://meet.google.com/abc>. Local: Sala 2.");
     expect(i.disciplina).toBe("Agenda");
+  });
+
+  it("link com sublinhado (Teams) sai intacto no Markdown, como autolink", () => {
+    const url = "https://teams.microsoft.com/l/meetup-join/a_b/meeting_abc?context=%7B%22Tid%22%7D";
+    const [i] = itensDasReunioes([reuniao({ link: url })]).filter((x) => x.dia === "2026-11-20");
+    expect(i.texto).toContain(`Link: <${url}>.`);
+    expect(i.texto).not.toContain("\\_");
+  });
+
+  it("cada item traz também o texto puro, sem escape, para o sino", () => {
+    const [i] = itensDasReunioes([reuniao({ titulo: "*Kick-off*", local: "[Sala]" })]).filter((x) => x.dia === "2026-11-20");
+    expect(i.puro).toBe("Reunião agendada: *Kick-off*, 12/12/2026 às 14:00. Local: [Sala].");
+    const m = itensDosMarcos([marco({ titulo: "Parcela [EP]" })]);
+    expect(m[0].puro).toBe("Parcela [EP]: entrega prevista para 15/03/2026.");
   });
 
   it("criada e cancelada no mesmo dia não gera aviso nenhum", () => {

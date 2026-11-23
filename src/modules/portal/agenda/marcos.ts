@@ -70,6 +70,15 @@ function contratoValido(c: ContratoEntrada, e: EntradaDaAgenda): boolean {
   );
 }
 
+/**
+ * Dia de uma coluna de data. Meia-noite UTC = a data foi gravada como DIA (o formulário do projeto faz isso): vale o próprio
+ * dia, e converter para São Paulo daria o dia anterior. Com hora (timestamp), vale o dia de São Paulo.
+ */
+function diaDaColuna(d: Date): string {
+  const meiaNoiteUtc = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
+  return meiaNoiteUtc ? d.toISOString().slice(0, 10) : diaDeSaoPaulo(d);
+}
+
 const diaUtc = (dia: string) => {
   const [a, m, d] = dia.split("-").map(Number);
   return Date.UTC(a, m - 1, d);
@@ -155,7 +164,7 @@ export function itensFixos(e: EntradaDaAgenda): ItemFixo[] {
   for (const c of validos) {
     if (c.assinadoEm) itens.push({ tipo: "assinatura", dia: diaDeSaoPaulo(c.assinadoEm), contratoTitulo: c.titulo });
   }
-  if (e.prazoContrato) itens.push({ tipo: "prazo", dia: diaDeSaoPaulo(e.prazoContrato) });
+  if (e.prazoContrato) itens.push({ tipo: "prazo", dia: diaDaColuna(e.prazoContrato) });
   for (const c of validos) {
     // `dataVencimento` é @db.Date (meia-noite UTC): o dia certo é o do UTC, não o de São Paulo.
     if (c.dataVencimento) itens.push({ tipo: "vigencia", dia: c.dataVencimento.toISOString().slice(0, 10), contratoTitulo: c.titulo });

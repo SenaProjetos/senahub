@@ -162,8 +162,3 @@ export async function cancelarReuniao(p: { id: string; motivo: string | null; us
   if (gravou.count !== 1) throw new ActionError(MOTIVO_REUNIAO_MUDOU);
   return { projetoId: r.projetoId };
 }
-
-export async function projetoDaReuniaoAgendada(id: string): Promise<string | null> {
-  const r = await prisma.reuniaoAgendada.findUnique({ where: { id }, select: { projetoId: true } });
-  return r?.projetoId ?? null;
-}

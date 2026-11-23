@@ -55,7 +55,7 @@ export const removerNotaDoMarco = defineAction(
 const reuniaoAntes = (input: { reuniaoAgendadaId: string }) =>
   prisma.reuniaoAgendada.findUnique({
     where: { id: input.reuniaoAgendadaId },
-    select: { id: true, projetoId: true, titulo: true, dia: true, horaInicio: true, estado: true },
+    select: { id: true, projetoId: true, dia: true, horaInicio: true, estado: true },
   });
 
 export const agendarReuniaoDoProjeto = defineAction(
@@ -65,8 +65,8 @@ export const agendarReuniaoDoProjeto = defineAction(
     entidade: "ReuniaoAgendada",
     interno: true,
     schema: agendarReuniaoSchema,
-    // A pauta e o link saem ao cliente e não vão para a auditoria.
-    redact: ["pauta", "link"],
+    // Título, local, pauta e link saem ao cliente e não vão para a auditoria.
+    redact: ["titulo", "local", "pauta", "link"],
     entidadeId: (data) => (data as { id: string }).id,
   },
   async (input, { user }) => {
@@ -93,7 +93,7 @@ export const editarReuniaoAgendada = defineAction(
     entidade: "ReuniaoAgendada",
     interno: true,
     schema: editarReuniaoSchema,
-    redact: ["pauta", "link"],
+    redact: ["titulo", "local", "pauta", "link"],
     capturarAntes: reuniaoAntes,
     entidadeId: (_data, input) => input.reuniaoAgendadaId,
   },
