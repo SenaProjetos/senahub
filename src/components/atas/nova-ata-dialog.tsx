@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FilePlus2 } from "lucide-react";
@@ -27,9 +27,24 @@ const FALHA = "Não foi possível enviar. Verifique a conexão e tente de novo."
  * "Nova ata": colar o texto das anotações do Gemini ou anexar o arquivo baixado do Google Docs (.docx, .md, .txt), com a
  * transcrição opcional. Cria a reunião com o rascunho já separado em itens e abre o editor.
  */
-export function NovaAtaDialog({ projetoId }: { projetoId: string }) {
+export function NovaAtaDialog({
+  projetoId,
+  agendadaId,
+  aberta,
+  aoFechar,
+}: {
+  projetoId: string;
+  /** Reunião da agenda de onde a ata nasce: a ata fica ligada a ela. */
+  agendadaId?: string;
+  /** Modo controlado (aberto por fora, sem o botão "Nova ata"): quando passado, `aoFechar` fecha. */
+  aberta?: boolean;
+  aoFechar?: () => void;
+}) {
   const router = useRouter();
-  const [aberto, setAberto] = useState(false);
+  const [abertoLocal, setAbertoLocal] = useState(false);
+  const controlado = aberta !== undefined;
+  const aberto = controlado ? aberta : abertoLocal;
+  const setAberto = (v: boolean) => (controlado ? (!v && aoFechar?.()) : setAbertoLocal(v));
   const [modo, setModo] = useState<"colar" | "arquivo">("colar");
   const [texto, setTexto] = useState("");
   const [anotacoes, setAnotacoes] = useState<File | null>(null);
@@ -39,14 +54,24 @@ export function NovaAtaDialog({ projetoId }: { projetoId: string }) {
   const ids = { texto: useId(), anotacoes: useId(), transcricao: useId(), erro: useId() };
   const aceitos = EXTENSOES_ARQUIVO.map((e) => `.${e}`).join(",");
 
-  function abrir() {
-    setAberto(true);
+  function reiniciar() {
     setModo("colar");
     setTexto("");
     setAnotacoes(null);
     setTranscricao(null);
     setErro(null);
   }
+
+  function abrir() {
+    setAbertoLocal(true);
+    reiniciar();
+  }
+
+  // Aberto por fora (a partir de uma reunião da agenda): começa limpo a cada abertura.
+  useEffect(() => {
+    if (controlado && aberta) reiniciar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aberta]);
 
   function escolher(f: File | undefined, set: (f: File | null) => void) {
     setErro(null);
@@ -63,7 +88,7 @@ export function NovaAtaDialog({ projetoId }: { projetoId: string }) {
     setErro(null);
     startTransition(async () => {
       if (modo === "colar") {
-        const r = await criarAtaDeTexto({ projetoId, texto }).catch(() => null);
+        const r = await criarAtaDeTexto({ projetoId, texto, agendadaId: agendadaId ?? null }).catch(() => null);
         if (!r) return void toast.error(FALHA);
         if (!r.ok) return setErro(r.error);
         router.push(hrefDoEditor(projetoId, r.data.reuniaoId));
@@ -73,7 +98,7 @@ export function NovaAtaDialog({ projetoId }: { projetoId: string }) {
       const fd = new FormData();
       fd.append("anotacoes", anotacoes);
       if (transcricao) fd.append("transcricao", transcricao);
-      const res = await fetch(`/api/portal/atas/importar?projetoId=${encodeURIComponent(projetoId)}`, { method: "POST", body: fd }).catch(() => null);
+      const res = await fetch(`/api/portal/atas/importar?projetoId=${encodeURIComponent(projetoId)}${agendadaId ? `&agendadaId=${encodeURIComponent(agendadaId)}` : ""}`, { method: "POST", body: fd }).catch(() => null);
       if (!res) return void toast.error(FALHA);
       const corpo = (await res.json().catch(() => ({}))) as { reuniaoId?: string; error?: string; arquivosGuardados?: boolean };
       if (!res.ok || !corpo.reuniaoId) return setErro(corpo.error ?? "Não foi possível importar o arquivo.");
@@ -88,9 +113,11 @@ export function NovaAtaDialog({ projetoId }: { projetoId: string }) {
 
   return (
     <>
-      <Button size="sm" onClick={abrir}>
-        <FilePlus2 className="size-4" aria-hidden /> Nova ata
-      </Button>
+      {!controlado && (
+        <Button size="sm" onClick={abrir}>
+          <FilePlus2 className="size-4" aria-hidden /> Nova ata
+        </Button>
+      )}
       <Dialog open={aberto} onOpenChange={(o) => !enviando && setAberto(o)}>
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>

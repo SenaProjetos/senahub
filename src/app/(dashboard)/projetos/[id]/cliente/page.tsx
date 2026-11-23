@@ -7,11 +7,13 @@ import { ConversaEquipe } from "@/components/mensagens-cliente/conversa-equipe";
 import { AprovacoesEquipe } from "@/components/mensagens-cliente/aprovacoes-equipe";
 import { atasParaEquipe } from "@/modules/portal/atas/queries";
 import { ReunioesEquipe } from "@/components/atas/reunioes-equipe";
+import { agendaParaEquipe } from "@/modules/portal/agenda/queries";
+import { AgendaEquipe } from "@/components/agenda-equipe/agenda-equipe";
 
 export const metadata: Metadata = { title: "Cliente — projeto" };
 
 /**
- * Aba Cliente: a conversa do cliente do portal com a coordenação, as aprovações de entrega e as atas de reunião. Só a audiência da conversa
+ * Aba Cliente: a conversa do cliente do portal com a coordenação, as aprovações de entrega, as atas de reunião e a agenda (reuniões agendadas e marcos do contrato). Só a audiência da conversa
  * (`podeVerConversa`, dentro das duas leituras) chega aqui; os demais — projetista, cliente do portal — recebem 404.
  */
 export default async function ClienteProjetoPage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,11 +23,13 @@ export default async function ClienteProjetoPage({ params }: { params: Promise<{
   if (!conversa) notFound();
   const aprovacoes = await aprovacoesParaEquipe(id, user.id);
   const atas = await atasParaEquipe(id, user.id);
+  const agenda = await agendaParaEquipe(id, user.id);
   return (
     <div className="space-y-6">
       <ConversaEquipe projetoId={id} inicial={conversa} />
       {aprovacoes && <AprovacoesEquipe projetoId={id} aprovacoes={aprovacoes} />}
       {atas && <ReunioesEquipe projetoId={id} reunioes={atas.reunioes} pendencias={atas.pendencias} contasAtivas={atas.contasAtivas} />}
+      {agenda && <AgendaEquipe projetoId={id} dados={agenda} />}
     </div>
   );
 }

@@ -31,6 +31,13 @@ export type CamposReuniao = {
 export type EstadoDaReuniao = { estado: "agendada" | "cancelada"; dia: string; diaAnterior: string | null; horaAnterior: string | null };
 export type SituacaoDaReuniao = "agendada" | "remarcada" | "cancelada" | "realizada";
 
+export const ROTULO_SITUACAO_REUNIAO: Record<SituacaoDaReuniao, string> = {
+  agendada: "Agendada",
+  remarcada: "Remarcada",
+  cancelada: "Cancelada",
+  realizada: "Realizada",
+};
+
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** Só `https:`, até 500 caracteres, sem usuário/senha embutidos (nada de `javascript:`, `data:` nem `http:`). */

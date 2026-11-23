@@ -30,6 +30,7 @@ export function MotivoDialog({
   rotuloConfirmar,
   max,
   destrutivo = true,
+  obrigatorio = true,
   onFechar,
   onConfirmar,
 }: {
@@ -40,6 +41,8 @@ export function MotivoDialog({
   rotuloConfirmar: string;
   max: number;
   destrutivo?: boolean;
+  /** `false` = o motivo é opcional (o botão confirma com o campo vazio). */
+  obrigatorio?: boolean;
   onFechar: () => void;
   onConfirmar: (motivo: string) => Promise<Resultado>;
 }) {
@@ -72,7 +75,7 @@ export function MotivoDialog({
           <DialogDescription className="break-words">{descricao}</DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-1.5">
-          <Label htmlFor={idMotivo}>Motivo</Label>
+          <Label htmlFor={idMotivo}>{obrigatorio ? "Motivo" : "Motivo (opcional)"}</Label>
           <textarea
             id={idMotivo}
             rows={3}
@@ -94,7 +97,7 @@ export function MotivoDialog({
           <Button variant="ghost" onClick={onFechar} disabled={enviando}>
             Voltar
           </Button>
-          <Button variant={destrutivo ? "destructive" : "default"} onClick={confirmar} disabled={enviando || motivo.trim().length === 0}>
+          <Button variant={destrutivo ? "destructive" : "default"} onClick={confirmar} disabled={enviando || (obrigatorio && motivo.trim().length === 0)}>
             <span role="status">{enviando ? "Enviando…" : rotuloConfirmar}</span>
           </Button>
         </DialogFooter>

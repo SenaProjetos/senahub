@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatarData } from "@/lib/utils";
 import { rotuloDiferenca } from "@/modules/portal/agenda/marcos";
+import { ROTULO_SITUACAO_REUNIAO } from "@/modules/portal/agenda/reunioes";
 import type { ItemAgendaCliente } from "@/modules/portal/agenda/queries";
 
 type Marco = Extract<ItemAgendaCliente, { tipo: "marco" }>;
 type Reuniao = Extract<ItemAgendaCliente, { tipo: "reuniao" }>;
 
 const ROTULO_FATO = { assinatura: "Contrato assinado", prazo: "Prazo do projeto", vigencia: "Fim da vigência do contrato" } as const;
-const ROTULO_REUNIAO = { agendada: "Agendada", remarcada: "Remarcada", cancelada: "Cancelada", realizada: "Realizada" } as const;
 const CLASSE_REUNIAO = {
   agendada: "",
   remarcada: "border-warning/40 text-warning-text",
@@ -118,7 +118,7 @@ function ReuniaoDaAgenda({ r }: { r: Reuniao }) {
       <div className="flex flex-wrap items-center gap-2">
         <p className={`min-w-0 break-words font-medium ${cancelada ? "line-through" : ""}`}>{r.titulo}</p>
         <Badge variant="outline" className={CLASSE_REUNIAO[r.situacao]}>
-          Reunião · {ROTULO_REUNIAO[r.situacao]}
+          Reunião · {ROTULO_SITUACAO_REUNIAO[r.situacao]}
         </Badge>
       </div>
       <p className="text-muted-foreground">
