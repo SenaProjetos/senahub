@@ -32,7 +32,10 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const user = session.user;
-  const projetoId = new URL(req.url).searchParams.get("projetoId") ?? "";
+  const params = new URL(req.url).searchParams;
+  const projetoId = params.get("projetoId") ?? "";
+  // Reunião da agenda de onde a ata nasce (opcional): a rota só repassa, o serviço confere.
+  const agendadaId = params.get("agendadaId") || null;
   if (user.tipo !== "interno" || !projetoId || !(await podeVerConversaDoProjeto(user.id, projetoId))) {
     return NextResponse.json({ error: MOTIVO_NAO_ENCONTRADA }, { status: 404 });
   }
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
   const data = String(form.get("data") ?? "").trim() || null;
   let reuniaoId: string;
   try {
-    reuniaoId = (await criarReuniaoComRascunho({ projetoId, quem: { userId: user.id, nome: user.name }, titulo, data, texto })).reuniaoId;
+    reuniaoId = (await criarReuniaoComRascunho({ projetoId, quem: { userId: user.id, nome: user.name }, titulo, data, texto, agendadaId })).reuniaoId;
   } catch (erro) {
     return recusa(erro);
   }

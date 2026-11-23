@@ -25,6 +25,8 @@ export const criarAtaDeTextoSchema = z.object({
   texto: z.string({ error: "Cole as anotações da reunião." }).min(1, "Cole as anotações da reunião.").max(200_000, "O texto colado é grande demais. Cole só as anotações do Gemini."),
   titulo: z.string({ error: "Título inválido." }).max(TITULO_MAX * 2, `O título passa de ${TITULO_MAX} caracteres.`).nullable().optional(),
   data: dia.nullable().optional(),
+  /** Reunião da agenda de onde a ata nasce (opcional). */
+  agendadaId: z.string({ error: "Reunião inválida." }).min(1, "Reunião inválida.").nullable().optional(),
 });
 
 const itemSchema = z.object({

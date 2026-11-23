@@ -6,6 +6,7 @@ import { ActionError } from "@/lib/action-error";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { removerArquivo } from "@/lib/storage";
 import { contaPodeVerConversa, contasDoClienteDoProjeto, podeVerConversaDoProjeto } from "@/modules/portal/mensagens/service";
+import { MOTIVO_JA_TEM_ATA, motivoParaNaoImportarAta } from "../agenda/reunioes";
 import { lerAnotacoes, sugerirTipoEResponsavel } from "./leitura-gemini";
 import {
   COMENTARIO_FEITO_MAX,
@@ -122,15 +123,32 @@ export async function criarReuniaoComRascunho(p: {
   titulo?: string | null;
   data?: string | null;
   texto: string;
+  /** Reunião da agenda (`ReuniaoAgendada`) de onde a ata nasce: a ata fica ligada a ela, na mesma transação. */
+  agendadaId?: string | null;
 }): Promise<{ reuniaoId: string; versaoId: string }> {
   await exigirEquipe(p.quem.userId, p.projetoId);
+  const agendada = p.agendadaId
+    ? await prisma.reuniaoAgendada.findUnique({
+        where: { id: p.agendadaId },
+        select: { projetoId: true, titulo: true, dia: true, estado: true, reuniaoId: true },
+      })
+    : null;
+  if (p.agendadaId) {
+    if (!agendada || agendada.projetoId !== p.projetoId) throw naoEncontrada();
+    const recusa = motivoParaNaoImportarAta(
+      { estado: agendada.estado, dia: diaIso(agendada.dia) ?? "", diaAnterior: null, horaAnterior: null, reuniaoId: agendada.reuniaoId },
+      diaDeSaoPaulo(),
+    );
+    if (recusa) throw new ActionError(recusa);
+  }
   const lidas = lerAnotacoes(p.texto);
   const texto = textoInicial(lidas.resumo, lidas.detalhes);
   if (texto.length > TEXTO_MAX) {
     throw new ActionError("As anotações passam de 20.000 caracteres. Cole só as anotações do Gemini, sem a transcrição.");
   }
-  const data = p.data && diaValido(p.data) ? p.data : lidas.data && diaValido(lidas.data) ? lidas.data : diaDeSaoPaulo();
-  const titulo = cortar((p.titulo?.trim() || lidas.titulo || `Reunião de ${diaBr(dataDoBanco(data))}`).trim(), TITULO_MAX);
+  const diaDaAgenda = agendada ? diaIso(agendada.dia) : null;
+  const data = p.data && diaValido(p.data) ? p.data : (diaDaAgenda ?? (lidas.data && diaValido(lidas.data) ? lidas.data : diaDeSaoPaulo()));
+  const titulo = cortar((p.titulo?.trim() || agendada?.titulo || lidas.titulo || `Reunião de ${diaBr(dataDoBanco(data))}`).trim(), TITULO_MAX);
 
   const projeto = await prisma.projeto.findUnique({ where: { id: p.projetoId }, select: { cliente: { select: { nome: true } } } });
   const membros = await membrosInternosDoProjeto(p.projetoId);
@@ -150,6 +168,14 @@ export async function criarReuniaoComRascunho(p: {
       data: { projetoId: p.projetoId, titulo, data: dataDoBanco(data), criadaPorId: p.quem.userId },
       select: { id: true },
     });
+    if (p.agendadaId) {
+      // Duas atas para a mesma reunião: a segunda não liga nada e a transação desfaz a ata inteira.
+      const ligou = await tx.reuniaoAgendada.updateMany({
+        where: { id: p.agendadaId, projetoId: p.projetoId, estado: "agendada", reuniaoId: null },
+        data: { reuniaoId: reuniao.id },
+      });
+      if (ligou.count !== 1) throw new ActionError(MOTIVO_JA_TEM_ATA);
+    }
     const versao = await tx.ataVersao.create({ data: { reuniaoId: reuniao.id, numero: 1, texto }, select: { id: true } });
     if (itens.length > 0) {
       await tx.ataItem.createMany({

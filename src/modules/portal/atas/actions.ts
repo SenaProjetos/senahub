@@ -71,7 +71,7 @@ export const criarAtaDeTexto = defineAction(
     entidadeId: (data) => (data as { reuniaoId: string }).reuniaoId,
   },
   async (input, { user }) => {
-    const r = await criarReuniaoComRascunho({ projetoId: input.projetoId, quem: equipe(user), titulo: input.titulo ?? null, data: input.data ?? null, texto: input.texto });
+    const r = await criarReuniaoComRascunho({ projetoId: input.projetoId, quem: equipe(user), titulo: input.titulo ?? null, data: input.data ?? null, texto: input.texto, agendadaId: input.agendadaId ?? null });
     revalidar(input.projetoId);
     return { reuniaoId: r.reuniaoId };
   },
