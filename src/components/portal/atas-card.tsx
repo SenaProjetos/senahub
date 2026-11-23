@@ -51,7 +51,7 @@ function AtaDoCliente({ r, v }: { r: ReuniaoDTO; v: VersaoDTO }) {
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Reunião de {formatarData(r.data)}
+          Data da reunião: {formatarData(r.data)}
           {v.numero > 1 ? ` · versão ${v.numero} (corrigida)` : ""}
         </p>
       </div>

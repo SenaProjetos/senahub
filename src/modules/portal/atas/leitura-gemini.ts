@@ -71,7 +71,7 @@ function ehSeparador(linha: string): boolean {
 function ehCabecalhoDoGemini(linha: string): boolean {
   const t = linha.trim();
   if (!t) return true;
-  if (/^(Reunião|Registros da reunião|Anexos)/i.test(t)) return true;
+  if (/^(Reunião\b|Registros da reunião|Anexos\b)/i.test(t)) return true;
   return dataDoCabecalho(t) !== null && t.length <= 40;
 }
 

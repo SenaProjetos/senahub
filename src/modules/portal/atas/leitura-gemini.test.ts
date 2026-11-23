@@ -83,6 +83,9 @@ describe("atas — leitura das anotações do Gemini", () => {
     expect(a.resumo).toContain("Tudo certo.");
     expect(a.resumo).not.toContain("Registros da reunião");
     expect(a.resumo).not.toContain("Reunião em 4 de nov");
+    // Cabeçalho completo do Gemini (com o fuso, mais de 40 caracteres) e a versão em markdown também saem.
+    const md = lerAnotacoes("## **Reunião em 4 de nov. de 2026 às 14:10 GMT-03:00**\nAnexos Reunião - X\nResumo\nTudo certo.");
+    expect(md.resumo).toBe("Tudo certo.");
   });
 
   it("linha sem marcador dentro de Decisões vira decisão (não some)", () => {
