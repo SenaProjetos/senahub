@@ -108,6 +108,18 @@ describe("listaEmMarkdown", () => {
   });
 });
 
+describe("itens seguros (agenda)", () => {
+  it("item seguro não é escapado de novo; o comum continua escapado", () => {
+    const seguro = { dia: "2026-11-18", disciplina: "Agenda", texto: "A \\*b\\*\n  Motivo: x", seguro: true };
+    const m = new Map([["2026-11-18", [seguro, item("2026-11-18", "Estrutural", "*oi*")]]]);
+    expect(listaEmMarkdown(m)).toBe("- **Agenda** · A \\*b\\*\n  Motivo: x\n- **Estrutural** · \\*oi\\*");
+  });
+  it("o sino mostra só a primeira linha do texto", () => {
+    const m = new Map([["2026-11-18", [{ dia: "2026-11-18", disciplina: "Agenda", texto: "Marco: previsão alterada\n  Motivo: x", seguro: true }]]]);
+    expect(textoDoSino(m)).toBe("Agenda · Marco: previsão alterada");
+  });
+});
+
 describe("textoDoSino", () => {
   it("com e mais N", () => {
     const tres = new Map([

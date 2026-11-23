@@ -6,7 +6,11 @@
  * Cada dia é avaliado UMA vez (`ultimoDia`): item que aparece depois com data de um dia já avaliado não gera e-mail
  * atrasado. Recupera no máximo `limite` dias (servidor fora) e nunca antes de `desde` (o aviso ainda não estava ligado).
  */
-import type { ItemLinhaDoTempo } from "./andamento";
+/**
+ * O que o resumo precisa de um item: o dia, o rótulo (disciplina ou "Agenda") e o texto. `ItemLinhaDoTempo` é atribuível a
+ * isto. `seguro` = o texto já vem escapado para o Markdown (itens da agenda), então a lista não escapa de novo.
+ */
+export type ItemDoResumo = { dia: string; disciplina: string; texto: string; seguro?: boolean };
 
 export const CHAVE_CONFIG_RESUMO = "portal.resumoDiario";
 export type ConfigResumo = { ativo: boolean; desde: string | null; ultimoDia: string | null };
@@ -45,9 +49,9 @@ export function diasParaAvaliar(o: { hoje: string; desde: string | null; ultimoD
 }
 
 /** Itens da linha do tempo por dia, só dos dias pedidos que têm item (na ordem da linha do tempo). */
-export function itensDosDias(linha: ItemLinhaDoTempo[], dias: readonly string[]): Map<string, ItemLinhaDoTempo[]> {
+export function itensDosDias<T extends ItemDoResumo>(linha: T[], dias: readonly string[]): Map<string, T[]> {
   const pedidos = new Set(dias);
-  const porDia = new Map<string, ItemLinhaDoTempo[]>();
+  const porDia = new Map<string, T[]>();
   for (const i of linha) {
     if (!pedidos.has(i.dia)) continue;
     const lista = porDia.get(i.dia);
@@ -70,20 +74,21 @@ export function escaparMarkdown(s: string): string {
   return s.replace(/[\\`*_[\]<>#|]/g, (c) => `\\${c}`);
 }
 
-const linhaDoItem = (i: ItemLinhaDoTempo) => `- **${escaparMarkdown(i.disciplina)}** · ${escaparMarkdown(i.texto)}`;
-const diasEmOrdem = (porDia: ReadonlyMap<string, ItemLinhaDoTempo[]>) => [...porDia.keys()].sort();
+const linhaDoItem = (i: ItemDoResumo) => `- **${escaparMarkdown(i.disciplina)}** · ${i.seguro ? i.texto : escaparMarkdown(i.texto)}`;
+const diasEmOrdem = (porDia: ReadonlyMap<string, ItemDoResumo[]>) => [...porDia.keys()].sort();
 
 /** Uma linha por item; com mais de um dia, um subtítulo por dia, do mais antigo para o mais novo. */
-export function listaEmMarkdown(porDia: ReadonlyMap<string, ItemLinhaDoTempo[]>): string {
+export function listaEmMarkdown(porDia: ReadonlyMap<string, ItemDoResumo[]>): string {
   const dias = diasEmOrdem(porDia);
   if (dias.length === 1) return porDia.get(dias[0])!.map(linhaDoItem).join("\n");
   return dias.map((d) => `**${dataBr(d)}**\n\n${porDia.get(d)!.map(linhaDoItem).join("\n")}`).join("\n\n");
 }
 
 /** Corpo do sino: o primeiro item (do dia mais antigo) e quantos mais. */
-export function textoDoSino(porDia: ReadonlyMap<string, ItemLinhaDoTempo[]>): string {
+export function textoDoSino(porDia: ReadonlyMap<string, ItemDoResumo[]>): string {
   const itens = diasEmOrdem(porDia).flatMap((d) => porDia.get(d)!);
   if (itens.length === 0) return "";
-  const primeiro = `${itens[0].disciplina} · ${itens[0].texto}`;
+  // O texto da agenda pode ter uma segunda linha (motivo): o sino mostra só a primeira.
+  const primeiro = `${itens[0].disciplina} · ${itens[0].texto.split("\n")[0]}`;
   return itens.length > 1 ? `${primeiro} e mais ${itens.length - 1}` : primeiro;
 }
