@@ -149,6 +149,17 @@ export const MOTIVO_REABRIR_NA_CELULA = "Para reabrir a tarefa, use Atualizar ta
 export const MOTIVO_APAGAR_INICIO_COM_TERMINO = "Apague o término real antes do início real.";
 
 /**
+ * Baixar o % de uma linha concluída pela célula ou pelo painel deixaria "90%" com status concluída e término real (o motor a
+ * trataria como terminada). Reabrir é do "Atualizar tarefa", que tira o término junto. Agrupamento tem % derivado: passa.
+ */
+export function motivoParaBaixarPercentual(
+  l: { ehResumo: boolean; status: StatusEap; progresso: number },
+  novo: number,
+): string | null {
+  return !l.ehResumo && l.status === "con" && novo < l.progresso ? MOTIVO_REABRIR_NA_CELULA : null;
+}
+
+/**
  * As datas reais digitadas direto na tabela do Gantt de Controle (colunas Iníc. real / Térm. real). Uma célula muda uma
  * data; esta regra completa a outra para a action `registrarExecucao`, que recebe as duas:
  *
