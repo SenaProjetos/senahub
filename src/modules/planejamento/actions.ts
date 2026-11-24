@@ -228,15 +228,23 @@ export const criarEapTarefa = defineAction(
   ),
 );
 
+/**
+ * 2026-11-24: o 100% sem término real conclui pelo planejado — datas reais são de `cronograma:executado`, então só quem
+ * a tem; "hoje" é o mesmo dia do "Atualizar tarefa".
+ */
+async function opcoesDoPercentual(user: Parameters<typeof can>[0]) {
+  return { hoje: paraDia(inicioDoDiaUtc()), podeExecucao: await can(user, "cronograma", "executado") };
+}
+
 export const editarEapTarefa = defineAction(
   { ...plan, acao: "editar-eap", entidade: "EapTarefa", schema: editarSchema },
   comPassoDaAction(
     { projetoDe: (i) => projetoDaLinha(i.id), rotulo: (i) => `Editar "${i.nome}"` },
     async (i, { user }) => {
-    const t = await editarLinhaNoBanco(i, user.id);
+    const t = await editarLinhaNoBanco(i, user.id, await opcoesDoPercentual(user));
     await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
-    return { id: i.id };
+    return { id: i.id, conclusao: t.conclusao };
     },
   ),
 );
@@ -1333,9 +1341,9 @@ export const salvarLinhaEap = defineAction(
     // O nome lido ANTES: numa renomeação, o Ctrl+Z diz qual linha era.
     { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Editar") },
     async (i, { user }) => {
-      const r = await salvarLinhaNoBanco(i, user.id);
+      const r = await salvarLinhaNoBanco(i, user.id, await opcoesDoPercentual(user));
       revProjeto(r.projetoId);
-      return { inicio: r.inicio, fim: r.fim };
+      return { inicio: r.inicio, fim: r.fim, conclusao: r.conclusao };
     },
   ),
 );

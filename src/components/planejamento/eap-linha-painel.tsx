@@ -11,6 +11,7 @@ import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
 import { disciplinaParaLinhaNova, propagacaoDeDisciplina } from "@/modules/planejamento/disciplina-linha";
 import { MOTIVO_PLANO_TRAVADO } from "@/modules/planejamento/trava-plano";
 import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
+import { textoConcluidaPeloPlanejado } from "@/components/planejamento/execucao-dialog";
 import { PredecessorasDialog } from "@/components/planejamento/predecessoras-dialog";
 import { dataCurta } from "@/lib/dias-iso";
 import { cn, formatarData } from "@/lib/utils";
@@ -302,6 +303,8 @@ export function EapLinhaPainel({
         });
       } else if (propagadas > 0) {
         toast.success(`Linha salva — ${textoPropagadas} de disciplina.`);
+      } else if (r.data.conclusao) {
+        toast.success(textoConcluidaPeloPlanejado(r.data.conclusao));
       } else {
         toast.success("Linha salva — datas recalculadas.");
       }
