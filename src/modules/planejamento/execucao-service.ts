@@ -2,7 +2,8 @@ import "server-only";
 import type { StatusEap } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
-import { paraDataUtc } from "./agenda";
+import { paraDataUtc, paraDia } from "./agenda";
+import type { OrigemDasDatas } from "./concluir-pelo-planejado";
 import { aplicarExecucao } from "./execucao";
 import { registrarProgresso } from "./progresso-historico-service";
 import { ehEtapaDeTerceiro } from "./recursos";
@@ -52,6 +53,8 @@ export async function registrarExecucaoNaLinha(p: {
   status: StatusEap;
   fase: FaseDoMarco | null;
   parcelasAFaturar: ParcelaDoMarco[];
+  /** As datas reais gravadas vieram do planejado (100% sem término): de onde, e quais. */
+  datasPeloPlanejado: { origem: OrigemDasDatas; inicioReal: string; fimReal: string } | null;
 }> {
   const linha = await prisma.eapTarefa.findUnique({
     where: { id: p.id },
@@ -63,6 +66,10 @@ export async function registrarExecucaoNaLinha(p: {
       progresso: true,
       inicioReal: true,
       fimReal: true,
+      inicioBaseline: true,
+      fimBaseline: true,
+      inicioPrevisto: true,
+      fimPrevisto: true,
       disciplinaId: true,
       etapaId: true,
       atribuicoes: { select: { papel: true } },
@@ -82,8 +89,18 @@ export async function registrarExecucaoNaLinha(p: {
     }
   }
 
+  const dia = (d: Date | null) => (d ? paraDia(d) : null);
   const r = aplicarExecucao(
-    { tipoEap: linha.tipoEap, ehResumo: linha._count.filhas > 0, status: linha.status, progresso: linha.progresso },
+    {
+      tipoEap: linha.tipoEap,
+      ehResumo: linha._count.filhas > 0,
+      status: linha.status,
+      progresso: linha.progresso,
+      inicioBaseline: dia(linha.inicioBaseline),
+      fimBaseline: dia(linha.fimBaseline),
+      inicioPrevisto: dia(linha.inicioPrevisto),
+      fimPrevisto: dia(linha.fimPrevisto),
+    },
     { inicioReal: p.inicioReal, fimReal: p.fimReal, progresso: p.progresso },
     p.hoje,
   );
@@ -95,7 +112,8 @@ export async function registrarExecucaoNaLinha(p: {
     // Condicional ao estado lido: dois cliques (ou outra pessoa) entre a leitura e a escrita não se sobrescrevem
     // nem duplicam o histórico do % e os avisos de fase/parcela.
     const gravada = await tx.eapTarefa.updateMany({
-      where: { id: p.id, status: linha.status, progresso: linha.progresso },
+      // As datas lidas também: o 100% sem término completa as datas a partir desta leitura (concluir pelo planejado).
+      where: { id: p.id, status: linha.status, progresso: linha.progresso, inicioReal: linha.inicioReal, fimReal: linha.fimReal },
       data: {
         inicioReal: r.inicioReal ? paraDataUtc(r.inicioReal) : null,
         fimReal: r.fimReal ? paraDataUtc(r.fimReal) : null,
@@ -174,5 +192,9 @@ export async function registrarExecucaoNaLinha(p: {
     });
     parcelasAFaturar = parcelas.map((x) => ({ id: x.id, descricao: x.descricao, contrato: x.contrato.titulo }));
   }
-  return { projetoId: linha.projetoId, nome: linha.nome, status: r.status, fase, parcelasAFaturar };
+  const datasPeloPlanejado =
+    r.datasPeloPlanejado && r.inicioReal && r.fimReal
+      ? { origem: r.datasPeloPlanejado, inicioReal: r.inicioReal, fimReal: r.fimReal }
+      : null;
+  return { projetoId: linha.projetoId, nome: linha.nome, status: r.status, fase, parcelasAFaturar, datasPeloPlanejado };
 }

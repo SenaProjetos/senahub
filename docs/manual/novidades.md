@@ -20,6 +20,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## 100% sem datas conclui como planejado (novembro/2026)
+
+- No **Gantt de Controle**, marcar **100%** numa tarefa sem datas reais agora **conclui** a tarefa e preenche o
+  **início real** e o **término real** com as datas da **linha de base** — como se tudo tivesse ocorrido como
+  planejado. Sem linha de base, valem as datas previstas.
+- Se a tarefa terminou antes do previsto (a linha de base termina depois de hoje), o término real fica **hoje**.
+- Vale na célula **%**, no painel da linha e em **Atualizar tarefa**. Para baixar o % de uma tarefa concluída, use
+  **Atualizar tarefa → Reabrir**.
+- As tarefas que já estavam em 100% sem datas foram concluídas da mesma forma na atualização.
+
 ## Agenda no portal do cliente (novembro/2026)
 
 - O portal ganhou o card **Agenda**: as datas combinadas em contrato (assinatura, entregas, prazo do projeto, fim da

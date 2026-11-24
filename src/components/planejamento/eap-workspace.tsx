@@ -87,7 +87,12 @@ import {
 } from "@/modules/planejamento/acoes-planejamento";
 import { PlanoGantt, type CampoReal, type EdicaoDeCampo, type ModoGantt } from "@/components/planejamento/plano-gantt";
 import { EapLinhaPainel } from "@/components/planejamento/eap-linha-painel";
-import { ExecucaoDialog, useOferecerFase, type FaseOferecida } from "@/components/planejamento/execucao-dialog";
+import {
+  ExecucaoDialog,
+  textoConcluidaPeloPlanejado,
+  useOferecerFase,
+  type FaseOferecida,
+} from "@/components/planejamento/execucao-dialog";
 import { FaixaCronograma } from "@/components/planejamento/faixa-cronograma";
 import type { ComparativoBase } from "@/components/planejamento/saude-cronograma-painel";
 import { rotuloBaseline, rotuloDaOpcao, tarefasComBaseline } from "@/modules/planejamento/baselines";
@@ -359,9 +364,12 @@ export function EapWorkspace({
         disciplinaId: t.disciplinaId ?? undefined,
         duracaoDias: e.campo === "duracao" ? e.duracaoDias : t.marco || t.ehResumo ? undefined : t.duracaoDias,
         progresso: e.campo === "progresso" ? e.progresso : Math.round(t.progresso),
+        // O que a célula mostrava: renomear numa tela velha não desfaz (nem conclui) o % de outra pessoa.
+        progressoMostrado: Math.round(t.progresso),
         marco: e.campo === "duracao" ? e.marco : t.marco,
       });
       if (!r.ok) return r.error;
+      if (r.data.conclusao) toast.success(textoConcluidaPeloPlanejado(r.data.conclusao));
       router.refresh();
       return null;
     });

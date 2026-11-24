@@ -99,6 +99,8 @@ const editarSchema = z.object({
   /** Dias ÚTEIS. Ausente = mantém. Ignorada em agrupamento (deriva dos filhos) e no marco (0). */
   duracaoDias: duracao.optional(),
   progresso: z.number().int().min(0).max(100),
+  /** O % que a tela mostrava (`EdicaoLinha.progressoMostrado`): separa "mudou o %" de "mandou o % junto". */
+  progressoMostrado: z.number().int().min(0).max(100).optional(),
   marco: z.boolean().default(false),
 });
 const idSchema = z.object({ id: z.string().min(1) });
@@ -228,15 +230,23 @@ export const criarEapTarefa = defineAction(
   ),
 );
 
+/**
+ * 2026-11-24: o 100% sem término real conclui pelo planejado — datas reais são de `cronograma:executado`, então só quem
+ * a tem; "hoje" é o mesmo dia do "Atualizar tarefa".
+ */
+async function opcoesDoPercentual(user: Parameters<typeof can>[0]) {
+  return { hoje: paraDia(inicioDoDiaUtc()), podeExecucao: await can(user, "cronograma", "executado") };
+}
+
 export const editarEapTarefa = defineAction(
   { ...plan, acao: "editar-eap", entidade: "EapTarefa", schema: editarSchema },
   comPassoDaAction(
     { projetoDe: (i) => projetoDaLinha(i.id), rotulo: (i) => `Editar "${i.nome}"` },
     async (i, { user }) => {
-    const t = await editarLinhaNoBanco(i, user.id);
+    const t = await editarLinhaNoBanco(i, user.id, await opcoesDoPercentual(user));
     await aposMudarEap(t.projetoId, user.id);
     revProjeto(t.projetoId);
-    return { id: i.id };
+    return { id: i.id, conclusao: t.conclusao };
     },
   ),
 );
@@ -1219,7 +1229,7 @@ export const registrarExecucao = defineAction(
     },
   },
   noEscopoDoProjeto(async (i) => projetoDaLinha(i.id), async (i, { user }) => {
-    const { projetoId, nome, status, fase, parcelasAFaturar } = await registrarExecucaoNaLinha({
+    const { projetoId, nome, status, fase, parcelasAFaturar, datasPeloPlanejado } = await registrarExecucaoNaLinha({
       id: i.id,
       inicioReal: i.inicioReal,
       fimReal: i.fimReal,
@@ -1278,7 +1288,7 @@ export const registrarExecucao = defineAction(
     revProjeto(projetoId);
     // A fase que o marco entregou aparece no card da disciplina, na aba do projeto.
     if (fase?.marcadaEntregue) revalidatePath(`/projetos/${projetoId}`);
-    return { status, fase };
+    return { status, fase, datasPeloPlanejado };
   }),
 );
 
@@ -1333,9 +1343,9 @@ export const salvarLinhaEap = defineAction(
     // O nome lido ANTES: numa renomeação, o Ctrl+Z diz qual linha era.
     { projetoDe: (i) => projetoDaLinha(i.id), rotulo: rotuloDaLinha("Editar") },
     async (i, { user }) => {
-      const r = await salvarLinhaNoBanco(i, user.id);
+      const r = await salvarLinhaNoBanco(i, user.id, await opcoesDoPercentual(user));
       revProjeto(r.projetoId);
-      return { inicio: r.inicio, fim: r.fim };
+      return { inicio: r.inicio, fim: r.fim, conclusao: r.conclusao };
     },
   ),
 );

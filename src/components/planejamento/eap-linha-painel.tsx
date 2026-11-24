@@ -11,6 +11,7 @@ import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
 import { disciplinaParaLinhaNova, propagacaoDeDisciplina } from "@/modules/planejamento/disciplina-linha";
 import { MOTIVO_PLANO_TRAVADO } from "@/modules/planejamento/trava-plano";
 import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
+import { textoConcluidaPeloPlanejado } from "@/components/planejamento/execucao-dialog";
 import { PredecessorasDialog } from "@/components/planejamento/predecessoras-dialog";
 import { dataCurta } from "@/lib/dias-iso";
 import { cn, formatarData } from "@/lib/utils";
@@ -284,6 +285,7 @@ export function EapLinhaPainel({
         // atividade tem 0): vai a gravada, ou 1.
         duracaoDias: semDuracao ? undefined : terminoDigitado ? Number(base.duracao.replace(",", ".")) || 1 : duracaoDias,
         progresso: form.progresso,
+        progressoMostrado: base.progresso,
         marco: form.marco,
         inicio: mudou.includes("inicio") && form.inicio ? form.inicio : undefined,
         termino: terminoDigitado && form.termino ? form.termino : undefined,
@@ -302,9 +304,11 @@ export function EapLinhaPainel({
         });
       } else if (propagadas > 0) {
         toast.success(`Linha salva — ${textoPropagadas} de disciplina.`);
-      } else {
+      } else if (!r.data.conclusao) {
         toast.success("Linha salva — datas recalculadas.");
       }
+      // Separado: os avisos de cima não podem esconder que a tarefa foi concluída com datas reais.
+      if (r.data.conclusao) toast.success(textoConcluidaPeloPlanejado(r.data.conclusao));
       setAlteracoes({});
       router.refresh();
     });

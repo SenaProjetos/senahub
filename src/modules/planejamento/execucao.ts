@@ -14,6 +14,7 @@
  */
 import { z } from "zod";
 import type { StatusEap } from "@/generated/prisma/client";
+import { datasPeloPlanejado as datasDoPlanejado, type OrigemDasDatas } from "./concluir-pelo-planejado";
 
 type Dia = string;
 
@@ -53,6 +54,14 @@ export type LinhaParaExecucao = {
   ehResumo: boolean;
   status: StatusEap;
   progresso: number;
+  /**
+   * Datas planejadas (2026-11-24): com elas, 100% sem término real conclui "como planejado" (`datasPeloPlanejado`).
+   * Ausentes = 100% sem término é recusado, como antes.
+   */
+  inicioBaseline?: Dia | null;
+  fimBaseline?: Dia | null;
+  inicioPrevisto?: Dia | null;
+  fimPrevisto?: Dia | null;
 };
 
 export type ResultadoExecucao =
@@ -64,6 +73,8 @@ export type ResultadoExecucao =
       progresso: number;
       /** Passou a concluída AGORA (não estava) — é o que dispara a oferta de aprovar a fase. */
       concluiu: boolean;
+      /** Presente quando as datas reais vieram do planejado (100% sem término): de onde. */
+      datasPeloPlanejado?: OrigemDasDatas;
     }
   | { ok: false; motivo: string };
 
@@ -91,9 +102,11 @@ const falha = (motivo: string): ResultadoExecucao => ({ ok: false, motivo });
  * - Início real sem término: `nin` vira `and`. Os status de fluxo (`agu`, `rev`, `apr`) ficam como
  *   estão — começar não os desfaz. Bloqueada continua bloqueada (e não conclui: desbloqueie antes).
  * - Nada no futuro: real é o que JÁ aconteceu.
- * - % informado (Lote 7): avanço de quem acompanha, sem concluir — por isso 100 só pelo término real
- *   ("marcar 100%" não diz que terminou como planejado). O status segue só as datas: % sem início real
+ * - % informado (Lote 7): avanço de quem acompanha. O status segue só as datas: % sem início real
  *   não vira "em andamento" (o verificador acusaria "em andamento sem início real"). Marco não tem %.
+ * - 100% sem término real (2026-11-24, desfaz o "100 só pelo término real" do Lote 7): terminou como
+ *   planejado — as datas reais vêm de `concluir-pelo-planejado.ts` (linha de base, senão previsto; término
+ *   limitado a hoje). Sem as datas planejadas na linha, recusa como antes.
  */
 export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecucao, hoje: Dia): ResultadoExecucao {
   if (linha.ehResumo) return falha("Linha de agrupamento: as datas reais vêm das atividades dentro dela.");
@@ -102,8 +115,30 @@ export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecuc
   }
 
   const marco = linha.tipoEap === "mrc";
-  const fimReal = entrada.fimReal || null;
-  const inicioReal = marco ? fimReal : entrada.inicioReal || null;
+  let fimReal = entrada.fimReal || null;
+  let inicioReal = marco ? fimReal : entrada.inicioReal || null;
+  // 2026-11-24: 100% sem término = terminou como planejado. O início informado vence; um início inválido ou no futuro
+  // não é completado e cai nas recusas de baixo, como sempre.
+  let datasPeloPlanejado: OrigemDasDatas | undefined;
+  const inicioAceito = inicioReal == null || (diaValido(inicioReal) && inicioReal <= hoje);
+  // Concluída que está sendo reaberta (término apagado) e volta a 100: não troca as datas dela pelas do planejado.
+  if (!marco && linha.status !== "con" && fimReal == null && entrada.progresso === 100 && inicioAceito) {
+    const d = datasDoPlanejado(
+      {
+        inicioReal,
+        inicioBaseline: linha.inicioBaseline ?? null,
+        fimBaseline: linha.fimBaseline ?? null,
+        inicioPrevisto: linha.inicioPrevisto ?? null,
+        fimPrevisto: linha.fimPrevisto ?? null,
+      },
+      hoje,
+    );
+    if (d) {
+      inicioReal = d.inicioReal;
+      fimReal = d.fimReal;
+      datasPeloPlanejado = d.origem;
+    }
+  }
 
   for (const d of [inicioReal, fimReal]) {
     if (d != null && !diaValido(d)) return falha("Data inválida.");
@@ -142,11 +177,30 @@ export function aplicarExecucao(linha: LinhaParaExecucao, entrada: EntradaExecuc
   if (!marco && linha.status === "con" && status !== "con" && progresso >= 100) {
     return falha("Ao reabrir, informe o % concluído (até 99%).");
   }
-  return { ok: true, inicioReal, fimReal, status, progresso, concluiu: status === "con" && linha.status !== "con" };
+  return {
+    ok: true,
+    inicioReal,
+    fimReal,
+    status,
+    progresso,
+    concluiu: status === "con" && linha.status !== "con",
+    ...(datasPeloPlanejado ? { datasPeloPlanejado } : {}),
+  };
 }
 
 export const MOTIVO_REABRIR_NA_CELULA = "Para reabrir a tarefa, use Atualizar tarefa e informe o % concluído.";
 export const MOTIVO_APAGAR_INICIO_COM_TERMINO = "Apague o término real antes do início real.";
+
+/**
+ * Baixar o % de uma linha concluída pela célula ou pelo painel deixaria "90%" com status concluída e término real (o motor a
+ * trataria como terminada). Reabrir é do "Atualizar tarefa", que tira o término junto. Agrupamento tem % derivado: passa.
+ */
+export function motivoParaBaixarPercentual(
+  l: { ehResumo: boolean; status: StatusEap; progresso: number },
+  novo: number,
+): string | null {
+  return !l.ehResumo && l.status === "con" && novo < l.progresso ? MOTIVO_REABRIR_NA_CELULA : null;
+}
 
 /**
  * As datas reais digitadas direto na tabela do Gantt de Controle (colunas Iníc. real / Térm. real). Uma célula muda uma
