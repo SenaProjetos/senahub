@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import { caminhoDaLua, comAlfa, iluminacaoDaLua, lerp, lerpHex, type Ceu, type TemaDaEpoca } from "@/modules/dashboard/hero/ceu";
+import { caminhoDaLua, comAlfa, iluminacaoDaLua, lerp, lerpHex, type Ceu } from "@/modules/dashboard/hero/ceu";
+import type { Campanha, TemaDaEpoca } from "@/modules/dashboard/hero/epoca";
 
 /*
  * Pseudo-aleatório estável: hash inteiro (sem `Math.sin`, cuja última casa pode variar entre o Node
@@ -85,7 +86,45 @@ const VARAIS = [0, 1].map((v) => {
   return { corda: `M${x0} 2 Q${x0 + largura / 2} ${2 + flecha * 2} ${x0 + largura} 2`, bandeiras };
 });
 
-function Skyline({ ceu, tema }: { ceu: Ceu; tema: TemaDaEpoca }) {
+/* Carnaval: sombrinhas de frevo sobre as coberturas (centro da copa e cor de cada gomo). */
+const CORES_FREVO = ["#E63946", "#F4C430", "#2A9D8F", "#3A86FF"];
+const SOMBRINHAS = [
+  { cx: 281, cy: 84, atraso: 0 },
+  { cx: 336, cy: 44, atraso: -1.1 },
+  { cx: 511, cy: 78, atraso: -2.3 },
+];
+function gomosDaSombrinha(cx: number, cy: number, r = 12) {
+  return CORES_FREVO.map((cor, k) => {
+    const a0 = Math.PI + (k * Math.PI) / 4;
+    const a1 = a0 + Math.PI / 4;
+    const p = (a: number) => `${casas(cx + r * Math.cos(a))} ${casas(cy + r * Math.sin(a))}`;
+    return { cor, d: `M${cx} ${cy} L${p(a0)} A${r} ${r} 0 0 1 ${p(a1)} Z` };
+  });
+}
+
+/* Serpentinas penduradas no alto (Carnaval). */
+const SERPENTINAS = Array.from({ length: 9 }, (_, i) => {
+  const x = 60 + i * 66 + Math.round(aleatorio(i, 21) * 20);
+  const voltas = 1 + Math.floor(aleatorio(i, 22) * 2);
+  let d = `M${x} 0`;
+  for (let v = 0; v < voltas; v++) d += " q7 8 0 16 q-7 8 0 16";
+  return { d, cor: CORES_FREVO[(i + 1) % CORES_FREVO.length], atraso: casas(-aleatorio(i, 23) * 3) };
+});
+
+/* Páscoa: orelhas de coelho atrás do primeiro prédio (fora do painel de aniversariantes, que cobre o canto direito). */
+const ORELHAS = [
+  { cx: 275, giro: -12 },
+  { cx: 285, giro: 9 },
+];
+
+/* Páscoa: ovos pintados ao pé da obra. */
+const OVOS = [
+  { cx: 440, cor: "#F9A8D4" },
+  { cx: 453, cor: "#93C5FD" },
+  { cx: 466, cor: "#FDE68A" },
+];
+
+function Skyline({ ceu, tema, campanha }: { ceu: Ceu; tema: TemaDaEpoca; campanha: Campanha | null }) {
   const b = ceu.claridade;
   const traco = comAlfa(lerpHex("#A9C4E0", "#1E3C64", b), lerp(0.42, 0.3, b));
   const corFachada = lerpHex("#0C1630", "#FFFFFF", b);
@@ -133,6 +172,20 @@ function Skyline({ ceu, tema }: { ceu: Ceu; tema: TemaDaEpoca }) {
         <circle cx={232} cy={7} r={2} fill="#FF5A4E" className="animate-hero-baliza" />
       )}
 
+      {/* Mês de campanha: o laço da cor da campanha pendurado no mastro da grua */}
+      {campanha && (
+        <path
+          d="M-5.5 13 L2.5 -1 C6 -7 4 -12 0 -12 C-4 -12 -6 -7 -2.5 -1 L5.5 13"
+          transform="translate(232 50) scale(1.15)"
+          fill="none"
+          stroke={campanha.cor}
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{ filter: `drop-shadow(0 0 2px ${comAlfa(campanha.cor, 0.6)})` }}
+        />
+      )}
+
       {/* Prédios: fachada, lateral e cobertura */}
       {PREDIOS.map((p, k) => {
         const topoY = CHAO - p.h;
@@ -166,6 +219,44 @@ function Skyline({ ceu, tema }: { ceu: Ceu; tema: TemaDaEpoca }) {
           style={{ opacity: j.o * acesas, transition: `opacity 1.2s ease ${j.atraso}s` }}
         />
       ))}
+
+      {/* Páscoa: orelhas espiando atrás de um prédio e ovos ao pé da obra */}
+      {tema === "pascoa" && (
+        <g>
+          <defs>
+            <clipPath id="hero-orelhas">
+              <rect x={256} y={60} width={50} height={37} />
+            </clipPath>
+          </defs>
+          <g clipPath="url(#hero-orelhas)">
+            {ORELHAS.map((o, k) => (
+              <g key={k} className="animate-hero-orelha" style={{ animationDelay: `${-k * 0.35}s` }}>
+                <g transform={`rotate(${o.giro} ${o.cx} 100)`}>
+                  <ellipse cx={o.cx} cy={88} rx={3.6} ry={12} fill="#F4EEE8" />
+                  <ellipse cx={o.cx} cy={89} rx={1.6} ry={8.5} fill="#F9A8D4" />
+                </g>
+              </g>
+            ))}
+          </g>
+          {OVOS.map((o, k) => (
+            <g key={k}>
+              <ellipse cx={o.cx} cy={CHAO - 7} rx={5.2} ry={7} fill={o.cor} />
+              <path d={`M${o.cx - 5} ${CHAO - 7} l2.5 -2.2 2.5 2.2 2.5 -2.2 2.5 2.2`} fill="none" stroke="#FFFFFF" strokeWidth={1} />
+            </g>
+          ))}
+        </g>
+      )}
+
+      {/* Carnaval: sombrinhas de frevo dançando sobre as coberturas */}
+      {tema === "carnaval" &&
+        SOMBRINHAS.map((sb, k) => (
+          <g key={k} className="animate-hero-frevo" style={{ animationDelay: `${sb.atraso}s` }}>
+            {gomosDaSombrinha(sb.cx, sb.cy).map((g, j) => (
+              <path key={j} d={g.d} fill={g.cor} />
+            ))}
+            <path d={`M${sb.cx} ${sb.cy} v15 q0 3 -3 3`} fill="none" stroke="#3A2A1A" strokeWidth={1} strokeLinecap="round" />
+          </g>
+        ))}
 
       {/* São João: fogueira ao pé da obra */}
       {tema === "junino" && (
@@ -211,13 +302,90 @@ function Skyline({ ceu, tema }: { ceu: Ceu; tema: TemaDaEpoca }) {
 const GRAO =
   "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
+/* Confete (festa e Carnaval) e pétalas (Dia da Mulher): caem atravessando o card. */
+const CORES_CONFETE = ["#E63946", "#F4C430", "#2A9D8F", "#3A86FF", "#FB8500", "#8338EC", "#F472B6"];
+const CORES_PETALAS = ["#C084FC", "#E9D5FF", "#A855F7", "#F0ABFC"];
+const CONFETE = Array.from({ length: 28 }, (_, i) => ({
+  x: casas(30 + aleatorio(i, 31) * 68),
+  dur: casas(6 + aleatorio(i, 32) * 4),
+  atraso: casas(-aleatorio(i, 33) * 10),
+  giro: casas(1.4 + aleatorio(i, 34) * 1.6),
+  largo: aleatorio(i, 35) < 0.5,
+  cor: CORES_CONFETE[i % CORES_CONFETE.length],
+}));
+const PETALAS = Array.from({ length: 24 }, (_, i) => ({
+  x: casas(30 + aleatorio(i, 41) * 68),
+  dur: casas(10 + aleatorio(i, 42) * 5),
+  atraso: casas(-aleatorio(i, 43) * 15),
+  giro: casas(3 + aleatorio(i, 44) * 2),
+  cor: CORES_PETALAS[i % CORES_PETALAS.length],
+}));
+
+function Chuva({ tipo }: { tipo: "confete" | "petalas" }) {
+  if (tipo === "petalas") {
+    return PETALAS.map((p, k) => (
+      <span key={k} className="animate-hero-cair absolute inset-0" style={{ animationDuration: p.dur + "s", animationDelay: p.atraso + "s" }}>
+        <i
+          className="animate-hero-rodopio absolute top-0 block h-3 w-2.5 rounded-[0_100%_0_100%] opacity-90"
+          style={{ left: p.x + "%", background: p.cor, animationDuration: p.giro + "s" }}
+        />
+      </span>
+    ));
+  }
+  return CONFETE.map((c, k) => (
+    <span key={k} className="animate-hero-cair absolute inset-0" style={{ animationDuration: c.dur + "s", animationDelay: c.atraso + "s" }}>
+      <i
+        className={`animate-hero-rodopio absolute top-0 block ${c.largo ? "h-1.5 w-2" : "h-2.5 w-1"}`}
+        style={{ left: c.x + "%", background: c.cor, animationDuration: c.giro + "s" }}
+      />
+    </span>
+  ));
+}
+
+/* Fogos de Réveillon: estouros no céu da direita, um de cada vez. */
+const FOGOS = [
+  // O painel de aniversariantes costuma ocupar o canto direito: os fogos ficam entre ele e o véu do texto.
+  { right: 33, top: 0, tam: 78, cor: "#FFD166", atraso: 0 },
+  { right: 45, top: 2, tam: 64, cor: "#FF5A5F", atraso: -1.1 },
+  { right: 38, top: 22, tam: 56, cor: "#4ADE80", atraso: -2.3 },
+  { right: 4, top: 0, tam: 84, cor: "#93C5FD", atraso: -3.2 },
+];
+const RAIOS = Array.from({ length: 14 }, (_, k) => {
+  const a = (k / 14) * Math.PI * 2;
+  return {
+    x1: casas(Math.cos(a) * 12),
+    y1: casas(Math.sin(a) * 12),
+    x2: casas(Math.cos(a) * 40),
+    y2: casas(Math.sin(a) * 40),
+    cx: casas(Math.cos(a) * 45),
+    cy: casas(Math.sin(a) * 45),
+  };
+});
+
 const ORBE = "right 1.6s cubic-bezier(.4,0,.2,1), top 1.6s cubic-bezier(.4,0,.2,1), width 1.6s cubic-bezier(.4,0,.2,1), opacity 1s ease";
 
 /**
- * Fundo animado do herocard: aurora, estrelas, sol, lua na fase do dia, névoa, skyline de obra e os
- * temas de época. Só desenha — as contas são de `modules/dashboard/hero/ceu.ts`.
+ * Fundo animado do herocard: aurora, estrelas, sol, lua na fase do dia, névoa, skyline de obra, os
+ * temas de época (`epoca.ts`), os fogos de Réveillon, o laço do mês de campanha e o confete do dia
+ * da pessoa. Só desenha — as contas são de `modules/dashboard/hero/ceu.ts`.
  */
-export function HeroSky({ ceu, faseLua, tema }: { ceu: Ceu; faseLua: number; tema: TemaDaEpoca }) {
+export function HeroSky({
+  ceu,
+  faseLua,
+  tema,
+  fogos,
+  campanha,
+  festa,
+}: {
+  ceu: Ceu;
+  faseLua: number;
+  tema: TemaDaEpoca;
+  /** Réveillon: aparecem só à noite. */
+  fogos: boolean;
+  campanha: Campanha | null;
+  /** O dia é da pessoa (aniversário ou ano de casa): confete. */
+  festa: boolean;
+}) {
   const manchas = [
     { cor: ceu.aurora[0], cls: "animate-hero-aurora-1", pos: { left: "-10%", top: "-35%", width: "65%", height: "120%" } },
     { cor: ceu.aurora[1], cls: "animate-hero-aurora-2", pos: { left: "35%", top: "-20%", width: "60%", height: "110%" } },
@@ -315,6 +483,50 @@ export function HeroSky({ ceu, faseLua, tema }: { ceu: Ceu; faseLua: number; tem
         </svg>
       </div>
 
+      {/* Réveillon: fogos só à noite */}
+      {fogos && (
+        <div className="absolute inset-0" style={{ opacity: ceu.noite, transition: "opacity 1.5s ease" }}>
+          {FOGOS.map((f, k) => (
+            <svg
+              key={k}
+              viewBox="-50 -50 100 100"
+              className="animate-hero-fogo absolute overflow-visible"
+              style={{ right: f.right + "%", top: f.top + "%", width: f.tam, height: f.tam, animationDelay: f.atraso + "s", filter: `drop-shadow(0 0 4px ${f.cor})` }}
+            >
+              {RAIOS.map((r, j) => (
+                <g key={j}>
+                  <line x1={r.x1} y1={r.y1} x2={r.x2} y2={r.y2} stroke={f.cor} strokeWidth={1.6} strokeLinecap="round" />
+                  <circle cx={r.cx} cy={r.cy} r={2.2} fill={f.cor} />
+                </g>
+              ))}
+            </svg>
+          ))}
+        </div>
+      )}
+
+      {/* Carnaval: serpentinas penduradas no alto */}
+      {tema === "carnaval" && (
+        <svg
+          className="pointer-events-none absolute top-0 right-0 h-16 w-[70%] sm:w-[62%]"
+          viewBox="0 0 660 64"
+          preserveAspectRatio="xMaxYMin slice"
+          aria-hidden
+        >
+          {SERPENTINAS.map((sp, k) => (
+            <path
+              key={k}
+              className="animate-hero-balanco"
+              style={{ animationDelay: sp.atraso + "s" }}
+              d={sp.d}
+              fill="none"
+              stroke={sp.cor}
+              strokeWidth={2.4}
+              strokeLinecap="round"
+            />
+          ))}
+        </svg>
+      )}
+
       {/* São João: bandeirinhas no alto */}
       {tema === "junino" && (
         <svg
@@ -352,7 +564,15 @@ export function HeroSky({ ceu, faseLua, tema }: { ceu: Ceu; faseLua: number; tem
         />
       ))}
 
-      <Skyline ceu={ceu} tema={tema} />
+      <Skyline ceu={ceu} tema={tema} campanha={campanha} />
+
+      {/* Confete (festa da pessoa, Carnaval) e pétalas (Dia da Mulher) */}
+      {(festa || tema === "carnaval" || tema === "mulher") && (
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {(festa || tema === "carnaval") && <Chuva tipo="confete" />}
+          {tema === "mulher" && <Chuva tipo="petalas" />}
+        </div>
+      )}
 
       {/* Bruma da noite no pé do card */}
       <div

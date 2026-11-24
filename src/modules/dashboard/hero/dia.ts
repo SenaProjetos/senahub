@@ -79,13 +79,21 @@ export function inicioNaCasa(vinculos: readonly { inicio: string; fim: string | 
 
 /** Anos de casa que a pessoa completa HOJE, ou `null` se hoje não é o dia (29/02 cai em 28/02). */
 export function anosDeCasaHoje(inicio: string, hoje: string): number | null {
-  const [ai, mi, di] = inicio.split("-").map(Number);
+  const anos = Number(hoje.slice(0, 4)) - Number(inicio.slice(0, 4));
+  return anos >= 1 && mesmoDiaNoAno(inicio, hoje) ? anos : null;
+}
+
+/** Hoje é o aniversário de quem nasceu em `nascimento`? (29/02 cai em 28/02 nos anos comuns.) */
+export function ehAniversarioHoje(nascimento: string, hoje: string): boolean {
+  return mesmoDiaNoAno(nascimento, hoje);
+}
+
+function mesmoDiaNoAno(data: string, hoje: string): boolean {
+  const [, m, d] = data.split("-").map(Number);
   const [ah, mh, dh] = hoje.split("-").map(Number);
-  const anos = ah - ai;
-  if (anos < 1 || mi !== mh) return null;
+  if (m !== mh) return false;
   const bissexto = (a: number) => (a % 4 === 0 && a % 100 !== 0) || a % 400 === 0;
-  const diaAlvo = mi === 2 && di === 29 && !bissexto(ah) ? 28 : di;
-  return dh === diaAlvo ? anos : null;
+  return dh === (m === 2 && d === 29 && !bissexto(ah) ? 28 : d);
 }
 
 /* ── Próxima coisa ───────────────────────────────────────── */

@@ -2,7 +2,7 @@
 titulo: Início (Dashboard)
 descricao: Página inicial do colaborador — saudação, KPIs, projetos recentes, receita e evolução.
 resumo: O painel de abertura mostra indicadores pessoais e do escritório, ações rápidas, projetos recentes e gráficos; o que aparece depende do perfil e da permissão financeira.
-tags: [início, dashboard, painel, kpi, indicadores, home, aniversariantes, humor, ações rápidas, feriado, férias, expediente, tempo de casa, reunião]
+tags: [início, dashboard, painel, kpi, indicadores, home, aniversariantes, humor, ações rápidas, feriado, férias, expediente, tempo de casa, reunião, datas comemorativas, carnaval, campanha]
 palavras-chave: [início, dashboard, painel inicial, kpi, indicador, receita prevista, projetos ativos, sparkline, aniversário, humor]
 sinonimos: [home, tela inicial, painel, página inicial]
 ---
@@ -40,8 +40,24 @@ pessoais e do escritório, projetos em andamento, ações rápidas e a evoluçã
 ### 1. Cartão de boas-vindas (HeroCard)
 - **Saudação** com o seu nome. O fundo acompanha o céu de Recife: o sol nasce e se
   põe no horário real do dia, a lua aparece na fase do dia e "Boa noite" só começa
-  quando escurece de verdade. Em junho há bandeirinhas e fogueira; de 1º de dezembro
-  a 6 de janeiro, pisca-pisca e uma estrela na grua.
+  quando escurece de verdade.
+- **Datas comemorativas** no fundo do cartão:
+  - **Carnaval** (do sábado da semana anterior, com as prévias, até a Quarta-feira
+    de Cinzas): serpentinas, confete e sombrinhas de frevo sobre os prédios;
+  - **Dia Internacional da Mulher** (8 de março): pétalas lilás caindo e o nome
+    do dia ao lado da data;
+  - **Páscoa** (do Domingo de Ramos ao Domingo de Páscoa): orelhas de coelho atrás
+    de um prédio e ovos pintados;
+  - **São João** (junho): bandeirinhas e fogueira;
+  - **Natal** (1º de dezembro a 6 de janeiro): pisca-pisca e uma estrela na grua;
+    de 26 de dezembro a 1º de janeiro, **fogos de Réveillon** depois que escurece;
+  - **meses de campanha**: um laço na grua e o nome da campanha ao lado da data em
+    setembro (Setembro Amarelo), outubro (Outubro Rosa) e novembro (Novembro Azul).
+- **O seu dia**: no seu aniversário (pela data de nascimento do cadastro), a
+  saudação vira "Feliz aniversário" e cai confete; no dia em que você completa ano
+  de casa, também cai confete e aparece "N anos de SENA hoje" ao lado da data. Com
+  "reduzir movimento" ligado no sistema, o que cai (confete, pétalas) e os fogos não
+  aparecem.
 - **Avisos de data** ao lado do dia: feriado de hoje, de amanhã ou dos próximos 7
   dias (do calendário de feriados do RH) e "Suas férias começam em N dias", até 30
   dias antes de férias aprovadas.

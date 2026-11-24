@@ -4,6 +4,7 @@ import {
   avisoDeFeriado,
   avisoDeFerias,
   diaCurto,
+  ehAniversarioHoje,
   ehDiaUtil,
   inicioNaCasa,
   linkDoLocal,
@@ -70,6 +71,14 @@ describe("tempo de casa", () => {
     expect(anosDeCasaHoje("2023-11-22", "2026-11-23")).toBeNull();
     expect(anosDeCasaHoje("2024-02-29", "2027-02-28")).toBe(3);
     expect(anosDeCasaHoje("2024-02-29", "2028-02-29")).toBe(4);
+  });
+
+  it("aniversário: mesmo dia e mês; 29/02 cai em 28/02 nos anos comuns", () => {
+    expect(ehAniversarioHoje("1990-11-24", "2026-11-24")).toBe(true);
+    expect(ehAniversarioHoje("1990-11-23", "2026-11-24")).toBe(false);
+    expect(ehAniversarioHoje("1992-02-29", "2027-02-28")).toBe(true);
+    expect(ehAniversarioHoje("1992-02-29", "2028-02-28")).toBe(false);
+    expect(ehAniversarioHoje("1992-02-29", "2028-02-29")).toBe(true);
   });
 });
 

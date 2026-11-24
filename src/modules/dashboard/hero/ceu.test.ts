@@ -12,7 +12,6 @@ import {
   rotuloDoMomento,
   saudacao,
   solDoDia,
-  temaDaEpoca,
 } from "@/modules/dashboard/hero/ceu";
 
 describe("tempo de São Paulo", () => {
@@ -96,17 +95,6 @@ describe("lua", () => {
     // menos da metade iluminada: o terminador curva para dentro (flag 1)
     expect(caminhoDaLua(0.1).d).toMatch(/0 0 1 50 0 Z$/);
     expect(caminhoDaLua(0.4).d).toMatch(/0 0 0 50 0 Z$/);
-  });
-});
-
-describe("temaDaEpoca", () => {
-  it("junho é São João; 1º/12 a 6/01 é Natal; o resto, nada", () => {
-    expect(temaDaEpoca("2026-06-01")).toBe("junino");
-    expect(temaDaEpoca("2026-06-30")).toBe("junino");
-    expect(temaDaEpoca("2026-12-01")).toBe("natal");
-    expect(temaDaEpoca("2027-01-06")).toBe("natal");
-    expect(temaDaEpoca("2027-01-07")).toBeNull();
-    expect(temaDaEpoca("2026-11-30")).toBeNull();
   });
 });
 

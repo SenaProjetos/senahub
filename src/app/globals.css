@@ -448,6 +448,42 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
 }
 .animate-hero-pisca-a { animation: hero-pisca-a 1.8s ease-in-out infinite; }
 .animate-hero-pisca-b { animation: hero-pisca-b 1.8s ease-in-out infinite; }
+@keyframes hero-cair {
+  0% { transform: translate3d(0, -12%, 0); }
+  100% { transform: translate3d(0, 112%, 0); }
+}
+@keyframes hero-rodopio {
+  0%, 100% { transform: translateX(-7px) rotate(0deg) rotateY(0deg); }
+  50% { transform: translateX(7px) rotate(200deg) rotateY(180deg); }
+}
+@keyframes hero-fogo {
+  0% { transform: scale(0.15); opacity: 0; }
+  6% { opacity: 1; }
+  28% { transform: scale(1); opacity: 0.95; }
+  44%, 100% { transform: scale(1.1); opacity: 0; }
+}
+@keyframes hero-frevo {
+  0%, 100% { transform: translateY(0) rotate(-10deg); }
+  50% { transform: translateY(-2px) rotate(10deg); }
+}
+@keyframes hero-orelha {
+  0%, 82%, 100% { transform: rotate(0deg); }
+  87% { transform: rotate(-9deg); }
+  92% { transform: rotate(6deg); }
+}
+.animate-hero-cair { animation: hero-cair 8s linear infinite; }
+.animate-hero-rodopio { animation: hero-rodopio 2s ease-in-out infinite; }
+.animate-hero-fogo { animation: hero-fogo 4.4s ease-out infinite; }
+.animate-hero-frevo {
+  animation: hero-frevo 1.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+.animate-hero-orelha {
+  animation: hero-orelha 5s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
 .hero-cadente {
   position: absolute;
   width: 90px;
@@ -559,13 +595,17 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   .animate-hero-chama,
   .animate-hero-pisca-a,
   .animate-hero-pisca-b,
+  .animate-hero-frevo,
+  .animate-hero-orelha,
   .projeto-painel-grid,
   .projeto-painel-grid .react-grid-item {
     animation: none !important;
     transition: none !important;
   }
-  /* A estrela cadente só existe enquanto anima: parada, some. */
-  .animate-hero-cadente {
+  /* Estrela cadente, confete e fogos só existem enquanto animam: parados, somem. */
+  .animate-hero-cadente,
+  .animate-hero-cair,
+  .animate-hero-fogo {
     display: none;
   }
 }

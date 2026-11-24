@@ -23,9 +23,9 @@ import {
   rotuloDoMomento,
   saudacao as saudacaoDoMomento,
   solDoDia,
-  temaDaEpoca,
   type Ceu,
 } from "@/modules/dashboard/hero/ceu";
+import { campanhaDoMes, rotuloDoTema, temFogos, temaDaEpoca } from "@/modules/dashboard/hero/epoca";
 import { avisoDeFeriado, avisoDeFerias, diaCurto, ehDiaUtil, proximaCoisa, type ProximaCoisa } from "@/modules/dashboard/hero/dia";
 import { calcularExpediente, textosDoExpediente, type EscalaDoDia, type Expediente } from "@/modules/dashboard/hero/expediente";
 
@@ -231,7 +231,7 @@ function LinhaExpediente({
 }
 
 /**
- * Herocard do Início: o céu do dia (sol e lua reais de Recife, temas de época) de fundo, a
+ * Herocard do Início: o céu do dia (sol e lua reais de Recife, datas comemorativas) de fundo, a
  * saudação, os avisos de datas (feriado, férias), a frase do dia e, na base, a faixa do dia — a
  * reunião que vem aí ou a atividade de hoje, e a linha do expediente de quem bate ponto. No lado
  * direito, quem completa ano de casa hoje e os aniversariantes. A hora anda ao vivo (30 s).
@@ -294,6 +294,7 @@ export function HeroCardAnimado({
   const ceu = useMemo(() => calcularCeu(horaDoCeu(minuto, sol)), [minuto, sol]);
   const faseLua = useMemo(() => faseDaLua(hoje), [hoje]);
   const tema = temaDaEpoca(hoje);
+  const campanha = campanhaDoMes(hoje);
   const t = timeTheme(ceu.textoEscuro);
 
   // Passou da meia-noite com o Início aberto: a linha de ontem não vale mais.
@@ -304,6 +305,9 @@ export function HeroCardAnimado({
   const feriado = montado ? avisoDeFeriado(dia.feriados, hoje) : null;
   const ferias = montado ? avisoDeFerias(dia.inicioFerias, hoje) : null;
   const dataStr = montado ? diaCurto(hoje) : null;
+  // O dia da pessoa só vale no dia em que foi lido (Início aberto depois da meia-noite: some).
+  const festa = hoje === dia.hoje ? dia.festa : { aniversario: false, anosDeCasa: null };
+  const nomeDoTema = montado ? rotuloDoTema(tema) : null;
 
   const { doDia, doMes } = aniversariantes;
   const tempoDeCasa = hoje === dia.hoje ? dia.tempoDeCasa : [];
@@ -312,13 +316,20 @@ export function HeroCardAnimado({
 
   return (
     <section className="relative min-h-44 overflow-hidden rounded-sm border">
-      <HeroSky ceu={ceu} faseLua={faseLua} tema={tema} />
+      <HeroSky
+        ceu={ceu}
+        faseLua={faseLua}
+        tema={tema}
+        fogos={temFogos(hoje)}
+        campanha={campanha}
+        festa={festa.aniversario || festa.anosDeCasa != null}
+      />
 
       <div className="relative z-10 p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className={`font-mono text-[11px] uppercase tracking-[0.18em] ${t.meta}`}>
-              {saudacaoDoMomento(minuto, sol)}
+              {festa.aniversario ? "Feliz aniversário" : saudacaoDoMomento(minuto, sol)}
             </p>
             <h2 className="mt-1 text-2xl font-extrabold tracking-tight">
               <span className={t.heading}>{nome}</span>
@@ -329,6 +340,18 @@ export function HeroCardAnimado({
               {montado && <span className={cn(chip, t.tag)}>{rotuloDoMomento(minuto, sol)}</span>}
               {feriado && <span className={cn(chip, "font-semibold", t.aviso)}>{feriado.texto}</span>}
               {ferias && <span className={cn(chip, "font-semibold", t.aviso)}>{ferias}</span>}
+              {montado && festa.anosDeCasa != null && (
+                <span className={cn(chip, "font-semibold", t.aviso)}>
+                  {festa.anosDeCasa} {festa.anosDeCasa === 1 ? "ano" : "anos"} de SENA hoje
+                </span>
+              )}
+              {nomeDoTema && <span className={cn(chip, t.tag)}>{nomeDoTema}</span>}
+              {montado && campanha && (
+                <span className={cn(chip, "inline-flex items-center gap-1.5", t.tag)}>
+                  <span className="size-2 rounded-full" style={{ background: campanha.cor }} aria-hidden />
+                  {campanha.nome}
+                </span>
+              )}
             </div>
 
             <HeroCitacao frase={frase} autor={autor} light={ceu.textoEscuro} />

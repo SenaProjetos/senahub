@@ -283,7 +283,10 @@
         "férias",
         "expediente",
         "tempo de casa",
-        "reunião"
+        "reunião",
+        "datas comemorativas",
+        "carnaval",
+        "campanha"
       ],
       "palavrasChave": [
         "início",

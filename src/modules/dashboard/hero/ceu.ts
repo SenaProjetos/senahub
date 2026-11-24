@@ -167,18 +167,6 @@ export function caminhoDaLua(fase: number): { d: string; espelho: boolean } {
   return { d, espelho: fase > 0.5 };
 }
 
-/* ── Temas de época ──────────────────────────────────────── */
-
-export type TemaDaEpoca = "junino" | "natal" | null;
-
-/** Junho = São João; de 1º de dezembro a 6 de janeiro (Reis) = Natal. */
-export function temaDaEpoca(dia: string): TemaDaEpoca {
-  const [, m, d] = dia.split("-").map(Number);
-  if (m === 6) return "junino";
-  if (m === 12 || (m === 1 && d <= 6)) return "natal";
-  return null;
-}
-
 /* ── Modelo do céu (hora canônica) ───────────────────────── */
 
 function hexParaRgb(hex: string): number[] {

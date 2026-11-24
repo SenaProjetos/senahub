@@ -13,6 +13,7 @@ import {
   DIAS_AVISO_FERIADO,
   DIAS_AVISO_FERIAS,
   anosDeCasaHoje,
+  ehAniversarioHoje,
   ehFeriado,
   inicioNaCasa,
   linkDoLocal,
@@ -38,6 +39,8 @@ export type DadosDoHero = {
   atividade: AtividadeHero | null;
   reunioes: ReuniaoHero[];
   expediente: ExpedienteDoHero | null;
+  /** O dia é da pessoa que está vendo: aniversário e/ou ano de casa completado hoje. */
+  festa: { aniversario: boolean; anosDeCasa: number | null };
 };
 
 type Pessoa = { id: string; tipo: "interno" | "externo"; contratacao: Contratacao | null };
@@ -131,6 +134,11 @@ async function reunioesDeHoje(userId: string): Promise<ReuniaoHero[]> {
     });
 }
 
+async function aniversarioHoje(userId: string, hoje: string): Promise<boolean> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { dataNascimento: true } });
+  return u?.dataNascimento ? ehAniversarioHoje(iso(u.dataNascimento), hoje) : false;
+}
+
 async function inicioDasFerias(userId: string, hoje: string): Promise<string | null> {
   const proximas = await prisma.ferias.findFirst({
     where: {
@@ -148,12 +156,14 @@ async function inicioDasFerias(userId: string, hoje: string): Promise<string | n
 export async function dadosDoHero(pessoa: Pessoa): Promise<DadosDoHero> {
   const hoje = diaLocal(new Date());
   const feriados = await feriadosAte(hoje, DIAS_AVISO_FERIADO);
-  const [inicioFerias, tempoDeCasa, atividade, reunioes, expediente] = await Promise.all([
+  const [inicioFerias, tempoDeCasa, atividade, reunioes, expediente, aniversario] = await Promise.all([
     inicioDasFerias(pessoa.id, hoje),
     tempoDeCasaHoje(hoje),
     atividadeDeHoje(pessoa.id, hoje),
     reunioesDeHoje(pessoa.id),
     expedienteDeHoje(pessoa, feriados),
+    aniversarioHoje(pessoa.id, hoje),
   ]);
-  return { hoje, feriados, inicioFerias, tempoDeCasa, atividade, reunioes, expediente };
+  const anosDeCasa = tempoDeCasa.find((p) => p.id === pessoa.id)?.anos ?? null;
+  return { hoje, feriados, inicioFerias, tempoDeCasa, atividade, reunioes, expediente, festa: { aniversario, anosDeCasa } };
 }
