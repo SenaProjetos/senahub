@@ -428,11 +428,17 @@ de montar a EAP, e funciona com o plano aprovado e travado.
   atividade, a célula mostra "informar" (sem sugestão). Só vê o amarelo quem registra o executado; a linha que já
   está **verde** (card concluído) segue pelo verde. Vínculos início → início, término → término e início →
   término não acendem o amarelo — neles as tarefas andam juntas de propósito.
-- **% concluído:** registra o avanço **sem concluir** — serve para a tarefa geral ou de terceiro, que não tem
-  horas no ponto, e para o projeto antigo que você está pondo em dia. Vai de 0 a 99: **100% só pelo término
-  real**, porque "terminou" é uma data, não um número. Com o término real preenchido o campo fica travado em 100.
-  Informar o % não muda a situação da tarefa (sem início real ela continua "não iniciada"); fica no histórico do
-  % que o Valor Agregado lê. Marco não tem percentual.
+- **% concluído:** registra o avanço — serve para a tarefa geral ou de terceiro, que não tem horas no ponto, e
+  para o projeto antigo que você está pondo em dia. Com o término real preenchido o campo fica travado em 100.
+  Informar um % abaixo de 100 não muda a situação da tarefa (sem início real ela continua "não iniciada"); fica no
+  histórico do % que o Valor Agregado lê. Marco não tem percentual.
+- **100% sem datas = terminou como planejado:** marcar **100%** numa atividade sem término real (aqui, na célula
+  **%** do Gantt ou no painel da linha) conclui a tarefa e preenche o **início real** e o **término real** com as
+  datas da **linha de base**. Linha criada depois da aprovação, sem linha de base, usa as datas **previstas**. Se a
+  linha de base termina **depois de hoje**, o término real fica **hoje** (data real não pode ser no futuro). Um
+  início real que já estava preenchido (pelo ponto, por exemplo) é mantido. Um aviso diz quais datas ficaram. Vale
+  para quem registra o executado; para os outros, e na tarefa **bloqueada**, o 100% grava só o número. Para
+  **baixar** o % de uma tarefa concluída, use **Atualizar tarefa → Reabrir** — a célula e o painel recusam.
 - **Quanto custou (terceiro):** só na tarefa com o recurso **Externo** e só para quem vê o financeiro. É o
   **Custo real** dessa tarefa (veja abaixo). Quem não vê o financeiro não vê o campo, e salvar não mexe no
   valor que já estava lá.

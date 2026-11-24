@@ -72,6 +72,8 @@ npm run smoke:eap-integracao  # ponta a ponta: etapas padrão → modelo de EAP 
 npm run smoke:execucao-real   # realizado por linha da EAP: Trab./Custo real (parcial sem custo/hora, terceiro digitado, soma no agrupamento), Dur. real/rest., quem não vê financeiro/datas
 npm run smoke:inicio-pelo-ponto  # início real pela 1ª hora do ponto (só o vazio, uma vez, reagenda) + "falta o término real" (sucessora término→início começou; sugestão = último dia de ponto)
 npm run eap:inicio-pelo-ponto [-- --gravar]  # carga (deploy): início real das linhas pelas horas apontadas antes da regra; só grava com --gravar
+npm run smoke:concluir-pelo-planejado  # 100% sem datas = concluída como planejado: célula e painel, linha de base × previsto, término limitado a hoje, sem cronograma:executado/bloqueada só o %, baixar % de concluída recusa
+npm run eap:concluir-pelo-planejado [-- --gravar]  # carga (deploy): atividades já em 100% sem término real ganham as datas pela mesma regra; só grava com --gravar
 npm run smoke:conclusao-eap  # aviso ao gestor quando alguém conclui o card de uma atividade da EAP: coordenação (ou gestores), sem o autor, nunca card manual nem linha em 100%
 npm run smoke:etapas-card     # etapas padrão por tipo (EP/BS/EX, sem EP no unifamiliar, a 0%), "enviei para análise" só do responsável, desfazer até aprovar
 npm run smoke:etapa-proxima   # aviso da etapa que vem: só aprovado, 2 dias úteis antes, atividade + coordenação, uma vez por etapa e data, data nova rearma
@@ -691,6 +693,13 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
   **Falta o término real** (`termino-pendente.ts`, puro, só leitura): sucessora por vínculo `fs` começou (início real ou 1º
   ponto) e a atividade segue sem término → `EapTarefaDTO.terminoPendente` (sugestão = último dia de ponto) → célula Térm.
   real amarela, só para `cronograma:executado` e nunca na linha verde; Enter grava, Tab/clicar fora não (`sugerido`).
+- **100% sem datas = concluída como planejado** (2026-11-24, spec `docs/superpowers/specs/2026-11-24-concluir-pelo-planejado-design.md`,
+  desfaz o "100 só pelo término real" do Lote 7): o % que PASSA a 100 numa atividade sem término real grava início/término
+  real pela linha de base (senão o previsto), término limitado a hoje, início real já gravado mantido, status `con` — regra pura
+  `concluir-pelo-planejado.ts`, escritor `concluirPeloPlanejadoNoTx` (condicionado + AuditLog), nos três caminhos do %
+  (`aplicarExecucao`, `editarLinhaNoBanco`, `salvarLinhaNoBanco`). Célula/painel só com `cronograma:executado` (sem ela, ou
+  bloqueada, só o %); baixar o % de linha `con` por eles é recusado (`motivoParaBaixarPercentual`). Deploy roda
+  `eap:concluir-pelo-planejado --gravar`.
 - **Avisos**: `etapa-proxima*` (job `aviso-etapa-proxima` 07:00, 2 dias úteis antes do início, uma vez por etapa+data via
   `AvisoEtapaEnviado`; lê a EAP, não o card) e `conclusao-aviso*` (card da EAP concluído → coordenação, ou admin/supervisor sem
   coordenador, sem o autor; só linha < 100%). `/recursos` mostra a carga de cronograma em RASCUNHO à parte (`rascunho`), sem somar.
