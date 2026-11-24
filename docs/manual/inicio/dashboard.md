@@ -2,7 +2,7 @@
 titulo: Início (Dashboard)
 descricao: Página inicial do colaborador — saudação, KPIs, projetos recentes, receita e evolução.
 resumo: O painel de abertura mostra indicadores pessoais e do escritório, ações rápidas, projetos recentes e gráficos; o que aparece depende do perfil e da permissão financeira.
-tags: [início, dashboard, painel, kpi, indicadores, home, aniversariantes, humor, ações rápidas]
+tags: [início, dashboard, painel, kpi, indicadores, home, aniversariantes, humor, ações rápidas, feriado, férias, expediente, tempo de casa, reunião]
 palavras-chave: [início, dashboard, painel inicial, kpi, indicador, receita prevista, projetos ativos, sparkline, aniversário, humor]
 sinonimos: [home, tela inicial, painel, página inicial]
 ---
@@ -38,7 +38,27 @@ pessoais e do escritório, projetos em andamento, ações rápidas e a evoluçã
 ## O que a tela mostra
 
 ### 1. Cartão de boas-vindas (HeroCard)
-- **Saudação** com o seu nome.
+- **Saudação** com o seu nome. O fundo acompanha o céu de Recife: o sol nasce e se
+  põe no horário real do dia, a lua aparece na fase do dia e "Boa noite" só começa
+  quando escurece de verdade. Em junho há bandeirinhas e fogueira; de 1º de dezembro
+  a 6 de janeiro, pisca-pisca e uma estrela na grua.
+- **Avisos de data** ao lado do dia: feriado de hoje, de amanhã ou dos próximos 7
+  dias (do calendário de feriados do RH) e "Suas férias começam em N dias", até 30
+  dias antes de férias aprovadas.
+- **Faixa do dia**, na base do cartão:
+  - a **reunião** da sua agenda que começa nas próximas 2 horas (ou está
+    acontecendo), com o botão para entrar quando o local do compromisso tem um link
+    `https` (Teams, Meet, Zoom); sem link, o botão leva à Agenda;
+  - senão, entre 6h e 20h em dia útil, a **sua atividade de hoje** no cronograma (a
+    mesma que o ponto sugere), com o prazo ou "Atrasada desde …" e o atalho para Meu
+    trabalho;
+  - para quem bate ponto (CLT e estágio), a **linha do expediente**: escala do dia,
+    o que já foi trabalhado, o intervalo, a saída prevista e a hora extra acima da
+    tolerância. Ela só informa; o registro continua na tela de Ponto. Não aparece em
+    fim de semana, feriado, férias nem no celular (lá o cartão de ponto já fica
+    logo acima).
+- **Tempo de SENA**: quem completa ano de casa hoje, contado desde o primeiro
+  vínculo sem interrupção (estágio que virou CLT conta junto).
 - **Aniversariantes do mês** (e do dia), a partir da data de nascimento de
   colaboradores ativos (não clientes). Compara apenas dia/mês.
 - **Seletor de humor (1 a 5)** — registra como você está se sentindo **hoje** (um

@@ -363,9 +363,9 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
 }
 
 /*
- * HeroSky — animação do "céu do dia" do herocard (sol/lua/estrelas/nuvens).
- * Portado do sistema anterior; puro CSS/SVG, sem biblioteca externa.
- * As nuvens usam `animation: drift ...` inline (duração por nuvem).
+ * HeroSky — "céu do dia" do herocard: aurora, sol/lua, estrelas, névoa, skyline de obra (janelas
+ * acendem ao anoitecer) e os temas de época (São João, Natal). Puro CSS/SVG, sem biblioteca
+ * externa; só `transform`/`opacity` animam. Contas em `modules/dashboard/hero/ceu.ts`.
  */
 @keyframes sunglow {
   0%, 100% { transform: scale(1); opacity: 0.55; }
@@ -375,12 +375,88 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
   0%, 100% { opacity: var(--s, 0.8); transform: scale(1); }
   50% { opacity: calc(var(--s, 0.8) * 0.25); transform: scale(0.7); }
 }
-@keyframes drift {
-  0% { transform: translateX(0px); }
-  100% { transform: translateX(24px); }
+@keyframes hero-aurora-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(12%, 8%, 0) scale(1.15); }
+}
+@keyframes hero-aurora-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.1); }
+  50% { transform: translate3d(-14%, 10%, 0) scale(0.95); }
+}
+@keyframes hero-aurora-3 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); }
+  50% { transform: translate3d(10%, -12%, 0) scale(1.12); }
+}
+@keyframes hero-nevoa {
+  0% { transform: translate3d(-12%, 0, 0); opacity: 0; }
+  20%, 80% { opacity: 1; }
+  100% { transform: translate3d(28%, 0, 0); opacity: 0; }
+}
+@keyframes hero-gancho {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+@keyframes hero-baliza {
+  0%, 70%, 100% { opacity: 0.15; }
+  78%, 92% { opacity: 1; }
+}
+@keyframes hero-cadente {
+  0%, 88% { transform: translate3d(0, 0, 0) rotate(-28deg); opacity: 0; }
+  90% { opacity: 1; }
+  100% { transform: translate3d(-160px, 85px, 0) rotate(-28deg); opacity: 0; }
+}
+@keyframes hero-pulso {
+  0%, 100% { box-shadow: 0 0 0 0 var(--brilho); }
+  50% { box-shadow: 0 0 0 5px transparent; }
+}
+@keyframes hero-balanco {
+  0%, 100% { transform: rotate(-4deg); }
+  50% { transform: rotate(4deg); }
+}
+@keyframes hero-chama {
+  0%, 100% { transform: scale(1, 1); opacity: 0.95; }
+  30% { transform: scale(0.9, 1.12); opacity: 1; }
+  60% { transform: scale(1.08, 0.92); opacity: 0.85; }
+}
+@keyframes hero-pisca-a {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+@keyframes hero-pisca-b {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
 }
 .animate-sunglow { animation: sunglow 5s ease-in-out infinite; }
 .animate-twinkle { animation: twinkle 3.2s ease-in-out infinite; }
+.animate-hero-aurora-1 { animation: hero-aurora-1 26s ease-in-out infinite; }
+.animate-hero-aurora-2 { animation: hero-aurora-2 32s ease-in-out infinite; }
+.animate-hero-aurora-3 { animation: hero-aurora-3 38s ease-in-out infinite; }
+.animate-hero-nevoa { animation: hero-nevoa 40s linear infinite; }
+.animate-hero-gancho { animation: hero-gancho 6s ease-in-out infinite; }
+.animate-hero-baliza { animation: hero-baliza 2.4s linear infinite; }
+.animate-hero-cadente { animation: hero-cadente 14s ease-in infinite; }
+.animate-hero-pulso { animation: hero-pulso 2.6s ease-in-out infinite; }
+.animate-hero-balanco {
+  animation: hero-balanco 3.4s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: top center;
+}
+.animate-hero-chama {
+  animation: hero-chama 1.1s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: bottom center;
+}
+.animate-hero-pisca-a { animation: hero-pisca-a 1.8s ease-in-out infinite; }
+.animate-hero-pisca-b { animation: hero-pisca-b 1.8s ease-in-out infinite; }
+.hero-cadente {
+  position: absolute;
+  width: 90px;
+  height: 1px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
+  transform-origin: left center;
+  opacity: 0;
+}
 
 /* Visão Geral de projetos — quadro pessoal, editável apenas em telas amplas. */
 .projeto-painel-grid .react-grid-placeholder {
@@ -472,10 +548,25 @@ header:has(~ main [data-cabecalho-pagina]) [data-titulo-padrao] {
 @media (prefers-reduced-motion: reduce) {
   .animate-sunglow,
   .animate-twinkle,
+  .animate-hero-aurora-1,
+  .animate-hero-aurora-2,
+  .animate-hero-aurora-3,
+  .animate-hero-nevoa,
+  .animate-hero-gancho,
+  .animate-hero-baliza,
+  .animate-hero-pulso,
+  .animate-hero-balanco,
+  .animate-hero-chama,
+  .animate-hero-pisca-a,
+  .animate-hero-pisca-b,
   .projeto-painel-grid,
   .projeto-painel-grid .react-grid-item {
     animation: none !important;
     transition: none !important;
+  }
+  /* A estrela cadente só existe enquanto anima: parada, some. */
+  .animate-hero-cadente {
+    display: none;
   }
 }
 
