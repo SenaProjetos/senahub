@@ -214,11 +214,26 @@ async function main() {
     });
     check("o % da execução entra no histórico com origem execucao", histL7?.progresso === 35 && histL7?.origem === "execucao", histL7);
 
-    const e100 = await erroDe(() =>
-      registrarExecucaoNaLinha({ id: interna.id, inicioReal: null, fimReal: null, progresso: 100, hoje: hojeL7 }),
+    // 2026-11-24: 100% sem término real = terminou como planejado (datas da linha de base).
+    const planejada = await nova("L7 planejada", 5);
+    await prisma.eapTarefa.update({
+      where: { id: planejada.id },
+      data: { inicioBaseline: d("2026-09-15"), fimBaseline: d("2026-09-19") },
+    });
+    const r100 = await registrarExecucaoNaLinha({ id: planejada.id, inicioReal: null, fimReal: null, progresso: 100, hoje: hojeL7 });
+    const p100 = await prisma.eapTarefa.findUniqueOrThrow({
+      where: { id: planejada.id },
+      select: { progresso: true, status: true, inicioReal: true, fimReal: true },
+    });
+    check(
+      "100% sem término real conclui pela linha de base",
+      p100.status === "con" &&
+        p100.progresso === 100 &&
+        p100.inicioReal?.toISOString().slice(0, 10) === "2026-09-15" &&
+        p100.fimReal?.toISOString().slice(0, 10) === "2026-09-19" &&
+        r100.datasPeloPlanejado?.origem === "linha_base",
+      { p100, r100: r100.datasPeloPlanejado },
     );
-    check("100% sem término real é recusado", e100 === "Para marcar 100%, informe o término real.", e100);
-    check("e nada foi gravado", (await ler(interna.id)).progresso === 35);
 
     // dois diálogos na mesma linha: o segundo abriu ANTES de o primeiro gravar as datas e não as sobrescreve
     await registrarExecucaoNaLinha({ id: interna.id, inicioReal: hojeL7, fimReal: null, hoje: hojeL7, esperado: { inicioReal: null, fimReal: null } });

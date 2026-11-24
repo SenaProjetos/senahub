@@ -1219,7 +1219,7 @@ export const registrarExecucao = defineAction(
     },
   },
   noEscopoDoProjeto(async (i) => projetoDaLinha(i.id), async (i, { user }) => {
-    const { projetoId, nome, status, fase, parcelasAFaturar } = await registrarExecucaoNaLinha({
+    const { projetoId, nome, status, fase, parcelasAFaturar, datasPeloPlanejado } = await registrarExecucaoNaLinha({
       id: i.id,
       inicioReal: i.inicioReal,
       fimReal: i.fimReal,
@@ -1278,7 +1278,7 @@ export const registrarExecucao = defineAction(
     revProjeto(projetoId);
     // A fase que o marco entregou aparece no card da disciplina, na aba do projeto.
     if (fase?.marcadaEntregue) revalidatePath(`/projetos/${projetoId}`);
-    return { status, fase };
+    return { status, fase, datasPeloPlanejado };
   }),
 );
 

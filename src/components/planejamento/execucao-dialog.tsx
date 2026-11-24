@@ -8,6 +8,7 @@ import { registrarExecucao } from "@/modules/planejamento/actions";
 import { aprovarEtapaDisciplina } from "@/modules/projetos/etapas-actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { formatarData } from "@/lib/utils";
+import { rotuloDaOrigem, type OrigemDasDatas } from "@/modules/planejamento/concluir-pelo-planejado";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
@@ -23,7 +24,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export type FaseOferecida = { id: string; sigla: string; nome: string; disciplina: string; marcadaEntregue: boolean };
+/** O aviso de "concluída como planejado" (100% sem término): de onde vieram as datas e quais ficaram. */
+export function textoConcluidaPeloPlanejado(p: { origem: OrigemDasDatas; inicioReal: string; fimReal: string }) {
+  return `Tarefa concluída como planejado: datas reais ${formatarData(p.inicioReal)} – ${formatarData(p.fimReal)}, pela ${rotuloDaOrigem(p.origem)}.`;
+}
+
+export type FaseOferecida ={ id: string; sigla: string; nome: string; disciplina: string; marcadaEntregue: boolean };
 
 /**
  * Marco de fase concluído (D31): oferece aprovar a fase, pela mesma action do diálogo de Etapas. Compartilhado pelo
@@ -136,8 +142,15 @@ export function ExecucaoDialog({
       toast.error(r.error);
       return;
     }
+    const pelo = r.data.datasPeloPlanejado;
     toast.success(
-      r.data.status === "con" ? (marco ? "Marco concluído." : "Tarefa concluída.") : "Execução registrada.",
+      pelo
+        ? textoConcluidaPeloPlanejado(pelo)
+        : r.data.status === "con"
+          ? marco
+            ? "Marco concluído."
+            : "Tarefa concluída."
+          : "Execução registrada.",
     );
     onClose();
     router.refresh();
@@ -187,7 +200,7 @@ export function ExecucaoDialog({
                   type="number"
                   inputMode="numeric"
                   min={0}
-                  max={fim ? 100 : 99}
+                  max={fim || !concluida ? 100 : 99}
                   step={1}
                   className="w-28"
                   value={fim ? "100" : pct}
@@ -200,7 +213,7 @@ export function ExecucaoDialog({
                     ? "O término real conclui a tarefa (100%)."
                     : concluida
                       ? "Reabrindo: informe quanto está concluído (até 99%) e salve."
-                      : "Registra o avanço sem concluir. Para 100%, informe o término real."}
+                      : "Registra o avanço. 100% sem término real conclui como planejado: datas da linha de base (até hoje)."}
                 </p>
               </div>
             </>

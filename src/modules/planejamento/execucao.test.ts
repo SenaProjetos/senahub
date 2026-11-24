@@ -142,11 +142,64 @@ describe("aplicarExecucao — percentual", () => {
     });
   });
 
-  it("100 sem término real é recusado", () => {
+  it("100 sem término real e sem datas planejadas é recusado", () => {
     expect(aplicarExecucao(zero, { inicioReal: null, fimReal: null, progresso: 100 }, hoje)).toEqual({
       ok: false,
       motivo: "Para marcar 100%, informe o término real.",
     });
+  });
+
+  const planejada = atv({
+    progresso: 0,
+    inicioBaseline: "2026-10-01",
+    fimBaseline: "2026-10-10",
+    inicioPrevisto: "2026-10-05",
+    fimPrevisto: "2026-10-20",
+  });
+
+  it("100 sem datas conclui pela linha de base (como planejado)", () => {
+    expect(aplicarExecucao(planejada, { inicioReal: null, fimReal: null, progresso: 100 }, hoje)).toEqual({
+      ok: true,
+      inicioReal: "2026-10-01",
+      fimReal: "2026-10-10",
+      status: "con",
+      progresso: 100,
+      concluiu: true,
+      datasPeloPlanejado: "linha_base",
+    });
+  });
+
+  it("100 com início informado: mantém o início e termina pela linha de base", () => {
+    expect(aplicarExecucao(planejada, { inicioReal: "2026-10-03", fimReal: null, progresso: 100 }, hoje)).toMatchObject({
+      ok: true,
+      inicioReal: "2026-10-03",
+      fimReal: "2026-10-10",
+      status: "con",
+    });
+  });
+
+  it("100 com término da linha de base no futuro termina hoje", () => {
+    expect(
+      aplicarExecucao({ ...planejada, fimBaseline: "2026-12-01" }, { inicioReal: null, fimReal: null, progresso: 100 }, hoje),
+    ).toMatchObject({ ok: true, inicioReal: "2026-10-01", fimReal: hoje });
+  });
+
+  it("reabrindo uma concluída (término apagado) com 100: recusa, não troca as datas pelas do planejado", () => {
+    expect(
+      aplicarExecucao({ ...planejada, status: "con", progresso: 100 }, { inicioReal: "2026-10-02", fimReal: null, progresso: 100 }, hoje),
+    ).toEqual({ ok: false, motivo: "Para marcar 100%, informe o término real." });
+  });
+
+  it("100 em bloqueada segue recusando (desbloqueie antes)", () => {
+    expect(
+      aplicarExecucao({ ...planejada, status: "blq" }, { inicioReal: null, fimReal: null, progresso: 100 }, hoje),
+    ).toMatchObject({ ok: false, motivo: expect.stringMatching(/Desbloqueie/) });
+  });
+
+  it("datas digitadas não são marcadas como vindas do planejado", () => {
+    const r = aplicarExecucao(planejada, { inicioReal: "2026-10-03", fimReal: "2026-10-09" }, hoje);
+    expect(r).toMatchObject({ ok: true, fimReal: "2026-10-09" });
+    expect(r.ok && r.datasPeloPlanejado).toBeUndefined();
   });
 
   it("percentual fora de 0–100 ou fracionado é recusado", () => {
