@@ -38,6 +38,7 @@ import { contarCertidoesAtencao } from "@/modules/certidoes/queries";
 import { podeVerTodasDisciplinas } from "@/modules/arquivos/acesso";
 import { STATUS_CHIP, STATUS_LABEL } from "@/modules/projetos/status";
 import { HeroCard } from "@/components/dashboard/hero-card";
+import { dadosDoHero } from "@/modules/dashboard/hero/queries";
 import { ReceitaChart } from "@/components/dashboard/receita-chart";
 import { TrendLine } from "@/components/qualidade/trend-line";
 import { CarteiraDashboard } from "@/components/dashboard/carteira-dashboard";
@@ -91,7 +92,7 @@ export default async function HomePage() {
   // Card "Minhas horas" (2026-10-07): atalho para Ponto → Minhas horas, só para quem é membro de projeto
   // — setor Engenharia desde a Onda F (era `PROJETO_MEMBRO_ROLES`).
   const mostraMinhasHoras = user.tipo === "interno" && user.setor === "engenharia";
-  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov, prontasParaAprovar, certidoes, minhasHoras] = await Promise.all([
+  const [kpis, projetos, snapshots, receita, agingReceita, carteira, aniversarios, humorHoje, kpisMeu, pendentesAprov, prontasParaAprovar, certidoes, minhasHoras, diaDoHero] = await Promise.all([
     // Perfis sem acesso global veem os KPIs restritos aos SEUS projetos (bug beta #9).
     kpisHome(isGlobal ? {} : escopoProjeto(user)),
     projetosRecentes(user, 15),
@@ -111,6 +112,8 @@ export default async function HomePage() {
     mostraMinhasHoras
       ? horasProjetistas(intervaloDoAtalho("14d", diaLocal(new Date())), { userIds: [user.id] })
       : Promise.resolve(null),
+    // Faixa do dia do herocard: feriado/férias perto, tempo de casa, reunião ou atividade de hoje e expediente.
+    dadosDoHero({ id: user.id, tipo: user.tipo, contratacao: user.contratacao }),
   ]);
 
   const cards = [
@@ -233,7 +236,7 @@ export default async function HomePage() {
         </section>
       </div>
 
-      <HeroCard nome={user.name} aniversariantes={aniversarios} humorAtual={humorHoje} />
+      <HeroCard nome={user.name} aniversariantes={aniversarios} humorAtual={humorHoje} dia={diaDoHero} />
 
       {/* Ações rápidas (porte da versão antiga) */}
       <div className="flex flex-wrap gap-2">
