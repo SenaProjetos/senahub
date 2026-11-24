@@ -40,6 +40,7 @@ import { execucaoDaCelula } from "@/modules/planejamento/execucao";
 import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-actions";
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
 import type { Achado } from "@/modules/planejamento/qualidade";
+import type { ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos";
 import type { CustoLinha } from "@/modules/planejamento/custo";
 import type { ResultadoSaude } from "@/modules/planejamento/saude";
 import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
@@ -125,6 +126,8 @@ export function EapWorkspace({
   hoje,
   cronograma,
   qualidade,
+  conflitosRecursos = [],
+  verRecursos = false,
   previasModelos = [],
   opcoesDisciplinas = [],
   impedimentoApagar = null,
@@ -163,6 +166,10 @@ export function EapWorkspace({
     totalLinhas: number;
     dataStatus: string | null;
   } | null;
+  /** Semanas em que alguém com hora neste projeto passa da capacidade somando todos os projetos (só para quem vê datas). */
+  conflitosRecursos?: ConflitoRecurso[];
+  /** `recursos:ver` — o alerta de conflito leva para `/recursos`. */
+  verRecursos?: boolean;
   /**
    * Decisão #5: modelos de EAP com a prévia já calculada para ESTE projeto. Vem vazio quando a EAP já
    * tem linha, quem olha não monta EAP, ou não há modelo cadastrado — e aí o botão não aparece.
@@ -887,6 +894,8 @@ export function EapWorkspace({
           provisoria={qualidade.saude?.provisoria ?? true}
           custo={resumoCusto}
           comparativo={comparativo}
+          conflitosRecursos={conflitosRecursos}
+          verRecursos={verRecursos}
           onVerNaTabela={(rotulo, ids) => {
             setAchadoFiltro({ rotulo, ids: new Set(ids) });
             setFiltro("todas");

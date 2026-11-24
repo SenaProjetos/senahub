@@ -103,7 +103,8 @@ De cima para baixo, quatro coisas — o resto fica guardado até você pedir:
    impede aparece desabilitado com o motivo.
 2. **Faixa de status** (uma linha): a **saúde** (nota e achados — clique para abrir o painel **Saúde do
    cronograma**), a **situação** com a ação dela (**rascunho → Aprovar cronograma**; **aprovado · BL-xx → Revisar**),
-   a **Data de Status** e o **Início** do projeto (o lápis abre um balão para mudar) e o **custo previsto**. Com a
+   os **conflitos de recurso** (quando houver — veja "Conflito de recurso" abaixo), a **Data de Status** e o
+   **Início** do projeto (o lápis abre um balão para mudar) e o **custo previsto**. Com a
    revisão aberta, uma segunda linha amarela traz **Cancelar revisão** e **Fechar com nova linha de base…**.
 3. **Barra de ferramentas** (uma só): a **visão** (**Gantt**, **Controle**, **Variação** e **Indicadores**), **Comparar
    com** (no Controle e no Variação), os **filtros**, o **período**, a **escala**, **Hoje**, recolher/expandir tudo, **Desfazer** e
@@ -314,9 +315,17 @@ arquitetura"), para separar "atrasado por nós" de "atrasado esperando o cliente
    enquanto o início não foi definido.
 2. **Corrija os erros do verificador.** **Aprovar** fica desabilitado enquanto houver **erro**
    (veja "Saúde e verificador" abaixo) — aprovar transforma estas datas no combinado com o cliente.
-3. **Aprovar cronograma.** Se o projeto tem **alocações digitadas** ou atividades **sem nenhuma hora
-   estimada**, o sistema **avisa antes** e pede confirmação (veja o que muda em
+3. **Aprovar cronograma.** Se o projeto tem **alocações digitadas**, atividades **sem nenhuma hora
+   estimada** ou **conflitos de recurso**, o sistema **avisa antes** e pede confirmação (veja o que muda em
    [Recursos](recursos.md)).
+
+**Conflito de recurso.** A faixa mostra **"N conflitos de recurso"** quando uma pessoa com horas neste projeto passa
+da capacidade numa semana, somando todos os projetos com cronograma aprovado — de hoje até o fim do projeto. Em
+rascunho, este projeto já entra na conta como se estivesse aprovado. Cada conflito diz a pessoa, a semana, as horas
+planejadas × disponíveis e de onde vem a carga (aqui e em cada outro projeto; o nome dos outros projetos e o motivo de
+uma semana menor, como férias, só aparecem para quem vê [Recursos](recursos.md)). **Ver na tabela** filtra as tarefas
+deste projeto naquela semana. É só aviso: não bloqueia a aprovação e não muda data. A conta é por **semana** e usa as
+**horas previstas**: pessoa sem horas na tarefa não entra.
 
 Ao aprovar, o sistema:
 

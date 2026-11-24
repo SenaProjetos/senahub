@@ -15,6 +15,8 @@ import {
 } from "@/modules/planejamento/actions";
 import { contarPorSeveridade, type Achado } from "@/modules/planejamento/qualidade";
 import { rotuloBaseline, type VersaoBaseline } from "@/modules/planejamento/baselines";
+import { ConflitosRecursosFaixa, exemplosDosConflitos, resumoDosConflitos } from "@/components/planejamento/conflitos-recursos-faixa";
+import type { ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos";
 import { InicioProjetoDialog } from "@/components/planejamento/inicio-projeto-dialog";
 import { FAIXA_COR, SaudeCronogramaPainel, iconeDaFaixa, rotuloFaixa, type ComparativoBase } from "@/components/planejamento/saude-cronograma-painel";
 import { formatarData } from "@/lib/utils";
@@ -104,6 +106,8 @@ export function FaixaCronograma({
   provisoria,
   custo,
   comparativo,
+  conflitosRecursos = [],
+  verRecursos = false,
   onVerNaTabela,
 }: {
   projetoId: string;
@@ -137,6 +141,9 @@ export function FaixaCronograma({
   /** Custo previsto já formatado para a ponta da faixa (`null` = quem olha não vê custo). */
   custo: ReactNode;
   comparativo: ComparativoBase | null;
+  /** Semanas em que alguém com hora aqui passa da capacidade somando os outros projetos — só aviso, nunca trava. */
+  conflitosRecursos?: ConflitoRecurso[];
+  verRecursos?: boolean;
   onVerNaTabela: (rotulo: string, tarefaIds: string[]) => void;
 }) {
   const router = useRouter();
@@ -165,10 +172,21 @@ export function FaixaCronograma({
   async function aprovar() {
     // D17: aprovar troca a alocação DIGITADA do projeto pelas horas das linhas. Sem hora estimada em lugar nenhum, o
     // projeto simplesmente some da carga da equipe — e isso só aparece depois, em `/recursos`. Avisa ANTES de aprovar.
-    if (alocacoesTipadas > 0 || linhasSemHora > 0) {
+    // E avisa quem fica acima da capacidade somando os outros projetos (pedido da equipe, 2026-11-24): aprovar mesmo assim
+    // pode ser escolha consciente, então pergunta — não recusa.
+    const conflitos = conflitosRecursos.length;
+    if (alocacoesTipadas > 0 || linhasSemHora > 0 || conflitos > 0) {
       const ok = await confirm({
-        title: linhasSemHora > 0 ? "Aprovar sem estimar horas?" : "Aprovar troca a alocação digitada?",
+        title:
+          linhasSemHora > 0
+            ? "Aprovar sem estimar horas?"
+            : alocacoesTipadas > 0
+              ? "Aprovar troca a alocação digitada?"
+              : "Aprovar com conflito de recurso?",
         description: [
+          conflitos > 0
+            ? `Com este cronograma, ${resumoDosConflitos(conflitosRecursos)} somando os outros projetos: ${exemplosDosConflitos(conflitosRecursos)}`
+            : null,
           alocacoesTipadas > 0
             ? `${alocacoesTipadas} alocação(ões) digitada(s) deste projeto deixam de contar na carga da equipe — a partir daqui ela vem das horas das linhas.`
             : null,
@@ -350,6 +368,8 @@ export function FaixaCronograma({
           <span className={`underline underline-offset-[3px] ${contagem.erro > 0 ? "text-destructive" : ""}`}>{resumoAchados}</span>
           <ChevronRight className="size-3" aria-hidden />
         </button>
+
+        <ConflitosRecursosFaixa conflitos={conflitosRecursos} verRecursos={verRecursos} onVerNaTabela={onVerNaTabela} />
 
         <Separador />
 

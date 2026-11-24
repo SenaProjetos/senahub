@@ -16,6 +16,7 @@ import { EapWorkspace } from "@/components/planejamento/eap-workspace";
 import { PlanoVsReal } from "@/components/planejamento/plano-vs-real";
 import { ValorAgregadoPainel } from "@/components/planejamento/valor-agregado-painel";
 import { valorAgregadoDoProjeto } from "@/modules/planejamento/valor-agregado-service";
+import { conflitosDeRecursosDoProjeto } from "@/modules/planejamento/recursos-queries";
 import { previasDosModelos } from "@/modules/planejamento/modelos/service";
 import { opcoesParaGerarDisciplinas } from "@/modules/planejamento/modelos/disciplina-service";
 import { impedimentoParaApagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
@@ -39,6 +40,8 @@ export default async function PlanejamentoProjetoPage({
   const verCusto = await podeVerFinanceiro(user);
   // Decisão #3: quem só consulta vê a estrutura, sem datas — o servidor nem busca o que só existe por causa delas.
   const verDatas = await podeVerDatasDoPlanejamento(user);
+  // Conflito de recurso cita OUTROS projetos: o nome deles só para quem enxerga a carga da equipe (`/recursos`).
+  const verRecursos = await can(user, "recursos", "ver");
 
   const [
     { tarefas, disciplinas, temLinhaBase, custoTotal, calendario },
@@ -52,6 +55,7 @@ export default async function PlanejamentoProjetoPage({
     pessoas,
     valorAgregado,
     preferencias,
+    conflitosRecursos,
   ] = await Promise.all([
     eapDoProjeto(projetoId, { verCusto, verDatas }),
     can(user, "planejamento", "gerir"),
@@ -66,6 +70,8 @@ export default async function PlanejamentoProjetoPage({
     // de Status, então também some para quem não vê datas.
     verDatas ? valorAgregadoDoProjeto(projetoId, { verCusto }) : Promise.resolve(null),
     getPreferencias(user.id),
+    // Pedido da equipe (2026-11-24): quem está em outro projeto na mesma semana, antes de aprovar e durante o controle.
+    verDatas ? conflitosDeRecursosDoProjeto(projetoId, { verCargaDaEquipe: verRecursos }) : Promise.resolve([]),
   ]);
 
   // Decisão #5: o seletor de modelo só aparece com a EAP vazia e para quem monta — e a prévia (quantas
@@ -97,6 +103,8 @@ export default async function PlanejamentoProjetoPage({
         hoje={paraDia(inicioDoDiaUtc())}
         cronograma={cronograma}
         qualidade={qualidade}
+        conflitosRecursos={conflitosRecursos}
+        verRecursos={verRecursos}
         previasModelos={previasModelos}
         opcoesDisciplinas={opcoesDisciplinas}
         impedimentoApagar={impedimentoApagar}

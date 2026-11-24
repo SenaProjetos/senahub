@@ -21,6 +21,7 @@ import {
   type Sobrecarga,
 } from "./recursos";
 import { sugerirCorrecoes, type ContextoProjeto, type Sugestoes } from "./sugestoes-recursos";
+import { conflitosDoProjeto, semanasAteOFim, type ConflitoRecurso } from "./conflitos-recursos";
 
 /**
  * Carga da equipe (F5 — D17, D18, D8): quanto cada pessoa tem de trabalho por semana,
@@ -125,6 +126,12 @@ export async function cargaDaEquipe(
      * leitores (RH gestão, aviso de ausência) seguem com o padrão, que a soma como sempre.
      */
     incluirDigitada?: boolean;
+    /**
+     * Conta as linhas DESTE projeto na carga mesmo com o cronograma em rascunho (e mesmo fora de "em andamento"):
+     * é o "e se eu aprovar assim?" do alerta de conflito de recurso (`conflitosDeRecursosDoProjeto`). Os demais
+     * rascunhos seguem à parte.
+     */
+    contarComoAprovado?: string;
   } = {},
 ): Promise<CargaDaEquipe> {
   const nSemanas = opcoes.semanas ?? 12;
@@ -137,12 +144,17 @@ export async function cargaDaEquipe(
     // Projeto cancelado ou arquivado não ocupa ninguém, mesmo com cronograma aprovado e linhas no futuro.
     where: {
       projeto: { situacao: { notIn: ["cancelado", "arquivado"] } },
-      OR: [{ aprovado: true }, { projeto: { situacao: "em_andamento" } }],
+      OR: [
+        { aprovado: true },
+        { projeto: { situacao: "em_andamento" } },
+        ...(opcoes.contarComoAprovado ? [{ projetoId: opcoes.contarComoAprovado }] : []),
+      ],
     },
     select: { projetoId: true, aprovado: true },
   });
-  const aprovados = cronogramas.filter((c) => c.aprovado).map((c) => c.projetoId);
-  const emRascunho = cronogramas.filter((c) => !c.aprovado).map((c) => c.projetoId);
+  const contaComoAprovado = (c: { projetoId: string; aprovado: boolean }) => c.aprovado || c.projetoId === opcoes.contarComoAprovado;
+  const aprovados = cronogramas.filter(contaComoAprovado).map((c) => c.projetoId);
+  const emRascunho = cronogramas.filter((c) => !contaComoAprovado(c)).map((c) => c.projetoId);
   const comLinhas = [...aprovados, ...emRascunho];
 
   // ── Linhas dos projetos aprovados (e dos rascunhos, à parte), nas datas do motor ──
@@ -399,6 +411,32 @@ export async function cargaDaEquipe(
     sobrecargas: comSugestao,
     demandaPerfis: [...demanda.values()],
   };
+}
+
+/**
+ * Conflitos de recurso DESTE projeto, de hoje até o fim dele (no máximo um ano): as semanas em que alguém com hora aqui
+ * passa da capacidade somando todos os projetos. Rascunho conta como se aprovado ("e se eu aprovar assim?"); os outros
+ * projetos entram como em `/recursos` (aprovados pelas linhas, rascunhos fora, alocação digitada fora).
+ *
+ * `verCargaDaEquipe: false` (quem não tem `recursos:ver`) tira o nome dos outros projetos — o escopo de dados da pessoa
+ * pode não incluí-los — e o motivo da semana menor (férias, abono: dado de RH do colega).
+ */
+export async function conflitosDeRecursosDoProjeto(
+  projetoId: string,
+  opcoes: { verCargaDaEquipe: boolean; hoje?: Dia },
+): Promise<ConflitoRecurso[]> {
+  const plano = await planoDoProjeto(projetoId);
+  if (!plano) return [];
+  const hoje = opcoes.hoje ?? diaLocal(new Date());
+  const semanas = semanasAteOFim(hoje, plano.resultado.fimProjeto);
+  if (semanas === 0) return [];
+  const carga = await cargaDaEquipe({ semanas, hoje, incluirDigitada: false, contarComoAprovado: projetoId });
+  return conflitosDoProjeto(carga.sobrecargas, projetoId, {
+    nomes: new Map(carga.pessoas.map((p) => [p.userId, p.nome])),
+    linhas: carga.rotulos.linhas,
+    projetos: Object.fromEntries(Object.entries(carga.rotulos.projetos).map(([id, p]) => [id, `${p.codigo} — ${p.nome}`])),
+    verCargaDaEquipe: opcoes.verCargaDaEquipe,
+  });
 }
 
 /**

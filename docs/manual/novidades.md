@@ -20,6 +20,24 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Esqueci minha senha pelo e-mail (novembro/2026)
+
+- Na tela de login, **Esqueci minha senha** agora envia um **link por e-mail** para você criar a senha nova sozinho,
+  sem esperar a administração. O link vale por **1 hora** e só uma vez.
+- A senha só muda quando você abre o link e escolhe a nova: se alguém pedir o link com o seu e-mail, nada acontece
+  com a sua senha. Ao salvar, você sai do SenaHub em todos os aparelhos e entra de novo com a senha nova.
+- Sem acesso ao e-mail? O administrador continua podendo redefinir a senha pela tela de usuários.
+- O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
+
+## Conflito de recurso no planejamento (novembro/2026)
+
+- A faixa do cronograma mostra **"N conflitos de recurso"** quando alguém com horas neste projeto passa da capacidade
+  numa semana, somando os outros projetos. Clique para ver quem, em que semana, quantas horas aqui e em cada projeto.
+- **Ver na tabela** filtra as tarefas deste projeto que causam a carga.
+- Em **rascunho**, o projeto já conta como se estivesse aprovado: dá para ajustar antes de aprovar. Ao clicar em
+  **Aprovar cronograma**, a confirmação lista os conflitos e pergunta se quer aprovar assim mesmo. Nada é bloqueado e
+  nenhuma data muda sozinha.
+
 ## 100% sem datas conclui como planejado (novembro/2026)
 
 - No **Gantt de Controle**, marcar **100%** numa tarefa sem datas reais agora **conclui** a tarefa e preenche o

@@ -26,7 +26,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { planoDoProjeto, reagendarProjeto } from "../src/modules/planejamento/agenda";
-import { cargaDaEquipe } from "../src/modules/planejamento/recursos-queries";
+import { cargaDaEquipe, conflitosDeRecursosDoProjeto } from "../src/modules/planejamento/recursos-queries";
 import { tarefasTravadasPeloCronograma } from "../src/modules/tarefas/queries";
 import { aprovarCronograma, avaliarQualidade } from "../src/modules/planejamento/service";
 import { eapDoProjeto } from "../src/modules/planejamento/queries";
@@ -432,6 +432,22 @@ async function main() {
     check("rascunho: projeto listado como em rascunho, não como calculado", cargaRasc.projetosEmRascunho.includes(projeto.id) && !cargaRasc.projetosCalculados.includes(projeto.id));
     check("rascunho: as 80 h aparecem à parte e NÃO entram na carga", pessoaR?.rascunho["2026-W41"] === 80 && (pessoaR?.carga["2026-W41"] ?? 0) === 0, pessoaR && { r: pessoaR.rascunho, c: pessoaR.carga });
     check("rascunho: não acusa sobrecarga", !cargaRasc.sobrecargas.some((so) => so.userId === pjA.id));
+
+    // Conflito de recurso (pedido da equipe, 2026-11-24): o rascunho DESTE projeto conta como aprovado — "e se eu aprovar assim?".
+    const conflitos = await conflitosDeRecursosDoProjeto(projeto.id, { verCargaDaEquipe: true, hoje: "2026-10-05" });
+    const conflitoA = conflitos.find((c) => c.userId === pjA.id && c.semana === "2026-W41");
+    check(
+      "conflito: o rascunho deste projeto acusa as 80 h contra 40 h, com as linhas daqui",
+      conflitoA?.horasDoProjeto === 80 && conflitoA.capacidade === 40 && conflitoA.linhas.map((l) => l.id).sort().join() === [X.id, Y.id].sort().join(),
+      conflitoA,
+    );
+    check("conflito: segunda-feira da semana para a tela", conflitoA?.inicioSemana === "2026-10-05", conflitoA?.inicioSemana);
+    const semOutros = await conflitosDeRecursosDoProjeto(projeto.id, { verCargaDaEquipe: false, hoje: "2026-10-05" });
+    check("conflito: sem recursos:ver, os outros projetos saem sem nome", semOutros.every((c) => c.outros === null));
+    const cargaOutros = await cargaDaEquipe({ hoje: "2026-10-05", semanas: 6 });
+    check("conflito: a carga dos OUTROS leitores segue sem o rascunho", !cargaOutros.sobrecargas.some((so) => so.userId === pjA.id));
+    const depoisDoFim = await conflitosDeRecursosDoProjeto(projeto.id, { verCargaDaEquipe: true, hoje: "2030-01-07" });
+    check("conflito: projeto já terminado não tem conflito", depoisDoFim.length === 0, depoisDoFim.length);
 
     // Lote 2: a tela de leitura ignora a alocação DIGITADA (que segue valendo para os demais leitores).
     const recursoA = await prisma.recurso.findUniqueOrThrow({ where: { userId: pjA.id }, select: { id: true } });
