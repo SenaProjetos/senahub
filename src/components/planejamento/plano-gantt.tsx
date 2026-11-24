@@ -167,8 +167,13 @@ export type PlanoGanttProps = {
    */
   barraInicio?: ReactNode;
   barraFim?: ReactNode;
-  /** Flutua sobre o pé do quadro (a barra de estrutura da seleção), sem empurrar a tabela. */
-  sobreposicao?: ReactNode;
+  /**
+   * Barra de estrutura da seleção: entra na barra da tela, logo depois dos filtros (antes flutuava no pé do quadro e cobria
+   * a última linha). Fica SEMPRE à vista, com a mesma largura com ou sem seleção: se aparecesse só ao selecionar, a barra da
+   * tela ganharia uma linha no clique, a tabela desceria sob o mouse e o quadro (altura medida uma vez, `useAlturaRestante`)
+   * passaria do pé da tela.
+   */
+  barraSelecao?: ReactNode;
   /** O quadro ocupa a altura que sobra na tela e rola por dentro (a partir de `md`); sem isto, até 72% da altura. */
   alturaCheia?: boolean;
   className?: string;
@@ -253,7 +258,7 @@ export function PlanoGantt({
   rotuloBase,
   barraInicio,
   barraFim,
-  sobreposicao,
+  barraSelecao,
   alturaCheia = false,
   className,
 }: PlanoGanttProps) {
@@ -1076,6 +1081,11 @@ export function PlanoGantt({
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
         {barraInicio}
         {filtroIds && <span className="text-xs text-muted-foreground">Mostrando {linhas.length} linha(s), sem os níveis.</span>}
+        {barraSelecao && (
+          // Rola de lado só se não couber nem numa linha inteira (celular). O `py`/`-my` dá lugar ao anel de foco, que a
+          // rolagem cortaria.
+          <div className="-my-0.5 flex min-w-0 max-w-full overflow-x-auto py-0.5">{barraSelecao}</div>
+        )}
         <span className="flex-1" />
         {verDatas && (
           <div className="flex items-center gap-1.5">
@@ -1374,12 +1384,6 @@ export function PlanoGantt({
               </div>
             )}
           </div>
-        </div>
-      )}
-      {sobreposicao && (
-        // Barra da seleção: flutua no pé do quadro (como a barra de seleção das listas), sem empurrar a tabela.
-        <div className="pointer-events-none sticky bottom-3 z-30 -mt-14 flex h-12 justify-center px-2">
-          <div className="pointer-events-auto flex max-w-full items-center overflow-x-auto rounded-md border bg-card px-2 py-1.5 shadow-md">{sobreposicao}</div>
         </div>
       )}
 

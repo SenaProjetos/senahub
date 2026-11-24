@@ -949,8 +949,9 @@ export function EapWorkspace({
           <PlanoGantt
             barraInicio={barraInicio}
             barraFim={barraFim}
-            sobreposicao={
-              podeGerir && selecionadas.length > 0 ? (
+            barraSelecao={
+              // Sempre à vista para quem edita (sem seleção, os botões ficam desabilitados com o motivo e o Colar põe no fim).
+              podeGerir ? (
                 <BarraEstrutura
                   itens={itensDaSelecao()}
                   total={selecionadas.length}

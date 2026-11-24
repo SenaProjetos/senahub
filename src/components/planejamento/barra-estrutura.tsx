@@ -24,7 +24,9 @@ export function BarraEstrutura({
   pendente?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-1.5" role="toolbar" aria-label="Estrutura das linhas selecionadas">
+    // Uma linha só (nunca quebra): mora no vão da barra da tela, que rola de lado se faltar espaço. O traço à esquerda
+    // separa as ações da seleção dos filtros.
+    <div className="flex shrink-0 flex-nowrap items-center gap-1.5 border-l pl-2" role="toolbar" aria-label="Estrutura das linhas selecionadas">
       {itens.map((item) =>
         item.tipo === "separador" ? (
           <span key={item.id} className="mx-0.5 h-5 w-px bg-border" aria-hidden />
@@ -44,18 +46,21 @@ export function BarraEstrutura({
           </span>
         ) : null,
       )}
-      <span className="ml-1 text-xs text-muted-foreground" aria-live="polite">
-        {total === 0
-          ? "Clique numa linha — Ctrl+clique soma, Shift+clique pega o intervalo."
-          : total === 1
-            ? "1 linha selecionada"
-            : `${total} linhas selecionadas`}
+      {/* Largura fixa: a barra mede o mesmo com ou sem seleção, senão a barra da tela poderia quebrar linha no clique. */}
+      <span className="ml-1 flex w-40 items-center justify-between gap-1">
+        <span
+          className="truncate whitespace-nowrap text-xs text-muted-foreground"
+          aria-live="polite"
+          title={total === 0 ? "Clique numa linha — Ctrl+clique soma, Shift+clique pega o intervalo." : undefined}
+        >
+          {total === 0 ? "Nenhuma selecionada" : total === 1 ? "1 selecionada" : `${total} selecionadas`}
+        </span>
+        {total > 0 && (
+          <Button type="button" size="sm" variant="ghost" className="h-7 px-2" onClick={onLimpar} title="Limpar a seleção (Esc)">
+            Limpar
+          </Button>
+        )}
       </span>
-      {total > 0 && (
-        <Button type="button" size="sm" variant="ghost" onClick={onLimpar}>
-          Limpar
-        </Button>
-      )}
     </div>
   );
 }
