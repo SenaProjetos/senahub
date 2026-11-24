@@ -58,6 +58,12 @@ export type EdicaoLinha = {
   /** Dias ÚTEIS. Ausente = mantém. */
   duracaoDias?: number;
   progresso: number;
+  /**
+   * O % que a tela mostrava (célula, painel). Presente: o % só conta como editado quando difere dele — a célula manda o %
+   * em toda edição (renomear também), e uma tela velha mandaria um % que outra pessoa já mudou (e o 100% concluiria pelo
+   * planejado uma tarefa reaberta). Editado sobre um valor que mudou no banco = recusa. Ausente = como antes (scripts).
+   */
+  progressoMostrado?: number;
   marco: boolean;
   /**
    * 6a: a tela confirmou que trocar a disciplina deste AGRUPAMENTO leva `esperadas` linhas de dentro junto. Ausente =
@@ -65,6 +71,21 @@ export type EdicaoLinha = {
    */
   propagarDisciplina?: { esperadas: number };
 };
+
+/** Quem não registra o executado não abre o "Atualizar tarefa": a frase de `motivoParaBaixarPercentual` não serve. */
+const MOTIVO_REABRIR_SEM_EXECUCAO = "Tarefa concluída: só quem registra o executado do cronograma pode reabri-la.";
+const MOTIVO_PCT_MUDOU = "O % desta linha mudou enquanto você editava. Recarregue e tente de novo.";
+
+/**
+ * O % a gravar. Com `progressoMostrado`: não editado = o do banco (a tela velha não desfaz o % de outra pessoa); editado
+ * sobre um valor que já mudou no banco = recusa. Agrupamento tem % derivado (a tela mostra o do motor): fica como antes.
+ */
+function percentualPedido(i: { progresso: number; progressoMostrado?: number }, noBanco: number, ehResumo: boolean): number {
+  if (i.progressoMostrado === undefined || ehResumo) return i.progresso;
+  if (i.progresso === i.progressoMostrado) return noBanco;
+  if (i.progressoMostrado !== noBanco) throw new ActionError(MOTIVO_PCT_MUDOU);
+  return i.progresso;
+}
 
 /**
  * O editar da linha, SEM reagendar (quem chama reagenda uma vez no fim).
@@ -90,9 +111,10 @@ export async function editarLinhaNoBanco(
   });
   if (!antes) throw new ActionError("Tarefa não encontrada.");
   const ehResumo = antes._count.filhas > 0;
-  const motivoPct = motivoParaBaixarPercentual({ ehResumo, status: antes.status, progresso: antes.progresso }, i.progresso);
-  if (motivoPct) throw new ActionError(motivoPct);
-  const conclusao = conclusaoDoPercentual(antes, ehResumo, i.progresso, opcoes);
+  const progresso = percentualPedido(i, antes.progresso, ehResumo);
+  const motivoPct = motivoParaBaixarPercentual({ ehResumo, status: antes.status, progresso: antes.progresso }, progresso);
+  if (motivoPct) throw new ActionError(opcoes?.podeExecucao ? motivoPct : MOTIVO_REABRIR_SEM_EXECUCAO);
+  const conclusao = conclusaoDoPercentual(antes, ehResumo, progresso, opcoes);
   // B2 (`edicao-linha.ts`): só alterna atividade ↔ marco; agrupamento não grava duração; marco é 0.
   const regra = regrasDeEdicao(
     { tipoEap: antes.tipoEap, duracaoDias: Number(antes.duracaoDias), ehResumo: antes._count.filhas > 0 },
@@ -154,7 +176,7 @@ export async function editarLinhaNoBanco(
           nome: i.nome,
           disciplinaId: i.disciplinaId || null,
           ...(etapaId !== undefined ? { etapaId } : {}),
-          progresso: i.progresso,
+          progresso,
           tipoEap,
           ...(duracaoDias !== undefined ? { duracaoDias } : {}),
         },
@@ -164,7 +186,7 @@ export async function editarLinhaNoBanco(
         tarefaId: i.id,
         projetoId: linha.projetoId,
         anterior: antes.progresso,
-        progresso: i.progresso,
+        progresso,
         autorId,
         origem: "informado",
         ehResumo: antes._count.filhas > 0,
@@ -220,8 +242,9 @@ export async function salvarLinhaNoBanco(
   const { projetoId } = linha;
   const ehResumo = linha._count.filhas > 0;
   // Antes de gravar qualquer coisa: a recusa do % não pode deixar o resto da linha gravado pela metade.
-  const motivoPct = motivoParaBaixarPercentual({ ehResumo, status: linha.status, progresso: linha.progresso }, i.progresso);
-  if (motivoPct) throw new ActionError(motivoPct);
+  const progresso = percentualPedido(i, linha.progresso, ehResumo);
+  const motivoPct = motivoParaBaixarPercentual({ ehResumo, status: linha.status, progresso: linha.progresso }, progresso);
+  if (motivoPct) throw new ActionError(opcoes?.podeExecucao ? motivoPct : MOTIVO_REABRIR_SEM_EXECUCAO);
   let conclusao: ConclusaoPeloPlanejado | null = null;
   if (i.restricao?.tipo && !i.restricao.data) throw new ActionError("Informe a data da restrição.");
   // Predecessoras, datas e restrição são PLANO: com o plano aprovado, recusa ANTES de gravar qualquer coisa (nome e %
@@ -232,7 +255,7 @@ export async function salvarLinhaNoBanco(
   // e fica de fora dela): o % vai por último, quando todo o resto já passou — uma recusa no meio nunca deixa % gravado.
   const foto = mexeNoPlano ? await fotoDoPlano(projetoId) : null;
   try {
-    await editarLinhaNoBanco({ ...i, progresso: linha.progresso }, autorId);
+    await editarLinhaNoBanco({ ...i, progresso: linha.progresso, progressoMostrado: undefined }, autorId);
     if (i.predecessoras) {
       await trocarPredecessoras({ tarefaId: i.id, vinculos: i.predecessoras });
     }
@@ -248,19 +271,21 @@ export async function salvarLinhaNoBanco(
     if (i.termino) {
       await definirTerminoDaLinha({ id: i.id, data: i.termino });
     }
-    if (i.progresso !== linha.progresso) {
-      // Relê a linha: o tipo (marco) e as datas planejadas podem ter mudado nas etapas de cima, nesta mesma gravação.
+    if (progresso !== linha.progresso) {
+      // Relê a linha: o tipo (virou marco) pode ter mudado nas etapas de cima, nesta mesma gravação. As datas previstas
+      // NÃO: só o reagendamento do fim (`aposMudarEap`) as recalcula — com linha de base, que é o caso do plano aprovado,
+      // elas nem entram; no rascunho, um término digitado junto com o 100% conta o término previsto de antes.
       const agora = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: i.id }, select: SELECT_CONCLUSAO });
-      conclusao = conclusaoDoPercentual({ ...agora, progresso: linha.progresso }, ehResumo, i.progresso, opcoes);
+      conclusao = conclusaoDoPercentual({ ...agora, progresso: linha.progresso }, ehResumo, progresso, opcoes);
       await prisma.$transaction(async (tx) => {
         // Condicionado ao % lido: se outra pessoa mudou nesse meio-tempo, recusa em vez de sobrescrever.
-        const r = await tx.eapTarefa.updateMany({ where: { id: i.id, progresso: linha.progresso }, data: { progresso: i.progresso } });
-        if (r.count !== 1) throw new ActionError("O % desta linha mudou enquanto você editava. Recarregue e tente de novo.");
+        const r = await tx.eapTarefa.updateMany({ where: { id: i.id, progresso: linha.progresso }, data: { progresso } });
+        if (r.count !== 1) throw new ActionError(MOTIVO_PCT_MUDOU);
         await registrarProgresso(tx, {
           tarefaId: i.id,
           projetoId,
           anterior: linha.progresso,
-          progresso: i.progresso,
+          progresso,
           autorId,
           origem: "informado",
           ehResumo,

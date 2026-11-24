@@ -112,7 +112,8 @@ export async function registrarExecucaoNaLinha(p: {
     // Condicional ao estado lido: dois cliques (ou outra pessoa) entre a leitura e a escrita não se sobrescrevem
     // nem duplicam o histórico do % e os avisos de fase/parcela.
     const gravada = await tx.eapTarefa.updateMany({
-      where: { id: p.id, status: linha.status, progresso: linha.progresso },
+      // As datas lidas também: o 100% sem término completa as datas a partir desta leitura (concluir pelo planejado).
+      where: { id: p.id, status: linha.status, progresso: linha.progresso, inicioReal: linha.inicioReal, fimReal: linha.fimReal },
       data: {
         inicioReal: r.inicioReal ? paraDataUtc(r.inicioReal) : null,
         fimReal: r.fimReal ? paraDataUtc(r.fimReal) : null,

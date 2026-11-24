@@ -364,6 +364,8 @@ export function EapWorkspace({
         disciplinaId: t.disciplinaId ?? undefined,
         duracaoDias: e.campo === "duracao" ? e.duracaoDias : t.marco || t.ehResumo ? undefined : t.duracaoDias,
         progresso: e.campo === "progresso" ? e.progresso : Math.round(t.progresso),
+        // O que a célula mostrava: renomear numa tela velha não desfaz (nem conclui) o % de outra pessoa.
+        progressoMostrado: Math.round(t.progresso),
         marco: e.campo === "duracao" ? e.marco : t.marco,
       });
       if (!r.ok) return r.error;

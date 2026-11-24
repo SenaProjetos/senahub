@@ -8,7 +8,7 @@ import { registrarExecucao } from "@/modules/planejamento/actions";
 import { aprovarEtapaDisciplina } from "@/modules/projetos/etapas-actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { formatarData } from "@/lib/utils";
-import { rotuloDaOrigem, type OrigemDasDatas } from "@/modules/planejamento/concluir-pelo-planejado";
+import type { OrigemDasDatas } from "@/modules/planejamento/concluir-pelo-planejado";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
@@ -26,10 +26,11 @@ import {
 
 /** O aviso de "concluída como planejado" (100% sem término): de onde vieram as datas e quais ficaram. */
 export function textoConcluidaPeloPlanejado(p: { origem: OrigemDasDatas; inicioReal: string; fimReal: string }) {
-  return `Tarefa concluída como planejado: datas reais ${formatarData(p.inicioReal)} – ${formatarData(p.fimReal)}, pela ${rotuloDaOrigem(p.origem)}.`;
+  const pela = p.origem === "linha_base" ? "pela linha de base" : "pelas datas previstas (sem linha de base)";
+  return `Tarefa concluída como planejado: datas reais ${formatarData(p.inicioReal)} – ${formatarData(p.fimReal)}, ${pela}.`;
 }
 
-export type FaseOferecida ={ id: string; sigla: string; nome: string; disciplina: string; marcadaEntregue: boolean };
+export type FaseOferecida = { id: string; sigla: string; nome: string; disciplina: string; marcadaEntregue: boolean };
 
 /**
  * Marco de fase concluído (D31): oferece aprovar a fase, pela mesma action do diálogo de Etapas. Compartilhado pelo
@@ -213,7 +214,7 @@ export function ExecucaoDialog({
                     ? "O término real conclui a tarefa (100%)."
                     : concluida
                       ? "Reabrindo: informe quanto está concluído (até 99%) e salve."
-                      : "Registra o avanço. 100% sem término real conclui como planejado: datas da linha de base (até hoje)."}
+                      : "Registra o avanço. 100% sem término real conclui como planejado: datas da linha de base (ou as previstas, se não houver), no máximo até hoje."}
                 </p>
               </div>
             </>

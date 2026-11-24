@@ -131,9 +131,34 @@ async function main() {
     const eNome = await erroDe(() => salvarLinhaNoBanco({ id: A.id, nome: `${A.nome} renomeada`, progresso: 50, marco: false }, admin.id, COM));
     const nomeA = (await prisma.eapTarefa.findUniqueOrThrow({ where: { id: A.id }, select: { nome: true } })).nome;
     check("painel recusa baixar o % sem gravar o nome", eNome !== null && nomeA === A.nome, { eNome, nomeA });
+    // 8. Tela velha: outra pessoa reabriu (80%, sem término); renomear numa tela que ainda mostra 100% não conclui de novo
+    // nem desfaz o % dela.
+    const F = await nova("F", 5);
+    await prisma.eapTarefa.update({ where: { id: F.id }, data: { progresso: 80, status: "and", inicioReal: d("2026-10-01") } });
+    await editarLinhaNoBanco({ id: F.id, nome: `${F.nome} renomeada`, progresso: 100, progressoMostrado: 100, marco: false }, admin.id, COM);
+    const f = await ler(F.id);
+    check("renomear em tela velha não conclui nem muda o %", f.progresso === 80 && f.status === "and" && f.fimReal === null, f);
+
+    // 9. Tela velha editando o próprio %: recusa em vez de sobrescrever.
+    const eVelho = await erroDe(() =>
+      editarLinhaNoBanco({ id: F.id, nome: F.nome, progresso: 100, progressoMostrado: 60, marco: false }, admin.id, COM),
+    );
+    check("% editado sobre valor que mudou no banco é recusado", eVelho === "O % desta linha mudou enquanto você editava. Recarregue e tente de novo.", eVelho);
+    const ePainel = await erroDe(() =>
+      salvarLinhaNoBanco({ id: F.id, nome: F.nome, progresso: 100, progressoMostrado: 60, marco: false }, admin.id, COM),
+    );
+    check("o mesmo no painel", ePainel === "O % desta linha mudou enquanto você editava. Recarregue e tente de novo.", ePainel);
+    check("e ela segue em 80%, aberta", (await ler(F.id)).status === "and");
+
+    // 10. Quem não registra o executado recebe outra frase ao baixar o % de concluída.
+    const eSem = await erroDe(() =>
+      editarLinhaNoBanco({ id: A.id, nome: A.nome, progresso: 90, marco: false }, admin.id, { hoje: HOJE, podeExecucao: false }),
+    );
+    check("sem cronograma:executado, a frase não aponta o Atualizar tarefa", eSem === "Tarefa concluída: só quem registra o executado do cronograma pode reabri-la.", eSem);
   } finally {
     const linhas = await prisma.eapTarefa.findMany({ where: { projetoId: projeto.id }, select: { id: true } });
     const ids = linhas.map((l) => l.id);
+    await prisma.auditLog.deleteMany({ where: { entidadeId: { in: ids }, acao: "concluir-pelo-planejado" } });
     await prisma.eapProgressoRegistro.deleteMany({ where: { tarefaId: { in: ids } } });
     await prisma.tarefa.deleteMany({ where: { eapTarefaId: { in: ids } } });
     await prisma.eapTarefa.deleteMany({ where: { projetoId: projeto.id } });

@@ -99,6 +99,8 @@ const editarSchema = z.object({
   /** Dias ÚTEIS. Ausente = mantém. Ignorada em agrupamento (deriva dos filhos) e no marco (0). */
   duracaoDias: duracao.optional(),
   progresso: z.number().int().min(0).max(100),
+  /** O % que a tela mostrava (`EdicaoLinha.progressoMostrado`): separa "mudou o %" de "mandou o % junto". */
+  progressoMostrado: z.number().int().min(0).max(100).optional(),
   marco: z.boolean().default(false),
 });
 const idSchema = z.object({ id: z.string().min(1) });
