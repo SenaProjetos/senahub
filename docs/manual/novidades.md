@@ -27,6 +27,9 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 - A senha só muda quando você abre o link e escolhe a nova: se alguém pedir o link com o seu e-mail, nada acontece
   com a sua senha. Ao salvar, você sai do SenaHub em todos os aparelhos e entra de novo com a senha nova.
 - Sem acesso ao e-mail? O administrador continua podendo redefinir a senha pela tela de usuários.
+- Na tela de **Usuários**, o menu da pessoa ganhou **Enviar link de nova senha** (também para vários de uma vez).
+  O antigo "Redefinir senha" agora se chama **Gerar senha temporária**. A senha de um superusuário só é mexida por
+  outro superusuário.
 - O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
 
 ## Conflito de recurso no planejamento (novembro/2026)

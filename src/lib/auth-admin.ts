@@ -2,6 +2,7 @@ import "server-only";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { TipoUsuario } from "@/generated/prisma/client";
+import { invalidarLinksDeRedefinicao } from "@/modules/auth/redefinir-senha-service";
 
 /** Gera uma senha temporária legível (ex.: "Sena-4F8K2"). */
 export function gerarSenhaTemporaria(): string {
@@ -58,6 +59,8 @@ export async function resetarSenha(userId: string): Promise<string> {
     where: { id: userId },
     data: { mustChangePassword: true },
   });
+  // Link de "Esqueci minha senha" pedido antes deixa de valer: senão trocaria por cima da temporária.
+  await invalidarLinksDeRedefinicao(userId);
 
   return senhaTemporaria;
 }

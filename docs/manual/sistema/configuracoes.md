@@ -22,7 +22,15 @@ lugar.
 ## O que há aqui
 
 ### Usuários & Acesso
-- **Usuários** — cadastrar, editar, desativar e **reiniciar senhas**.
+- **Usuários** — cadastrar, editar e desativar. Para senha, no menu da pessoa (botão `⋯` ou
+  clique direito):
+  - **Enviar link de nova senha** — a pessoa recebe por e-mail um link (vale 1 hora, uma vez) e
+    escolhe a senha nova; a atual continua valendo até ela usar o link. Dá para mandar a vários
+    de uma vez pela seleção. Fica desabilitado para conta desativada ou com acesso encerrado, e
+    quando o e-mail do sistema não está configurado.
+  - **Gerar senha temporária** — para quem perdeu o acesso ao e-mail: troca a senha na hora e
+    mostra a temporária para você repassar; no próximo login a pessoa cria a dela.
+  - A senha de um **superusuário** só pode ser mexida por outro superusuário.
 - **Permissões** — **matriz de acesso por perfil** (recurso × ação). Após editar,
   o sistema recarrega as permissões do perfil.
 

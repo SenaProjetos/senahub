@@ -87,6 +87,28 @@ const templatesPonto: EmailTemplateMeta[] = PONTO_ALERTAS.map((p) => ({
 
 export const TEMPLATES_CATALOGO: EmailTemplateMeta[] = [
   {
+    slug: "redefinir-senha",
+    grupo: "Acesso",
+    label: "Esqueci minha senha (link)",
+    descricao:
+      "Enviado quando alguém usa \"Esqueci minha senha\" na tela de login. O link ({{link}}) vale por {{validade}} e uma vez só; a senha só muda quando a pessoa abre o link e escolhe a nova. Mantenha o {{link}} no texto.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome de quem pediu", exemplo: "Maria" },
+      { nome: "link", descricao: "Link para criar a nova senha (gerado pelo sistema)", exemplo: "https://app/redefinir-senha?token=abc123" },
+      { nome: "validade", descricao: "Por quanto tempo o link vale", exemplo: "1 hora" },
+    ],
+    assuntoPadrao: "Crie sua nova senha do SenaHub",
+    corpoPadrao: `Olá, {{nome}}.
+
+Recebemos um pedido para criar uma nova senha para a sua conta no SenaHub.
+
+[Criar nova senha]({{link}})
+
+O link vale por **{{validade}}** e só pode ser usado uma vez. Ao salvar a nova senha, você sai do SenaHub em todos os aparelhos e entra de novo com ela.
+
+Se não foi você que pediu, ignore este e-mail: sua senha atual continua valendo.`,
+  },
+  {
     slug: "aviso-geral",
     grupo: "Comunicados",
     label: "Aviso geral",

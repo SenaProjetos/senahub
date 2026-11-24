@@ -7,7 +7,8 @@ export const ACAO_LABEL: Record<string, string> = {
   // Acesso / sistema
   "trocar-senha": "Trocou a senha",
   "solicitar-reset-senha": "Solicitou redefinição de senha",
-  "resetar-senha-usuario": "Redefiniu senha de usuário",
+  "resetar-senha-usuario": "Gerou senha temporária de usuário",
+  "enviar-link-nova-senha-usuario": "Enviou link de nova senha a usuário",
   "salvar-senha-exclusao": "Definiu senha de exclusão",
   "set-permissao": "Alterou permissão",
   "salvar-preferencia": "Salvou preferência",

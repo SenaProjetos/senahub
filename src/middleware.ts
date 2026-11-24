@@ -4,7 +4,7 @@ import { prefixoDoCookie } from "@/lib/auth-cookie";
 
 // Rotas públicas (não exigem sessão).
 // "/p","/api/p" = inputs do cliente; "/a","/api/t" = proposta pública + pixel; "/api/health" = monitoramento.
-const PUBLIC_PATHS = ["/login", "/sem-permissao", "/recuperar-senha", "/solicitar-cadastro", "/p", "/api/p", "/a", "/api/t", "/api/health"];
+const PUBLIC_PATHS = ["/login", "/sem-permissao", "/recuperar-senha", "/redefinir-senha", "/solicitar-cadastro", "/p", "/api/p", "/a", "/api/t", "/api/health"];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

@@ -32,6 +32,7 @@ npm run admin:reset-senha     # reset admin senha → SenaHub@2026 + force chang
 npm run smoke:onda1|onda2|onda3|onda3efg|onda4|onda5   # e2e smokes against the dev DB
 npm run smoke:inputs-link     # link público de inputs: janela da notificação, revogação, expiração
 npm run smoke:aviso-agendado  # aviso agendado: disparo do tick, claim anti-duplicata, cancelamento
+npm run smoke:redefinir-senha # "Esqueci minha senha" por link: token, cotas por IP e pessoa, acesso encerrado, sem SMTP/APP_URL avisa admins 1×/dia, troca derruba sessões e links, link usado recusado
 npm run smoke:sync-pagamento  # pagamento de projetista: sync de valor/responsáveis, cancelamento, total do lote
 npm run smoke:historico-documento  # histórico por documento: agrupamento atômico de acessos, corte de visibilidade, merge
 npm run smoke:lixeira-caminho     # "Arquivo indisponível no disco": contador de versão vê a lixeira; apagar arquivo de Upload só sem outra linha no mesmo caminho

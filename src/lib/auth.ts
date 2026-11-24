@@ -6,6 +6,12 @@ import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/lib/audit";
 import { prefixoDoCookie } from "@/lib/auth-cookie";
 import { acessoBloqueado } from "@/modules/usuarios/vinculo/desligamento";
+import { VALIDADE_LINK_SEG, ipDosCabecalhos } from "@/modules/auth/redefinir-senha";
+import {
+  aposRedefinirPeloLink,
+  enviarLinkDeRedefinicao,
+  ipDoContexto,
+} from "@/modules/auth/redefinir-senha-service";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
@@ -17,7 +23,23 @@ export const auth = betterAuth({
     disableSignUp: true,
     minPasswordLength: 8,
     maxPasswordLength: 128,
+    // "Esqueci minha senha": link por e-mail (modules/auth/redefinir-senha*). A senha só muda quando
+    // o dono do e-mail abre o link; o reset pelo admin (senha temporária) continua para quem perdeu o e-mail.
+    resetPasswordTokenExpiresIn: VALIDADE_LINK_SEG,
+    revokeSessionsOnPasswordReset: true,
+    sendResetPassword: async ({ user, token }, request) => {
+      const ip = request ? ipDosCabecalhos(request.headers) : await ipDoContexto();
+      // Sem `await`: quem existe e quem não existe respondem no mesmo tempo (o envio de e-mail
+      // demora e denunciaria o cadastro). O serviço nunca lança.
+      void enviarLinkDeRedefinicao({ userId: user.id, token, ip });
+    },
+    onPasswordReset: async ({ user }, request) => {
+      await aposRedefinirPeloLink(user.id, request ? ipDosCabecalhos(request.headers) : await ipDoContexto());
+    },
   },
+  // Pedir link e gravar senha só pelas Server Actions (modules/auth/actions.ts), que têm a trava por
+  // IP e a auditoria; pelo HTTP direto do better-auth essas rotas não existem. `auth.api` segue valendo.
+  disabledPaths: ["/request-password-reset", "/reset-password", "/forget-password"],
   session: {
     // Sessão de 7 dias (uso mobile não pode exigir login diário). Renovação
     // deslizante: a cada 1h de atividade o expiresAt é reempurrado pra +7d;

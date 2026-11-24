@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requirePermission } from "@/lib/session";
+import { smtpConfigurado } from "@/lib/mail";
 import { listarUsuarios } from "@/modules/usuarios/queries";
 import { listarClientes } from "@/modules/clientes/queries";
 import { solicitacoesCadastroPendentes } from "@/modules/auth/cadastro/queries";
@@ -35,6 +36,7 @@ export default async function UsuariosPage() {
         podeDefinirSocio={user.superUsuario}
         podeExcluir={user.superUsuario}
         ehAdmin={user.superUsuario}
+        emailDoSistema={smtpConfigurado()}
       />
     </div>
   );

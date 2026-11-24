@@ -15,8 +15,19 @@ sinonimos: [perguntas frequentes, troubleshooting, solução de problemas, ajuda
 ## Acesso e conta
 
 **Esqueci minha senha. E agora?**
-Na tela **Entrar**, clique em **Esqueci minha senha** e siga o formulário de
-recuperação. Se não resolver, peça ao administrador para redefinir.
+Na tela **Entrar**, clique em **Esqueci minha senha**, informe o e-mail que você usa
+para entrar e clique em **Enviar link**. Chega um e-mail com o botão **Criar nova
+senha**: abra, escolha a senha nova e entre com ela. O link vale por 1 hora e só uma
+vez; se venceu, peça outro. Confira a caixa de spam se não chegar em alguns minutos.
+
+Ao salvar a senha nova, você sai do SenaHub em todos os aparelhos. Se não foi você que
+pediu o link, ignore o e-mail: sua senha atual continua valendo.
+
+Perdeu o acesso ao e-mail? Peça ao administrador para redefinir sua senha.
+
+**Pedi o link várias vezes e não chegou mais nenhum.**
+Para evitar abuso, só saem alguns links por pessoa a cada 15 minutos. Use o mais
+recente que chegou ou espere um pouco e peça de novo.
 
 **Como troco minha senha?**
 Menu da conta (avatar, canto superior direito) → **Trocar senha**.

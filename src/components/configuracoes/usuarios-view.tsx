@@ -16,6 +16,7 @@ import {
   desativarUsuario,
   reativarUsuario,
   resetarSenhaUsuario,
+  enviarLinkNovaSenhaUsuario,
   excluirUsuario,
 } from "@/modules/usuarios/actions";
 import { avaliarSolicitacaoCadastro } from "@/modules/auth/cadastro/actions";
@@ -75,8 +76,10 @@ import {
   ACAO_COPIAR_NOME,
   ACAO_DESATIVAR,
   ACAO_EDITAR,
+  ACAO_ENVIAR_LINK_SENHA,
   ACAO_EXCLUIR,
   ACAO_LOTE_DESATIVAR,
+  ACAO_LOTE_ENVIAR_LINK_SENHA,
   ACAO_LOTE_EXCLUIR,
   ACAO_LOTE_REATIVAR,
   ACAO_PERMISSOES,
@@ -85,7 +88,15 @@ import {
   ACAO_VER_FICHA,
   itensDeLoteUsuarios,
   itensDeUsuario,
+  recebemLinkEmLote,
+  type UsuarioParaAcoes,
 } from "@/modules/usuarios/acoes";
+import { acessoBloqueado } from "@/modules/usuarios/vinculo/desligamento";
+
+/** O que o descritor de ações precisa de um usuário da lista. */
+function paraAcoes(u: UsuarioListItem): UsuarioParaAcoes {
+  return { ativo: u.ativo, tipo: u.tipo, superUsuario: u.superUsuario, acessoEncerrado: acessoBloqueado(u) };
+}
 
 type FormState = {
   id?: string;
@@ -168,6 +179,7 @@ export function UsuariosView({
   podeDefinirSocio,
   podeExcluir,
   ehAdmin,
+  emailDoSistema,
 }: {
   usuarios: UsuarioListItem[];
   clientes: { id: string; nome: string }[];
@@ -182,6 +194,8 @@ export function UsuariosView({
   podeExcluir: boolean;
   /** Bypass total (`superUsuario`) só admin concede — mesmo raciocínio de `podeDefinirSocio`. */
   ehAdmin: boolean;
+  /** SMTP configurado no servidor: sem ele, "Enviar link de nova senha" fica desabilitado com o motivo. */
+  emailDoSistema: boolean;
 }) {
   const [mostrarInativos, setMostrarInativos] = useState(true);
   /** Perfil fixo do cliente do portal (semente `portal_cliente`). */
@@ -371,7 +385,8 @@ export function UsuariosView({
 
   /** Marcados que ainda existem na lista (a lista muda quando alguém é desativado/excluído). */
   const alvosSelecao = visiveis.filter((u) => selecao.marcado(u.id));
-  const itensDoLote = itensDeLoteUsuarios(alvosSelecao, { podeExcluir });
+  const ctxAcoes = { podeExcluir, emailDoSistema, souSuperUsuario: ehAdmin };
+  const itensDoLote = itensDeLoteUsuarios(alvosSelecao.map(paraAcoes), ctxAcoes);
 
   async function executarLote(item: AcaoItemAcao) {
     const nomes = new Map(alvosSelecao.map((u) => [u.id, u.name]));
@@ -398,6 +413,23 @@ export function UsuariosView({
         substantivo: ["usuário", "usuários"],
         verbo: ["reativado", "reativados"],
         rotulo,
+        aoConcluir: selecao.limpar,
+      });
+    } else if (item.id === ACAO_LOTE_ENVIAR_LINK_SENHA) {
+      await lote.executar({
+        ids: recebemLinkEmLote(
+          alvosSelecao.map((u) => ({ ...paraAcoes(u), id: u.id })),
+          ctxAcoes,
+        ).map((u) => u.id),
+        acao: (id) => enviarLinkNovaSenhaUsuario({ id }),
+        substantivo: ["link", "links"],
+        verbo: ["enviado", "enviados"],
+        rotulo,
+        confirmar: {
+          titulo: (n) => `Enviar link de nova senha para ${n} ${n === 1 ? "pessoa" : "pessoas"}?`,
+          descricao: item.confirmar?.descricao,
+          rotuloConfirmar: item.confirmar?.rotuloConfirmar,
+        },
         aoConcluir: selecao.limpar,
       });
     } else if (item.id === ACAO_LOTE_EXCLUIR) {
@@ -436,6 +468,8 @@ export function UsuariosView({
     if (item.id === ACAO_EDITAR) editar(u);
     else if (item.id === ACAO_VER_FICHA) router.push(`/rh/pessoas/${u.id}`);
     else if (item.id === ACAO_PERMISSOES) router.push(`/rh/pessoas/${u.id}?aba=acesso`);
+    else if (item.id === ACAO_ENVIAR_LINK_SENHA)
+      acao(() => enviarLinkNovaSenhaUsuario({ id: u.id }), `Link de nova senha enviado para ${u.email}. Vale por 1 hora.`);
     else if (item.id === ACAO_REINICIAR_SENHA) resetar(u.id, u.email);
     else if (item.id === ACAO_DESATIVAR) acao(() => desativarUsuario({ id: u.id }), "Usuário desativado.");
     else if (item.id === ACAO_REATIVAR) acao(() => reativarUsuario({ id: u.id }), "Usuário reativado.");
@@ -491,7 +525,7 @@ export function UsuariosView({
             {visiveis.map((u) => {
               const menuItens = alvosSelecao.length > 1 && selecao.marcado(u.id)
                 ? itensDoLote
-                : itensDeUsuario(u, { podeExcluir });
+                : itensDeUsuario(paraAcoes(u), ctxAcoes);
               return (
               <LinhaComMenu
                 key={u.id}

@@ -37,6 +37,7 @@
     "smoke:briefing-status": "tsx --tsconfig tsconfig.server.json scripts/smoke-briefing-status.ts",
     "smoke:competencias-projeto": "tsx --tsconfig tsconfig.server.json scripts/smoke-competencias-projeto.ts",
     "smoke:aviso-agendado": "tsx --tsconfig tsconfig.server.json scripts/smoke-aviso-agendado.ts",
+    "smoke:redefinir-senha": "tsx --tsconfig tsconfig.server.json scripts/smoke-redefinir-senha.ts",
     "smoke:sync-pagamento": "tsx --tsconfig tsconfig.server.json scripts/smoke-sync-pagamento.ts",
     "smoke:arvore-global": "tsx --tsconfig tsconfig.server.json scripts/smoke-arvore-global.ts",
     "smoke:contagem-documento": "tsx --tsconfig tsconfig.server.json scripts/smoke-contagem-documento.ts",

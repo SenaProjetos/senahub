@@ -11,6 +11,8 @@ import {
   criarUsuarioComCredencial,
   resetarSenha,
 } from "@/lib/auth-admin";
+import { smtpConfigurado } from "@/lib/mail";
+import { enviarLinkPeloAdmin } from "@/modules/auth/redefinir-senha-service";
 import {
   criarUsuarioSchema,
   editarUsuarioSchema,
@@ -330,6 +332,40 @@ export const atualizarNomeExibicao = defineAction(
   },
 );
 
+/**
+ * Manda para a pessoa o link de "Criar nova senha" (o mesmo do "Esqueci minha senha"). Diferente de
+ * resetar, a senha atual continua valendo até ela usar o link — nada é mostrado ao admin.
+ */
+export const enviarLinkNovaSenhaUsuario = defineAction(
+  {
+    modulo: "configuracoes",
+    acao: "enviar-link-nova-senha-usuario",
+    recurso: "usuarios",
+    permissao: "gerir",
+    entidade: "User",
+    schema: usuarioIdSchema,
+    entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
+  },
+  async (input, ctx) => {
+    await exigirPodeMexerNaSenha(input.id, ctx.user.superUsuario);
+    const res = await enviarLinkPeloAdmin(input.id, { smtpConfigurado: smtpConfigurado() });
+    if (!res.ok) throw new ActionError(res.motivo);
+    return { id: input.id, email: res.email };
+  },
+);
+
+/**
+ * Senha de superusuário só por outro superusuário. Sem isto, quem tem só `usuarios:gerir` geraria a
+ * senha temporária de um superusuário, a leria na tela e entraria com bypass total — o mesmo degrau
+ * que `editarUsuario` já protege ao recusar mexer em `superUsuario`.
+ */
+async function exigirPodeMexerNaSenha(alvoId: string, souSuperUsuario: boolean): Promise<void> {
+  if (souSuperUsuario) return;
+  const alvo = await prisma.user.findUnique({ where: { id: alvoId }, select: { superUsuario: true } });
+  if (!alvo) throw new ActionError("Usuário não encontrado.");
+  if (alvo.superUsuario) throw new ActionError("Só um superusuário pode mexer na senha de outro superusuário.");
+}
+
 export const resetarSenhaUsuario = defineAction(
   {
     modulo: "configuracoes",
@@ -340,7 +376,8 @@ export const resetarSenhaUsuario = defineAction(
     schema: usuarioIdSchema,
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
-  async (input) => {
+  async (input, ctx) => {
+    await exigirPodeMexerNaSenha(input.id, ctx.user.superUsuario);
     const senhaTemporaria = await resetarSenha(input.id);
     // Marca solicitações de reset pendentes como resolvidas.
     await prisma.solicitacaoResetSenha.updateMany({

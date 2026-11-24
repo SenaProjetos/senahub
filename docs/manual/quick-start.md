@@ -33,7 +33,8 @@ seu perfil de acesso** (veja a seção 9).
 
 Na tela de login há ainda:
 
-- **Esqueci minha senha** — abre o formulário de recuperação de senha.
+- **Esqueci minha senha** — envia para o seu e-mail um link para criar uma senha nova
+  (vale por 1 hora, uma vez só). Sem acesso ao e-mail, peça ao administrador.
 - **Solicitar acesso** — para quem ainda não tem conta (envia um pedido de cadastro).
 
 > **Primeiro acesso / senha temporária:** se o administrador criou ou redefiniu sua

@@ -11,6 +11,8 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       nomeCompleto: true,
       email: true,
       ativo: true,
+      // Desligamento com data: ativo, mas o login já é recusado (`acessoBloqueado`) — o menu usa.
+      acessoAte: true,
       mustChangePassword: true,
       clienteId: true,
       createdAt: true,

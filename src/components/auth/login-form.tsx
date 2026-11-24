@@ -42,7 +42,9 @@ export function LoginForm() {
           ? error.message || "Seu acesso ao sistema foi encerrado."
           : error.status === 401 || error.status === 403
             ? "E-mail ou senha incorretos."
-            : error?.message || "Não foi possível entrar. Tente novamente.",
+            : error.status === 429
+              ? "Muitas tentativas. Aguarde alguns minutos e tente de novo."
+              : "Não foi possível entrar. Tente novamente.",
       );
       return;
     }
@@ -63,6 +65,11 @@ export function LoginForm() {
         <CardDescription>Acesse a plataforma de gestão integrada</CardDescription>
       </CardHeader>
       <CardContent>
+        {params.get("senha") === "redefinida" && (
+          <p className="mb-4 rounded-md border border-success/40 bg-success/10 px-3 py-2 text-sm text-success-text">
+            Senha nova salva. Entre com ela.
+          </p>
+        )}
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email" className="font-mono text-[11px] uppercase tracking-[0.14em]">
