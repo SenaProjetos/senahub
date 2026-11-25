@@ -150,3 +150,46 @@ export async function pranchaDaObra(
   if (!up) return null;
   return { nome: up.nomeArquivo, revisao: up.revisao ? rotuloRevisao(up.revisao.numero) : "", projetoNome: up.disciplina.projeto.nome };
 }
+
+export type ContaObraDoProjeto = {
+  userId: string;
+  nome: string;
+  empresa: string;
+  ativo: boolean;
+  /** Dia `YYYY-MM-DD` do "Acesso até"; null = sem prazo. */
+  acessoAte: string | null;
+  /** Último acesso registrado no histórico dos documentos deste projeto (visualização ou download). */
+  ultimoAcesso: Date | null;
+};
+
+/**
+ * Quem tem conta de obra com este projeto (aba Cliente, só leitura — spec 2026-11-25): nome, empresa, "Acesso até" e o último
+ * acesso do histórico por documento. O escopo (quem vê a aba) é conferido pela página.
+ */
+export async function contasObraDoProjeto(projetoId: string): Promise<ContaObraDoProjeto[]> {
+  const itens = await prisma.contaObraProjeto.findMany({
+    where: { projetoId },
+    select: {
+      contaObra: { select: { empresa: true, user: { select: { id: true, name: true, ativo: true, acessoAte: true } } } },
+    },
+  });
+  const contas: ContaObraDoProjeto[] = [];
+  for (const i of itens) {
+    const u = i.contaObra.user;
+    const ultimo = await prisma.documentoEvento.findFirst({
+      where: { categoria: "acesso", userId: u.id, documento: { disciplina: { projetoId } } },
+      // Acessos repetidos viram uma linha (janela de 10 min): `ultimoEm` é o mais recente dela.
+      orderBy: { ultimoEm: "desc" },
+      select: { ultimoEm: true },
+    });
+    contas.push({
+      userId: u.id,
+      nome: u.name,
+      empresa: i.contaObra.empresa,
+      ativo: u.ativo,
+      acessoAte: u.acessoAte ? u.acessoAte.toISOString().slice(0, 10) : null,
+      ultimoAcesso: ultimo?.ultimoEm ?? null,
+    });
+  }
+  return contas.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+}
