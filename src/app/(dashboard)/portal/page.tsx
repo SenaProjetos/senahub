@@ -6,6 +6,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 import { requireUser } from "@/lib/session";
+import { ehContaObra } from "@/modules/portal/obra/acesso";
+import { ObrasDaConta } from "@/components/portal/obra/obras-da-conta";
 import { clienteDoUsuario, projetosDoCliente, querResumoPorEmail } from "@/modules/portal/queries";
 import { ContratosCard } from "@/components/portal/contratos-card";
 import { LimiteErroEntregas } from "@/components/portal/limite-erro-entregas";
@@ -26,6 +28,8 @@ const fmt = (d: string | null) =>
 export default async function PortalPage() {
   const user = await requireUser();
   if (user.tipo === "interno") redirect("/");
+  // Conta de obra (spec 2026-11-25): a lista de obras dela, nunca a página do cliente.
+  if (await ehContaObra(user.id)) return <ObrasDaConta userId={user.id} />;
 
   const cliente = await clienteDoUsuario(user.id);
   // Sem cliente vinculado, ou cliente desativado no cadastro: o portal fica fechado (decisão do dono, 2026-11-18).

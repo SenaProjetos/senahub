@@ -5,6 +5,8 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Box, CalendarDays, Download, FileStack, MapPin } from "lucide-react";
 import { requireUser } from "@/lib/session";
+import { ehContaObra } from "@/modules/portal/obra/acesso";
+import { ObraDetalhe } from "@/components/portal/obra/obra-detalhe";
 import { clienteDoUsuario, projetoDoCliente, querMensagemPorEmail } from "@/modules/portal/queries";
 import { conversaParaCliente } from "@/modules/portal/mensagens/queries";
 import { ConversaCard } from "@/components/portal/mensagens/conversa-card";
@@ -49,6 +51,8 @@ export default async function PortalProjetoPage({
 }) {
   const user = await requireUser();
   if (user.tipo === "interno") redirect("/");
+  // Conta de obra (spec 2026-11-25): só a pasta Liberado para obra, por componente próprio.
+  if (await ehContaObra(user.id)) return <ObraDetalhe user={user} projetoId={(await params).projetoId} />;
   const cliente = await clienteDoUsuario(user.id);
   // Sem cliente, ou cliente desativado: a lista explica (portal fechado).
   if (!cliente || !cliente.ativo) redirect("/portal");

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Box, Download } from "lucide-react";
 import { requireUser } from "@/lib/session";
+import { ehContaObra } from "@/modules/portal/obra/acesso";
+import { ModeloDaObra } from "@/components/portal/obra/modelo-da-obra";
 import { clienteDoUsuario, projetoDoCliente } from "@/modules/portal/queries";
 import { modelosDoPortal } from "@/modules/portal/modelo3d/queries";
 import { motivoSemModelo } from "@/modules/portal/modelo3d/regras";
@@ -43,6 +45,8 @@ export default async function ModeloDoPortalPage({
 }) {
   const user = await requireUser();
   if (user.tipo === "interno") redirect("/");
+  // Conta de obra (spec 2026-11-25): só os modelos de Liberado para obra, sem marcação e sem pedido.
+  if (await ehContaObra(user.id)) return <ModeloDaObra user={user} projetoId={(await params).projetoId} searchParams={searchParams} />;
   const cliente = await clienteDoUsuario(user.id);
   if (!cliente || !cliente.ativo) redirect("/portal");
 

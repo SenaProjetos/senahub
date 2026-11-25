@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
+import { ehContaObra } from "@/modules/portal/obra/acesso";
+import { pranchaDaObra } from "@/modules/portal/obra/queries";
 import { pranchaParaPortal } from "@/modules/portal/pedido-revisao/queries";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { VisualizadorPrancha } from "@/components/portal/visualizador/visualizador-prancha";
@@ -12,6 +14,31 @@ export default async function PranchaDoPortalPage({ params }: { params: Promise<
   const user = await requireUser();
   if (user.tipo === "interno") redirect("/");
   const { projetoId, uploadId } = await params;
+  // Conta de obra (spec 2026-11-25): só ver, dar zoom e baixar — sem marcações nem "Pedir revisão".
+  if (await ehContaObra(user.id)) {
+    const daObra = await pranchaDaObra(user, projetoId, uploadId);
+    if (!daObra) notFound();
+    return (
+      <div className="space-y-3">
+        <CabecalhoPagina
+          titulo={daObra.nome}
+          descricao={`${daObra.revisao} · ${daObra.projetoNome}`}
+          trilha={[
+            { label: "Minhas obras", href: "/portal" },
+            { label: daObra.projetoNome, href: `/portal/${projetoId}` },
+            { label: daObra.nome },
+          ]}
+        />
+        <VisualizadorPrancha
+          pdfUrl={`/api/portal/projetos/${projetoId}/arquivos/${uploadId}?disposition=inline`}
+          uploadId={uploadId}
+          calibracoes={[]}
+          leitura={[]}
+          pedir={null}
+        />
+      </div>
+    );
+  }
   const prancha = await pranchaParaPortal(user, projetoId, uploadId);
   if (!prancha) notFound();
 

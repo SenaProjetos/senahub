@@ -10,7 +10,14 @@ import { salvarResumoPorEmail } from "@/modules/portal/resumo-actions";
  * Opção do cliente no rodapé de Meus projetos: receber ou não o e-mail do resumo diário (`notif_portal_resumo`).
  * Desligar só para o e-mail; o aviso no sino do portal continua.
  */
-export function ResumoEmailToggle({ ligado }: { ligado: boolean }) {
+export function ResumoEmailToggle({
+  ligado,
+  rotulo = "Receber por e-mail o resumo dos dias em que um projeto andar",
+}: {
+  ligado: boolean;
+  /** A conta de obra recebe outro resumo (liberadas, substituídas, retiradas). */
+  rotulo?: string;
+}) {
   const [marcado, setMarcado] = useState(ligado);
   const [pendente, startTransition] = useTransition();
 
@@ -31,7 +38,7 @@ export function ResumoEmailToggle({ ligado }: { ligado: boolean }) {
     <div className="flex items-start gap-2 text-sm">
       <Checkbox id="resumo-email" checked={marcado} disabled={pendente} onCheckedChange={(v: boolean) => alternar(v)} />
       <Label htmlFor="resumo-email" className="font-normal leading-snug text-muted-foreground">
-        Receber por e-mail o resumo dos dias em que um projeto andar
+        {rotulo}
       </Label>
     </div>
   );
