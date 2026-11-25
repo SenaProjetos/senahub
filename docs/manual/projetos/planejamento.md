@@ -95,7 +95,7 @@ Se você usa o MS Project, isto será familiar:
 
 ## A tela
 
-De cima para baixo, quatro coisas — o resto fica guardado até você pedir:
+De cima para baixo, cinco coisas — o resto fica guardado até você pedir:
 
 1. **Cabeçalho** (na barra do topo): o código e o nome do projeto, **Nova tarefa** e o **⋯** com o resto das ações
    (Novas tarefas, Exportar Excel/PDF, Gerar EAP das disciplinas, Reagendar, Herdar responsáveis, Aplicar ao
@@ -109,8 +109,10 @@ De cima para baixo, quatro coisas — o resto fica guardado até você pedir:
 3. **Barra de ferramentas** (uma só): a **visão** (**Gantt**, **Controle**, **Variação** e **Indicadores**), **Comparar
    com** (no Controle e no Variação), os **filtros**, o **período**, a **escala**, **Hoje**, recolher/expandir tudo, **Desfazer** e
    **Compacta**.
-4. **Tabela e gráfico**, ocupando o resto da tela (rola por dentro). Selecionou linhas? A barra de estrutura
-   (setas, copiar/colar, excluir) aparece flutuando no pé do quadro.
+4. **Barra de estrutura** (só para quem monta a EAP), numa linha própria logo abaixo: setas, copiar/colar, excluir,
+   quantas linhas estão selecionadas com **Limpar** e, à direita, **Larguras padrão**. Sem seleção, os botões ficam
+   desativados.
+5. **Tabela e gráfico**, ocupando o resto da tela (rola por dentro).
 
 A visão **Indicadores** junta o [Valor Agregado](valor-agregado.md) e o **Plano × real** (alocação planejada × horas
 registradas no ponto, no mês corrente), que antes ficavam embaixo do cronograma.
@@ -413,8 +415,8 @@ linhas, numa área de rolagem só (a tabela fica presa à esquerda e o cabeçalh
   **Variação** as colunas de base aparecem sempre. **✓** marca a linha concluída.
 - **Largura das colunas:** arraste a **borda direita do cabeçalho** de qualquer coluna para alargar ou
   estreitar (mínimo 44 px, máximo 640 px). Com o teclado, foque a borda e use **←** e **→**. **Duplo clique**
-  na borda devolve aquela coluna ao tamanho padrão, e **Larguras padrão** (ao lado de Compacta) devolve
-  todas. A escolha é **sua**: fica guardada na sua conta e vale em qualquer cronograma e no editor de modelo.
+  na borda devolve aquela coluna ao tamanho padrão, e **Larguras padrão** (na barra de estrutura; ao lado de Compacta
+  para quem só vê) devolve todas. A escolha é **sua**: fica guardada na sua conta e vale em qualquer cronograma e no editor de modelo.
 
 ### Datas reais e %: Atualizar tarefa
 

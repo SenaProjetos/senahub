@@ -168,10 +168,10 @@ export type PlanoGanttProps = {
   barraInicio?: ReactNode;
   barraFim?: ReactNode;
   /**
-   * Barra de estrutura da seleção: entra na barra da tela, logo depois dos filtros (antes flutuava no pé do quadro e cobria
-   * a última linha). Fica SEMPRE à vista, com a mesma largura com ou sem seleção: se aparecesse só ao selecionar, a barra da
-   * tela ganharia uma linha no clique, a tabela desceria sob o mouse e o quadro (altura medida uma vez, `useAlturaRestante`)
-   * passaria do pé da tela.
+   * Barra de estrutura da seleção: linha própria logo abaixo da barra da tela, com "Larguras padrão" à direita (mockup do
+   * planejamento, 25/11/2026; antes flutuava no pé do quadro e cobria a última linha). Fica SEMPRE à vista: se aparecesse
+   * só ao selecionar, a tela ganharia uma linha no clique, a tabela desceria sob o mouse e o quadro (altura medida uma vez,
+   * `useAlturaRestante`) passaria do pé da tela.
    */
   barraSelecao?: ReactNode;
   /** O quadro ocupa a altura que sobra na tela e rola por dentro (a partir de `md`); sem isto, até 72% da altura. */
@@ -367,7 +367,7 @@ export function PlanoGantt({
     }
     if (campo === "duracao") return podeEditar && !planoTravado;
     if (campo === "inicio") return podeEditar && !planoTravado;
-    if (campo === "termino") return podeEditar && !planoTravado && !l.t.marco; // marco é uma data só: muda-se o início
+    if (campo === "termino") return podeEditar && !planoTravado; // no marco, início e término são a mesma data
     if (campo === "progresso") return podeEditar && !l.t.marco;
     return podeEditarPred;
   };
@@ -465,7 +465,8 @@ export function PlanoGantt({
       const atual = campo === "inicio" ? t.inicioPrevisto : t.fimPrevisto;
       if (r.dia === atual) return true;
       exibir = dataCurta(r.dia);
-      erro = await onEditarCampo!(t, { campo, data: r.dia });
+      // Marco é uma data só: o término digitado é o início (o mesmo alfinete e o mesmo aviso de "só pode começar em").
+      erro = await onEditarCampo!(t, { campo: t.marco ? "inicio" : campo, data: r.dia });
     } else if (campo === "inicioReal" || campo === "fimReal") {
       // Célula vazia = apagar a data real (reabrir, no término). O resto das regras é do servidor (e de `execucaoDaCelula`).
       let dia: string | null = null;
@@ -1075,17 +1076,17 @@ export function PlanoGantt({
 
   const todosIds = useMemo(() => idsComFilhos(grade), [grade]);
   const temNivel = todosIds.length > 0;
+  const botaoLarguras = temLarguraEscolhida ? (
+    <Button size="sm" variant="ghost" type="button" className="h-7 px-2" onClick={restaurarLarguras} title="Devolve todas as colunas à largura padrão">
+      Larguras padrão
+    </Button>
+  ) : null;
 
   return (
     <div className={cn("min-w-0 space-y-2", className)}>
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
         {barraInicio}
         {filtroIds && <span className="text-xs text-muted-foreground">Mostrando {linhas.length} linha(s), sem os níveis.</span>}
-        {barraSelecao && (
-          // Rola de lado só se não couber nem numa linha inteira (celular). O `py`/`-my` dá lugar ao anel de foco, que a
-          // rolagem cortaria.
-          <div className="-my-0.5 flex min-w-0 max-w-full overflow-x-auto py-0.5">{barraSelecao}</div>
-        )}
         <span className="flex-1" />
         {verDatas && (
           <div className="flex items-center gap-1.5">
@@ -1128,12 +1129,17 @@ export function PlanoGantt({
         >
           Compacta
         </Button>
-        {temLarguraEscolhida && (
-          <Button size="sm" variant="ghost" type="button" onClick={restaurarLarguras} title="Devolve todas as colunas à largura padrão">
-            Larguras padrão
-          </Button>
-        )}
+        {!barraSelecao && botaoLarguras}
       </div>
+      {barraSelecao && (
+        <div className="flex min-w-0 items-center gap-2">
+          {/* Rola de lado só se não couber nem numa linha inteira (celular). O `py`/`-my` dá lugar ao anel de foco, que a
+              rolagem cortaria. */}
+          <div className="-my-0.5 flex min-w-0 max-w-full overflow-x-auto py-0.5">{barraSelecao}</div>
+          <span className="flex-1" />
+          {botaoLarguras}
+        </div>
+      )}
 
       {linhas.length === 0 ? (
         <EmptyState icon={ListTree} title="Nenhuma tarefa para os filtros selecionados" className="py-10" />

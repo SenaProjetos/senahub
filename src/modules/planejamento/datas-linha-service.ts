@@ -14,7 +14,6 @@ import { duracaoPeloTermino, moverRestricoes } from "./datas-linha";
  */
 
 export const MOTIVO_DATA_DE_AGRUPAMENTO = "Agrupamento: o início e o término vêm das tarefas de dentro.";
-export const MOTIVO_MARCO_SEM_TERMINO = "Marco não tem término: ele é uma data só. Mude o início.";
 export const MOTIVO_TERMINO_FIXADO = "Esta linha tem o término fixado por uma restrição. Tire a restrição para mudar o término pela duração.";
 
 async function carregarLinha(id: string) {
@@ -31,10 +30,18 @@ export async function definirInicioDaLinha(p: { id: string; data: Dia }): Promis
   return { projetoId: t.projetoId };
 }
 
-/** O término digitado: a duração em dias úteis do início do MOTOR até a data; não cria restrição. */
+/**
+ * O término digitado: a duração em dias úteis do início do MOTOR até a data; não cria restrição.
+ *
+ * Marco é uma data só (pedido do planejamento, 2026-11-25: o término não pode ser recusado): o término digitado é a
+ * MESMA data do início — vira o alfinete "não iniciar antes de", e a duração segue zero.
+ */
 export async function definirTerminoDaLinha(p: { id: string; data: Dia }): Promise<{ projetoId: string; duracaoDias: number }> {
   const t = await carregarLinha(p.id);
-  if (t.tipoEap === "mrc") throw new ActionError(MOTIVO_MARCO_SEM_TERMINO);
+  if (t.tipoEap === "mrc") {
+    const r = await definirInicioDaLinha(p);
+    return { projetoId: r.projetoId, duracaoDias: 0 };
+  }
   // Restrição de término manda no término (o motor deriva o início dela): mudar a duração não moveria o fim.
   if (t.restricaoTipo?.startsWith("terminar")) throw new ActionError(MOTIVO_TERMINO_FIXADO);
   const plano = await planoDoProjeto(t.projetoId);

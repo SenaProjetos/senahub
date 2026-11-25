@@ -79,7 +79,14 @@ async function main() {
     await prisma.eapTarefa.update({ where: { id: B.id }, data: { restricaoTipo: "terminar_em", restricaoData: d("2026-10-30") } });
     check("término fixado por restrição de término: recusa em vez de gravar duração que o motor ignora", (await erroDe(() => definirTerminoDaLinha({ id: B.id, data: "2026-10-23" }))) === "Esta linha tem o término fixado por uma restrição. Tire a restrição para mudar o término pela duração.");
     await prisma.eapTarefa.update({ where: { id: B.id }, data: { restricaoTipo: null, restricaoData: null } });
-    check("marco não tem término", (await erroDe(() => definirTerminoDaLinha({ id: M.id, data: "2026-10-30" }))) === "Marco não tem término: ele é uma data só. Mude o início.");
+    // Marco é uma data só: o término digitado vira o alfinete do início (pedido do planejamento, 2026-11-25).
+    const tm = await definirTerminoDaLinha({ id: M.id, data: "2026-10-30" });
+    const marcoDepois = await prisma.eapTarefa.findUniqueOrThrow({ where: { id: M.id }, select: { restricaoTipo: true, restricaoData: true, duracaoDias: true } });
+    check(
+      "marco: término digitado = a mesma data, como 'não iniciar antes de', duração zero",
+      tm.duracaoDias === 0 && marcoDepois.restricaoTipo === "iniciar_nao_antes_de" && marcoDepois.restricaoData?.toISOString().slice(0, 10) === "2026-10-30" && Number(marcoDepois.duracaoDias) === 0,
+      marcoDepois,
+    );
     check("agrupamento não tem término nem início editáveis", (await erroDe(() => definirTerminoDaLinha({ id: P.id, data: "2026-10-30" }))) === "Agrupamento: o início e o término vêm das tarefas de dentro." && (await erroDe(() => definirInicioDaLinha({ id: P.id, data: "2026-10-30" }))) === "Agrupamento: o início e o término vêm das tarefas de dentro.");
     check("as recusas não mudaram nada", JSON.stringify([await linha(A.id), await linha(B.id)]) === antes);
     check("linha inexistente", (await erroDe(() => definirInicioDaLinha({ id: "fantasma", data: "2026-10-30" }))) === "Tarefa não encontrada.");

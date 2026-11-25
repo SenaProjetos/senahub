@@ -41,6 +41,13 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   outro superusuário.
 - O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
 
+## Ajustes no cronograma (novembro/2026)
+
+- No cronograma em rascunho, a célula **Término** do marco agora pode ser editada. Como o marco é uma data só, o
+  término digitado vira também o início (com o alfinete de **data fixada**), igual a digitar o início.
+- A barra de estrutura (recuar, avançar, mover, copiar, colar, excluir) ganhou uma linha própria, logo abaixo da barra
+  de ferramentas, com quantas linhas estão selecionadas e, à direita, **Larguras padrão**.
+
 ## Conflito de recurso no planejamento (novembro/2026)
 
 - A faixa do cronograma mostra **"N conflitos de recurso"** quando alguém com horas neste projeto passa da capacidade
