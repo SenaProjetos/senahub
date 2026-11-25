@@ -20,6 +20,17 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Conta de obra no portal (novembro/2026)
+
+- A construtora ou o engenheiro da obra (ou alguém do cliente que cuida só da obra) agora pode ter **login próprio no
+  portal**. A conta de obra vê **só a pasta "Liberado para obra"** das obras marcadas — sempre na revisão que vale —, as
+  ARTs e o **modelo 3D** liberado, para ver e baixar. Nada de financeiro, contratos, conversa ou da pasta Compartilhado.
+- Crie em **Configurações → Usuários → Nova pessoa**, tipo de acesso **Obra**: empresa, obras (podem ser de clientes
+  diferentes) e, se quiser, **Acesso até** o fim da obra. Tirar uma obra da lista corta o acesso na hora.
+- Quem baixou e quem viu cada prancha fica no histórico do documento. Na aba **Cliente** do projeto, a seção **Acesso de
+  obra** mostra quem tem acesso e o último acesso.
+- A pessoa de obra recebe de manhã um **resumo** quando uma prancha foi liberada, substituída ou retirada de obra.
+
 ## Recesso em período nos feriados (novembro/2026)
 
 - Em **Configurações → Feriados**, o campo **Quando** ganhou **Período (recesso)**: informe de quando até quando e o

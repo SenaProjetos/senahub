@@ -262,6 +262,47 @@ tempo** — e o botão **Abrir no portal**. Dia sem novidade não manda nada. O 
   entrega prevista para daqui a uma semana e entrega com a previsão alterada (com a nota da coordenação, se houver). Se a
   coordenação mexer na previsão várias vezes no mesmo dia, o cliente recebe só o resultado final.
 
+## Conta de obra
+
+Para quem **executa a obra** — a construtora, o engenheiro contratado ou alguém do próprio cliente que cuida só da obra —
+o escritório cria uma **conta de obra**. Ela entra no mesmo portal, mas vê **só a pasta "Liberado para obra"** das obras
+marcadas na conta, sempre na revisão vigente. Nada de financeiro, contratos, conversa, atas, agenda, briefing,
+aprovações, andamento, pedidos ou a pasta Compartilhado.
+
+**O que a pessoa de obra vê**
+
+- **Minhas obras**: um cartão por obra, com código, endereço, quantas pranchas estão liberadas e a data da última
+  liberação. Pode ter obras de clientes diferentes.
+- **A obra**: a pasta **Liberado para obra** (disciplinas, fases e arquivos), com **Ver**, **Baixar**, **Baixar tudo
+  (.zip)** e as ARTs. Revisão com bloqueio de download não sai para baixar.
+- **Prancha**: o visualizador só para ver, dar zoom e baixar — sem marcações e sem pedir revisão.
+- **Modelo 3D**: só os modelos IFC liberados para obra, com navegação e o modo andar. Os arquivos que o cliente enviou
+  não aparecem.
+- Cada visualização e download fica no **histórico do documento**, com o nome da pessoa: o escritório sabe quem pegou
+  o quê.
+
+**Como criar e manter (equipe)**
+
+1. **Configurações → Usuários → Nova pessoa**, tipo de acesso **Obra**.
+2. Preencha **Empresa** (aparece no selo "Obra · Empresa" da lista), **É do cliente** (deixe "Não — empresa de fora"
+   para construtora; escolha o cliente quando a pessoa é do próprio cliente — aí só obras dele entram), as **Obras** e,
+   se quiser, **Acesso até** (o fim da obra: no dia seguinte a pessoa não entra mais).
+3. A conta nasce com senha temporária; no primeiro acesso a pessoa troca a senha e aceita o **termo de uso de obra**.
+
+- **Tirar uma obra da lista** corta o acesso a ela na hora. **Desativar** a conta corta tudo.
+- Conta desligada porque o **Acesso até** venceu volta a valer quando você grava uma data nova (de hoje em diante).
+- A conta de obra **não tem perfil de acesso nem permissões** — de propósito. Não dá para trocar uma conta entre
+  Cliente e Obra: crie outra.
+- Na aba **Cliente** do projeto, a seção **Acesso de obra** mostra quem tem conta de obra com aquele projeto, a empresa,
+  o "Acesso até" e o último acesso.
+
+**Resumo diário de obra**
+
+Quando algo muda na pasta Liberado para obra, a pessoa de obra recebe às 7h do dia seguinte um e-mail (um por obra) e o
+aviso no sino, com três tipos de linha: **liberada para obra**, **substituída** (R00 → R01 no mesmo dia) e **retirada de
+obra**. Para não receber o e-mail, desmarque a opção no rodapé de **Minhas obras**. O resumo de obra liga e desliga junto
+com o do cliente em Configurações → **Portal do cliente**.
+
 ## Financeiro
 
 No menu **Financeiro** o cliente vê as parcelas que paga ao escritório, **só valores e datas** — sem nota
