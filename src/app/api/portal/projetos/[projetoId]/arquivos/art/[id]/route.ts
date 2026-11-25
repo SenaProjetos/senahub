@@ -1,18 +1,18 @@
 import { NextResponse } from "next/server";
 import { contentDisposition } from "@/modules/projetos/arquivos/link-publico-regras";
 import { artLiberadaNoAlcance } from "@/modules/projetos/arquivos/link-publico";
-import { acessoAoProjetoDoPortal } from "@/modules/portal/acesso";
+import { acessoAosArquivosDoPortal } from "@/modules/portal/acesso";
 import { arquivoParaStream } from "@/lib/storage";
 import { logAudit, getClientIp } from "@/lib/audit";
 
 /**
  * Download do PDF de uma ART do projeto pelo portal do cliente. Espelha `/api/p/arquivos/[token]/art/[id]`:
- * `acessoAoProjetoDoPortal` decide se a pessoa entra e `artLiberadaNoAlcance` resolve a ART vigente ou uma
+ * `acessoAosArquivosDoPortal` decide se a pessoa entra e `artLiberadaNoAlcance` resolve a ART vigente ou uma
  * versão histórica dentro do projeto.
  */
 export async function GET(req: Request, ctx: { params: Promise<{ projetoId: string; id: string }> }) {
   const { projetoId, id } = await ctx.params;
-  const acesso = await acessoAoProjetoDoPortal(projetoId);
+  const acesso = await acessoAosArquivosDoPortal(projetoId);
   if (!acesso.ok) return NextResponse.json({ error: acesso.erro }, { status: acesso.status });
 
   const art = await artLiberadaNoAlcance(acesso.alcance, id);

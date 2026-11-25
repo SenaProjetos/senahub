@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { contentDisposition } from "@/modules/projetos/arquivos/link-publico-regras";
 import { uploadsDoAlcanceParaZip } from "@/modules/projetos/arquivos/link-publico";
-import { acessoAoProjetoDoPortal } from "@/modules/portal/acesso";
+import { acessoAosArquivosDoPortal } from "@/modules/portal/acesso";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 import { prisma } from "@/lib/prisma";
 import { resolverCaminho, separarPorExistencia } from "@/lib/storage";
@@ -12,12 +12,12 @@ import { registrarAcessoUploads } from "@/modules/uploads/historico/service";
 /**
  * Download (.zip) das entregas de um projeto pelo portal do cliente. Espelha
  * `/api/p/arquivos/[token]/zip`, com login no lugar do token: quem decide se a pessoa entra é
- * `acessoAoProjetoDoPortal` (cliente do projeto, termo aceito, senha em dia) e o conteúdo é o MESMO núcleo
+ * `acessoAosArquivosDoPortal` (cliente do projeto, termo aceito, senha em dia) e o conteúdo é o MESMO núcleo
  * do link (`uploadsDoAlcanceParaZip` com o alcance do portal). Os parâmetros só recortam uma pasta.
  */
 export async function GET(req: Request, ctx: { params: Promise<{ projetoId: string }> }) {
   const { projetoId } = await ctx.params;
-  const acesso = await acessoAoProjetoDoPortal(projetoId);
+  const acesso = await acessoAosArquivosDoPortal(projetoId);
   if (!acesso.ok) return NextResponse.json({ error: acesso.erro }, { status: acesso.status });
   const sp = new URL(req.url).searchParams;
   const disciplinaId = sp.get("disciplinaId") ?? undefined;

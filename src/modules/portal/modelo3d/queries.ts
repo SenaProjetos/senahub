@@ -6,7 +6,7 @@ import { recebidosDoProjeto } from "@/modules/documentos-cliente/queries";
 import { conteudoDoAlcanceSemSelos } from "@/modules/projetos/arquivos/link-publico";
 import type { AlcanceArquivos } from "@/modules/projetos/arquivos/link-publico-regras";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
-import { acessoDoUsuarioAoProjetoDoPortal, type UsuarioDaSessao } from "../acesso";
+import { acessoDoUsuarioAoProjetoDoPortal, acessoDoUsuarioAosArquivosDoPortal, type UsuarioDaSessao } from "../acesso";
 import { modeloServidoDaOrigem, versaoIfcDoRecebido, type UploadDaCadeia } from "./regras";
 
 export type ModeloDoPortal = {
@@ -89,8 +89,27 @@ async function cadeiaDasDisciplinas(disciplinaIds: string[]): Promise<UploadDaCa
 export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string): Promise<ModeloDoPortal[] | null> {
   const acesso = await acessoDoUsuarioAoProjetoDoPortal(user, projetoId);
   if (!acesso.ok) return null;
+  return modelosDoAlcance(projetoId, acesso.alcance, { incluirRecebidos: true });
+}
 
-  const entregas = await ifcsDasEntregas(acesso.alcance);
+/**
+ * Os modelos que a pessoa VÊ no portal, pela porta dos arquivos (`acessoDoUsuarioAosArquivosDoPortal`): o cliente vê o mesmo de
+ * `modelosDoPortal`; a conta de obra (spec 2026-11-25) só os IFCs de "Liberado para obra", nunca os que o cliente enviou. É a
+ * lista da tela da obra e a regra da rota `.frag` (`modeloPermitidoNoPortal`). O pedido de revisão no 3D continua em
+ * `modelosDoPortal` (só cliente).
+ */
+export async function modelosParaVerNoPortal(user: UsuarioDaSessao, projetoId: string): Promise<ModeloDoPortal[] | null> {
+  const acesso = await acessoDoUsuarioAosArquivosDoPortal(user, projetoId);
+  if (!acesso.ok) return null;
+  return modelosDoAlcance(projetoId, acesso.alcance, { incluirRecebidos: acesso.papel === "cliente" });
+}
+
+async function modelosDoAlcance(
+  projetoId: string,
+  alcance: AlcanceArquivos,
+  o: { incluirRecebidos: boolean },
+): Promise<ModeloDoPortal[]> {
+  const entregas = await ifcsDasEntregas(alcance);
   const bloqueados = await uploadsComBloqueioDeDownload(prisma, entregas.map((e) => e.id));
   const liberados = entregas.filter((e) => !bloqueados.has(e.id));
 
@@ -118,6 +137,7 @@ export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string):
     };
   });
 
+  if (!o.incluirRecebidos) return modelos;
   // A versão servida de cada recebido depende de quais já converteram: lê as conversões de TODAS as versões IFC.
   const documentos = await recebidosDoProjeto(projetoId);
   const versoesIfc = documentos.flatMap((d) => d.versoes.filter((v) => ehIfc(v.nomeArquivo)).map((v) => v.id));
@@ -150,7 +170,7 @@ export async function modelosDoPortal(user: UsuarioDaSessao, projetoId: string):
 }
 
 /**
- * A regra da rota `.frag` do portal: o modelo pedido é um dos que `modelosDoPortal` devolve PRONTO para esta pessoa —
+ * A regra da rota `.frag` do portal: o modelo pedido é um dos que `modelosParaVerNoPortal` devolve PRONTO para esta pessoa (cliente ou obra) —
  * a mesma lista da tela, nunca uma regra paralela. Assim um realinhado antigo (substituído por outro mais novo), a
  * origem quando já há realinhado servido, a versão IFC antiga de um recebido, a lixeira, o compartilhamento revogado,
  * o bloqueio de download, outro projeto ou outro cliente dão 404. `origemUploadId` = o IFC das Entregas de que o modelo
@@ -161,7 +181,7 @@ export async function modeloPermitidoNoPortal(
   projetoId: string,
   modeloId: string,
 ): Promise<{ caminhoFrag: string; concluidoEm: Date | null; origemUploadId: string | null } | null> {
-  const modelos = await modelosDoPortal(user, projetoId);
+  const modelos = await modelosParaVerNoPortal(user, projetoId);
   const modelo = modelos?.find((m) => m.modeloId === modeloId && m.situacao === "pronto");
   if (!modelo) return null;
   const ref = parseModeloId(modelo.modeloId);
