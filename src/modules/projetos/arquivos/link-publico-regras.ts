@@ -18,6 +18,7 @@
  * a dedo por alguém de dentro, e essa escolha vence as regras (a lixeira continua fora
  * — arquivo na lixeira é purgado em 30 dias e viraria link quebrado).
  */
+import { SITUACOES, type Situacao } from "@/modules/uploads/revisao-marcada";
 
 export type UploadParaLink = {
   id: string;
@@ -165,7 +166,17 @@ export type AlcanceArquivos = {
   titulo: string | null;
   /** Link de onde veio; null = portal. Vai para o histórico de acessos. */
   linkId: string | null;
+  /**
+   * Pastas do cliente que o alcance mostra (só vale com `porSituacao`). Link e portal do cliente: as duas; conta de obra:
+   * só "Liberado para obra". A página, o download direto e o .zip filtram por aqui — nunca divergem.
+   */
+  situacoes: Situacao[];
 };
+
+/** O alcance mostra esta pasta do cliente? */
+export function situacaoNoAlcance(alcance: Pick<AlcanceArquivos, "situacoes">, s: Situacao): boolean {
+  return alcance.situacoes.includes(s);
+}
 
 /**
  * Alcance do portal do cliente: exatamente um link "projeto todo, por situação" do projeto, com
@@ -184,7 +195,16 @@ export function alcanceDoPortal(projeto: { id: string; codigo: string; nome: str
     agruparPorFase: true,
     titulo: null,
     linkId: null,
+    situacoes: [...SITUACOES],
   };
+}
+
+/**
+ * Alcance da conta de obra (spec 2026-11-25): o mesmo do portal, só com a pasta "Liberado para obra" — um arquivo que está
+ * só em Compartilhado dá 404 para a obra, mesmo com a URL na mão.
+ */
+export function alcanceDaObra(projeto: { id: string; codigo: string; nome: string }): AlcanceArquivos {
+  return { ...alcanceDoPortal(projeto), situacoes: ["liberado_obra"] };
 }
 
 /**

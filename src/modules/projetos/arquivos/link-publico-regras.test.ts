@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   abreNoNavegador,
+  alcanceDaObra,
   alcanceDoPortal,
+  situacaoNoAlcance,
   conteudoTemZip,
   contentDisposition,
   contentTypeDoDownload,
@@ -247,7 +249,22 @@ describe("alcanceDoPortal", () => {
       agruparPorFase: true,
       titulo: null,
       linkId: null,
+      situacoes: ["compartilhado", "liberado_obra"],
     });
+  });
+});
+
+describe("alcanceDaObra", () => {
+  const p = { id: "p1", codigo: "2026-001", nome: "Ed. X" };
+
+  it("é o alcance do portal só com a pasta Liberado para obra", () => {
+    expect(alcanceDaObra(p)).toEqual({ ...alcanceDoPortal(p), situacoes: ["liberado_obra"] });
+  });
+
+  it("situacaoNoAlcance: a obra não vê Compartilhado; o portal vê as duas", () => {
+    expect(situacaoNoAlcance(alcanceDaObra(p), "compartilhado")).toBe(false);
+    expect(situacaoNoAlcance(alcanceDaObra(p), "liberado_obra")).toBe(true);
+    expect(situacaoNoAlcance(alcanceDoPortal(p), "compartilhado")).toBe(true);
   });
 });
 

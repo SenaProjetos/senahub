@@ -7,6 +7,7 @@ import {
   faseLiberada,
   filtrarPorFases,
   recortarParaLinkPublico,
+  situacaoNoAlcance,
   situacoesDoUpload,
   type AlcanceArquivos,
   type UploadParaSituacao,
@@ -442,6 +443,7 @@ async function alcanceDoToken(token: string): Promise<AlcanceArquivos | null> {
     agruparPorFase: link.agruparPorFase,
     titulo: link.nome ?? null,
     linkId: link.id,
+    situacoes: [...SITUACOES],
   };
 }
 
@@ -522,7 +524,7 @@ async function montarConteudo(link: AlcanceArquivos): Promise<ConteudoPublico | 
       carregarExtensoesNomenclatura(),
       artsPublicasDoLink(link.projetoId, disciplinaIds),
     ]);
-    const situacoes = SITUACOES.map((situacao): SituacaoPublica => {
+    const situacoes = link.situacoes.map((situacao): SituacaoPublica => {
       const naPasta = disciplinas
         .map((d) =>
           emPastas(
@@ -653,7 +655,7 @@ export async function uploadLiberadoNoAlcance(link: AlcanceArquivos, uploadId: s
       where: { id: uploadId, validado: true, excluidoEm: null, disciplinaId: { in: disciplinaIds } },
       select: { ...servivel, ...SELECT_SITUACAO },
     });
-    if (!u || situacoesDoUpload(paraSituacao(u)).length === 0) return null;
+    if (!u || !situacoesDoUpload(paraSituacao(u)).some((s) => situacaoNoAlcance(link, s))) return null;
     if (!faseLiberada(u.documento?.fase?.id ?? null, link)) return null;
     return { id: u.id, nomeArquivo: u.nomeArquivo, caminho: u.caminho, mimeType: u.mimeType };
   }
@@ -786,7 +788,7 @@ export async function uploadsDoAlcanceParaZip(link: AlcanceArquivos, recorte: Re
 
   if (link.porSituacao) {
     const situacaoAlvo = recorte.situacao ? situacaoValida(recorte.situacao) : null;
-    if (recorte.situacao && !situacaoAlvo) return null;
+    if (recorte.situacao && (!situacaoAlvo || !situacaoNoAlcance(link, situacaoAlvo))) return null;
     const disciplinas = await prisma.disciplina.findMany({
       where: { id: { in: alvo } },
       orderBy: { ordem: "asc" },
@@ -801,7 +803,7 @@ export async function uploadsDoAlcanceParaZip(link: AlcanceArquivos, recorte: Re
     });
     // O .zip espelha a página: "Compartilhado/Estrutural/EX/PDF/arquivo". Arquivo marcado nas duas
     // pastas vai nas duas, como aparece nas duas.
-    const entradas = (situacaoAlvo ? [situacaoAlvo] : SITUACOES).flatMap((situacao) =>
+    const entradas = (situacaoAlvo ? [situacaoAlvo] : link.situacoes).flatMap((situacao) =>
       disciplinas.flatMap((d) =>
         entradasEmPastas(
           filtrarPorFases(
