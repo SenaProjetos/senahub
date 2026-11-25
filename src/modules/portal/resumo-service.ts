@@ -15,9 +15,12 @@ import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
 import { andamentoDoPortal } from "./andamento-queries";
 import { conferirPrevisoes } from "./agenda/conferencia";
 import { itensDoResumoDaAgenda } from "./agenda/queries";
+import { liberarAvisoPortal as liberar, reservarAvisoPortal as reservar } from "./resumo-reserva";
+import { resumirObras } from "./obra/resumo-service";
 import {
   CHAVE_CONFIG_RESUMO,
   diasParaAvaliar,
+  fimDoDiaSp,
   itensDosDias,
   listaEmMarkdown,
   normalizarConfigResumo,
@@ -42,11 +45,12 @@ export type ResultadoResumo = {
   semEmail: number;
   optOut: number;
   falhas: number;
+  /** Obras com conta de obra avaliadas (resumo de obra, spec 2026-11-25). */
+  obras: number;
 };
 
 /** Categoria da preferência do cliente (`notif_portal_resumo`): só desliga o E-MAIL — o sino é dentro do portal. */
 export const CATEGORIA_RESUMO = "portal_resumo";
-type Canal = "email" | "sino";
 
 export async function getConfigResumo(): Promise<ConfigResumo> {
   const c = await prisma.configSistema.findUnique({ where: { chave: CHAVE_CONFIG_RESUMO } });
@@ -62,29 +66,6 @@ export async function salvarConfigResumo(c: ConfigResumo): Promise<void> {
   });
 }
 
-const dataDoDia = (d: string) => new Date(`${d}T00:00:00.000Z`);
-/** Fim do dia `d` em São Paulo (UTC−3, sem horário de verão): meia-noite do dia seguinte = 03:00Z. */
-const fimDoDiaSp = (d: string) => new Date(`${somarDiasIso(d, 1)}T03:00:00.000Z`);
-
-/**
- * Reserva uma linha por dia e devolve os dias que ficaram com ESTA rodada. Dia já reservado (P2002 — outra rodada,
- * ou uma rodada anterior que caiu no meio) fica de fora sem segurar os outros: o dia novo sai mesmo assim.
- * Queda do processo entre a reserva e o envio perde aquele envio (uma vez, sem repetir) — escolha consciente.
- */
-async function reservar(userId: string, projetoId: string, dias: readonly string[], canal: Canal): Promise<string[]> {
-  const meus: string[] = [];
-  for (const d of dias) {
-    try {
-      await prisma.avisoPortalEnviado.create({ data: { userId, projetoId, dia: dataDoDia(d), canal } });
-      meus.push(d);
-    } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue;
-      throw e;
-    }
-  }
-  return meus;
-}
-
 const soDosDias = <T>(porDia: ReadonlyMap<string, T>, dias: readonly string[]) => new Map([...porDia].filter(([d]) => dias.includes(d)));
 
 /** Opção do cliente em Meus projetos: grava SÓ `notif_portal_resumo` (as outras preferências ficam como estão). */
@@ -98,11 +79,6 @@ export async function definirResumoPorEmail(userId: string, quer: boolean): Prom
   });
 }
 
-async function liberar(userId: string, projetoId: string, dias: readonly string[], canal: Canal): Promise<void> {
-  if (dias.length === 0) return;
-  await prisma.avisoPortalEnviado.deleteMany({ where: { userId, projetoId, canal, dia: { in: dias.map(dataDoDia) } } });
-}
-
 const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? "";
 
 /**
@@ -112,12 +88,14 @@ const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? "";
 export async function rodarResumoDiario(o: {
   hoje?: string;
   enviar: EnviarEmailResumo | null;
+  /** E-mail do resumo de OBRA (template próprio). Ausente/null = só o sino para as contas de obra. */
+  enviarObra?: EnviarEmailResumo | null;
   notificar: NotificarSino;
   somenteProjetos?: string[];
 }): Promise<ResultadoResumo> {
   const hoje = o.hoje ?? diaDeSaoPaulo();
   const ontem = somarDiasIso(hoje, -1);
-  const r: ResultadoResumo = { dias: [], projetos: 0, emails: 0, sinos: 0, duplicados: 0, semEmail: 0, optOut: 0, falhas: 0 };
+  const r: ResultadoResumo = { dias: [], projetos: 0, emails: 0, sinos: 0, duplicados: 0, semEmail: 0, optOut: 0, falhas: 0, obras: 0 };
 
   let cfg = await getConfigResumo();
   if (!cfg.ativo) return r;
@@ -160,6 +138,13 @@ export async function rodarResumoDiario(o: {
       console.error(`[portal] resumo diário: projeto ${p.codigo} falhou:`, e);
     }
   }
+
+  // Contas de obra: outro resumo (liberadas, substituídas, retiradas), nos mesmos dias. Elas não têm cliente, então nunca
+  // entram no resumo do cliente acima. Uma falha aqui não derruba a rodada.
+  await resumirObras(r, { enviar: o.enviarObra ?? null, notificar: o.notificar, somenteProjetos: o.somenteProjetos }, app).catch((e: unknown) => {
+    r.falhas += 1;
+    console.error("[portal] resumo de obra falhou:", e);
+  });
 
   // Só no fim: rodada que cai no meio é refeita, e as reservas impedem o duplicado. Relê a configuração e mexe só
   // em `ultimoDia`: quem desligou durante a rodada não é desfeito.

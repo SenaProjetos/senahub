@@ -35,6 +35,11 @@ export function somarDiasIso(dia: string, n: number): string {
   return new Date(Date.UTC(a, m - 1, d + n)).toISOString().slice(0, 10);
 }
 
+/** Fim do dia `d` em São Paulo (UTC−3, sem horário de verão): meia-noite do dia seguinte = 03:00Z. */
+export function fimDoDiaSp(d: string): Date {
+  return new Date(`${somarDiasIso(d, 1)}T03:00:00.000Z`);
+}
+
 const maior = (a: string, b: string) => (a > b ? a : b);
 
 /** Dias de `max(desde, ultimoDia + 1, hoje − limite)` até ontem, em ordem. */

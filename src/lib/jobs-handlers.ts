@@ -246,11 +246,12 @@ export async function alertaCobrancaCliente(): Promise<number> {
 export async function resumoDiarioPortal(): Promise<void> {
   const r = await rodarResumoDiario({
     enviar: smtpConfigurado() ? (para, vars) => enviarEmailTemplate(para, "resumo-andamento-portal", vars) : null,
+    enviarObra: smtpConfigurado() ? (para, vars) => enviarEmailTemplate(para, "resumo-obra-portal", vars) : null,
     notificar: (id, n) => notificar(id, n, { push: false }),
   });
   if (r.emails + r.sinos + r.duplicados + r.falhas > 0) {
     console.log(
-      `[portal] resumo diário dias=${r.dias.join(",")} e-mails=${r.emails} sinos=${r.sinos} duplicados=${r.duplicados} sem-email=${r.semEmail} opt-out=${r.optOut} falhas=${r.falhas}`,
+      `[portal] resumo diário dias=${r.dias.join(",")} obras=${r.obras} e-mails=${r.emails} sinos=${r.sinos} duplicados=${r.duplicados} sem-email=${r.semEmail} opt-out=${r.optOut} falhas=${r.falhas}`,
     );
   }
 }

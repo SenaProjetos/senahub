@@ -272,6 +272,38 @@ Para não receber mais este resumo, desligue em Meus projetos, no portal.
 Sena Projetos`,
   },
   {
+    slug: "resumo-obra-portal",
+    grupo: "Projetos",
+    label: "Resumo diário do portal (obra)",
+    descricao:
+      "Enviado às 7h a cada conta de obra do portal, um por obra, só quando algo foi liberado, substituído ou retirado da pasta Liberado para obra no dia anterior. Ligado e desligado junto com o resumo do cliente em Configurações → Portal do cliente; a pessoa pode desligar em Minhas obras.",
+    variaveis: [
+      { nome: "nome", descricao: "Primeiro nome da conta de obra", exemplo: "João" },
+      { nome: "projeto", descricao: "Nome da obra (projeto)", exemplo: "Residencial Villa Verde" },
+      { nome: "periodo", descricao: "Dia (ou dias, se o servidor ficou fora) do resumo", exemplo: "18/11/2026" },
+      {
+        nome: "lista",
+        descricao: "O que mudou na pasta Liberado para obra, uma linha por prancha. Montada pelo sistema.",
+        exemplo: "- **Estrutural** · EST-01.pdf · substituída: R00 → R01\n- **Hidráulica** · HID-03.pdf · liberada para obra (R00)",
+      },
+      { nome: "url", descricao: "Link da obra no portal", exemplo: "https://app/portal/abc" },
+    ],
+    assuntoPadrao: "Novidades na obra {{projeto}} — {{periodo}}",
+    corpoPadrao: `Olá, {{nome}}.
+
+Em {{periodo}}, mudou o que está liberado para obra em **{{projeto}}**:
+
+{{lista}}
+
+A prancha que vale é sempre a do portal; cópias baixadas antes podem estar desatualizadas.
+
+[Abrir no portal]({{url}})
+
+Para não receber mais este resumo, desligue em Minhas obras, no portal.
+
+Sena Projetos`,
+  },
+  {
     slug: "pedido-revisao-respondido",
     grupo: "Projetos",
     label: "Resposta ao pedido de revisão (cliente)",
