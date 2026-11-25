@@ -101,6 +101,7 @@
     "smoke:portal-aprovacao-entrega": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-aprovacao-entrega.ts",
     "smoke:portal-atas": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-atas.ts",
     "smoke:portal-agenda": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-agenda.ts",
+    "smoke:portal-obra": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-obra.ts",
     "smoke:portal-modelo3d": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-modelo3d.ts",
     "smoke:portal-financeiro": "tsx --tsconfig tsconfig.server.json scripts/smoke-portal-financeiro.ts",
     "smoke:vinculo-projeto-ficha": "tsx --tsconfig tsconfig.server.json scripts/smoke-vinculo-projeto-ficha.ts",
