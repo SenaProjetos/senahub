@@ -14,6 +14,17 @@ export async function termoVigente(tipo: TipoTermo): Promise<Termo> {
 }
 
 /**
+ * Termo aplicável à pessoa: equipe = colaborador; externo = cliente, ou obra quando a conta tem `ContaObra` (spec
+ * 2026-11-25). Ponto único: layout, `/termo`, rotas de download e a ação de aceite passam por aqui. Só o externo custa
+ * uma leitura a mais.
+ */
+export async function tipoTermoDoUsuario(user: { id: string; tipo: "interno" | "externo" }): Promise<TipoTermo> {
+  if (user.tipo !== "externo") return tipoTermoPorTipo(user.tipo);
+  const obra = await prisma.contaObra.findUnique({ where: { userId: user.id }, select: { id: true } });
+  return tipoTermoPorTipo(user.tipo, obra !== null);
+}
+
+/**
  * Verifica se o usuário ainda precisa aceitar a versão vigente do Termo aplicável
  * ao seu perfil. Retorna `null` se já aceitou (acesso liberado), ou `{ tipo, versao }`
  * pendente. Uma única leitura por chave única — barata para rodar no layout.
@@ -22,7 +33,7 @@ export async function precisaAceitarTermo(user: {
   id: string;
   tipo: "interno" | "externo";
 }): Promise<{ tipo: TipoTermo; versao: string } | null> {
-  const tipo = tipoTermoPorTipo(user.tipo);
+  const tipo = await tipoTermoDoUsuario(user);
   const versao = TERMOS[tipo].versao;
   const ja = await prisma.aceiteTermo.findUnique({
     where: { userId_tipo_versao: { userId: user.id, tipo, versao } },

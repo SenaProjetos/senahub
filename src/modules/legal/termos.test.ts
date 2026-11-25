@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TERMOS, tipoTermoPorTipo } from "./termos";
+import { TERMOS, preencherTermo, tipoTermoPorTipo } from "./termos";
 
 describe("tipoTermoPorTipo", () => {
   it("externo (cliente do portal) aceita o termo de cliente", () => {
@@ -34,5 +34,39 @@ describe("TERMOS", () => {
       const termo = TERMOS[tipo];
       expect(termo.conteudo).toContain(`Versão ${termo.versao}`);
     }
+  });
+});
+
+describe("termo de obra", () => {
+  it("externo com conta de obra aceita o termo de obra; interno nunca", () => {
+    expect(tipoTermoPorTipo("externo", true)).toBe("obra");
+    expect(tipoTermoPorTipo("interno", true)).toBe("colaborador");
+    expect(tipoTermoPorTipo("externo", false)).toBe("cliente");
+  });
+
+  it("versão 2026-11-25, declarada no texto", () => {
+    expect(TERMOS.obra.versao).toBe("2026-11-25");
+    expect(TERMOS.obra.conteudo).toContain("Versão 2026-11-25");
+    expect(TERMOS.obra.conteudo.length).toBeGreaterThan(500);
+  });
+
+  it("diz para que serve o acesso, que é pessoal e que a prancha vale na revisão vigente", () => {
+    const t = TERMOS.obra.conteudo;
+    expect(t).toContain("executar a obra");
+    expect(t).toContain("intransferível");
+    expect(t).toContain("revisão vigente");
+  });
+
+  it("os marcadores da empresa são preenchidos como nos outros termos", () => {
+    const empresa = {
+      razaoSocial: "Sena Projetos Ltda",
+      cnpj: "00.000.000/0001-00",
+      endereco: "Rua X, 1 — Recife/PE",
+      encarregadoDados: "dpo@exemplo.com",
+      foro: "Recife/PE",
+    };
+    const t = preencherTermo(TERMOS.obra, empresa).conteudo;
+    expect(t).not.toMatch(/\[(RAZÃO SOCIAL COMPLETA|CNPJ|ENDEREÇO[^\]]*|NOME\/E-MAIL DO ENCARREGADO \(DPO\)|COMARCA[^\]]*)\]/);
+    expect(t).toContain("Sena Projetos Ltda");
   });
 });
