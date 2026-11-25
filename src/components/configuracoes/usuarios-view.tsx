@@ -92,6 +92,9 @@ import {
   type UsuarioParaAcoes,
 } from "@/modules/usuarios/acoes";
 import { acessoBloqueado } from "@/modules/usuarios/vinculo/desligamento";
+import { criarContaObra, salvarContaObra } from "@/modules/portal/obra/actions";
+import type { ProjetoParaContaObra } from "@/modules/portal/obra/queries";
+import { ContaObraCampos, type CamposContaObra } from "@/components/configuracoes/conta-obra-campos";
 
 /** O que o descritor de ações precisa de um usuário da lista. */
 function paraAcoes(u: UsuarioListItem): UsuarioParaAcoes {
@@ -128,6 +131,11 @@ type FormState = {
   /** Só leitura, do vínculo ativo — esta tela não grava vínculo. */
   setor: Setor | null;
   contratacao: Contratacao | null;
+  /** Conta de obra (spec 2026-11-25): externo sem cliente e sem perfil, com a lista de obras. */
+  obra: boolean;
+  camposObra: CamposContaObra;
+  /** `ContaObra.updatedAt` lido — trava otimista ao salvar. */
+  versaoObra: string;
 };
 
 const EMPTY: FormState = {
@@ -135,7 +143,11 @@ const EMPTY: FormState = {
   contratacaoNova: "clt", setorNovo: "engenharia",
   cpf: "", telefone: "", cargoId: "", dataAdmissao: "", salarioBase: null, pjId: "", onboardingTemplateId: "",
   perfilId: "", superUsuario: false, ativo: true, setor: null, contratacao: null,
+  obra: false, camposObra: { empresa: "", clienteId: "", projetoIds: [], acessoAte: "" }, versaoObra: "",
 };
+
+/** Tipo de acesso escolhido na criação: equipe, cliente do portal ou conta de obra. */
+type TipoDeAcesso = "interno" | "externo" | "obra";
 
 /**
  * Traduz o resumo puro (`resumirAcesso`) para a tela. Só apresentação — nenhuma regra de acesso
@@ -180,9 +192,12 @@ export function UsuariosView({
   podeExcluir,
   ehAdmin,
   emailDoSistema,
+  projetosObra,
 }: {
   usuarios: UsuarioListItem[];
   clientes: { id: string; nome: string }[];
+  /** Projetos que podem entrar na lista de uma conta de obra. */
+  projetosObra: ProjetoParaContaObra[];
   pedidos: PedidoCadastro[];
   pessoasJuridicas: { id: string; label: string }[];
   templates: { id: string; nome: string }[];
@@ -294,6 +309,24 @@ export function UsuariosView({
   function salvar() {
     if (!form) return;
     startTransition(async () => {
+      // Conta de obra: ações próprias (nunca `criarUsuario`/`editarUsuario`, que dariam perfil e cliente).
+      if (form.obra) {
+        const campos = { name: form.name, ...form.camposObra };
+        if (form.id) {
+          const res = await salvarContaObra({ ...campos, userId: form.id, versao: form.versaoObra });
+          if (res.ok) {
+            toast.success(res.data.reativada ? "Conta de obra atualizada e reativada." : "Conta de obra atualizada.");
+            setForm(null);
+          } else toast.error(res.error);
+        } else {
+          const res = await criarContaObra({ ...campos, email: form.email });
+          if (res.ok) {
+            setForm(null);
+            setCredencial({ email: res.data.email, senha: res.data.senhaTemporaria });
+          } else toast.error(res.error);
+        }
+        return;
+      }
       if (form.id) {
         const res = await editarUsuario({
           id: form.id,
@@ -380,8 +413,31 @@ export function UsuariosView({
       ativo: u.ativo,
       setor: u.setor,
       contratacao: u.contratacao,
+      obra: !!u.contaObra,
+      camposObra: u.contaObra
+        ? {
+            empresa: u.contaObra.empresa,
+            clienteId: u.contaObra.clienteId ?? "",
+            projetoIds: u.contaObra.projetos.map((p) => p.projetoId),
+            acessoAte: u.acessoAte ? new Date(u.acessoAte).toISOString().slice(0, 10) : "",
+          }
+        : EMPTY.camposObra,
+      versaoObra: u.contaObra ? new Date(u.contaObra.updatedAt).toISOString() : "",
     });
   }
+
+  /** Escolha do tipo de acesso na criação. Obra = externo sem perfil e sem cliente do portal. */
+  function escolherTipo(f: FormState, valor: TipoDeAcesso): FormState {
+    if (valor === "obra") return { ...f, tipo: "externo", obra: true, perfilId: "", clienteId: "" };
+    const voltaDeExterno = f.tipo === "externo";
+    return {
+      ...f,
+      tipo: valor,
+      obra: false,
+      perfilId: valor === "externo" ? (perfilPortal?.id ?? "") : voltaDeExterno ? perfilPadrao(f.contratacaoNova) : f.perfilId,
+    };
+  }
+  const tipoDeAcesso = (f: FormState): TipoDeAcesso => (f.obra ? "obra" : f.tipo);
 
   /** Marcados que ainda existem na lista (a lista muda quando alguém é desativado/excluído). */
   const alvosSelecao = visiveis.filter((u) => selecao.marcado(u.id));
@@ -545,14 +601,19 @@ export function UsuariosView({
                 <TableCell className="text-sm text-muted-foreground">{u.email}</TableCell>
                 <TableCell>
                   <span className="inline-flex items-center gap-1.5">
-                    <Badge variant="outline">{u.tipo === "externo" ? "Cliente do portal" : rotuloContratacao(u.contratacao)}</Badge>
+                    <Badge variant="outline" className="max-w-56 truncate">
+                      {u.contaObra ? `Obra · ${u.contaObra.empresa}` : u.tipo === "externo" ? "Cliente do portal" : rotuloContratacao(u.contratacao)}
+                    </Badge>
                     {u.socio?.ativo && <Badge variant="secondary">Sócio</Badge>}
                   </span>
                 </TableCell>
                 <TableCell>
                   {/* Sem perfil, `permissaoEfetiva` nega tudo — é o estado mais perigoso da tela
                       e o único que não dá erro em lugar nenhum, então precisa gritar aqui. */}
-                  {u.superUsuario ? (
+                  {u.contaObra ? (
+                    // Conta de obra não tem perfil de propósito: vê só a pasta Liberado para obra.
+                    <span className="text-sm text-muted-foreground">Liberado para obra</span>
+                  ) : u.superUsuario ? (
                     <Badge variant="secondary">Acesso total</Badge>
                   ) : u.perfil ? (
                     <span className="text-sm">{u.perfil.nome}</span>
@@ -609,11 +670,13 @@ export function UsuariosView({
             campo mais largo = menos rolagem. No celular a largura é a mesma dos outros. */}
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{form?.id ? "Editar usuário" : "Nova pessoa"}</DialogTitle>
+            <DialogTitle>{form?.id ? (form.obra ? "Editar conta de obra" : "Editar usuário") : "Nova pessoa"}</DialogTitle>
             <DialogDescription>
-              {form?.id
-                ? "Perfil de acesso define as telas; a contratação do vínculo define ponto, férias e apontamento. O resumo abaixo mostra o resultado."
-                : "Cria o acesso (senha temporária, troca no 1º acesso) e já registra o cadastro inicial."}
+              {form?.obra
+                ? "A pessoa vê só a pasta Liberado para obra e o modelo 3D das obras marcadas. Tirar uma obra da lista corta o acesso na hora."
+                : form?.id
+                  ? "Perfil de acesso define as telas; a contratação do vínculo define ponto, férias e apontamento. O resumo abaixo mostra o resultado."
+                  : "Cria o acesso (senha temporária, troca no 1º acesso) e já registra o cadastro inicial."}
             </DialogDescription>
           </DialogHeader>
           {form && (
@@ -627,7 +690,7 @@ export function UsuariosView({
                 />
                 <p className="text-xs text-muted-foreground">Mostrado nas telas. O próprio usuário também pode alterá-lo.</p>
               </div>
-              {form.id && (
+              {form.id && !form.obra && (
                 <div className="space-y-1.5">
                   <Label htmlFor="u-nome-completo">Nome completo (cadastro)</Label>
                   <Input
@@ -653,23 +716,18 @@ export function UsuariosView({
               {!form.id && (
                 <div className="space-y-1.5">
                   <Label>Tipo de acesso</Label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     {([
                       ["interno", "Equipe interna", "Colaborador, estagiário, PJ, sócio"],
                       ["externo", "Cliente do portal", "Só enxerga o próprio cliente"],
+                      ["obra", "Obra", "Só a pasta Liberado para obra das obras marcadas"],
                     ] as const).map(([valor, titulo, dica]) => (
                       <button
                         key={valor}
                         type="button"
-                        aria-pressed={form.tipo === valor}
-                        onClick={() =>
-                          setForm({
-                            ...form,
-                            tipo: valor,
-                            perfilId: valor === "externo" ? (perfilPortal?.id ?? "") : form.tipo === "externo" ? perfilPadrao(form.contratacaoNova) : form.perfilId,
-                          })
-                        }
-                        className={`rounded-sm border p-2.5 text-left text-sm transition-colors ${form.tipo === valor ? "border-primary bg-accent/40" : "hover:bg-muted/50"}`}
+                        aria-pressed={tipoDeAcesso(form) === valor}
+                        onClick={() => setForm(escolherTipo(form, valor))}
+                        className={`rounded-sm border p-2.5 text-left text-sm transition-colors ${tipoDeAcesso(form) === valor ? "border-primary bg-accent/40" : "hover:bg-muted/50"}`}
                       >
                         <span className="block font-medium">{titulo}</span>
                         <span className="block text-xs text-muted-foreground">{dica}</span>
@@ -720,6 +778,15 @@ export function UsuariosView({
                   </div>
                 </div>
               )}
+              {form.obra && (
+                <ContaObraCampos
+                  valor={form.camposObra}
+                  onChange={(camposObra) => setForm({ ...form, camposObra })}
+                  clientes={clientes}
+                  projetos={projetosObra}
+                />
+              )}
+              {!form.obra && (
               <div className="space-y-1.5">
                 <Label>Perfil de acesso</Label>
                 <Select
@@ -749,7 +816,8 @@ export function UsuariosView({
                   )}
                 </p>
               </div>
-              {form.tipo === "externo" && (
+              )}
+              {form.tipo === "externo" && !form.obra && (
                 <div className="space-y-1.5">
                   <Label>Cliente vinculado (portal)</Label>
                   <Select
@@ -770,7 +838,7 @@ export function UsuariosView({
                   </Select>
                 </div>
               )}
-              <ResumoAcesso linhas={linhasResumo} />
+              {!form.obra && <ResumoAcesso linhas={linhasResumo} />}
               {form.id && form.tipo === "interno" && (
                 <p className="text-xs text-muted-foreground">
                   Vínculo: <span className="font-medium">{form.setor ? SETOR_LABELS[form.setor] : "setor não definido"}</span>
@@ -871,7 +939,7 @@ export function UsuariosView({
                   </div>
                 </CollapsibleSection>
               )}
-              {(mostrarSuper || mostrarSocio || mostrarExtras) && (
+              {!form.obra && (mostrarSuper || mostrarSocio || mostrarExtras) && (
                 <CollapsibleSection
                   titulo="Acesso avançado"
                   descricao={form.id ? "Bypass total, sócio, Gestão de RH e moderação do chat." : "Gestão de RH e moderação do chat."}

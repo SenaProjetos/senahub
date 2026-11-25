@@ -7,6 +7,7 @@ import { solicitacoesCadastroPendentes } from "@/modules/auth/cadastro/queries";
 import { opcoesCadastroFuncionario } from "@/modules/rh/funcionarios/queries";
 import { perfisAtivosParaSelect } from "@/modules/perfis/queries";
 import { UsuariosView } from "@/components/configuracoes/usuarios-view";
+import { projetosParaContaObra } from "@/modules/portal/obra/queries";
 
 export const metadata: Metadata = { title: "Usuários" };
 
@@ -16,12 +17,13 @@ export default async function UsuariosPage() {
   // o acesso** — redução deliberada, decidida pelo dono em 2026-09-02. Para devolver,
   // basta marcar o par no perfil Coordenador (a tela agora resolve isso sem deploy).
   const user = await requirePermission("usuarios", "gerir");
-  const [usuarios, clientes, pedidos, opcoes, perfis] = await Promise.all([
+  const [usuarios, clientes, pedidos, opcoes, perfis, projetosObra] = await Promise.all([
     listarUsuarios({ incluirInativos: true }),
     listarClientes({ incluirInativos: false }),
     solicitacoesCadastroPendentes(),
     opcoesCadastroFuncionario(),
     perfisAtivosParaSelect(),
+    projetosParaContaObra(),
   ]);
   return (
     <div className="space-y-5">
@@ -37,6 +39,7 @@ export default async function UsuariosPage() {
         podeExcluir={user.superUsuario}
         ehAdmin={user.superUsuario}
         emailDoSistema={smtpConfigurado()}
+        projetosObra={projetosObra}
       />
     </div>
   );
