@@ -13,6 +13,8 @@ import {
 } from "@/lib/auth-admin";
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarLinkPeloAdmin } from "@/modules/auth/redefinir-senha-service";
+import { exigirNaoEhContaObra } from "@/modules/portal/obra/service";
+import { diaDeSaoPaulo } from "@/lib/data";
 import {
   criarUsuarioSchema,
   editarUsuarioSchema,
@@ -178,6 +180,17 @@ export const editarUsuario = defineAction(
 
     exigirSuperParaExtras(input, ctx.user.superUsuario);
 
+    // Conta de obra (spec 2026-11-25): nunca recebe cliente, perfil, permissão, superusuário nem sócio — é o que mantém as
+    // áreas do cliente fechadas para ela. Só o nome passa por aqui; o resto é `salvarContaObra`.
+    const daCliente =
+      !!input.clienteId?.trim() ||
+      !!input.perfilId?.trim() ||
+      input.superUsuario === true ||
+      input.gereRh === true ||
+      input.moderaChat === true ||
+      input.ehSocio === true;
+    if (externo && daCliente) await exigirNaoEhContaObra(input.id);
+
     await prisma.user.update({
       where: { id: input.id },
       data: {
@@ -305,8 +318,14 @@ export const reativarUsuario = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { id: string }).id,
   },
   async (input) => {
-    // `acessoAte` vencido faria `getSession` recusar a pessoa recém-reativada.
-    await prisma.user.update({ where: { id: input.id }, data: { ativo: true, acessoAte: null } });
+    // `acessoAte` vencido faria `getSession` recusar a pessoa recém-reativada. Na conta de obra, o "Acesso até" ainda por vir é
+    // o fim da obra que a equipe pôs: fica (spec 2026-11-25).
+    const alvo = await prisma.user.findUnique({
+      where: { id: input.id },
+      select: { acessoAte: true, contaObra: { select: { id: true } } },
+    });
+    const mantemData = !!alvo?.contaObra && !!alvo.acessoAte && alvo.acessoAte.toISOString().slice(0, 10) >= diaDeSaoPaulo();
+    await prisma.user.update({ where: { id: input.id }, data: { ativo: true, ...(mantemData ? {} : { acessoAte: null }) } });
     revalidatePath(REVALIDATE);
     return { id: input.id };
   },

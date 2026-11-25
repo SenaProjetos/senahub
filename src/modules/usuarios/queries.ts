@@ -20,6 +20,8 @@ export async function listarUsuarios(opts?: { incluirInativos?: boolean }) {
       perfilId: true,
       superUsuario: true,
       perfil: { select: { nome: true } },
+      // Conta de obra (spec 2026-11-25): selo "Obra · Empresa" e o formulário próprio.
+      contaObra: { select: { empresa: true, clienteId: true, updatedAt: true, projetos: { select: { projetoId: true } } } },
       // Só exibição na edição: o vínculo nasce no cadastro, mas depois quem o troca é o RH
       // (`rh/contratacao`). Aparece aqui para o admin ver, sem sair da tela, se Setor/Contratação
       // estão preenchidos — a jornada resolve por `Contratacao`, então vínculo vazio é uma falha

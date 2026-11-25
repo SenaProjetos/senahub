@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { defineAction, ActionError } from "@/lib/with-action";
 import { prisma } from "@/lib/prisma";
 import { criarOverrideSchema, revogarOverrideSchema } from "@/modules/perfis/schemas";
+import { exigirNaoEhContaObra } from "@/modules/portal/obra/service";
 
 /**
  * Override individual de permissão (`PermissaoUsuario`) — gerido por quem já administra RH
@@ -20,6 +21,8 @@ const rev = (userId: string) => {
 export const criarOverride = defineAction(
   { ...base, acao: "criar-override", entidade: "PermissaoUsuario", schema: criarOverrideSchema },
   async (i, { user }) => {
+    // Conta de obra não recebe permissão nenhuma (spec 2026-11-25): uma permissão abriria trava que olha o perfil.
+    await exigirNaoEhContaObra(i.userId);
     await prisma.permissaoUsuario.upsert({
       where: { userId_recurso_acao: { userId: i.userId, recurso: i.recurso, acao: i.acao } },
       create: {
