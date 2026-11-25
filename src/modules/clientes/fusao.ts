@@ -167,6 +167,10 @@ export async function mesclarClientes(
       await repontar("usuariosPortal", () =>
         tx.user.updateMany({ where: { clienteId: absorvidoId }, data: { clienteId: sobreviventeId } }),
       );
+      // Conta de obra "do cliente": passa para o cliente que fica (conta de obra nunca tem `User.clienteId`).
+      await repontar("contasObra", () =>
+        tx.contaObra.updateMany({ where: { clienteId: absorvidoId }, data: { clienteId: sobreviventeId } }),
+      );
       await repontar("negociacoes", () =>
         tx.negociacao.updateMany({ where: { clienteId: absorvidoId }, data: { clienteId: sobreviventeId } }),
       );

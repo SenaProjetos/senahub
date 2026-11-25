@@ -151,6 +151,7 @@ export async function vinculosDosClientes(ids: readonly string[]): Promise<Map<s
             docsJuridicos: true,
             orcamentosCusto: true,
             usuarios: true,
+            contasObra: true,
             regrasPreenchimento: true,
             absorvidos: true,
             atividadesComerciais: { where: { tipo: { not: "SISTEMA" } } },
@@ -181,6 +182,7 @@ export async function vinculosDosClientes(ids: readonly string[]): Promise<Map<s
         orcamentosCusto: r._count.orcamentosCusto,
         // `usuarioId` é o login antigo do portal; `usuarios` é o vínculo atual (role cliente).
         usuariosPortal: r._count.usuarios + (r.usuarioId ? 1 : 0),
+        contasObra: r._count.contasObra,
         regrasPreenchimento: r._count.regrasPreenchimento,
         interacoes: r._count.atividadesComerciais,
         fusao: !!r.fundidoEmId || r._count.absorvidos > 0,

@@ -290,6 +290,8 @@ model User {
   listasDocumentosCriadas       ListaDocumentos[]           @relation("ListaDocumentosCriador")
   calculosFerramenta            CalculoFerramenta[]
   aceitesTermo                  AceiteTermo[]
+  /// Conta de obra do portal (sem clienteId; só Liberado para obra das obras da lista).
+  contaObra                     ContaObra?
   ativosResponsavel             Ativo[]                     @relation("AtivoResponsavel")
   certidoesResponsavel          Certidao[]                  @relation("CertidaoResponsavel")
   maquinasResponsavel           MaquinaTI[]                 @relation("MaquinaResponsavel")
@@ -535,6 +537,7 @@ model ContaBancariaColaborador {
 enum TipoTermo {
   colaborador
   cliente
+  obra
 }
 
 /// Registro append-only do aceite do Termo de Uso por usuário/tipo/versão.
@@ -964,6 +967,8 @@ model Cliente {
   leads                Lead[]
   propostas            Proposta[]
   usuarios             User[]              @relation("ClienteUsuarios")
+  /// Contas de obra "do cliente" (gente do cliente que cuida só da obra).
+  contasObra           ContaObra[]
   docsJuridicos        DocumentoJuridico[]
   documentos           Documento[]
   orcamentosCusto      CustoOrcamento[]
@@ -1355,6 +1360,8 @@ model Projeto {
   geracoesModeloFederado GeracaoModeloFederado[]
   modelosForaDaCompatibilizacao ModeloCoordenacaoOculto[]
   sobreposicoes SobreposicaoPlanta[]
+  /// Contas de obra que têm este projeto na lista.
+  contasObra ContaObraProjeto[]
   @@map("projeto")
 }
 
@@ -10550,4 +10557,39 @@ model ReuniaoAgendada {
 
   @@index([projetoId, dia])
   @@map("reuniao_agendada")
+}
+
+/// Conta de obra do portal (spec 2026-11-25): externo SEM clienteId; vê só "Liberado para obra" das obras da lista.
+model ContaObra {
+  id          String             @id @default(cuid())
+  userId      String             @unique
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Nome da empresa escrito na conta (1–120).
+  empresa     String
+  /// "É do cliente": só obras desse cliente. Excluir o cliente é recusado enquanto houver conta dele.
+  clienteId   String?
+  cliente     Cliente?           @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  /// Escalar, sem relação (o User já é enorme).
+  criadoPorId String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  projetos    ContaObraProjeto[]
+
+  @@index([clienteId])
+  @@map("conta_obra")
+}
+
+/// Obra (projeto) na lista de uma conta de obra. `criadoEm` decide desde quando o resumo diário vale para ela.
+model ContaObraProjeto {
+  id             String    @id @default(cuid())
+  contaObraId    String
+  contaObra      ContaObra @relation(fields: [contaObraId], references: [id], onDelete: Cascade)
+  projetoId      String
+  projeto        Projeto   @relation(fields: [projetoId], references: [id], onDelete: Cascade)
+  concedidoPorId String?
+  criadoEm       DateTime  @default(now())
+
+  @@unique([contaObraId, projetoId])
+  @@index([projetoId])
+  @@map("conta_obra_projeto")
 }

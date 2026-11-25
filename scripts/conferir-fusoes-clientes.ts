@@ -33,6 +33,7 @@ const JA_MOVIA = new Set([
   "proposta",
   "custo_orcamento",
   "user (login do portal)",
+  "conta_obra (conta de obra)",
   "documento_financeiro",
   "oportunidade",
 ]);
@@ -69,6 +70,7 @@ async function main() {
       UNION ALL SELECT "clienteId", 'proposta', count(*) FROM proposta WHERE "clienteId" IN (SELECT id FROM abs) GROUP BY 1
       UNION ALL SELECT "contratanteId", 'custo_orcamento', count(*) FROM custo_orcamento WHERE "contratanteId" IN (SELECT id FROM abs) GROUP BY 1
       UNION ALL SELECT "clienteId", 'user (login do portal)', count(*) FROM "user" WHERE "clienteId" IN (SELECT id FROM abs) GROUP BY 1
+      UNION ALL SELECT "clienteId", 'conta_obra (conta de obra)', count(*) FROM conta_obra WHERE "clienteId" IN (SELECT id FROM abs) GROUP BY 1
       UNION ALL SELECT "clienteId", 'documento_financeiro', count(*) FROM documento_financeiro WHERE "clienteId" IN (SELECT id FROM abs) GROUP BY 1
       UNION ALL SELECT "clienteId", 'oportunidade', count(*) FROM oportunidade WHERE "clienteId" IN (SELECT id FROM abs) GROUP BY 1
     `;

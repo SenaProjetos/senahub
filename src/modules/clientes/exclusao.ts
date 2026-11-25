@@ -19,6 +19,8 @@ export type VinculosCliente = {
   documentosJuridicos: number;
   orcamentosCusto: number;
   usuariosPortal: number;
+  /** Contas de obra "do cliente" (`ContaObra.clienteId`). */
+  contasObra: number;
   regrasPreenchimento: number;
   /** Atividades registradas à mão (ligação, nota…). Os eventos automáticos não contam. */
   interacoes: number;
@@ -38,6 +40,7 @@ export const VINCULOS_VAZIOS: VinculosCliente = {
   documentosJuridicos: 0,
   orcamentosCusto: 0,
   usuariosPortal: 0,
+  contasObra: 0,
   regrasPreenchimento: 0,
   interacoes: 0,
   fusao: false,
@@ -56,6 +59,7 @@ const ROTULOS: [keyof Omit<VinculosCliente, "fusao">, string, string][] = [
   ["contatos", "contato", "contatos"],
   ["interacoes", "interação registrada", "interações registradas"],
   ["usuariosPortal", "usuário do portal", "usuários do portal"],
+  ["contasObra", "conta de obra", "contas de obra"],
   ["regrasPreenchimento", "regra de preenchimento", "regras de preenchimento"],
 ];
 

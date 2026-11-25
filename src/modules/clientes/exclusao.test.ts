@@ -14,6 +14,11 @@ describe("motivoParaNaoExcluir", () => {
     expect(motivo).toContain("desative em vez de excluir");
   });
 
+  it("conta de obra do cliente impede, no singular ou plural", () => {
+    expect(motivoParaNaoExcluir({ ...VINCULOS_VAZIOS, contasObra: 1 })).toContain("1 conta de obra");
+    expect(motivoParaNaoExcluir({ ...VINCULOS_VAZIOS, contasObra: 2 })).toContain("2 contas de obra");
+  });
+
   it("fusão impede mesmo sem nenhuma contagem", () => {
     expect(motivoParaNaoExcluir({ ...VINCULOS_VAZIOS, fusao: true })).toContain("fusão com outro cliente");
   });
