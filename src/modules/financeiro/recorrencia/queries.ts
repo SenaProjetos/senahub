@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { criarCalendario, type Calendario } from "@/lib/calendario-trabalho";
 import { feriadosParaCalculo } from "@/modules/rh/feriados/queries";
+import { semRecesso } from "@/modules/rh/feriados/periodo";
 import { isoDeDataDoBanco } from "@/modules/financeiro/liquidez/datas";
 import { paraCentavos } from "@/modules/financeiro/liquidez/dinheiro";
 import { ehCategoriaDeSalario, idDoProgramado, type CompromissoRecorrenteEntrada, type LancamentoDaCompetencia } from "@/modules/financeiro/recorrencia/calculo";
@@ -75,12 +76,13 @@ function paraEntrada(c: Linha): CompromissoRecorrenteEntrada {
 /**
  * Calendário de dias úteis para os vencimentos ("5º dia útil"): feriados do RH dos anos pedidos, com
  * os nacionais calculados quando o ano não foi cadastrado (`feriadosParaCalculo`). Sem isso, um
- * feriado no começo do mês adiantaria o vencimento da folha em um dia.
+ * feriado no começo do mês adiantaria o vencimento da folha em um dia. Recesso da empresa fica fora:
+ * não é feriado legal e não muda o "5º dia útil" do salário (`semRecesso`).
  */
 export async function calendarioFinanceiro(anos: readonly number[]): Promise<Calendario> {
   const feriados: string[] = [];
   for (const ano of [...new Set(anos)]) {
-    for (const f of await feriadosParaCalculo(ano)) feriados.push(f.data);
+    for (const f of semRecesso(await feriadosParaCalculo(ano))) feriados.push(f.data);
   }
   return criarCalendario({ feriados });
 }

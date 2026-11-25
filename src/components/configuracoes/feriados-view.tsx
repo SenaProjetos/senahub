@@ -4,14 +4,17 @@ import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, Download, CalendarOff, Repeat } from "lucide-react";
+import { Plus, Trash2, Download, CalendarOff, Repeat, CalendarRange } from "lucide-react";
 import {
   salvarFeriado,
   excluirFeriado,
   salvarFeriadoRecorrente,
   excluirFeriadoRecorrente,
   importarFeriadosNacionais,
+  salvarPeriodoRecesso,
+  excluirPeriodoRecesso,
 } from "@/modules/rh/feriados/actions";
+import { agruparRecessos, motivoPeriodoInvalido } from "@/modules/rh/feriados/periodo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +37,15 @@ const ESFERAS = [
   { v: "nacional", l: "Nacional" },
   { v: "estadual", l: "Estadual" },
   { v: "municipal", l: "Municipal" },
+  { v: "recesso", l: "Recesso" },
 ] as const;
+
+type Modo = "dia" | "periodo" | "recorrente";
+const MODOS: { v: Modo; l: string }[] = [
+  { v: "dia", l: "Um dia" },
+  { v: "periodo", l: "Período (recesso)" },
+  { v: "recorrente", l: "Todo ano (data fixa)" },
+];
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
@@ -52,8 +63,10 @@ export function FeriadosView({
   const [pending, start] = useTransition();
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState("municipal");
-  const [recorrente, setRecorrente] = useState(false);
+  const [modo, setModo] = useState<Modo>("dia");
+  const recorrente = modo === "recorrente";
   const [data, setData] = useState("");
+  const [fim, setFim] = useState("");
   const [dia, setDia] = useState("");
   const [mes, setMes] = useState("1");
   const atual = new Date().getFullYear();
@@ -65,13 +78,29 @@ export function FeriadosView({
   function limpar() {
     setNome("");
     setData("");
+    setFim("");
     setDia("");
     setMes("1");
   }
 
   function adicionar() {
     if (!nome.trim()) return;
-    if (recorrente) {
+    if (modo === "periodo") {
+      const motivo = motivoPeriodoInvalido(data, fim);
+      if (motivo) return toast.error(motivo);
+      start(async () => {
+        const r = await salvarPeriodoRecesso({ inicio: data, fim, nome });
+        if (r.ok) {
+          const { criados, pulados } = r.data;
+          toast.success(
+            `Recesso salvo: ${criados} dia(s).` +
+              (pulados ? ` ${pulados} dia(s) já tinham feriado e ficaram como estavam.` : ""),
+          );
+          limpar();
+          router.refresh();
+        } else toast.error(r.error);
+      });
+    } else if (recorrente) {
       const d = Number(dia);
       if (!Number.isInteger(d) || d < 1 || d > 31) return toast.error("Informe o dia (1–31).");
       start(async () => {
@@ -118,6 +147,24 @@ export function FeriadosView({
     });
   }
 
+  async function removerRecesso(ids: string[], nomeR: string, periodo: string) {
+    const ok = await confirm({
+      title: "Remover recesso",
+      description: `"${nomeR}" (${periodo}, ${ids.length} dia(s)) volta a ser dia normal no ponto e no cronograma. Continuar?`,
+      confirmLabel: "Remover",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    start(async () => {
+      const r = await excluirPeriodoRecesso({ ids });
+      if (r.ok) router.refresh();
+      else toast.error(r.error);
+    });
+  }
+
+  const dataCurta = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
+  const linhas = agruparRecessos(feriados);
+
   function importar() {
     start(async () => {
       const r = await importarFeriadosNacionais({ ano });
@@ -154,11 +201,36 @@ export function FeriadosView({
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Adicionar feriado</CardTitle>
           <CardDescription>
-            Escolha a esfera. Marque &quot;repete todo ano&quot; para feriados de data fixa (sem informar o ano).
+            Um dia, um período de recesso (cada dia vira não útil; feriados que já estão no meio ficam como estão) ou
+            um feriado de data fixa que repete todo ano. Recesso não muda o dia útil do salário nem a regra de início
+            de férias.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent>
           <div className="flex flex-wrap items-end gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="feriado-quando" className="text-xs text-muted-foreground">Quando</Label>
+              <Select
+                value={modo}
+                onValueChange={(v) => {
+                  const m = (v ?? "dia") as Modo;
+                  setModo(m);
+                  if (m === "periodo") setTipo("recesso");
+                  else if (tipo === "recesso") setTipo("municipal");
+                }}
+              >
+                <SelectTrigger id="feriado-quando" className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MODOS.map((m) => (
+                    <SelectItem key={m.v} value={m.v}>
+                      {m.l}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {recorrente ? (
               <>
                 <div className="space-y-1">
@@ -189,6 +261,24 @@ export function FeriadosView({
                   </Select>
                 </div>
               </>
+            ) : modo === "periodo" ? (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="recesso-inicio" className="text-xs text-muted-foreground">De</Label>
+                  <Input id="recesso-inicio" type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-44" />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="recesso-fim" className="text-xs text-muted-foreground">Até</Label>
+                  <Input
+                    id="recesso-fim"
+                    type="date"
+                    value={fim}
+                    min={data || undefined}
+                    onChange={(e) => setFim(e.target.value)}
+                    className="w-44"
+                  />
+                </div>
+              </>
             ) : (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Data</Label>
@@ -197,31 +287,29 @@ export function FeriadosView({
             )}
             <div className="space-y-1 flex-1 min-w-48">
               <Label className="text-xs text-muted-foreground">Nome</Label>
-              <Input placeholder="Nome do feriado" value={nome} onChange={(e) => setNome(e.target.value)} />
+              <Input placeholder={modo === "periodo" ? "Ex.: Recesso de fim de ano" : "Nome do feriado"} value={nome} onChange={(e) => setNome(e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Esfera</Label>
-              <Select value={tipo} onValueChange={(v) => setTipo(v ?? "municipal")}>
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ESFERAS.map((e) => (
-                    <SelectItem key={e.v} value={e.v}>
-                      {e.l}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {modo !== "periodo" && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Tipo</Label>
+                <Select value={tipo} onValueChange={(v) => setTipo(v ?? "municipal")}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ESFERAS.map((e) => (
+                      <SelectItem key={e.v} value={e.v}>
+                        {e.l}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <Button size="sm" onClick={adicionar} disabled={pending || !nome.trim()}>
               <Plus className="size-3.5" /> Adicionar
             </Button>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-            <input type="checkbox" checked={recorrente} onChange={(e) => setRecorrente(e.target.checked)} />
-            <Repeat className="size-3.5" /> Repete todo ano (data fixa)
-          </label>
         </CardContent>
       </Card>
 
@@ -235,7 +323,7 @@ export function FeriadosView({
             <ul className="divide-y text-sm">
               {recorrentes.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-2 py-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="w-16 font-mono text-xs text-muted-foreground">
                       {String(r.dia).padStart(2, "0")}/{String(r.mes).padStart(2, "0")}
                     </span>
@@ -264,27 +352,54 @@ export function FeriadosView({
             <EmptyState icon={CalendarOff} title="Nenhum feriado" description="Importe os feriados nacionais para começar." />
           ) : (
             <ul className="divide-y text-sm">
-              {feriados.map((f) => (
-                <li key={`${f.origem}-${f.id}-${f.data}`} className="flex items-center justify-between gap-2 py-2">
-                  <div className="flex items-center gap-3">
-                    <span className="w-28 font-mono text-xs capitalize text-muted-foreground">{fmt(f.data)}</span>
-                    <span>{f.nome}</span>
-                    <Badge variant="outline" className="capitalize">{f.tipo}</Badge>
-                    {f.origem === "recorrente" && (
-                      <Badge variant="secondary" className="gap-1">
-                        <Repeat className="size-3" /> todo ano
-                      </Badge>
+              {linhas.map((l) => {
+                if (l.tipo === "recesso") {
+                  const periodo = l.inicio === l.fim ? dataCurta(l.inicio) : `${dataCurta(l.inicio)} a ${dataCurta(l.fim)}`;
+                  return (
+                    <li key={`recesso-${l.ids[0]}`} className="flex items-center justify-between gap-2 py-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="w-28 font-mono text-xs text-muted-foreground">{periodo}</span>
+                        <span>{l.nome}</span>
+                        <Badge variant="outline">Recesso</Badge>
+                        <Badge variant="secondary" className="gap-1">
+                          <CalendarRange className="size-3" /> {l.ids.length} dia(s)
+                        </Badge>
+                      </div>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        aria-label={`Remover recesso ${l.nome}, ${periodo}`}
+                        onClick={() => removerRecesso(l.ids, l.nome, periodo)}
+                        disabled={pending}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </li>
+                  );
+                }
+                const f = l.feriado;
+                return (
+                  <li key={`${f.origem}-${f.id}-${f.data}`} className="flex items-center justify-between gap-2 py-2">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="w-28 font-mono text-xs capitalize text-muted-foreground">{fmt(f.data)}</span>
+                      <span>{f.nome}</span>
+                      <Badge variant="outline" className="capitalize">{f.tipo}</Badge>
+                      {f.origem === "recorrente" && (
+                        <Badge variant="secondary" className="gap-1">
+                          <Repeat className="size-3" /> todo ano
+                        </Badge>
+                      )}
+                    </div>
+                    {f.origem === "unico" ? (
+                      <Button size="icon" variant="ghost" aria-label="Remover" onClick={() => removerUnico(f.id)} disabled={pending}>
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    ) : (
+                      <span className="pr-2 text-[10px] text-muted-foreground">gerido acima</span>
                     )}
-                  </div>
-                  {f.origem === "unico" ? (
-                    <Button size="icon" variant="ghost" aria-label="Remover" onClick={() => removerUnico(f.id)} disabled={pending}>
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  ) : (
-                    <span className="pr-2 text-[10px] text-muted-foreground">gerido acima</span>
-                  )}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>

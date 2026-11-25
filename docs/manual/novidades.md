@@ -20,6 +20,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Recesso em período nos feriados (novembro/2026)
+
+- Em **Configurações → Feriados**, o campo **Quando** ganhou **Período (recesso)**: informe de quando até quando e o
+  nome (ex.: "Recesso de fim de ano"). Cada dia vira não útil no ponto, na escala, no banco de horas e no cronograma.
+- Feriados que já estão no meio do período (Natal, Ano-Novo) ficam como estão. Na lista, o recesso aparece numa linha
+  só e sai inteiro com um clique.
+- O cartão do início avisa "Hoje é recesso" (e "Amanhã é recesso") em vez de chamar o recesso de feriado.
+- O recesso não mexe no dia útil do salário nem na regra de início de férias CLT, porque não é feriado legal.
+
 ## Esqueci minha senha pelo e-mail (novembro/2026)
 
 - Na tela de login, **Esqueci minha senha** agora envia um **link por e-mail** para você criar a senha nova sozinho,

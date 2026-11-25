@@ -26,6 +26,15 @@ describe("avisoDeFeriado", () => {
     expect(avisoDeFeriado(feriados, "2026-11-12")).toBeNull();
     expect(avisoDeFeriado(feriados, "2026-11-21")).toBeNull();
   });
+  it("recesso diz recesso, não feriado", () => {
+    const recesso = [
+      { data: "2026-12-28", nome: "Recesso de fim de ano", tipo: "recesso" },
+      { data: "2026-12-29", nome: "Recesso de fim de ano", tipo: "recesso" },
+    ];
+    expect(avisoDeFeriado(recesso, "2026-12-28")?.texto).toBe("Hoje é recesso: Recesso de fim de ano");
+    expect(avisoDeFeriado(recesso, "2026-12-27")?.texto).toBe("Amanhã é recesso: Recesso de fim de ano");
+    expect(avisoDeFeriado(recesso, "2026-12-23")?.texto).toBe("Recesso seg., 28/12: Recesso de fim de ano");
+  });
 });
 
 describe("diaCurto", () => {

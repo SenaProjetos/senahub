@@ -5,10 +5,12 @@
  * Datas em `YYYY-MM-DD`, horas em minutos do dia de São Paulo (`ceu.ts`).
  */
 import { diaDaSemana, diasEntre, duracao, hhmm } from "@/modules/dashboard/hero/ceu";
+import { TIPO_RECESSO } from "@/modules/rh/feriados/periodo";
 
 /* ── Feriado ─────────────────────────────────────────────── */
 
-export type FeriadoHero = { data: string; nome: string };
+/** `tipo` do calendário do RH; "recesso" muda a frase (recesso não é feriado). */
+export type FeriadoHero = { data: string; nome: string; tipo?: string };
 
 /** Até quantos dias à frente o feriado vira aviso. */
 export const DIAS_AVISO_FERIADO = 7;
@@ -28,12 +30,13 @@ export function avisoDeFeriado(feriados: readonly FeriadoHero[], hoje: string): 
     .filter((f) => f.dias >= 0 && f.dias <= DIAS_AVISO_FERIADO)
     .sort((a, b) => a.dias - b.dias)[0];
   if (!proximo) return null;
+  const o = proximo.tipo === TIPO_RECESSO ? "recesso" : "feriado";
   const texto =
     proximo.dias === 0
-      ? `Hoje é feriado: ${proximo.nome}`
+      ? `Hoje é ${o}: ${proximo.nome}`
       : proximo.dias === 1
-        ? `Amanhã é feriado: ${proximo.nome}`
-        : `Feriado ${diaCurto(proximo.data)}: ${proximo.nome}`;
+        ? `Amanhã é ${o}: ${proximo.nome}`
+        : `${o === "recesso" ? "Recesso" : "Feriado"} ${diaCurto(proximo.data)}: ${proximo.nome}`;
   return { dias: proximo.dias, texto };
 }
 

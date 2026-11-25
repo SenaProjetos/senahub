@@ -10,6 +10,7 @@ import { aplicaRegraInicioFeriasClt, controlaJornada, type SujeitoJornada } from
 import { formatarData } from "@/lib/utils";
 import { validarInicioFeriasClt } from "@/lib/ferias-clt";
 import { listarFeriados } from "@/modules/rh/feriados/queries";
+import { semRecesso } from "@/modules/rh/feriados/periodo";
 import { avisarImpactoDaAusencia } from "@/modules/planejamento/impacto-ausencia-service";
 import {
   MOTIVO_ABONO_JA_DECIDIDO,
@@ -701,12 +702,13 @@ async function exigirNovaDataLivre(
 async function garantirInicioFeriasClt(sujeito: SujeitoJornada, inicioISO: string) {
   if (!aplicaRegraInicioFeriasClt(sujeito)) return;
   const anoIni = Number(inicioISO.slice(0, 4));
+  // Recesso da empresa não é feriado legal: não entra na regra dos 2 dias (`semRecesso`).
   const feriados = new Set(
-    [
+    semRecesso([
       ...(await listarFeriados(anoIni)),
       // início + 2 dias pode cair no ano seguinte (borda de 30/31 de dez).
       ...(inicioISO.slice(5, 10) >= "12-30" ? await listarFeriados(anoIni + 1) : []),
-    ].map((f) => f.data),
+    ]).map((f) => f.data),
   );
   const chk = validarInicioFeriasClt(inicioISO, feriados);
   if (!chk.valido) throw new ActionError(chk.motivo!);

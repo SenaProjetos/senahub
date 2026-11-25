@@ -49,9 +49,9 @@ async function feriadosAte(hoje: string, dias: number): Promise<FeriadoHero[]> {
   const linhas = await prisma.feriado.findMany({
     where: { data: { gte: new Date(`${hoje}T00:00:00.000Z`), lte: new Date(`${somarDias(hoje, dias)}T00:00:00.000Z`) } },
     orderBy: { data: "asc" },
-    select: { data: true, nome: true },
+    select: { data: true, nome: true, tipo: true },
   });
-  return linhas.map((f) => ({ data: iso(f.data), nome: f.nome }));
+  return linhas.map((f) => ({ data: iso(f.data), nome: f.nome, tipo: f.tipo }));
 }
 
 /** Férias aprovadas que cobrem `dia` (aí não há expediente). */

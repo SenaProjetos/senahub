@@ -63,7 +63,11 @@ lugar.
   e-mail por projeto que andou no dia anterior (pranchas compartilhadas, liberadas para obra, fases concluídas); dia
   sem novidade não manda nada. Vem ligado. Ao religar, o primeiro resumo é o do próprio dia (sai no dia seguinte) —
   nada do período desligado é enviado. O texto do e-mail fica em **Modelos de e-mail** ("Resumo diário do portal").
-- **Feriados** — calendário (ponto, escala, banco de horas).
+- **Feriados** — calendário (ponto, escala, banco de horas, cronograma). Em **Quando**, escolha **Um dia**,
+  **Período (recesso)** ou **Todo ano (data fixa)**. O recesso cria um dia não útil para cada data de **De** a
+  **Até** (fins de semana inclusive, até 62 dias). Feriado que já está no meio, como o Natal, fica como está. Na
+  lista, o recesso aparece numa linha só ("23/12 a 02/01") e sai inteiro pela lixeira. Recesso não é feriado legal:
+  não muda o **Nº dia útil** dos vencimentos (salário) nem a regra de início de férias CLT.
 - **Modalidades de licitação** — lista usada no cadastro de licitações.
 - **Parâmetros de licitação** — prazos de recurso, limite de aditivo, modo PNCP/reajuste,
   alertas.
