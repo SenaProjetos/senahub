@@ -153,6 +153,13 @@ Estado em 26/11/2026: parte 1 feita no branch `feat/pool-recursos` (migração `
 `npm run smoke:pool-recursos`). A cor do projeto já se escolhe em Editar projeto; quem a mostra é a parte 2. A dedicação
 ainda não se edita em Recursos (entra com a tela por pessoa, parte 2).
 
+Parte 2 feita no mesmo branch: `/recursos/por-pessoa` (abas Visão geral | Por pessoa), só leitura, com `?escala=semanas`,
+`?de=`, `?disciplina=`, `?projeto=` e `?pessoa=`. Regras puras em `planejador-equipe.ts` (empilhar, janela, filtros), carga
+de `cargaDaEquipe` com `comLinhas` + `diario` contando os rascunhos. Os dias acima da jornada somam aprovados E rascunhos
+(a tela mostra tudo, identificado). A barra abre o cronograma do projeto. A dedicação se edita no botão Dedicação da
+faixa (`planejamento:gerir`, só projetos que a pessoa enxerga). O aviso de conflito do cronograma ganhou "Ver na tela por
+pessoa". Fica para depois: parceiro externo (parte 6), arrastar (parte 4).
+
 
 1. Dedicação por disciplina, cor por projeto, horas automáticas, conflito por dia (chip, aprovação, nome vermelho na EAP).
 2. Tela por pessoa, só leitura.

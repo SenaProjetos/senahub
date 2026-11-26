@@ -52,6 +52,13 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   outro superusuário.
 - O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
 
+## Recursos por pessoa (novembro/2026)
+
+- Em **Recursos**, a nova aba **Por pessoa** mostra, numa linha do tempo, tudo o que cada pessoa faz em todos os
+  cronogramas: barras na cor de cada projeto, rascunho em cinza, o dia acima da jornada em vermelho e, no fim, as tarefas
+  sem ninguém. Escala em dias ou semanas, filtros por disciplina, cronograma e pessoa. Só leitura.
+- No aviso de conflito do cronograma, **Ver na tela por pessoa** abre a faixa da pessoa na semana do conflito.
+
 ## Horas automáticas e conflito de recurso por dia (novembro/2026)
 
 - Quem entra numa tarefa para executá-la já recebe as **horas previstas** ("h (auto)"): a tarefa tem dias úteis × 8 h, e o

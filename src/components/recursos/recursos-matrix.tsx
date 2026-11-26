@@ -1,6 +1,7 @@
 "use client";
 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
+import { AbasRecursos } from "@/components/recursos/abas-recursos";
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -305,6 +306,7 @@ export function RecursosMatrix({
           ) : undefined
         }
       />
+      <AbasRecursos atual="geral" />
       {(totalSuper > 0 || totalSuperJanela > 0 || cargaPlanejada.sobrecargas.length > 0) && (
         <p className="flex flex-wrap gap-x-3 text-sm">
           {totalSuper > 0 && <span className="text-destructive">{totalSuper} acima da capacidade hoje.</span>}

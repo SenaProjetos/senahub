@@ -2,9 +2,9 @@
 titulo: Recursos (capacidade × carga da equipe)
 descricao: Tela de leitura da capacidade e da carga de cada pessoa, calculada das EAPs dos projetos, com filtros e sobrecarga em vermelho.
 resumo: Veja quanto cada pessoa tem de carga nas EAPs aprovadas contra a capacidade dela, semana a semana, e quem está acima da capacidade. A tela só lê — a carga muda na EAP do projeto.
-tags: [recursos, carga, carga planejada, sobrecarga, equipe, capacidade, heatmap, filtros]
+tags: [recursos, carga, carga planejada, sobrecarga, equipe, capacidade, heatmap, filtros, por pessoa, planejador de equipe]
 palavras-chave: [recursos, férias, ausência, aviso de impacto, carga semanal, carga real, carga planejada, capacidade, sobrecarga, heatmap, equipe, demanda sem pessoa, perfil, sem cronograma, disciplina, só sobrecarregados]
-sinonimos: [capacity, planejamento de recursos, histograma de recursos, superalocação, carga da equipe]
+sinonimos: [capacity, planejamento de recursos, histograma de recursos, superalocação, carga da equipe, planejador de equipe, team planner, pool de recursos]
 ---
 
 # Recursos (capacidade × carga da equipe)
@@ -27,9 +27,14 @@ A tela é **somente leitura**. Quem atribui pessoas e horas é a **EAP do projet
 - Menu → **Gestão** → **Recursos** (`/recursos`). Exige `recursos:ver`.
 - Nos perfis padrão, disponível ao Coordenador e ao Administrativo.
 
+## Duas abas: Visão geral e Por pessoa
+
+Logo abaixo do título, **Visão geral** é a tela de sempre (matriz, heatmap, carga real e planejada, descritas abaixo) e
+**Por pessoa** é a linha do tempo de cada pessoa (veja [Por pessoa](#por-pessoa)).
+
 ## Filtros
 
-Acima das visões ficam os filtros, que valem para as quatro:
+Acima das visões da Visão geral ficam os filtros, que valem para as quatro:
 
 - **Pessoa:** busca pelo nome (sem diferenciar acento ou maiúscula).
 - **Projeto:** quem tem carga naquele projeto (inclusive em cronograma ainda em rascunho).
@@ -109,6 +114,28 @@ pintada conforme a intensidade.
   Elétrica). Ninguém está escalado, então **não entra na carga de ninguém**.
 
 Ver [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md).
+
+## Por pessoa
+
+Inspirada no **Planejador de Equipe** do MS Project: **uma faixa por pessoa** com tudo o que ela faz em **todos os
+cronogramas**, dia a dia (`/recursos/por-pessoa`). É **só leitura**: clicar numa barra abre o cronograma do projeto.
+
+- **Barras:** código do projeto + nome da tarefa, na **cor do projeto** (automática, ou a escolhida em **Editar
+  projeto**). Passe o mouse para ver o nome completo, as datas e as horas da pessoa. Tarefas que se sobrepõem ficam
+  **empilhadas** na faixa. Cronograma em **rascunho** aparece em **cinza tracejado**, com "(rascunho)".
+- **Dia acima da jornada:** fica **hachurado em vermelho**. A etiqueta ao lado do nome ("Conflito em 26/11" ou "5 dias de
+  conflito, desde 30/11 · com 269993 (rascunho)") abre a lista dos dias, com as horas de cada tarefa e de cada projeto. A
+  conta soma aprovados **e** rascunhos, com a mesma régua do aviso do cronograma.
+- **Tarefas sem ninguém:** a faixa do fim, recolhível, com as tarefas sem pessoa (não entram na carga). Respeita os
+  filtros.
+- **Filtros:** disciplina, cronograma e pessoa. **Dias** (3 semanas) ou **Semanas** (12 semanas); as setas andam uma
+  semana (em dias) ou quatro (em semanas); **Hoje** volta para a semana atual.
+- **Dedicação:** para quem monta a EAP (`planejamento:gerir`), o botão **Dedicação** da faixa mostra e edita a dedicação
+  da pessoa em cada disciplina dos projetos da janela — o mesmo valor do painel da disciplina no cronograma. O padrão do
+  cadastro não muda.
+- O aviso de conflito do cronograma tem **Ver na tela por pessoa**, que abre esta tela só com a pessoa, na semana do
+  conflito.
+- Etapa de terceiro (recurso Externo) ainda não aparece aqui.
 
 ## Cadastro do recurso
 

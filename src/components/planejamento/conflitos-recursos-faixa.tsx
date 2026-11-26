@@ -60,7 +60,6 @@ export function ConflitosRecursosFaixa({
   const trechos = trechosDosConflitos(conflitos);
   const rotulo = trechos.length === 1 ? "1 conflito de recurso" : `${trechos.length} conflitos de recurso`;
   const de = conflitos[0].dia;
-  const ate = conflitos.reduce((m, c) => (c.dia > m ? c.dia : m), de);
 
   return (
     <Popover open={aberto} onOpenChange={setAberto}>
@@ -115,13 +114,22 @@ export function ConflitosRecursosFaixa({
                   Ver na tabela ({t.linhas.length === 1 ? "1 linha" : `${t.linhas.length} linhas`})
                 </Button>
               )}
+              {verRecursos && (
+                <Link
+                  href={`/recursos/por-pessoa?pessoa=${encodeURIComponent(t.userId)}&de=${t.de}`}
+                  className="ml-1 text-primary underline underline-offset-[3px]"
+                  aria-label={`Ver na tela por pessoa: ${t.nome}, ${periodoDoTrecho(t)}`}
+                >
+                  Ver na tela por pessoa
+                </Link>
+              )}
             </li>
           ))}
         </ul>
         {verRecursos && (
           <div className="border-t px-3 py-2 text-xs">
-            <Link href={`/recursos?de=${de}&ate=${ate}`} className="text-primary underline underline-offset-[3px]">
-              Abrir a carga da equipe em Recursos
+            <Link href={`/recursos/por-pessoa?de=${de}`} className="text-primary underline underline-offset-[3px]">
+              Abrir a equipe em Recursos, por pessoa
             </Link>
           </div>
         )}

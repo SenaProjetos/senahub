@@ -31,7 +31,15 @@ export function DedicacaoDaDisciplina({
     <div className="space-y-1.5">
       <ul className="divide-y rounded-sm border">
         {responsaveis.map((r) => (
-          <LinhaDedicacao key={`${r.userId}:${r.dedicacao ?? ""}`} disciplinaId={disciplinaId} responsavel={r} dicaId={`dedicacao-dica-${disciplinaId}`} />
+          <LinhaDedicacao
+            key={`${r.userId}:${r.dedicacao ?? ""}`}
+            disciplinaId={disciplinaId}
+            userId={r.userId}
+            rotulo={r.nome}
+            dedicacao={r.dedicacao}
+            padrao={r.padrao}
+            dicaId={`dedicacao-dica-${disciplinaId}`}
+          />
         ))}
       </ul>
       <p id={`dedicacao-dica-${disciplinaId}`} className="text-xs text-muted-foreground">
@@ -42,7 +50,26 @@ export function DedicacaoDaDisciplina({
   );
 }
 
-function LinhaDedicacao({ disciplinaId, responsavel, dicaId }: { disciplinaId: string; responsavel: ResponsavelComDedicacao; dicaId: string }) {
+/**
+ * Uma linha "rótulo · [ 50 ] %" que grava a dedicação de UMA pessoa numa disciplina — no painel da disciplina (rótulo =
+ * pessoa) e na tela por pessoa de Recursos (rótulo = projeto · disciplina). Remontar com `key` quando o valor gravado muda.
+ */
+export function LinhaDedicacao({
+  disciplinaId,
+  userId,
+  rotulo,
+  dedicacao: gravada,
+  padrao,
+  dicaId,
+}: {
+  disciplinaId: string;
+  userId: string;
+  rotulo: string;
+  dedicacao: number | null;
+  padrao: number;
+  dicaId?: string;
+}) {
+  const responsavel = { userId, dedicacao: gravada, padrao };
   const router = useRouter();
   const [pending, start] = useTransition();
   const [valor, setValor] = useState(responsavel.dedicacao == null ? "" : String(responsavel.dedicacao));
@@ -59,7 +86,10 @@ function LinhaDedicacao({ disciplinaId, responsavel, dicaId }: { disciplinaId: s
     }
     start(async () => {
       const r = await definirDedicacaoDisciplina({ disciplinaId, userId: responsavel.userId, dedicacao });
-      if (r.ok) router.refresh();
+      if (r.ok) {
+        toast.success(dedicacao == null ? `${rotulo}: volta ao padrão (${padrao}%).` : `${rotulo}: dedicação ${dedicacao}%.`);
+        router.refresh();
+      }
       else {
         toast.error(r.error);
         setValor(responsavel.dedicacao == null ? "" : String(responsavel.dedicacao));
@@ -69,8 +99,8 @@ function LinhaDedicacao({ disciplinaId, responsavel, dicaId }: { disciplinaId: s
 
   return (
     <li className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-sm">
-      <label htmlFor={id} className="min-w-0 truncate">
-        {responsavel.nome}
+      <label htmlFor={id} className="min-w-0 truncate" title={rotulo}>
+        {rotulo}
       </label>
       <span className="flex shrink-0 items-center gap-1">
         <Input
@@ -83,11 +113,15 @@ function LinhaDedicacao({ disciplinaId, responsavel, dicaId }: { disciplinaId: s
           value={valor}
           placeholder={String(responsavel.padrao)}
           // Não desabilita enquanto grava: o foco ficaria perdido na página.
-          aria-busy={pending}
+          readOnly={pending}
           aria-describedby={dicaId}
           onChange={(e) => setValor(e.target.value)}
           onBlur={gravar}
-          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            // Esc desiste do que foi digitado.
+            if (e.key === "Escape") setValor(responsavel.dedicacao == null ? "" : String(responsavel.dedicacao));
+          }}
           title={`Dedicação nesta disciplina. Vazio = ${responsavel.padrao}%, o padrão do cadastro de Recursos.`}
           className="h-7 w-16 px-1.5 text-right text-xs"
         />

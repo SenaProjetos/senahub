@@ -7,6 +7,7 @@ import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso } from "./disponibilidade";
 import { montarCalendarioComNomes, planoDoProjeto } from "./agenda";
 import {
+  ENCERRADA,
   capacidadeHorasNoDia,
   capacidadePorSemana,
   detectarSobrecargas,
@@ -69,6 +70,8 @@ export type PessoaCarga = {
    * catálogo, ou o texto legado quando a disciplina ainda não aponta para o catálogo). Alimenta o filtro de `/recursos`.
    */
   disciplinas: string[];
+  /** Jornada de um dia útil típico × o padrão do cadastro de Recursos ("8 h por dia") — a etiqueta da tela por pessoa. */
+  horasPorDia: number;
 };
 
 /**
@@ -93,7 +96,28 @@ export type DemandaPerfil = {
  */
 export type RotulosCarga = {
   linhas: Record<string, { nome: string; projetoId: string }>;
-  projetos: Record<string, { codigo: string; nome: string }>;
+  /** `cor`: a escolhida em Editar projeto (nula = a automática — `corDoProjeto`). */
+  projetos: Record<string, { codigo: string; nome: string; cor: string | null }>;
+};
+
+/**
+ * Uma linha executável (atividade ou marco, sem filhos) já agendada pelo motor — o que a tela por pessoa desenha (pool de
+ * recursos, parte 2). Só com `comLinhas`. Linha encerrada (concluída, cancelada, arquivada) não vem.
+ */
+export type LinhaAgendada = {
+  id: string;
+  projetoId: string;
+  nome: string;
+  disciplina: string | null;
+  inicio: Dia;
+  fim: Dia;
+  /** Cronograma em rascunho (cinza na tela). */
+  rascunho: boolean;
+  marco: boolean;
+  /** Etapa de terceiro (o recurso Externo): fica fora das faixas de pessoa e da faixa "sem ninguém". */
+  deTerceiro: boolean;
+  /** Pessoas na linha (perfil e Externo fora). */
+  pessoas: { userId: string; horas: number }[];
 };
 
 export type CargaDaEquipe = {
@@ -107,10 +131,19 @@ export type CargaDaEquipe = {
   sobrecargas: SobrecargaComSugestao[];
   /** Só com `diario`: os DIAS em que alguém passa da capacidade (pool de recursos, decisão A). */
   sobrecargasDiarias: SobrecargaDia[];
+  /** Só com `comLinhas`. */
+  linhasAgendadas: LinhaAgendada[];
   demandaPerfis: DemandaPerfil[];
 };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+/** Média dos dias ativos da escala × o multiplicador (uma casa). */
+function horasDoDiaTipico(p: PessoaCapacidade): number {
+  const ativos = p.grade.filter((g) => g.ativo && g.horasDia > 0);
+  if (ativos.length === 0) return 0;
+  return Math.round((ativos.reduce((s, g) => s + g.horasDia, 0) / ativos.length) * p.multiplicador * 10) / 10;
+}
 
 function somarDias(dia: Dia, n: number): Dia {
   const [a, m, d] = dia.split("-").map(Number);
@@ -143,6 +176,8 @@ export async function cargaDaEquipe(
      * dos cronogramas em rascunho entram (marcadas `rascunho`) — quem monta um rascunho enxerga os outros (decisão J).
      */
     diario?: { desde: Dia; comRascunhos: boolean };
+    /** Devolve também as linhas agendadas (`linhasAgendadas`) — a tela por pessoa. */
+    comLinhas?: boolean;
   } = {},
 ): Promise<CargaDaEquipe> {
   const nSemanas = opcoes.semanas ?? 12;
@@ -193,10 +228,27 @@ export async function cargaDaEquipe(
 
   const linhasCarga: LinhaCarga[] = [];
   const linhasRascunho: LinhaCarga[] = [];
+  const linhasAgendadas: LinhaAgendada[] = [];
   for (const l of linhasTodas) {
-    if (l.atribuicoes.length === 0) continue;
     const agendada = planoPorProjeto.get(l.projetoId)?.resultado.linhas.get(l.id);
     if (!agendada) continue;
+    if (opcoes.comLinhas && !agendada.ehResumo && (l.tipoEap === "atv" || l.tipoEap === "mrc") && !ENCERRADA.has(l.status)) {
+      linhasAgendadas.push({
+        id: l.id,
+        projetoId: l.projetoId,
+        nome: l.nome,
+        disciplina: l.disciplina?.catalogo?.nome ?? l.disciplina?.disciplinaTextoLegado ?? null,
+        inicio: agendada.inicio,
+        fim: agendada.fim,
+        rascunho: !ehAprovado.has(l.projetoId),
+        marco: l.tipoEap === "mrc",
+        deTerceiro: l.atribuicoes.some((a) => a.papel === "ext"),
+        pessoas: l.atribuicoes
+          .filter((a): a is typeof a & { userId: string } => a.userId != null && a.papel !== "ext")
+          .map((a) => ({ userId: a.userId, horas: Number(a.horasPrevistas) })),
+      });
+    }
+    if (l.atribuicoes.length === 0) continue;
     (ehAprovado.has(l.projetoId) ? linhasCarga : linhasRascunho).push({
       id: l.id,
       projetoId: l.projetoId,
@@ -411,6 +463,7 @@ export async function cargaDaEquipe(
         Object.entries(rascunhoPorProjeto).map(([p, m]) => [p, Object.fromEntries(Object.entries(m).map(([s, h]) => [s, redondo(h)]))]),
       ),
       disciplinas: [...(disciplinasPorUser.get(u.id) ?? [])].sort((x, y) => x.localeCompare(y)),
+      horasPorDia: p ? horasDoDiaTipico(p) : 0,
     };
   });
 
@@ -430,11 +483,11 @@ export async function cargaDaEquipe(
   const idsProjetos = [...new Set([...aprovados, ...emRascunho, ...parcelas.map((p) => p.projetoId)])];
   const projetosDb = await prisma.projeto.findMany({
     where: { id: { in: idsProjetos } },
-    select: { id: true, codigo: true, nome: true },
+    select: { id: true, codigo: true, nome: true, cor: true },
   });
   const rotulos: RotulosCarga = {
     linhas: Object.fromEntries(linhasTodas.map((l) => [l.id, { nome: l.nome, projetoId: l.projetoId }])),
-    projetos: Object.fromEntries(projetosDb.map((p) => [p.id, { codigo: p.codigo, nome: p.nome }])),
+    projetos: Object.fromEntries(projetosDb.map((p) => [p.id, { codigo: p.codigo, nome: p.nome, cor: p.cor }])),
   };
 
   return {
@@ -445,6 +498,7 @@ export async function cargaDaEquipe(
     pessoas: saida,
     sobrecargas: comSugestao,
     sobrecargasDiarias,
+    linhasAgendadas,
     demandaPerfis: [...demanda.values()],
   };
 }
