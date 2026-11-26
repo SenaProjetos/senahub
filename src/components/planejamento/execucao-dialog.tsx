@@ -9,6 +9,7 @@ import { aprovarEtapaDisciplina } from "@/modules/projetos/etapas-actions";
 import type { EapTarefaDTO } from "@/modules/planejamento/queries";
 import { formatarData } from "@/lib/utils";
 import type { OrigemDasDatas } from "@/modules/planejamento/concluir-pelo-planejado";
+import type { AvisoCascata } from "@/modules/planejamento/cascata";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
@@ -78,6 +79,7 @@ export function ExecucaoDialog({
   onClose,
   podeAprovarFase,
   podeVerCusto,
+  onCascata,
 }: {
   /** `null` = fechado. */
   linha: EapTarefaDTO | null;
@@ -85,6 +87,8 @@ export function ExecucaoDialog({
   podeAprovarFase: boolean;
   /** Vê financeiro: só então o valor da tarefa de terceiro aparece (é R$). */
   podeVerCusto: boolean;
+  /** A data real criou conflito de recurso novo (aviso em cascata): quem abriu o diálogo mostra o aviso. */
+  onCascata?: (aviso: AvisoCascata) => void;
 }) {
   const router = useRouter();
   const oferecerFase = useOferecerFase(podeAprovarFase);
@@ -156,6 +160,7 @@ export function ExecucaoDialog({
     onClose();
     router.refresh();
     if (r.data.fase) await oferecerFase(r.data.fase);
+    if (r.data.cascata) onCascata?.(r.data.cascata);
   }
 
   return (

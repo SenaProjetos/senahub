@@ -17,6 +17,7 @@ import { contarPorSeveridade, type Achado } from "@/modules/planejamento/qualida
 import { rotuloBaseline, type VersaoBaseline } from "@/modules/planejamento/baselines";
 import { ConflitosRecursosFaixa, exemplosDosConflitos, resumoDosConflitos } from "@/components/planejamento/conflitos-recursos-faixa";
 import type { ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos";
+import type { AvisoCascata } from "@/modules/planejamento/cascata";
 import { InicioProjetoDialog } from "@/components/planejamento/inicio-projeto-dialog";
 import { FAIXA_COR, SaudeCronogramaPainel, iconeDaFaixa, rotuloFaixa, type ComparativoBase } from "@/components/planejamento/saude-cronograma-painel";
 import { formatarData } from "@/lib/utils";
@@ -109,6 +110,7 @@ export function FaixaCronograma({
   conflitosRecursos = [],
   verRecursos = false,
   onVerNaTabela,
+  onCascata,
 }: {
   projetoId: string;
   /** `YYYY-MM-DD` de hoje (servidor). */
@@ -143,6 +145,8 @@ export function FaixaCronograma({
   comparativo: ComparativoBase | null;
   /** Semanas em que alguém com hora aqui passa da capacidade somando os outros projetos — só aviso, nunca trava. */
   conflitosRecursos?: ConflitoRecurso[];
+  /** A Data de Status criou conflito de recurso novo (aviso em cascata): a tela mostra o diálogo. */
+  onCascata?: (aviso: AvisoCascata) => void;
   verRecursos?: boolean;
   onVerNaTabela: (rotulo: string, tarefaIds: string[]) => void;
 }) {
@@ -283,6 +287,7 @@ export function FaixaCronograma({
         toast.success("Data de Status atualizada — o trabalho não feito foi para depois dela.");
         setStatusAberto(false);
         router.refresh();
+        if (r.data.cascata) onCascata?.(r.data.cascata);
       } else toast.error(r.error);
     });
   }

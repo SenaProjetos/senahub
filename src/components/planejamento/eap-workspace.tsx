@@ -41,6 +41,8 @@ import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
 import type { Achado } from "@/modules/planejamento/qualidade";
 import { conflitosPorLinha, type ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos";
+import type { AvisoCascata } from "@/modules/planejamento/cascata";
+import { AvisoCascataDialog } from "@/components/planejamento/aviso-cascata-dialog";
 import type { CustoLinha } from "@/modules/planejamento/custo";
 import type { ResultadoSaude } from "@/modules/planejamento/saude";
 import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
@@ -261,6 +263,8 @@ export function EapWorkspace({
   const rotuloBase = (baselineEscolhida ?? maisNova) != null ? rotuloBaseline((baselineEscolhida ?? maisNova) as number) : undefined;
   // Pool de recursos (decisão 3): o nome de quem passa da jornada fica vermelho na coluna Recursos.
   const conflitosNasLinhas = useMemo(() => conflitosPorLinha(conflitosRecursos), [conflitosRecursos]);
+  /** Aviso em cascata: a última data real / Data de Status gravada criou conflito de recurso novo. */
+  const [avisoCascata, setAvisoCascata] = useState<AvisoCascata | null>(null);
 
   // Filtros e lookahead (Doc 03 §36/§37) — aplicados só à VISÃO (Gantt + tabela). O diálogo
   // continua vendo a EAP inteira: escolher predecessora não pode depender do que está
@@ -400,7 +404,7 @@ export function EapWorkspace({
     const montado = execucaoDaCelula(t, campo, dia);
     if (!montado.ok) return montado.motivo;
     // Holder: atribuído dentro da fila, o TS não enxergaria a mudança de uma variável solta.
-    const achou: { fase: FaseOferecida | null } = { fase: null };
+    const achou: { fase: FaseOferecida | null; cascata: AvisoCascata | null } = { fase: null, cascata: null };
     const erro = await naFila(async () => {
       const r = await registrarExecucao({
         id: t.id,
@@ -419,10 +423,12 @@ export function EapWorkspace({
       }
       if (r.data.status === "con" && t.status !== "con") toast.success(t.marco ? "Marco concluído." : "Tarefa concluída.");
       achou.fase = r.data.fase;
+      achou.cascata = r.data.cascata;
       router.refresh();
       return null;
     });
     if (achou.fase) await oferecerFase(achou.fase);
+    if (achou.cascata) setAvisoCascata(achou.cascata);
     return erro;
   }
 
@@ -903,6 +909,7 @@ export function EapWorkspace({
           comparativo={comparativo}
           conflitosRecursos={conflitosRecursos}
           verRecursos={verRecursos}
+          onCascata={setAvisoCascata}
           onVerNaTabela={(rotulo, ids) => {
             setAchadoFiltro({ rotulo, ids: new Set(ids) });
             setFiltro("todas");
@@ -1057,8 +1064,10 @@ export function EapWorkspace({
           onClose={() => setExecucao(null)}
           podeAprovarFase={podeAprovarFase}
           podeVerCusto={custoTotal != null}
+          onCascata={setAvisoCascata}
         />
       )}
+      <AvisoCascataDialog aviso={avisoCascata} verRecursos={verRecursos} onClose={() => setAvisoCascata(null)} />
 
       {podeGerir && predAberta && (
         <PredecessorasDialog

@@ -360,6 +360,20 @@ trecho ("Mireli · 26/11 a 27/11 (2 dias): até 14h em 8h de jornada").
 - É só aviso: não bloqueia a aprovação e não muda data. Usa as **horas previstas**: pessoa sem horas na tarefa não
   entra.
 
+**Aviso ao registrar uma data real ou a Data de Status.** Quando o andamento que você acabou de registrar empurra
+alguém para cima de outro cronograma, abre o aviso **"Data real registrada: conflito de recurso"** (ou "Data de Status
+registrada"), com um bloco por pessoa e projeto: os dias, a tarefa daqui e a do outro projeto.
+
+- Só sai para conflito **novo**, que não existia antes de você salvar. O que já existia continua no alerta da faixa, sem
+  aviso de novo.
+- Lista também os cronogramas em **rascunho** afetados, marcados "(rascunho)". Ninguém mais é avisado por eles.
+- Quando o outro cronograma está **aprovado**, a **coordenação dele** recebe uma notificação (sem coordenador cadastrado,
+  os gestores) e o bloco diz "A coordenação do … também foi avisada". Quem registrou e a pessoa em conflito não recebem
+  nada a mais. A coordenação decide se abre **Revisar planejamento**: nenhuma data do outro projeto muda.
+- **Ver na tela por pessoa** abre a faixa da pessoa em [Recursos](recursos.md), na semana do conflito.
+- O **% concluído** e a revisão do planejamento não disparam o aviso. Tarefa concluída sai da carga: o conflito aparece
+  pelo que ainda falta fazer (a tarefa seguinte que andou, o trabalho que foi para depois da Data de Status).
+
 Ao aprovar, o sistema:
 
 - **congela a linha de base BL-00** — uma foto de cada linha: datas, duração, horas, custo previsto

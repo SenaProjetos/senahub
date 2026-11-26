@@ -52,6 +52,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   outro superusuário.
 - O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
 
+## Aviso de conflito ao registrar o andamento (novembro/2026)
+
+- Ao registrar uma **data real** ou a **Data de Status** no cronograma, se isso empurrar alguém para cima de outro
+  cronograma, abre na hora o aviso **"conflito de recurso"**, com a pessoa, os dias e as tarefas dos dois lados. Lista
+  também os rascunhos afetados.
+- A **coordenação do outro projeto**, se ele estiver aprovado, recebe uma notificação para decidir se abre "Revisar
+  planejamento". Nenhuma data muda sozinha. Só conflito novo avisa; o % concluído não dispara.
+- Quem não quiser receber desliga em **Preferências → Conflito de recurso no cronograma**.
+
 ## Recursos por pessoa (novembro/2026)
 
 - Em **Recursos**, a nova aba **Por pessoa** mostra, numa linha do tempo, tudo o que cada pessoa faz em todos os

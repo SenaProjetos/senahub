@@ -70,6 +70,7 @@ export function PreferenciasView({
   notifCicloDocumental: notifCicloDocumentalInicial,
   notifEtapaProxima: notifEtapaProximaInicial,
   notifAtividadeConcluida: notifAtividadeConcluidaInicial,
+  notifConflitoRecurso: notifConflitoRecursoInicial,
   notifPedidoRevisaoCliente: notifPedidoRevisaoClienteInicial,
   notifMensagemCliente: notifMensagemClienteInicial,
   notifAprovacaoEntrega: notifAprovacaoEntregaInicial,
@@ -107,6 +108,7 @@ export function PreferenciasView({
   notifCicloDocumental: boolean;
   notifEtapaProxima: boolean;
   notifAtividadeConcluida: boolean;
+  notifConflitoRecurso: boolean;
   notifPedidoRevisaoCliente: boolean;
   notifMensagemCliente: boolean;
   notifAprovacaoEntrega: boolean;
@@ -145,6 +147,7 @@ export function PreferenciasView({
   const [notifCicloDocumental, setNotifCicloDocumental] = useState(notifCicloDocumentalInicial);
   const [notifEtapaProxima, setNotifEtapaProxima] = useState(notifEtapaProximaInicial);
   const [notifAtividadeConcluida, setNotifAtividadeConcluida] = useState(notifAtividadeConcluidaInicial);
+  const [notifConflitoRecurso, setNotifConflitoRecurso] = useState(notifConflitoRecursoInicial);
   const [notifPedidoRevisaoCliente, setNotifPedidoRevisaoCliente] = useState(notifPedidoRevisaoClienteInicial);
   const [notifMensagemCliente, setNotifMensagemCliente] = useState(notifMensagemClienteInicial);
   const [notifAprovacaoEntrega, setNotifAprovacaoEntrega] = useState(notifAprovacaoEntregaInicial);
@@ -368,6 +371,13 @@ export function PreferenciasView({
       set: setNotifAtividadeConcluida,
     },
     {
+      chave: "notif_conflito_recurso",
+      titulo: "Conflito de recurso no cronograma",
+      descricao: "Para a coordenação: uma data real ou a Data de Status de outro projeto pôs alguém do seu cronograma aprovado acima da jornada.",
+      valor: notifConflitoRecurso,
+      set: setNotifConflitoRecurso,
+    },
+    {
       chave: "notif_pedido_revisao_cliente",
       titulo: "Pedidos de revisão do cliente",
       descricao: "Um cliente pediu, pelo portal, revisão de uma prancha de projeto que você coordena.",
@@ -401,10 +411,16 @@ export function PreferenciasView({
     return opcoes.map((o) => (
       <div key={o.chave} className="flex items-center justify-between gap-4 py-3">
         <div className="min-w-0">
-          <Label className="text-sm font-medium">{o.titulo}</Label>
-          <p className="text-xs text-muted-foreground">{o.descricao}</p>
+          <Label htmlFor={`pref-${o.chave}`} className="text-sm font-medium">
+            {o.titulo}
+          </Label>
+          <p id={`pref-${o.chave}-dica`} className="text-xs text-muted-foreground">
+            {o.descricao}
+          </p>
         </div>
         <Switch
+          id={`pref-${o.chave}`}
+          aria-describedby={`pref-${o.chave}-dica`}
           checked={o.valor}
           onCheckedChange={(v: boolean) => {
             o.set(v);

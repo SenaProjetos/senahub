@@ -160,6 +160,17 @@ de `cargaDaEquipe` com `comLinhas` + `diario` contando os rascunhos. Os dias aci
 faixa (`planejamento:gerir`, só projetos que a pessoa enxerga). O aviso de conflito do cronograma ganhou "Ver na tela por
 pessoa". Fica para depois: parceiro externo (parte 6), arrastar (parte 4).
 
+Parte 3 feita no mesmo branch: `registrarExecucao` (só quando a data real muda) e `definirDataStatus` (só quando a data
+muda) tiram a foto da carga por dia ANTES de gravar (`fotoAntesDaDataReal`/`fotoAntesDaDataStatus`, de hoje até o fim do
+projeto, contando os rascunhos) e comparam com a de depois (`avisarCascata`, regras puras em `cascata.ts`). Novo = par
+(pessoa, dia, outro projeto) que não existia; o aviso à coordenação exige os dois aprovados e o dia acima da jornada só com
+aprovados. Coordenação = membro com papel "coord…"; sem coordenador, os gestores (mesma regra do aviso de atividade
+concluída); quem gravou não recebe. Categoria `conflito_recurso`, link para o cronograma do projeto afetado; o nome do
+projeto de origem só para quem tem `recursos:ver`. A tela de quem gravou abre "Data real registrada: conflito de recurso"
+(`aviso-cascata-dialog.tsx`). Falha no aviso nunca derruba a gravação. Limite: tarefa concluída sai da carga (regra de
+sempre), então o dia da própria conclusão não vira conflito; o que aparece é o que ainda falta fazer. O início real gravado
+pelo ponto não dispara (não é registro do planejamento). `npm run smoke:aviso-cascata`.
+
 
 1. Dedicação por disciplina, cor por projeto, horas automáticas, conflito por dia (chip, aprovação, nome vermelho na EAP).
 2. Tela por pessoa, só leitura.

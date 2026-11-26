@@ -33,6 +33,7 @@ import { colarBloco } from "@/modules/planejamento/colar-bloco-service";
 import { gerarEapDasDisciplinasNoProjeto } from "@/modules/planejamento/modelos/disciplina-service";
 import { apagarEapDoProjeto } from "@/modules/planejamento/apagar-eap-service";
 import { aposMudarEap } from "@/modules/planejamento/pos-eap";
+import { avisarCascata, fotoAntesDaDataReal, fotoAntesDaDataStatus } from "@/modules/planejamento/cascata-service";
 import { comPassoDaAction, projetoDaLinha, rotuloDaLinha } from "@/modules/planejamento/desfazer/passo";
 import { noEscopoDoProjeto } from "@/modules/planejamento/escopo";
 import { lerDataDigitada } from "@/modules/planejamento/datas-linha";
@@ -811,6 +812,8 @@ export const definirDataStatus = defineAction(
     if (i.dataStatus > paraDia(inicioDoDiaUtc())) {
       throw new ActionError("A Data de Status não pode ser no futuro — é até quando o andamento está informado.");
     }
+    // Aviso em cascata (pool de recursos, decisão 9): a carga de ANTES, para saber o que a nova data criou de conflito.
+    const antes = await fotoAntesDaDataStatus(i.projetoId, i.dataStatus);
     const data = new Date(`${i.dataStatus}T00:00:00.000Z`);
     await prisma.cronogramaProjeto.upsert({
       where: { projetoId: i.projetoId },
@@ -829,8 +832,14 @@ export const definirDataStatus = defineAction(
     } catch (e) {
       console.error("[valor-agregado] falha ao gravar a apuração", i.projetoId, e);
     }
+    const cascata = await avisarCascata({
+      antes,
+      origem: "data_status",
+      autorId: user.id,
+      verCargaDaEquipe: () => can(user, "recursos", "ver"),
+    });
     revProjeto(i.projetoId);
-    return { dataStatus: i.dataStatus };
+    return { dataStatus: i.dataStatus, cascata };
   }),
 );
 
@@ -1229,6 +1238,8 @@ export const registrarExecucao = defineAction(
     },
   },
   noEscopoDoProjeto(async (i) => projetoDaLinha(i.id), async (i, { user }) => {
+    // Aviso em cascata (pool de recursos, decisão 9): só quando a data real muda — o % sozinho não dispara.
+    const antes = await fotoAntesDaDataReal(i.id, { inicioReal: i.inicioReal, fimReal: i.fimReal });
     const { projetoId, nome, status, fase, parcelasAFaturar, datasPeloPlanejado } = await registrarExecucaoNaLinha({
       id: i.id,
       inicioReal: i.inicioReal,
@@ -1242,6 +1253,12 @@ export const registrarExecucao = defineAction(
       autorId: user.id,
     });
     await aposMudarEap(projetoId, user.id);
+    const cascata = await avisarCascata({
+      antes,
+      origem: "data_real",
+      autorId: user.id,
+      verCargaDaEquipe: () => can(user, "recursos", "ver"),
+    });
 
     // Fase pronta para aprovar (o marco a entregou): avisa quem aprova (mesma audiência da "aprovação
     // solicitada"). Quem registrou pode nem ter a permissão — o aviso é o que leva o marco até a aprovação.
@@ -1288,7 +1305,7 @@ export const registrarExecucao = defineAction(
     revProjeto(projetoId);
     // A fase que o marco entregou aparece no card da disciplina, na aba do projeto.
     if (fase?.marcadaEntregue) revalidatePath(`/projetos/${projetoId}`);
-    return { status, fase, datasPeloPlanejado };
+    return { status, fase, datasPeloPlanejado, cascata };
   }),
 );
 

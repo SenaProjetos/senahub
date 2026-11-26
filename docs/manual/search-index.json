@@ -766,7 +766,10 @@
         "término real",
         "sucessora começou",
         "célula amarela",
-        "término sugerido"
+        "término sugerido",
+        "conflito de recurso",
+        "aviso em cascata",
+        "data real conflito"
       ],
       "palavrasChave": [
         "planejamento",
