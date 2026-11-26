@@ -538,6 +538,30 @@ export function EapLinhaPainel({
                 ))}
               </select>
             </div>
+            {!trava && (
+              // A lista é a das disciplinas DESTE projeto (lida a cada abertura). Caso real de 26/11/2026: a disciplina
+              // foi adicionada a outro projeto e a pessoa achou que a lista estava presa ao início do planejamento.
+              <p className="col-span-2 -mt-1 text-xs text-muted-foreground">
+                Não achou a disciplina? Ela é adicionada na{" "}
+                <a
+                  href={`/projetos/${projetoId}/disciplinas`}
+                  target="_blank"
+                  rel="noopener"
+                  className="text-primary underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                >
+                  página do projeto
+                </a>{" "}
+                (abre em outra aba) e aparece aqui ao{" "}
+                <button
+                  type="button"
+                  onClick={() => router.refresh()}
+                  className="text-primary underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+                >
+                  atualizar a lista
+                </button>
+                .
+              </p>
+            )}
             {!linha && possiveisPais.length > 0 && (
               <div className="col-span-2 space-y-1">
                 <Label htmlFor="linha-pai" className="text-xs text-muted-foreground">

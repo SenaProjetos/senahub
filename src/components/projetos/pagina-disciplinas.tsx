@@ -36,6 +36,7 @@ type Catalogo = React.ComponentProps<typeof AdicionarDoCatalogoButton>["catalogo
  */
 export function PaginaDisciplinas({
   projetoId,
+  projetoRotulo,
   podeGerir,
   internos,
   prazoContrato,
@@ -46,6 +47,8 @@ export function PaginaDisciplinas({
   children,
 }: {
   projetoId: string;
+  /** "260049 · CASA ARQ": as janelas de adicionar dizem em qual projeto a disciplina entra. */
+  projetoRotulo: string;
   podeGerir: boolean;
   internos: { id: string; name: string; role?: string }[];
   prazoContrato: string | null;
@@ -124,6 +127,7 @@ export function PaginaDisciplinas({
       {podeGerir && (
         <AdicionarDisciplinaButton
           projetoId={projetoId}
+          projetoRotulo={projetoRotulo}
           internos={internos}
           prazoContrato={prazoContrato}
           controle={{ aberto: janela === "adicionar", aoMudar: (v) => setJanela(v ? "adicionar" : null) }}
@@ -132,6 +136,7 @@ export function PaginaDisciplinas({
       {podeGerir && catalogo.length > 0 && (
         <AdicionarDoCatalogoButton
           projetoId={projetoId}
+          projetoRotulo={projetoRotulo}
           catalogo={catalogo}
           controle={{ aberto: janela === "catalogo", aoMudar: (v) => setJanela(v ? "catalogo" : null) }}
         />

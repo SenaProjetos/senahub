@@ -23,11 +23,13 @@ interface Props {
   /** Aberta pelo menu da página (botão direito): sem o botão próprio. */
   controle?: ControleJanela;
   projetoId: string;
+  /** "260049 · CASA ARQ" — a janela diz em qual projeto a disciplina entra (adicionar no projeto errado já aconteceu). */
+  projetoRotulo: string;
   internos: { id: string; name: string; role?: string }[];
   prazoContrato?: string | null;
 }
 
-export function AdicionarDisciplinaButton({ projetoId, internos, prazoContrato, controle }: Props) {
+export function AdicionarDisciplinaButton({ projetoId, projetoRotulo, internos, prazoContrato, controle }: Props) {
   const [open, setOpen] = useAberto(controle);
   const [nome, setNome] = useState("");
   const [prazo, setPrazo] = useState("");
@@ -54,7 +56,7 @@ export function AdicionarDisciplinaButton({ projetoId, internos, prazoContrato, 
       if (!res?.ok) {
         toast.error(res?.ok === false ? res.error : "Erro ao criar disciplina.");
       } else {
-        toast.success("Disciplina adicionada.");
+        toast.success(`Disciplina adicionada ao projeto ${projetoRotulo}.`);
         reset();
         setOpen(false);
       }
@@ -80,8 +82,8 @@ export function AdicionarDisciplinaButton({ projetoId, internos, prazoContrato, 
       )}
       <DialogContent className="max-w-md">
         <DialogTitle>Adicionar disciplina</DialogTitle>
-        <DialogDescription className="sr-only">
-          Adicione uma nova disciplina ao projeto.
+        <DialogDescription>
+          No projeto <span className="font-semibold text-foreground">{projetoRotulo}</span>.
         </DialogDescription>
         <div className="space-y-4 pt-2">
           <div className="space-y-1.5">

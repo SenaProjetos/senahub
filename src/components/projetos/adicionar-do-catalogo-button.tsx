@@ -21,11 +21,13 @@ interface Props {
   /** Aberta pelo menu da página (botão direito): sem o botão próprio. */
   controle?: ControleJanela;
   projetoId: string;
+  /** "260049 · CASA ARQ" — a janela diz em qual projeto as disciplinas entram (adicionar no projeto errado já aconteceu). */
+  projetoRotulo: string;
   /** `numeracao` = bloco-base da folha na Lista Mestre (EST 4000 → 1ª folha 4001). */
   catalogo: { id: string; nome: string; numeracao: number | null }[];
 }
 
-export function AdicionarDoCatalogoButton({ projetoId, catalogo, controle }: Props) {
+export function AdicionarDoCatalogoButton({ projetoId, projetoRotulo, catalogo, controle }: Props) {
   const [open, setOpen] = useAberto(controle);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
@@ -62,7 +64,7 @@ export function AdicionarDoCatalogoButton({ projetoId, catalogo, controle }: Pro
       if (!res?.ok) {
         toast.error(res?.ok === false ? res.error : "Erro ao adicionar disciplinas.");
       } else {
-        toast.success(`${(res.data as { criadas: number }).criadas} disciplina(s) adicionada(s).`);
+        toast.success(`${(res.data as { criadas: number }).criadas} disciplina(s) adicionada(s) ao projeto ${projetoRotulo}.`);
         setSelecionados([]);
         setOpen(false);
       }
@@ -91,8 +93,9 @@ export function AdicionarDoCatalogoButton({ projetoId, catalogo, controle }: Pro
       <DialogContent className="max-w-md">
         <DialogTitle>Adicionar do catálogo</DialogTitle>
         <DialogDescription>
-          Selecione as disciplinas padrão a adicionar ao projeto. Disciplinas já existentes serão
-          ignoradas.
+          Selecione as disciplinas padrão a adicionar ao projeto{" "}
+          <span className="font-semibold text-foreground">{projetoRotulo}</span>. As que ele já tem
+          são ignoradas.
         </DialogDescription>
         <ul className="max-h-[22rem] divide-y divide-border overflow-y-auto rounded-md border">
           {ordenado.map((c) => {
