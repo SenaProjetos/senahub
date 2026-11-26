@@ -5,7 +5,7 @@ import type { Dia } from "@/lib/calendario-trabalho";
 import { diaLocal } from "@/modules/ponto/engine";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso } from "./disponibilidade";
-import { montarCalendarioComNomes, planoDoProjeto } from "./agenda";
+import { montarCalendarioComNomes, planoDoProjeto, type PlanoDoProjeto } from "./agenda";
 import {
   ENCERRADA,
   capacidadeHorasNoDia,
@@ -180,6 +180,8 @@ export async function cargaDaEquipe(
     diario?: { desde: Dia; comRascunhos: boolean };
     /** Devolve também as linhas agendadas (`linhasAgendadas`) — a tela por pessoa. */
     comLinhas?: boolean;
+    /** Planos já calculados por quem chama (o Planejamento geral): o projeto que está aqui não é agendado de novo. */
+    planos?: ReadonlyMap<string, PlanoDoProjeto | null>;
   } = {},
 ): Promise<CargaDaEquipe> {
   const nSemanas = opcoes.semanas ?? 12;
@@ -222,7 +224,7 @@ export async function cargaDaEquipe(
         atribuicoes: { select: { id: true, userId: true, papel: true, horasPrevistas: true } },
       },
     }),
-    Promise.all(comLinhas.map(async (id) => [id, await planoDoProjeto(id)] as const)),
+    Promise.all(comLinhas.map(async (id) => [id, opcoes.planos?.has(id) ? (opcoes.planos.get(id) ?? null) : await planoDoProjeto(id)] as const)),
   ]);
   const planoPorProjeto = new Map(planos);
   const ehAprovado = new Set(aprovados);

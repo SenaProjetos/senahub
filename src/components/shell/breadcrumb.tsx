@@ -45,6 +45,8 @@ const ROTULO_POR_ROTA: Record<string, string> = {
   "/arquivos/pendencias": "Pendências documentais",
   "/arquivos/pedidos-cliente": "Pedidos do cliente",
   "/projetos/mensagens-cliente": "Mensagens de clientes",
+  // O antigo Cronograma geral virou o Planejamento geral (pool de recursos, parte 5); a rota ficou.
+  "/planejamento/cronograma": "Planejamento geral",
 };
 
 function capitalize(segment: string): string {

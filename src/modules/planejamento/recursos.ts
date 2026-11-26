@@ -477,7 +477,7 @@ export function somarCarga(parcelas: readonly ParcelaCarga[]): Map<string, Map<s
  * Folga de arredondamento: horas espalhadas em dias dão dízimas (40 h / 3 dias), e 0,01 h
  * acima da capacidade não é sobrecarga, é ponto flutuante.
  */
-const TOLERANCIA_HORAS = 0.05;
+export const TOLERANCIA_HORAS = 0.05;
 
 export type Sobrecarga = {
   userId: string;

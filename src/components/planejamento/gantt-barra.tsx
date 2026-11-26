@@ -8,16 +8,12 @@ import { cn } from "@/lib/utils";
 import { dataCurta } from "@/lib/dias-iso";
 
 /**
- * A BARRA de uma linha no gráfico do Gantt, no molde do MS Project — a peça que o cronograma do projeto
- * (`plano-gantt.tsx`) e o Cronograma geral (`gantt-mini.tsx`) desenham igual.
+ * A BARRA de uma linha no gráfico do Gantt, no molde do MS Project — a do cronograma do projeto (`plano-gantt.tsx`):
+ * barra de atividade com o avanço dentro, agrupamento em barra preta com as pontas, marco em losango, e a barra da linha
+ * de base abaixo no modo controle. O cabeçalho da escala (`CabecalhoEscala`) e as alturas também servem ao Planejamento
+ * geral, que desenha a sua barra (cor do projeto, rascunho tracejado, dia de conflito hachurado).
  *
- * Vive num arquivo próprio para os dois lerem a MESMA geometria: barra de atividade com o avanço dentro,
- * agrupamento em barra preta com as pontas, marco em losango, e a barra da linha de base abaixo no modo
- * controle. Duas cópias divergiriam no primeiro ajuste — e "o mesmo cronograma desenhado diferente em duas
- * telas" é exatamente o que a adoção do time não perdoa.
- *
- * Apresentacional: nada de action nem `next/*`. Os callbacks são opcionais porque o Cronograma geral é só
- * leitura (sem seleção, sem duplo clique).
+ * Apresentacional: nada de action nem `next/*`. Os callbacks são opcionais.
  */
 
 export type ModoGantt = "planejamento" | "controle";

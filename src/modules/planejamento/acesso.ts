@@ -29,3 +29,12 @@ export async function podeVerDatasDoPlanejamento(user: SubjectAutorizacao & { eh
   }
   return false;
 }
+
+/**
+ * Quem vê o Planejamento geral (pool de recursos, decisão 7): quem vê Recursos (`recursos:ver`, com o piso de sócio, a
+ * mesma regra de `requirePermission`) e vê as datas do planejamento — a tela é linha do tempo.
+ */
+export async function podeVerPlanejamentoGeral(user: SubjectAutorizacao & { ehSocio?: boolean }): Promise<boolean> {
+  const veRecursos = (await can(user, "recursos", "ver")) || (!!user.ehSocio && (await canRole("supervisor", "recursos", "ver")));
+  return veRecursos && (await podeVerDatasDoPlanejamento(user));
+}

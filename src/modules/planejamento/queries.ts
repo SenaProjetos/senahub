@@ -259,10 +259,7 @@ async function realizadoDasLinhas(
   return real;
 }
 
-/**
- * Mapeador único do DTO de linha da EAP. Existe pra `eapDoProjeto` e
- * `cronogramaProjetosAtivos` nunca divergirem de novo — as duas alimentam o mesmo `Gantt`.
- */
+/** Mapeador único do DTO de linha da EAP (`eapDoProjeto`). */
 function mapearTarefaDTO(
   t: EapTarefaComRelacoes,
   plano: PlanoDoProjeto | null,
@@ -538,50 +535,6 @@ export async function eapDoProjeto(
 }
 
 export type EapTarefaDTO = Awaited<ReturnType<typeof eapDoProjeto>>["tarefas"][number];
-
-/** Cronograma consolidado: projetos com EAP (qualquer situação) + suas tarefas/linha de base. */
-export async function cronogramaProjetosAtivos() {
-  const projetos = await prisma.projeto.findMany({
-    where: { eapTarefas: { some: {} } },
-    orderBy: [{ ano: "desc" }, { sequencial: "desc" }],
-    select: {
-      id: true,
-      codigo: true,
-      nome: true,
-      situacao: true,
-      eapTarefas: {
-        orderBy: { ordem: "asc" },
-        include: INCLUDE_LINHA,
-      },
-    },
-  });
-  // Um motor por projeto: o calendário é o mesmo, mas a âncora e o grafo não. Rodar em
-  // paralelo mantém a tela consolidada no mesmo custo de antes.
-  const planos = new Map(
-    await Promise.all(
-      projetos.map(async (p) => [p.id, await planoDoProjeto(p.id)] as const),
-    ),
-  );
-  // O calendário é o MESMO para todos (um calendário da empresa, D8): vai uma vez, para o gráfico sombrear
-  // dia não útil com o mesmo conjunto que agendou as linhas. Sem plano nenhum (projeto sem cronograma), cai
-  // em seg-sex sem feriado — só afeta o sombreado.
-  const algumPlano = [...planos.values()].find((x) => x != null) ?? null;
-
-  return {
-    calendario: {
-      diasUteis: algumPlano ? [...algumPlano.calendario.diasSemana] : [1, 2, 3, 4, 5],
-      feriados: algumPlano ? [...algumPlano.calendario.feriados] : ([] as string[]),
-    },
-    projetos: projetos.map((p) => ({
-      id: p.id,
-      codigo: p.codigo,
-      nome: p.nome,
-      situacao: p.situacao,
-      temLinhaBase: p.eapTarefas.some((t) => t.inicioBaseline != null),
-      tarefas: p.eapTarefas.map((t) => mapearTarefaDTO(t, planos.get(p.id) ?? null)),
-    })),
-  };
-}
 
 /**
  * P-28: plano × real do projeto no mês corrente — alocação planejada (%) por pessoa

@@ -37,7 +37,8 @@ combinado original guardado para comparar.
 - A tela lista os **projetos aos quais você tem acesso**, em cartões com o número de tarefas, o
   período (início–fim) e o **progresso**. Projeto sem EAP mostra **Iniciar planejamento**.
 - Clique num projeto para abrir o cronograma dele (`/planejamento/{projeto}`).
-- O botão **Cronograma geral** abre a visão de todos os projetos lado a lado (veja abaixo).
+- Quem vê Recursos tem duas abas: **Planejamento geral** (todos os cronogramas juntos, veja abaixo) e **Projetos
+  individuais** (os cartões).
 - Dentro do projeto, a aba **EAP** (`/projetos/{projeto}/eap`) mostra a mesma EAP **só para consulta**:
   tabela, Gantt, filtros, Saúde e exportação, sem edição, sem menu de linha e sem aprovação. O botão
   **Editar no Planejamento** (ou **Abrir no Planejamento**, para quem não monta a EAP) leva à tela completa.
@@ -45,7 +46,7 @@ combinado original guardado para comparar.
 
 > **Ver × editar.** Quem tem só `planejamento:ver` **vê a estrutura** do planejamento — as tarefas, as
 > pessoas, a duração e o avanço —, **sem nenhuma data**: não aparecem o Gantt, os prazos, a linha de base,
-> o Cronograma geral, a Saúde, o Valor Agregado nem a exportação. Ver as datas exige montar (`planejamento:gerir`),
+> o Planejamento geral, a Saúde, o Valor Agregado nem a exportação. Ver as datas exige montar (`planejamento:gerir`),
 > ver o cronograma (`cronograma:ver`) ou acompanhá-lo (`cronograma:executado` ou `cronograma:aprovar`).
 > Montar e editar exige `planejamento:gerir`. A tabela de permissões está no fim da página.
 
@@ -644,15 +645,29 @@ plano volta a travar. É o que responde, no fim do projeto, "por que o prazo and
   projetista por fase. Ver [Custo](cronograma-equipe-e-custo.md) e
   [Contrato por entrega](../financeiro/contrato-por-entrega.md).
 
-## 5. Exportar e Cronograma geral
+## 5. Exportar e Planejamento geral
 
 - **Exportar Excel** — a EAP com código, datas, progresso e (com linha de base) desvio; quem vê o
   financeiro recebe também a coluna de **custo previsto**.
 - **Exportar PDF** — versão para imprimir.
-- **Cronograma geral** (`/planejamento/cronograma`) — os projetos lado a lado na mesma linha do
-  tempo, para **enxergar e sequenciar** projetos entre si. É só **leitura**: o prazo de cada projeto
-  só se edita dentro dele. Filtros: busca por nome ou código, **situação** do projeto e **Com
-  atraso**.
+- **Planejamento geral** (aba do Planejamento, `/planejamento/cronograma`) — todos os cronogramas numa só tabela e num só
+  Gantt, aprovados e rascunhos, para **enxergar e sequenciar** projetos entre si. É só **leitura**: a data muda dentro do
+  projeto ou arrastando em [Recursos → Por pessoa](recursos.md).
+  - Entram os projetos com EAP em andamento e os aprovados. Projetos cancelados e arquivados ficam fora.
+  - A tela abre com os projetos **recolhidos**. Cada linha de projeto mostra o selo **Aprovado** ou **Rascunho**, o
+    período, os dias de conflito e uma barra-resumo. Clique na linha para ver as tarefas. **Expandir todos** abre todos
+    os projetos de uma vez.
+  - Escolha **Tabela**, **Gantt** ou **Tabela e Gantt**, e a escala em dias, semanas ou meses. As colunas são EDT, Nome
+    da tarefa, Responsável, Início e Término.
+  - O rascunho aparece em cinza tracejado e o aprovado na cor do projeto.
+  - Quem passa da jornada num dia aparece em **vermelho com ●** na coluna Responsável, e o dia fica hachurado na barra.
+    Na linha de um aprovado, só conta a carga dos aprovados. Na linha de um rascunho, contam também os outros rascunhos.
+  - Clicar numa pessoa abre a faixa dela em Recursos → Por pessoa, no primeiro dia de conflito. O ícone ao lado do
+    projeto abre o cronograma dele.
+  - Filtros: **projetos** (escolha vários), **disciplina**, **pessoa**, **cronograma** (aprovados ou rascunhos) e
+    **período** (De / até; começa nesta semana e vai 12 semanas à frente, até 1 ano). O contador diz quantos projetos
+    você está vendo ("3 de 7 projetos").
+  - Quem vê: quem vê **Recursos** (`recursos:ver`) e vê as datas do planejamento.
 - Na visão **Indicadores** de cada projeto, **Plano × real** compara, no mês corrente, a alocação
   planejada de cada pessoa com as horas realmente registradas no ponto.
 
@@ -661,7 +676,8 @@ plano volta a travar. É o que responde, no fim do projeto, "por que o prazo and
 | Ação | Permissão |
 | --- | --- |
 | Ver a lista de projetos e a **estrutura** da EAP (sem datas) | `planejamento:ver` |
-| Ver as **datas**: Gantt, prazos, linha de base, Cronograma geral, Saúde, Valor Agregado, exportar Excel e PDF | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
+| Ver as **datas**: Gantt, prazos, linha de base, Saúde, Valor Agregado, exportar Excel e PDF | `planejamento:gerir`, `cronograma:ver`, `cronograma:executado` ou `cronograma:aprovar` |
+| Ver o **Planejamento geral** | `recursos:ver` e uma das permissões de datas acima |
 | Montar e editar a EAP (tarefas, dependências, restrição, bloqueio, recursos, reagendar, aplicar ao projeto) | `planejamento:gerir` |
 | Definir a Data de Status (**Apurar**) e **Atualizar tarefa** (datas reais e % concluído) | `cronograma:executado` |
 | **Aprovar** o cronograma, **Revisar planejamento** e criar **Nova linha de base** | `cronograma:aprovar` |

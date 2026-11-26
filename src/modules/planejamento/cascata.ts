@@ -14,10 +14,10 @@
  * Um par entra na lista quando é novo em qualquer dos dois; avisa só quando é novo no segundo.
  */
 import type { Dia } from "@/lib/calendario-trabalho";
-import type { SobrecargaDia } from "./recursos";
+import { TOLERANCIA_HORAS, type SobrecargaDia } from "./recursos";
 
-/** O mesmo meio centésimo de folga da detecção: 8,004 h em 8 h não é conflito. */
-const FOLGA = 0.005;
+/** A mesma folga da detecção (`TOLERANCIA_HORAS`): 8,04 h em 8 h não é conflito. */
+const FOLGA = TOLERANCIA_HORAS;
 
 type Par = {
   userId: string;

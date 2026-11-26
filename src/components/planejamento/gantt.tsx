@@ -15,8 +15,7 @@ const parse = (iso: string) => new Date(iso + "T00:00:00");
  * Gantt ANTIGO (eixo por mês, barra prevista + linha de base). Sobrevive por UM consumidor: a página de
  * impressão `/planejamento/[projetoId]/print`, que é um documento HTML próprio.
  *
- * As telas usam o Gantt no molde do MS Project (`plano-gantt.tsx` no projeto, `gantt-mini.tsx` no
- * Cronograma geral), que dividem a mesma barra (`gantt-barra.tsx`). Não troque este aqui por aquele sem
+ * As telas usam o Gantt no molde do MS Project (`plano-gantt.tsx`, com a barra de `gantt-barra.tsx`). Não troque este aqui por aquele sem
  * resolver o CSS: a página de impressão não carrega o Tailwind, então classe de cor/borda não pinta nada
  * lá — hoje o PDF já sai sem cor por causa disso (limitação conhecida, registrada no spec do motor).
  */

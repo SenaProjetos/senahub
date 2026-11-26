@@ -1,14 +1,14 @@
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { GanttChart, Rocket, ListTree } from "lucide-react";
+import { Rocket, ListTree } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { projetosComPlano } from "@/modules/planejamento/queries";
-import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
+import { podeVerDatasDoPlanejamento, podeVerPlanejamentoGeral } from "@/modules/planejamento/acesso";
+import { AbasPlanejamento } from "@/components/planejamento/abas-planejamento";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Planejamento" };
@@ -20,20 +20,16 @@ export default async function PlanejamentoPage() {
   const user = await requirePermission("planejamento", "ver");
   const verDatas = await podeVerDatasDoPlanejamento(user);
   const projetos = await projetosComPlano(user, { verDatas });
+  // Decisão 7 do pool de recursos: o Planejamento geral é de quem vê Recursos (e as datas).
+  const verGeral = await podeVerPlanejamentoGeral(user);
 
   return (
     <div className="space-y-6">
       <CabecalhoPagina
         titulo="Planejamento"
         descricao="EAP e cronograma (gantt) por projeto, com linha de base. Selecione um projeto."
-        acoes={
-          verDatas ? (
-            <Button variant="outline" size="sm" render={<Link href="/planejamento/cronograma" />}>
-              <GanttChart className="size-4" /> Cronograma geral
-            </Button>
-          ) : undefined
-        }
       />
+      {verGeral && <AbasPlanejamento atual="projetos" />}
 
       {projetos.length === 0 ? (
         <Card>

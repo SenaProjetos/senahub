@@ -48,6 +48,7 @@
     "smoke:pool-recursos": "tsx --tsconfig tsconfig.server.json scripts/smoke-pool-recursos.ts",
     "smoke:aviso-cascata": "tsx --tsconfig tsconfig.server.json scripts/smoke-aviso-cascata.ts",
     "smoke:arrasto-planejador": "tsx --tsconfig tsconfig.server.json scripts/smoke-arrasto-planejador.ts",
+    "smoke:planejamento-geral": "tsx --tsconfig tsconfig.server.json scripts/smoke-planejamento-geral.ts",
     "smoke:acompanhamento": "tsx --tsconfig tsconfig.server.json scripts/smoke-acompanhamento.ts",
     "smoke:impacto-ausencia": "tsx --tsconfig tsconfig.server.json scripts/smoke-impacto-ausencia.ts",
     "smoke:rateio-custo-hora": "tsx --tsconfig tsconfig.server.json scripts/smoke-rateio-custo-hora.ts",

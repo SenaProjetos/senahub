@@ -52,6 +52,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   outro superusuário.
 - O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
 
+## Planejamento geral (novembro/2026)
+
+- O **Planejamento** ganhou duas abas: **Planejamento geral** e **Projetos individuais** (os cartões de sempre). O
+  Planejamento geral substitui o antigo Cronograma geral.
+- Ele junta todos os cronogramas numa tabela e num Gantt, aprovados e rascunhos (o rascunho em cinza). Os projetos abrem
+  recolhidos e você escolhe ver a tabela, o Gantt ou os dois.
+- Quem passa da jornada num dia aparece em vermelho na coluna Responsável, e o dia fica marcado na barra. Clicar na
+  pessoa abre a faixa dela em Recursos → Por pessoa. É só para ver: a data muda dentro do projeto ou arrastando em
+  Recursos.
+- Filtros por projeto (vários), disciplina, pessoa, aprovado ou rascunho e período, com a contagem de projetos na tela.
+- A aba é de quem vê Recursos.
+
 ## Arrastar na tela por pessoa (novembro/2026)
 
 - Em **Recursos → Por pessoa**, quem monta cronograma agora **arrasta a barra**: para o lado muda o início (no rascunho ou

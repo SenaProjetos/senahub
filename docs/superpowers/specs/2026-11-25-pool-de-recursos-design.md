@@ -181,6 +181,18 @@ só aparece quando alguma seguinte pelos vínculos tem data fixada, e leva essas
 recalculadas); da faixa sem ninguém nasce atribuição automática de projetista. Quem não é coordenador do projeto avisa a
 coordenação (categoria `alteracao_cronograma`; sem coordenador, ninguém). `npm run smoke:arrasto-planejador`.
 
+Parte 5 feita no mesmo branch (plano `plans/2026-11-26-pool-recursos-parte5-planejamento-geral.md`): `/planejamento/cronograma`
+virou o Planejamento geral, com as abas "Planejamento geral | Projetos individuais". Vê quem vê Recursos e as datas
+(`podeVerPlanejamentoGeral`); o antigo Cronograma geral (`cronograma-geral-view.tsx`, `gantt-mini.tsx`,
+`cronogramaProjetosAtivos`) saiu. Projetos = os da carga de Recursos. Regras puras em `planejamento-geral.ts`:
+- período na URL (padrão: 12 semanas a partir desta segunda-feira, até 1 ano);
+- conflito por linha, das sobrecargas por dia de `cargaDaEquipe`. O aprovado conta só os aprovados; o rascunho conta tudo;
+- filtro casado nas linhas sem filhos, levando os agrupamentos acima;
+- contador.
+O motor roda uma vez por projeto: `cargaDaEquipe` ganhou a opção `planos`. Saíram do antigo Cronograma geral, por não estarem
+na decisão 10: a busca por nome, as situações concluído, arquivado e cancelado, o filtro "Com atraso" e o Gantt de Controle
+(linha de base). `npm run smoke:planejamento-geral`.
+
 
 1. Dedicação por disciplina, cor por projeto, horas automáticas, conflito por dia (chip, aprovação, nome vermelho na EAP).
 2. Tela por pessoa, só leitura.
