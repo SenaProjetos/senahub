@@ -41,6 +41,16 @@ export async function substituirResponsaveis(db: Db, disciplinaId: string, novos
 }
 
 /**
+ * Dedicação da pessoa NESTA disciplina, em % de 1 a 100 (pool de recursos, decisão 5); `null` volta à do cadastro de
+ * Recursos. Mexe só nesta coluna: quem é responsável continua sendo decidido por `substituirResponsaveis`, e o
+ * `Recurso.capacidade` (o padrão) nunca muda por aqui. Devolve `false` se a pessoa não é responsável da disciplina.
+ */
+export async function definirDedicacao(db: Db, disciplinaId: string, userId: string, dedicacao: number | null): Promise<boolean> {
+  const r = await db.disciplinaResponsavel.updateMany({ where: { disciplinaId, userId }, data: { dedicacao } });
+  return r.count === 1;
+}
+
+/**
  * Disciplinas do projeto de que a pessoa era responsável NA DATA (correção de ponto de dia antigo).
  * Responsável de hoje SEM nenhuma linha de histórico naquela disciplina (gravado por script, semente
  * ou antes do histórico) vale pelo responsável de hoje — senão a pessoa ficaria sem disciplina.

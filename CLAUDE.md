@@ -55,6 +55,7 @@ npm run smoke:portal-obra           # conta de obra do portal: só Liberado para
 npm run smoke:portal-modelo3d       # modelos 3D do portal: realinhamento grava a origem, lista (realinhado no lugar da origem, recebido do cliente sim, Geral e fora das Entregas não), rota só U ou descendente/recebido, sem conversão = preparando, bloqueio de download tira, ETag/304
 npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
+npm run smoke:pool-recursos   # pool de recursos (parte 1): horas automáticas (dias úteis × 8 h ÷ jornada × dedicação), dedicação na disciplina, conflito POR DIA (rascunho enxerga rascunho; aprovado ignora rascunho)
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
 npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um aberto por tipo (índice parcial), quem marca o quê, lembrete 1×/dia, recontratação
 npm run smoke:pedido-dados   # "Atualize seus dados" + reconfirmação anual: faixa, um aberto por pessoa, CPF/RG ao RH, fechamento (restaura a pessoa)

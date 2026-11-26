@@ -51,6 +51,7 @@ const INCLUDE_LINHA = {
       userId: true,
       papel: true,
       horasPrevistas: true,
+      horasAutomaticas: true,
       principal: true,
       user: { select: { name: true, image: true } },
     },
@@ -346,6 +347,8 @@ function mapearTarefaDTO(
       papel: a.papel,
       rotuloPapel: ROTULO_PAPEL[a.papel],
       horas: Number(a.horasPrevistas),
+      /** Pool de recursos (decisão 2): as horas são do sistema (dias úteis × 8 h ÷ jornada × dedicação). */
+      automatica: a.horasAutomaticas,
       principal: a.principal,
     })),
     // ── F6: o que o ponto e o card já sabem desta linha ──
@@ -476,6 +479,11 @@ export async function eapDoProjeto(
         orderBy: [{ ordem: "asc" }, { id: "asc" }],
         select: { etapaId: true, etapa: { select: { sigla: true, nome: true } } },
       },
+      // Pool de recursos (decisão 5): a dedicação de cada responsável, editada no agrupamento da disciplina.
+      responsaveis: {
+        orderBy: { user: { name: "asc" } },
+        select: { userId: true, dedicacao: true, user: { select: { name: true, recurso: { select: { capacidade: true } } } } },
+      },
     },
   });
   // O motor roda sobre o estado ATUAL do banco e não grava nada: a tela mostra folga e
@@ -517,6 +525,13 @@ export async function eapDoProjeto(
       id: d.id,
       nome: d.disciplinaTextoLegado,
       etapas: d.etapas.map((e) => ({ etapaId: e.etapaId, sigla: e.etapa.sigla, nome: e.etapa.nome })),
+      responsaveis: d.responsaveis.map((r) => ({
+        userId: r.userId,
+        nome: r.user.name,
+        dedicacao: r.dedicacao,
+        /** O padrão do cadastro de Recursos, em % (sem cadastro = 100). */
+        padrao: Math.round(Number(r.user.recurso?.capacidade ?? 1) * 100),
+      })),
     })),
     temLinhaBase: tarefas.some((t) => t.inicioBaseline != null),
   };

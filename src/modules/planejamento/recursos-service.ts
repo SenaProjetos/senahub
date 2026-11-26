@@ -66,7 +66,9 @@ export async function herdarResponsaveisNoProjeto(
     porDisciplina,
   );
   if (novas.length === 0) return 0;
-  const r = await db.eapAtribuicao.createMany({ data: novas, skipDuplicates: true });
+  // Pool de recursos (decisão 2): o herdado nasce com horas automáticas — quem chama recalcula
+  // (`recalcularHorasAutomaticas`, também no começo de `aposMudarEap`).
+  const r = await db.eapAtribuicao.createMany({ data: novas.map((n) => ({ ...n, horasAutomaticas: true })), skipDuplicates: true });
   return r.count;
 }
 

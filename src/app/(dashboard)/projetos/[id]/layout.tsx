@@ -143,6 +143,7 @@ export default async function ProjetoLayout({
     clienteId: projeto.cliente.id,
     tipoEmpreendimentoId: projeto.tipoEmpreendimentoId,
     abasConfig: (projeto.abasConfig as AbaConfigItem[] | null) ?? null,
+    cor: projeto.cor,
   };
 
   return (

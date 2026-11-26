@@ -1277,6 +1277,9 @@ model Projeto {
   /// desejada. Abas ausentes da lista (novas, ou nunca configuradas) usam a ordem padrão
   /// e ficam visíveis. Editado em EditarProjetoDialog; aplicado em ProjetoTabNav.
   abasConfig     Json?
+  /// Cor do projeto nas telas de recursos (pool de recursos, decisão 6): nome de um token da paleta
+  /// `--color-projeto-N` (`planejamento/cor-projeto.ts`), nunca hex. Nulo = a automática, calculada do id.
+  cor            String?
 
   disciplinas             Disciplina[]
   membros                 ProjetoMembro[]
@@ -3406,6 +3409,11 @@ model DisciplinaResponsavel {
   disciplina   Disciplina @relation(fields: [disciplinaId], references: [id], onDelete: Cascade)
   userId       String
   user         User       @relation(fields: [userId], references: [id])
+  /// Dedicação da pessoa NESTA disciplina, em % (pool de recursos, decisão 5). Nulo = a do cadastro de
+  /// Recursos (`Recurso.capacidade`), que nunca muda por causa desta. Pesa a divisão das horas automáticas.
+  /// CHECK 1..100 só no SQL (`disciplina_responsavel_dedicacao_faixa`). Sai junto com a pessoa: quem volta a ser
+  /// responsável volta com o padrão (`substituirResponsaveis` apaga e recria a linha).
+  dedicacao    Int?
 
   @@unique([disciplinaId, userId])
   @@index([userId])
@@ -5368,6 +5376,11 @@ model EapAtribuicao {
   /// dela. Zero é o valor de quem herdou a linha e ainda não foi estimado — o verificador
   /// acusa (`atribuicao_sem_horas`), porque zero é carga zero, custo zero e nenhum alerta.
   horasPrevistas Decimal @default(0) @db.Decimal(7, 2)
+
+  /// Horas preenchidas pelo sistema (pool de recursos, decisões B e 2): `true` = `horasPrevistas` é
+  /// recalculada (dias úteis × 8 h, dividido por jornada × dedicação — `horas-automaticas.ts`) a cada
+  /// mudança da linha. Digitar as horas desliga. As atribuições anteriores ficam `false`.
+  horasAutomaticas Boolean @default(false)
 
   /// Quem aparece no card e nos filtros (D41). Um por linha, e só pessoa.
   principal Boolean @default(false)

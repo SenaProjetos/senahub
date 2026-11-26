@@ -2,6 +2,7 @@ import { PAPEIS_PROJETO } from "@/modules/projetos/papeis";
 import { z } from "zod";
 import { ABAS_CONFIGURAVEIS } from "@/modules/projetos/abas";
 import { PAINEIS_PROJETO } from "@/modules/projetos/painel-layout";
+import { CORES_PROJETO } from "@/modules/planejamento/cor-projeto";
 
 export const abaConfigItemSchema = z.object({
   suffix: z.enum(ABAS_CONFIGURAVEIS),
@@ -63,6 +64,8 @@ export const editarProjetoSchema = z.object({
   /** D13: vazio limpa o tipo. */
   tipoEmpreendimentoId: z.string().nullish(),
   abasConfig: z.array(abaConfigItemSchema).optional(),
+  /** Pool de recursos (decisão 6): cor da paleta; `null` = a automática; ausente não mexe. */
+  cor: z.enum(CORES_PROJETO).nullish(),
 });
 
 export const atualizarStatusDisciplinaSchema = z.object({

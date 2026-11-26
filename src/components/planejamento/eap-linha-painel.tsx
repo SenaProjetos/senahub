@@ -11,6 +11,7 @@ import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
 import { disciplinaParaLinhaNova, propagacaoDeDisciplina } from "@/modules/planejamento/disciplina-linha";
 import { MOTIVO_PLANO_TRAVADO } from "@/modules/planejamento/trava-plano";
 import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
+import { DedicacaoDaDisciplina, type ResponsavelComDedicacao } from "@/components/planejamento/dedicacao-disciplina";
 import { textoConcluidaPeloPlanejado } from "@/components/planejamento/execucao-dialog";
 import { PredecessorasDialog } from "@/components/planejamento/predecessoras-dialog";
 import { dataCurta } from "@/lib/dias-iso";
@@ -139,7 +140,12 @@ export function EapLinhaPainel({
   codigoPorId: ReadonlyMap<string, string>;
   tarefas: EapTarefaDTO[];
   projetoId: string;
-  disciplinas: { id: string; nome: string; etapas: { etapaId: string; sigla: string; nome: string }[] }[];
+  disciplinas: {
+    id: string;
+    nome: string;
+    etapas: { etapaId: string; sigla: string; nome: string }[];
+    responsaveis?: ResponsavelComDedicacao[];
+  }[];
   pessoas: { id: string; name: string; image: string | null }[];
   planoTravado: boolean;
   linhasDaArvore: readonly LinhaDaArvore[];
@@ -185,6 +191,11 @@ export function EapLinhaPainel({
   const podeSerMarco = !linha || ((linha.tipoEap === "atv" || linha.tipoEap === "mrc") && !ehResumo);
   const trava = planoTravado && !!linha;
   const fases = disciplinas.find((d) => d.id === form.disciplinaId)?.etapas ?? [];
+  const disciplinaDaLinha = linha?.disciplinaId ? disciplinas.find((d) => d.id === linha.disciplinaId) : undefined;
+  const dedicacaoDaLinha =
+    disciplinaDaLinha?.responsaveis && disciplinaDaLinha.responsaveis.length > 0
+      ? { id: disciplinaDaLinha.id, responsaveis: disciplinaDaLinha.responsaveis }
+      : null;
   const nomeDe = (id: string) => tarefas.find((t) => t.id === id)?.nome ?? "—";
   const sucessoras = linha ? tarefas.filter((t) => t.predecessoraIds.includes(linha.id)) : [];
   const pos = linhaId ? ordem.indexOf(linhaId) : -1;
@@ -777,6 +788,13 @@ export function EapLinhaPainel({
                   ))}
                 </p>
               )}
+            </Secao>
+          )}
+
+          {/* Pool de recursos (decisão 5): a dedicação dos responsáveis, no agrupamento da disciplina */}
+          {linha && ehResumo && dedicacaoDaLinha && (
+            <Secao titulo="Dedicação na disciplina">
+              <DedicacaoDaDisciplina disciplinaId={dedicacaoDaLinha.id} responsaveis={dedicacaoDaLinha.responsaveis} />
             </Secao>
           )}
 

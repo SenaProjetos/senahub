@@ -273,6 +273,7 @@ export const editarProjeto = defineAction(
           // D13: `undefined` não mexe (formulário que não manda o campo), `null` limpa.
           ...(rest.tipoEmpreendimentoId === undefined ? {} : { tipoEmpreendimentoId: rest.tipoEmpreendimentoId }),
           abasConfig: rest.abasConfig,
+          ...(rest.cor === undefined ? {} : { cor: rest.cor }),
           // P-03: troca de cliente.
           ...(rest.clienteId ? { clienteId: rest.clienteId } : {}),
         },

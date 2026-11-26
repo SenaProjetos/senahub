@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { InputMoeda } from "@/components/ui/input-moeda";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { CORES_PROJETO, FUNDO_COR_PROJETO, NOME_COR_PROJETO, corAutomatica, ehCorProjeto, type CorProjeto } from "@/modules/planejamento/cor-projeto";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,8 @@ export type ProjetoEditavel = {
   /** D13: `null` = projeto anterior ao campo, ou sem tipo escolhido. */
   tipoEmpreendimentoId: string | null;
   abasConfig: AbaConfigItem[] | null;
+  /** Pool de recursos (decisão 6): cor escolhida; `null`/ausente = a automática. */
+  cor?: string | null;
 };
 
 /** Item 12 (beta): editar todas as informações do projeto, não só o nome. */
@@ -82,6 +85,8 @@ export function EditarProjetoDialog({
   const [valorContrato, setValorContrato] = useState<number | null>(projeto.valorContrato ?? null);
   const [tipoEmpreendimentoId, setTipoEmpreendimentoId] = useState(projeto.tipoEmpreendimentoId ?? "");
   const [abas, setAbas] = useState<AbaConfigItem[]>(() => abasParaEdicao(projeto.abasConfig));
+  const corInicial = (): CorProjeto | null => (ehCorProjeto(projeto.cor) ? projeto.cor : null);
+  const [cor, setCor] = useState<CorProjeto | null>(corInicial);
 
   function moverAba(i: number, direcao: -1 | 1) {
     setAbas((atual) => {
@@ -111,6 +116,7 @@ export function EditarProjetoDialog({
     setPrazoPlanejado(projeto.prazoPlanejado ?? "");
     setValorContrato(projeto.valorContrato ?? null);
     setAbas(abasParaEdicao(projeto.abasConfig));
+    setCor(corInicial());
     setOpen(true);
   }
 
@@ -135,6 +141,7 @@ export function EditarProjetoDialog({
         // `null` limpa o tipo; string vazia não é id.
         tipoEmpreendimentoId: tipoEmpreendimentoId || null,
         abasConfig: abas,
+        cor,
       });
       if (res.ok) {
         toast.success("Projeto atualizado.");
@@ -272,6 +279,44 @@ export function EditarProjetoDialog({
                 <InputMoeda value={valorContrato} onChange={setValorContrato} />
               </div>
             </div>
+
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium">Cor do projeto</legend>
+              <p className="text-xs text-muted-foreground">
+                Nas telas de Recursos e no Planejamento geral. A automática é fixa para cada projeto; troque se dois projetos
+                ficarem parecidos.
+              </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-pressed={cor == null}
+                  onClick={() => setCor(null)}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-sm border px-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    cor == null && "border-primary bg-muted",
+                  )}
+                >
+                  <span className={cn("size-4 rounded-sm", FUNDO_COR_PROJETO[corAutomatica(projeto.id)])} aria-hidden />
+                  Automática ({NOME_COR_PROJETO[corAutomatica(projeto.id)]})
+                </button>
+                {CORES_PROJETO.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-pressed={cor === c}
+                    aria-label={NOME_COR_PROJETO[c]}
+                    title={NOME_COR_PROJETO[c]}
+                    onClick={() => setCor(c)}
+                    className={cn(
+                      "flex size-8 items-center justify-center rounded-sm border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      cor === c && "border-primary ring-2 ring-primary",
+                    )}
+                  >
+                    <span className={cn("size-5 rounded-sm", FUNDO_COR_PROJETO[c])} aria-hidden />
+                  </button>
+                ))}
+              </div>
+            </fieldset>
 
             <div className="space-y-1.5">
               <Label>Abas do projeto</Label>

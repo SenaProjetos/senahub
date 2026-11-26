@@ -40,7 +40,7 @@ import { execucaoDaCelula } from "@/modules/planejamento/execucao";
 import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-actions";
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
 import type { Achado } from "@/modules/planejamento/qualidade";
-import type { ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos";
+import { conflitosPorLinha, type ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos";
 import type { CustoLinha } from "@/modules/planejamento/custo";
 import type { ResultadoSaude } from "@/modules/planejamento/saude";
 import type { CalendarioGantt } from "@/modules/planejamento/gantt-escala";
@@ -139,7 +139,12 @@ export function EapWorkspace({
 }: {
   projeto: { id: string; codigo: string; nome: string };
   tarefas: EapTarefaDTO[];
-  disciplinas: { id: string; nome: string; etapas: { etapaId: string; sigla: string; nome: string }[] }[];
+  disciplinas: {
+    id: string;
+    nome: string;
+    etapas: { etapaId: string; sigla: string; nome: string }[];
+    responsaveis?: { userId: string; nome: string; dedicacao: number | null; padrao: number }[];
+  }[];
   pessoas: { id: string; name: string; image: string | null; contratacao?: string | null; habilidades?: string[] }[];
   temLinhaBase: boolean;
   /** F7.1: custo previsto do projeto. `null` = o viewer não vê custo (coluna oculta). */
@@ -254,6 +259,8 @@ export function EapWorkspace({
     [tarefas, baselineEscolhida, cronograma],
   );
   const rotuloBase = (baselineEscolhida ?? maisNova) != null ? rotuloBaseline((baselineEscolhida ?? maisNova) as number) : undefined;
+  // Pool de recursos (decisão 3): o nome de quem passa da jornada fica vermelho na coluna Recursos.
+  const conflitosNasLinhas = useMemo(() => conflitosPorLinha(conflitosRecursos), [conflitosRecursos]);
 
   // Filtros e lookahead (Doc 03 §36/§37) — aplicados só à VISÃO (Gantt + tabela). O diálogo
   // continua vendo a EAP inteira: escolher predecessora não pode depender do que está
@@ -971,6 +978,7 @@ export function EapWorkspace({
               ) : undefined
             }
             alturaCheia
+            conflitosPorLinha={conflitosNasLinhas}
             tarefas={tarefasComBase}
             rotuloBase={rotuloBase}
             modo={modo === "controle" || modo === "variacao" ? "controle" : "planejamento"}

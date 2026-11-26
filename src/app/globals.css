@@ -62,6 +62,15 @@
   --color-marcacao-verde: var(--marcacao-verde);
   --color-marcacao-laranja: var(--marcacao-laranja);
   --color-marcacao-preto: var(--marcacao-preto);
+  /* Cor do projeto nas telas de recursos (planejamento/cor-projeto.ts) — texto branco por cima */
+  --color-projeto-1: var(--projeto-1);
+  --color-projeto-2: var(--projeto-2);
+  --color-projeto-3: var(--projeto-3);
+  --color-projeto-4: var(--projeto-4);
+  --color-projeto-5: var(--projeto-5);
+  --color-projeto-6: var(--projeto-6);
+  --color-projeto-7: var(--projeto-7);
+  --color-projeto-8: var(--projeto-8);
   /* Marca da busca de texto sobre a prancha */
   --color-busca-pdf: var(--busca-pdf);
   --color-busca-pdf-atual: var(--busca-pdf-atual);
@@ -218,6 +227,32 @@
 :root {
   --busca-pdf: rgb(253 224 71 / 0.6);
   --busca-pdf-atual: rgb(251 146 60 / 0.7);
+}
+
+/*
+ * Cor do projeto (pool de recursos, decisão 6): as barras da tela por pessoa e do Planejamento geral levam o texto
+ * BRANCO por cima, então cada tom passa de 4,5:1 contra o branco nos dois temas. A escolha automática e a lista vivem em
+ * `src/modules/planejamento/cor-projeto.ts`; o banco guarda o NOME do token (`projeto-3`), nunca o hex.
+ */
+:root {
+  --projeto-1: #2f5fb3;
+  --projeto-2: #1f7a5a;
+  --projeto-3: #6a4bb0;
+  --projeto-4: #a84d26;
+  --projeto-5: #1f6a80;
+  --projeto-6: #9b2f5c;
+  --projeto-7: #5f6420;
+  --projeto-8: #4a5568;
+}
+.dark {
+  --projeto-1: #3a68ba;
+  --projeto-2: #227f5e;
+  --projeto-3: #7052b5;
+  --projeto-4: #ad532c;
+  --projeto-5: #237087;
+  --projeto-6: #a13563;
+  --projeto-7: #656a24;
+  --projeto-8: #525d70;
 }
 
 /*

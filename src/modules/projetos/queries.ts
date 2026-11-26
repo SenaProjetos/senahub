@@ -635,6 +635,7 @@ export async function obterProjetoMinimo(viewer: Viewer, id: string) {
       // D13: classifica o projeto e sugere o modelo de EAP — editável no mesmo diálogo.
       tipoEmpreendimentoId: true,
       abasConfig: true,
+      cor: true,
       cliente: { select: { id: true, nome: true } },
       // Sugestão de concluir o projeto quando todas as disciplinas estão aprovadas.
       disciplinas: { select: { status: true } },

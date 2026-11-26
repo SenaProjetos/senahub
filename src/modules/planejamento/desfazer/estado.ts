@@ -39,6 +39,8 @@ export type AtribuicaoFoto = {
   papel: string;
   horasPrevistas: string;
   principal: boolean;
+  /** Pool de recursos (26/11/2026). Ausente nas fotos de antes: a restauração não mexe na marca. */
+  horasAutomaticas?: boolean;
 };
 
 /** `EapProgressoRegistro`: o histórico de % que o Valor Agregado de uma Data de Status passada lê (cascade com a linha). */
@@ -84,7 +86,8 @@ export function impressaoDoPlano(e: EstadoPlano): string {
     inicio: e.inicioProjeto,
     linhas: porId(e.linhas).map((l) => [l.id, ...CAMPOS_DO_PLANO.map((c) => norm(c, l[c]))]),
     deps: porId(e.dependencias).map((d) => [d.id, d.tarefaId, d.predecessoraId, d.tipo, num(d.lagDias)]),
-    atribs: porId(e.atribuicoes).map((a) => [a.id, a.tarefaId, a.userId, a.papel, num(a.horasPrevistas), a.principal]),
+    // A marca de horas automáticas só entra quando ligada: a impressão das fotos de antes dela (todas desligadas) não muda.
+    atribs: porId(e.atribuicoes).map((a) => [a.id, a.tarefaId, a.userId, a.papel, num(a.horasPrevistas), a.principal, ...(a.horasAutomaticas ? [true] : [])]),
   });
 }
 
@@ -204,6 +207,8 @@ export function planoDeRestauracao(atual: EstadoPlano, antes: EstadoPlano): Plan
     if (h.papel !== a.papel) campos.papel = a.papel;
     if (num(h.horasPrevistas) !== num(a.horasPrevistas)) campos.horasPrevistas = a.horasPrevistas;
     if (h.principal !== a.principal) campos.principal = a.principal;
+    // Foto de antes do campo (26/11/2026): naquela época nenhuma atribuição era automática.
+    if ((h.horasAutomaticas ?? false) !== (a.horasAutomaticas ?? false)) campos.horasAutomaticas = a.horasAutomaticas ?? false;
     if (Object.keys(campos).length > 0) atualizarAtribuicoes.push({ id: a.id, campos });
   }
 

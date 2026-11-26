@@ -52,6 +52,18 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   outro superusuário.
 - O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
 
+## Horas automáticas e conflito de recurso por dia (novembro/2026)
+
+- Quem entra numa tarefa para executá-la já recebe as **horas previstas** ("h (auto)"): a tarefa tem dias úteis × 8 h, e o
+  total se divide pela jornada e pela dedicação de cada pessoa. Digitar as horas fixa o valor; digitar 0 volta ao
+  automático. As atribuições que já existiam ficam como estavam.
+- No painel da linha da disciplina, a nova seção **Dedicação na disciplina** diz quanto cada responsável se dedica
+  àquela disciplina do projeto. O padrão do cadastro de Recursos não muda.
+- O **conflito de recurso** do cronograma passou a ser **por dia**, e o rascunho também enxerga os outros rascunhos. Na
+  coluna Recursos, o nome de quem está em conflito fica em vermelho.
+- Cada projeto ganhou uma **cor** (automática, ou escolhida em **Editar projeto**), que vai aparecer nas próximas telas
+  de Recursos.
+
 ## Ajustes no cronograma (novembro/2026)
 
 - No cronograma em rascunho, a célula **Término** do marco agora pode ser editada. Como o marco é uma data só, o

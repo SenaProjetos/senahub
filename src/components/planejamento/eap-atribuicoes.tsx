@@ -45,6 +45,8 @@ export type AtribuicaoEditavel = {
   image: string | null;
   papel: Papel;
   horas: number;
+  /** Horas preenchidas pelo sistema (pool de recursos). Digitar fixa; zero volta ao automático. */
+  automatica?: boolean;
   principal: boolean;
 };
 
@@ -149,7 +151,9 @@ export function EapAtribuicoes({
         tarefaId: linha.id,
         userId: a.userId,
         papel: patch.papel ?? a.papel,
-        horasPrevistas: patch.horas ?? a.horas,
+        // Só manda as horas quando a pessoa as editou: reenviar o valor carregado sobrescreveria uma conta automática
+        // mais nova (outra pessoa mudou a linha depois que a tela abriu).
+        ...(patch.horas !== undefined ? { horasPrevistas: patch.horas } : {}),
       });
       if (!r.ok) toast.error(r.error);
       setVersao((v) => v + 1);
@@ -339,18 +343,23 @@ function LinhaAtribuicao({
               onChange={(e) => setHoras(e.target.value)}
               onBlur={gravarHoras}
               onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-              title="Horas previstas"
+              title={
+                atribuicao.automatica
+                  ? "Horas automáticas: dias úteis × 8 h, divididos pela jornada e pela dedicação de cada um. Digite para fixar; 0 volta ao automático."
+                  : "Horas previstas. 0 volta ao automático."
+              }
+              aria-label={atribuicao.automatica ? "h (auto): horas previstas automáticas" : "Horas previstas"}
               className="h-7 w-16 rounded-sm border bg-background px-1.5 text-[11px] disabled:opacity-50"
             />
-            <span className="text-[10px] text-muted-foreground">h</span>
+            <span className="text-[10px] text-muted-foreground">{atribuicao.automatica ? "h (auto)" : "h"}</span>
           </>
         )}
         {atribuicao.userId && !atribuicao.principal && (
-          <Button size="icon-sm" variant="ghost" aria-label="Tornar principal" disabled={pending} onClick={onTornarPrincipal}>
+          <Button size="icon-sm" variant="ghost" aria-label={`Tornar ${atribuicao.nome ?? "esta pessoa"} principal`} disabled={pending} onClick={onTornarPrincipal}>
             <Star className="size-3.5" />
           </Button>
         )}
-        <Button size="icon-sm" variant="ghost" aria-label="Remover" disabled={pending} onClick={onRemover}>
+        <Button size="icon-sm" variant="ghost" aria-label={`Remover ${atribuicao.userId ? (atribuicao.nome ?? "pessoa") : rotuloAtribuicao(atribuicao)}`} disabled={pending} onClick={onRemover}>
           <Trash2 className="size-3.5" />
         </Button>
       </span>

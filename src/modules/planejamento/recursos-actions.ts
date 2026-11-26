@@ -8,8 +8,12 @@ import { reagendarProjeto } from "./agenda";
 import { cargaDaEquipe } from "./recursos-queries";
 import { linhaAceitaAtribuicao, linhaAceitaHoras, regraDoRecursoExterno } from "./recursos";
 import { herdarResponsaveisNoProjeto, sincronizarCards, sincronizarPrincipal } from "./recursos-service";
+import { atribuicaoAposEditar, nasceAutomatica } from "./horas-automaticas";
+import { recalcularHorasAutomaticas } from "./horas-automaticas-service";
 import { comPassoDaAction, projetoDaAtribuicao, projetoDaLinha } from "./desfazer/passo";
 import { exigirPlanoEditavel } from "./trava-plano-service";
+import { noEscopoDoProjeto } from "./escopo";
+import { definirDedicacao } from "@/modules/projetos/responsaveis-service";
 
 /**
  * Recursos na linha da EAP (F5 — D17, D18, D22, D23, D41). Mesma permissão de quem monta
@@ -64,11 +68,13 @@ const salvarSchema = z.object({
   /** `null` = perfil (recurso genérico). */
   userId: z.string().min(1).nullable(),
   papel: z.enum(PAPEIS),
+  /** Ausente = a tela não mexeu nas horas (trocou só o papel ou a pessoa): ficam as gravadas. Criar sem horas = 0. */
   horasPrevistas: z
     .number()
     .finite()
     .min(0, "As horas não podem ser negativas.")
-    .max(99999, "Horas acima do limite."),
+    .max(99999, "Horas acima do limite.")
+    .optional(),
 });
 
 export const salvarAtribuicao = defineAction(
@@ -84,10 +90,11 @@ export const salvarAtribuicao = defineAction(
     const linha = await linhaParaAtribuir(i.tarefaId);
     const aceita = linhaAceitaAtribuicao(linha);
     if (!aceita.ok) throw new ActionError(aceita.motivo);
-    if (i.horasPrevistas > 0 && !linhaAceitaHoras(linha)) {
+    const horasDigitadas = i.horasPrevistas ?? 0;
+    if (horasDigitadas > 0 && !linhaAceitaHoras(linha)) {
       throw new ActionError("Marco não tem horas — ele não ocupa dia no cronograma.");
     }
-    const externo = regraDoRecursoExterno({ papel: i.papel, userId: i.userId, horas: i.horasPrevistas });
+    const externo = regraDoRecursoExterno({ papel: i.papel, userId: i.userId, horas: horasDigitadas });
     if (!externo.ok) throw new ActionError(externo.motivo);
     // Duas marcas de terceiro na mesma linha não significam nada, e o índice único não as
     // barra: com `userId` nulo o Postgres trata cada par como distinto.
@@ -104,26 +111,43 @@ export const salvarAtribuicao = defineAction(
       const id = await prisma.$transaction(async (tx) => {
         let atribuicaoId: string;
         if (i.id) {
-          const atual = await tx.eapAtribuicao.findUnique({ where: { id: i.id }, select: { tarefaId: true } });
+          const atual = await tx.eapAtribuicao.findUnique({
+            where: { id: i.id },
+            select: { tarefaId: true, horasPrevistas: true, horasAutomaticas: true },
+          });
           if (!atual || atual.tarefaId !== i.tarefaId) throw new ActionError("Atribuição não encontrada nesta linha.");
+          // Hora digitada diferente desliga o automático; zero volta para ele; quem passa a acompanhar sai dele (pool de
+          // recursos, regra B — `atribuicaoAposEditar`).
+          const depois = atribuicaoAposEditar(
+            { horas: Number(atual.horasPrevistas), automatica: atual.horasAutomaticas },
+            { userId: i.userId, papel: i.papel, horas: i.horasPrevistas },
+          );
           // Virou perfil: deixa de poder ser principal (o banco recusaria).
           await tx.eapAtribuicao.update({
             where: { id: i.id },
             data: {
               userId: i.userId,
               papel: i.papel,
-              horasPrevistas: i.horasPrevistas,
+              horasPrevistas: depois.horas,
+              horasAutomaticas: depois.automatica,
               ...(i.userId == null ? { principal: false } : {}),
             },
           });
           atribuicaoId = i.id;
         } else {
           const nova = await tx.eapAtribuicao.create({
-            data: { tarefaId: i.tarefaId, userId: i.userId, papel: i.papel, horasPrevistas: i.horasPrevistas },
+            data: {
+              tarefaId: i.tarefaId,
+              userId: i.userId,
+              papel: i.papel,
+              horasPrevistas: horasDigitadas,
+              horasAutomaticas: nasceAutomatica({ userId: i.userId, papel: i.papel, horas: horasDigitadas }),
+            },
             select: { id: true },
           });
           atribuicaoId = nova.id;
         }
+        await recalcularHorasAutomaticas(tx, linha.projetoId);
         await sincronizarPrincipal(tx, i.tarefaId);
         await sincronizarCards(tx, linha.projetoId, user.id);
         return atribuicaoId;
@@ -155,6 +179,8 @@ export const removerAtribuicao = defineAction(
     if (!atual) throw new ActionError("Atribuição não encontrada.");
     await prisma.$transaction(async (tx) => {
       await tx.eapAtribuicao.delete({ where: { id: i.id } });
+      // Quem fica na linha divide as horas de quem saiu (as automáticas).
+      await recalcularHorasAutomaticas(tx, atual.tarefa.projetoId);
       await sincronizarPrincipal(tx, atual.tarefaId);
       await sincronizarCards(tx, atual.tarefa.projetoId, user.id);
     });
@@ -203,7 +229,10 @@ export const herdarResponsaveisDaDisciplina = defineAction(
     async (i, { user }) => {
       const criadas = await prisma.$transaction(async (tx) => {
         const n = await herdarResponsaveisNoProjeto(tx, i.projetoId);
-        if (n > 0) await sincronizarCards(tx, i.projetoId, user.id);
+        if (n > 0) {
+          await recalcularHorasAutomaticas(tx, i.projetoId);
+          await sincronizarCards(tx, i.projetoId, user.id);
+        }
         return n;
       });
       revProjeto(i.projetoId);
@@ -302,6 +331,8 @@ export const aplicarSugestaoRecurso = defineAction(
     try {
       await prisma.$transaction(async (tx) => {
         await tx.eapAtribuicao.update({ where: { id: i.atribuicaoId }, data: { userId: i.paraUserId } });
+        // A pessoa nova tem outra jornada e outra dedicação: a divisão das horas automáticas muda.
+        await recalcularHorasAutomaticas(tx, atrib.tarefa.projetoId);
         await sincronizarPrincipal(tx, atrib.tarefaId);
         await sincronizarCards(tx, atrib.tarefa.projetoId, user.id);
       });
@@ -311,6 +342,50 @@ export const aplicarSugestaoRecurso = defineAction(
     }
     revProjeto(atrib.tarefa.projetoId);
     return { tipo: "passar" as const, fimProjeto: null };
+    },
+  ),
+);
+
+/**
+ * Dedicação de um responsável NESTA disciplina (pool de recursos, decisão 5): "a Mireli está a 50% na Elétrica do X".
+ * Pesa a divisão das horas automáticas das linhas da disciplina; o padrão do cadastro de Recursos não muda. Sem passo
+ * de desfazer: a dedicação não faz parte da foto do plano (o Ctrl+Z restauraria as horas e deixaria a dedicação).
+ */
+export const definirDedicacaoDisciplina = defineAction(
+  {
+    ...plan,
+    entidade: "DisciplinaResponsavel",
+    acao: "definir-dedicacao",
+    entidadeId: (_d, i) => `${(i as { disciplinaId: string }).disciplinaId}:${(i as { userId: string }).userId}`,
+    schema: z.object({
+      disciplinaId: z.string().min(1),
+      userId: z.string().min(1),
+      dedicacao: z
+        .number()
+        .int("A dedicação é um número inteiro de 1 a 100.")
+        .min(1, "A dedicação vai de 1% a 100%.")
+        .max(100, "A dedicação vai de 1% a 100%.")
+        .nullable(),
+    }),
+    capturarAntes: async (i) =>
+      prisma.disciplinaResponsavel.findUnique({ where: { disciplinaId_userId: { disciplinaId: i.disciplinaId, userId: i.userId } } }),
+  },
+  noEscopoDoProjeto(async (i) => {
+      const d = await prisma.disciplina.findUnique({ where: { id: i.disciplinaId }, select: { projetoId: true } });
+      if (!d) throw new ActionError("Disciplina não encontrada.");
+      return d.projetoId;
+    },
+    async (i) => {
+      const d = await prisma.disciplina.findUnique({ where: { id: i.disciplinaId }, select: { projetoId: true } });
+      if (!d) throw new ActionError("Disciplina não encontrada.");
+      const horas = await prisma.$transaction(async (tx) => {
+        if (!(await definirDedicacao(tx, i.disciplinaId, i.userId, i.dedicacao))) {
+          throw new ActionError("Esta pessoa não é responsável desta disciplina.");
+        }
+        return recalcularHorasAutomaticas(tx, d.projetoId);
+      });
+      revProjeto(d.projetoId);
+      return { horasAtualizadas: horas };
     },
   ),
 );

@@ -435,13 +435,15 @@ async function main() {
 
     // Conflito de recurso (pedido da equipe, 2026-11-24): o rascunho DESTE projeto conta como aprovado — "e se eu aprovar assim?".
     const conflitos = await conflitosDeRecursosDoProjeto(projeto.id, { verCargaDaEquipe: true, hoje: "2026-10-05" });
-    const conflitoA = conflitos.find((c) => c.userId === pjA.id && c.semana === "2026-W41");
+    // Pool de recursos (decisão A): a conta é POR DIA — 16 h no dia contra 8 h de jornada, de 05 a 09/10.
+    const conflitoA = conflitos.find((c) => c.userId === pjA.id && c.dia === "2026-10-05");
     check(
-      "conflito: o rascunho deste projeto acusa as 80 h contra 40 h, com as linhas daqui",
-      conflitoA?.horasDoProjeto === 80 && conflitoA.capacidade === 40 && conflitoA.linhas.map((l) => l.id).sort().join() === [X.id, Y.id].sort().join(),
+      "conflito: o rascunho deste projeto acusa 16 h no dia contra 8 h, com as linhas daqui",
+      conflitoA?.horasDoProjeto === 16 && conflitoA.capacidade === 8 && conflitoA.linhas.map((l) => l.id).sort().join() === [X.id, Y.id].sort().join(),
       conflitoA,
     );
-    check("conflito: segunda-feira da semana para a tela", conflitoA?.inicioSemana === "2026-10-05", conflitoA?.inicioSemana);
+    const diasA = conflitos.filter((c) => c.userId === pjA.id).map((c) => c.dia);
+    check("conflito: um por dia útil das paralelas (05 a 09/10)", diasA.join() === "2026-10-05,2026-10-06,2026-10-07,2026-10-08,2026-10-09", diasA);
     const semOutros = await conflitosDeRecursosDoProjeto(projeto.id, { verCargaDaEquipe: false, hoje: "2026-10-05" });
     check("conflito: sem recursos:ver, os outros projetos saem sem nome", semOutros.every((c) => c.outros === null));
     const cargaOutros = await cargaDaEquipe({ hoje: "2026-10-05", semanas: 6 });

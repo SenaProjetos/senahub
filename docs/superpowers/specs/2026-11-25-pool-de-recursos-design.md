@@ -46,8 +46,9 @@ confirmar antes da entrega.
 ## 3. Escolhas técnicas
 
 ### 3.1 Dedicação por disciplina (decisão 5)
-- Coluna nova `DisciplinaResponsavel.dedicacao` (percentual inteiro, nulo = usa `Recurso.capacidade`, o padrão). O único
-  escritor continua sendo `substituirResponsaveis`, e o histórico (`DisciplinaResponsavelHistorico`) grava a dedicação.
+- Coluna nova `DisciplinaResponsavel.dedicacao` (percentual inteiro 1–100, CHECK no SQL; nulo = usa `Recurso.capacidade`,
+  o padrão). Escrita só em `responsaveis-service.ts` (`definirDedicacao`, ao lado de `substituirResponsaveis`). Sem
+  histórico: quem deixa de ser responsável perde a dedicação e, se voltar, volta com o padrão.
 - Editada na linha de agrupamento da disciplina na EAP (onde se escolhem os responsáveis) e em Recursos. `Recurso.capacidade`
   nunca é escrito por esse caminho.
 - `Alocacao` (a matriz antiga, por projeto) não é usada: é por projeto e não por disciplina.
@@ -57,9 +58,11 @@ confirmar antes da entrega.
   de hora; o resto do arredondamento vai para a última pessoa, para a soma bater com o total.
 - `EapAtribuicao` ganha a marca "horas automáticas" (sim/não). Atribuição NOVA de pessoa nasce automática; digitar horas
   desliga a marca (horas digitadas vencem, regra B).
-- Atribuição automática é recalculada quando muda a duração da linha, a dedicação ou o conjunto de responsáveis da linha,
-  dentro do mesmo `aposMudarEap`. Atribuição antiga sem horas fica como está (decisão 2).
-- Perfil sem pessoa e Externo nunca recebem horas.
+- Atribuição automática é recalculada (`recalcularHorasAutomaticas`, trava por projeto) no começo de `aposMudarEap` e nas
+  actions de pessoas da linha e de dedicação. Atribuição antiga sem horas fica como está (decisão 2).
+- Só quem EXECUTA recebe hora automática (projetista, modelador, estagiário, engenheiro). Quem acompanha, revisa ou aprova
+  nasce com zero; quem passa de executor para revisor sai do automático com zero. Perfil e Externo nunca recebem.
+- A tela só manda as horas quando a pessoa as editou: reenviar o valor carregado sobrescreveria uma conta mais nova.
 
 ### 3.3 Conflito por dia (decisão A)
 - `detectarSobrecargas` passa a comparar por dia: horas do dia (já distribuídas por `distribuirHoras`) × capacidade do dia
@@ -67,8 +70,11 @@ confirmar antes da entrega.
 - O conflito de um projeto (`conflitos-recursos.ts`, o chip na faixa e a confirmação ao aprovar) passa a listar dias. O
   rascunho conta contra aprovados e contra outros rascunhos, identificados ("com W, em rascunho"). O aprovado ignora
   rascunhos.
-- Na EAP do projeto, o nome da pessoa fica vermelho na coluna Recursos, com o conflito no title/tooltip (decisão 3). A
-  linha não muda de cor.
+- Na EAP do projeto, o nome da pessoa fica vermelho na coluna Recursos, seguido de "!" (marca que não depende da cor), com
+  os dias no title e no texto para leitor de tela (decisão 3). A linha não muda de cor. A coluna é secundária: aparece com
+  Compacta desligado.
+- A lista agrupa dias seguidos da mesma pessoa com os mesmos outros projetos em trechos (`trechosDosConflitos`).
+- A `/recursos` (Visão geral) continua semanal; só o alerta do projeto passou a ser por dia.
 
 ### 3.4 Aviso em cascata (C, D, E, F, 8, 9)
 - Dispara depois de gravar data real (início/término real) ou Data de Status. % e revisão não disparam.
@@ -142,6 +148,11 @@ só aparece quando alguma coluna mudou de largura. Ajuste pequeno, feito antes d
 própria, como no mockup.
 
 ## 5. Partes (construídas e testadas nesta ordem, publicadas juntas)
+
+Estado em 26/11/2026: parte 1 feita no branch `feat/pool-recursos` (migração `20261126120000_pool_recursos_parte1`,
+`npm run smoke:pool-recursos`). A cor do projeto já se escolhe em Editar projeto; quem a mostra é a parte 2. A dedicação
+ainda não se edita em Recursos (entra com a tela por pessoa, parte 2).
+
 
 1. Dedicação por disciplina, cor por projeto, horas automáticas, conflito por dia (chip, aprovação, nome vermelho na EAP).
 2. Tela por pessoa, só leitura.

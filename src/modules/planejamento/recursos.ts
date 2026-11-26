@@ -535,3 +535,85 @@ export function detectarSobrecargas(
 }
 
 const arred = (h: number) => Math.round(h * 10) / 10;
+
+// ─────────────────────────────────────────────────────────────
+// Sobrecarga POR DIA (pool de recursos, decisão A — 2026-11-25)
+// ─────────────────────────────────────────────────────────────
+
+/** Uma parcela de carga num DIA: quanto uma atribuição põe no dia de uma pessoa. */
+export type ParcelaDia = {
+  userId: string;
+  dia: Dia;
+  projetoId: string;
+  linhaId: string;
+  atribuicaoId: string;
+  horas: number;
+  /** A linha é de cronograma em RASCUNHO (só conta para quem monta outro rascunho — decisão J). */
+  rascunho: boolean;
+};
+
+/**
+ * As mesmas parcelas de `parcelasDasLinhas`, sem somar por semana: o choque de um dia só ("a Mireli no X e no Y na
+ * quinta") some na conta semanal quando o resto da semana está folgado.
+ */
+export function parcelasDiariasDasLinhas(linhas: readonly LinhaCarga[], cal: Calendario, rascunho = false): ParcelaDia[] {
+  const out: ParcelaDia[] = [];
+  for (const l of linhas) {
+    if (!linhaAceitaHoras(l) || ENCERRADA.has(l.status)) continue;
+    for (const a of l.atribuicoes) {
+      if (a.userId == null || !(a.horas > 0)) continue;
+      for (const [dia, horas] of distribuirHoras(l.inicio, l.fim, a.horas, cal)) {
+        out.push({ userId: a.userId, dia, projetoId: l.projetoId, linhaId: l.id, atribuicaoId: a.id, horas, rascunho });
+      }
+    }
+  }
+  return out;
+}
+
+export type SobrecargaDia = {
+  userId: string;
+  dia: Dia;
+  carga: number;
+  capacidade: number;
+  excesso: number;
+  /** De onde vem a carga do dia, da maior parcela para a menor. */
+  parcelas: ParcelaDia[];
+  /** Férias, abono ou feriado que zeraram o dia (D8). */
+  motivosReducao: string[];
+};
+
+/**
+ * Dias em que a carga passa da capacidade do dia (jornada × multiplicador, zero em feriado e ausência). Só alerta —
+ * nunca nivela (D18). Só os dias de `desde` a `ate` entram.
+ */
+export function detectarSobrecargasPorDia(
+  parcelas: readonly ParcelaDia[],
+  capacidadeDoDia: (userId: string, dia: Dia) => number,
+  opcoes: { desde: Dia; ate: Dia; motivos?: (userId: string, dia: Dia) => readonly string[] },
+): SobrecargaDia[] {
+  const agrupadas = new Map<string, ParcelaDia[]>();
+  for (const pc of parcelas) {
+    if (pc.dia < opcoes.desde || pc.dia > opcoes.ate) continue;
+    const k = `${pc.userId}|${pc.dia}`;
+    const lista = agrupadas.get(k);
+    if (lista) lista.push(pc);
+    else agrupadas.set(k, [pc]);
+  }
+  const out: SobrecargaDia[] = [];
+  for (const [k, lista] of agrupadas) {
+    const [userId, dia] = k.split("|");
+    const carga = lista.reduce((s, pc) => s + pc.horas, 0);
+    const cap = capacidadeDoDia(userId, dia);
+    if (carga - cap <= TOLERANCIA_HORAS) continue;
+    out.push({
+      userId,
+      dia,
+      carga: arred(carga),
+      capacidade: arred(cap),
+      excesso: arred(carga - cap),
+      parcelas: [...lista].sort((a, b) => b.horas - a.horas),
+      motivosReducao: [...(opcoes.motivos?.(userId, dia) ?? [])],
+    });
+  }
+  return out.sort((a, b) => a.dia.localeCompare(b.dia) || b.excesso - a.excesso);
+}

@@ -46,7 +46,7 @@ export async function lerEstadoDoPlano(db: Db, projetoId: string): Promise<Estad
     // JSON ida e volta: data vira ISO e Decimal vira texto — o formato que o passo guarda.
     linhas: JSON.parse(JSON.stringify(linhas)) as LinhaFoto[],
     dependencias: dependencias.map((d): DependenciaFoto => ({ id: d.id, tarefaId: d.tarefaId, predecessoraId: d.predecessoraId, tipo: d.tipo, lagDias: d.lagDias.toString() })),
-    atribuicoes: atribuicoes.map((a): AtribuicaoFoto => ({ id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel, horasPrevistas: a.horasPrevistas.toString(), principal: a.principal })),
+    atribuicoes: atribuicoes.map((a): AtribuicaoFoto => ({ id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel, horasPrevistas: a.horasPrevistas.toString(), principal: a.principal, horasAutomaticas: a.horasAutomaticas })),
     parcelas,
     baselineLinhas,
     // O histórico de % cai em cascade com a linha: vai na foto para voltar com ela (o Valor Agregado de uma Data de
@@ -240,7 +240,7 @@ async function restaurar(tx: Prisma.TransactionClient, projetoId: string, plano:
   for (const u of atualizacoes) await tx.eapAtribuicao.update({ where: { id: u.id }, data: u.campos as Prisma.EapAtribuicaoUncheckedUpdateInput });
   const criacoes = [...plano.criarAtribuicoes].sort((a, b) => Number(a.principal) - Number(b.principal));
   for (const a of criacoes) {
-    await tx.eapAtribuicao.create({ data: { id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel as never, horasPrevistas: a.horasPrevistas, principal: a.principal } });
+    await tx.eapAtribuicao.create({ data: { id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel as never, horasPrevistas: a.horasPrevistas, principal: a.principal, horasAutomaticas: a.horasAutomaticas ?? false } });
   }
 
   // `updateMany` com `null`: só religa o que continua solto, e não falha se o contrato foi apagado.

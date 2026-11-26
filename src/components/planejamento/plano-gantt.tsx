@@ -159,6 +159,11 @@ export type PlanoGanttProps = {
    * pessoas que grava ao clicar. Sem esta prop a célula só mostra.
    */
   celulaRecursos?: (t: EapTarefaDTO, conteudo: ReactNode) => ReactNode;
+  /**
+   * Pool de recursos (decisão 3): linha → pessoa → dias em que ela passa da jornada somando os outros projetos. O NOME
+   * dela fica vermelho na coluna Recursos, com os dias no `title`; a linha não muda de cor (o vermelho da linha é atraso).
+   */
+  conflitosPorLinha?: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
   /** Botões da coluna Ações, por linha (os de uso frequente; o resto está no `...`). */
   acoes?: (t: EapTarefaDTO) => ReactNode;
   /**
@@ -254,6 +259,7 @@ export function PlanoGantt({
   focoNomeId = null,
   onFocoConsumido,
   celulaRecursos,
+  conflitosPorLinha,
   acoes,
   rotuloBase,
   barraInicio,
@@ -788,15 +794,55 @@ export function PlanoGantt({
         if (l.temFilhos) return <span className="text-xs text-muted-foreground">—</span>;
         const texto = textoRecursos(t.atribuicoes, t.deTerceiro);
         const semHoras = t.trabalhoHoras == null && !t.deTerceiro && t.atribuicoes.length > 0 && !t.marco;
+        const emConflito = conflitosPorLinha?.get(t.id);
+        const diasDe = (userId: string | null) => (userId ? emConflito?.get(userId) : undefined);
+        const textoConflito = (dias: readonly string[]) =>
+          `passa da jornada em ${dias.slice(0, 4).map((d) => dataCurta(d)).join(", ")}${dias.length > 4 ? ` e mais ${dias.length - 4}` : ""}, somando os outros projetos`;
         const conteudo = texto ? (
-          <span className="flex min-w-0 items-center gap-1 text-xs" title={t.atribuicoes.map((a) => `${a.nome ?? `(perfil) ${a.rotuloPapel}`} · ${a.rotuloPapel}`).join("\n") || undefined}>
-            <span className={cn("truncate", t.deTerceiro && "text-muted-foreground")}>{texto}</span>
-            {semHoras && <span className="shrink-0 text-[10px] text-warning" title="Alguma pessoa nesta linha ainda não tem horas estimadas">s/h</span>}
+          <span
+            className="flex min-w-0 items-center gap-1 text-xs"
+            title={
+              t.atribuicoes
+                .map((a) => {
+                  const dias = diasDe(a.userId);
+                  return `${a.nome ?? `(perfil) ${a.rotuloPapel}`} · ${a.rotuloPapel}${dias ? ` — ${textoConflito(dias)}` : ""}`;
+                })
+                .join("\n") || undefined
+            }
+          >
+            {emConflito && emConflito.size > 0 && !t.deTerceiro ? (
+              <span className="truncate">
+                {t.atribuicoes
+                  .filter((a) => a.papel !== "ext")
+                  .map((a, i) => {
+                    const dias = diasDe(a.userId);
+                    const nome = a.nome ?? `(${a.rotuloPapel})`;
+                    return (
+                      <span key={a.id}>
+                        {i > 0 && "; "}
+                        {dias ? (
+                          <span className="font-semibold text-destructive">
+                            {nome}
+                            {/* Marca que não depende da cor: o "!" acompanha o vermelho. */}
+                            <span aria-hidden> !</span>
+                            <span className="sr-only"> ({textoConflito(dias)})</span>
+                          </span>
+                        ) : (
+                          nome
+                        )}
+                      </span>
+                    );
+                  })}
+              </span>
+            ) : (
+              <span className={cn("truncate", t.deTerceiro && "text-muted-foreground")}>{texto}</span>
+            )}
+            {semHoras && <span className="shrink-0 text-[10px] text-warning-text" title="Alguma pessoa nesta linha ainda não tem horas estimadas">s/h</span>}
           </span>
         ) : t.marco ? (
           <span className="text-xs text-muted-foreground">—</span>
         ) : (
-          <span className="text-xs text-warning">sem gente</span>
+          <span className="text-xs text-warning-text">sem gente</span>
         );
         return celulaRecursos ? celulaRecursos(t, conteudo) : conteudo;
       },
@@ -1007,7 +1053,7 @@ export function PlanoGantt({
     if (acoesCol) cs.push(acoesCol);
     return compacto ? cs.filter((c) => !c.secundaria) : cs;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `envolver`/`gravado` releem o estado da edição a cada render
-  }, [modo, conjuntoDeColunas, verDatas, hoje, celulaRecursos, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, podeEditarExecucao, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
+  }, [modo, conjuntoDeColunas, verDatas, hoje, celulaRecursos, conflitosPorLinha, mostrarCusto, compacto, acoes, codigoPorId, recolhidos, filtroIds, cal, edicao, salvando, invalida, valoresGravados, podeEditar, podeEditarPred, podeEditarExecucao, onEscolherPredecessoras, planoTravado, idPorCodigo, menuDe, onAcao, contextos, podeArrastar, grade]);
 
   // A largura padrão de cada coluna vem do `useMemo` acima; a escolhida pelo usuário a substitui aqui, para o arrasto
   // da alça não refazer as células de todas as linhas (só a largura muda).

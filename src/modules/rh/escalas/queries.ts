@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { whereAudiencia } from "@/lib/audiencias";
 
@@ -122,13 +123,13 @@ export async function horasDiaPadrao(userId: string, contratacao: Contratacao | 
  */
 export async function gradesEmLote(
   usuarios: { id: string; contratacao: Contratacao | null }[],
+  /** Dentro de uma transação, passe o `tx`: as duas leituras vão em série na conexão dela. */
+  db: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<Map<string, DiaGrade[]>> {
   const ids = usuarios.map((u) => u.id);
   const contratacoes = [...new Set(usuarios.map((u) => u.contratacao).filter((c): c is Contratacao => c != null))];
-  const [uRows, rRows] = await Promise.all([
-    prisma.escalaUsuario.findMany({ where: { userId: { in: ids } } }),
-    prisma.escalaContratacao.findMany({ where: { contratacao: { in: contratacoes } } }),
-  ]);
+  const uRows = await db.escalaUsuario.findMany({ where: { userId: { in: ids } } });
+  const rRows = await db.escalaContratacao.findMany({ where: { contratacao: { in: contratacoes } } });
   const porUser = new Map<string, LinhaDb[]>();
   for (const r of uRows) porUser.set(r.userId, [...(porUser.get(r.userId) ?? []), r]);
   const porContratacao = new Map<string, LinhaDb[]>();

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { reagendarProjeto, type ResumoReagendamento } from "./agenda";
 import { sincronizarCards } from "./recursos-service";
+import { recalcularHorasAutomaticas } from "./horas-automaticas-service";
 import { sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao-service";
 
 /**
@@ -18,6 +19,10 @@ import { sincronizarPrevisoesDepois } from "@/modules/juridico/contrato/previsao
  * chamável do navegador, sem porteiro de permissão.
  */
 export async function aposMudarEap(projetoId: string, autorId: string): Promise<ResumoReagendamento> {
+  // Pool de recursos (decisão 2): duração, pessoas ou linha nova mudam as horas automáticas. Antes do motor, que
+  // pondera o % pelas horas.
+  // A mudança já está gravada: uma falha aqui não pode impedir o reagendamento (a próxima edição refaz a conta).
+  await recalcularHorasAutomaticas(prisma, projetoId).catch((e) => console.error("[pos-eap] horas automáticas:", e));
   const reagendado = await reagendarProjeto(projetoId, autorId);
   const r = await sincronizarCards(prisma, projetoId, autorId);
   if (r.criados > 0 || r.atualizados > 0) revalidatePath("/tarefas");

@@ -7,8 +7,11 @@ import { gradesEmLote } from "@/modules/rh/escalas/queries";
 import { chaveSemanaIso } from "./disponibilidade";
 import { montarCalendarioComNomes, planoDoProjeto } from "./agenda";
 import {
+  capacidadeHorasNoDia,
   capacidadePorSemana,
   detectarSobrecargas,
+  detectarSobrecargasPorDia,
+  parcelasDiariasDasLinhas,
   diasEntre,
   parcelasDaAlocacaoDigitada,
   parcelasDasLinhas,
@@ -19,6 +22,7 @@ import {
   type ParcelaCarga,
   type PessoaCapacidade,
   type Sobrecarga,
+  type SobrecargaDia,
 } from "./recursos";
 import { sugerirCorrecoes, type ContextoProjeto, type Sugestoes } from "./sugestoes-recursos";
 import { conflitosDoProjeto, semanasAteOFim, type ConflitoRecurso } from "./conflitos-recursos";
@@ -101,6 +105,8 @@ export type CargaDaEquipe = {
   projetosEmRascunho: string[];
   pessoas: PessoaCarga[];
   sobrecargas: SobrecargaComSugestao[];
+  /** Só com `diario`: os DIAS em que alguém passa da capacidade (pool de recursos, decisão A). */
+  sobrecargasDiarias: SobrecargaDia[];
   demandaPerfis: DemandaPerfil[];
 };
 
@@ -132,6 +138,11 @@ export async function cargaDaEquipe(
      * rascunhos seguem à parte.
      */
     contarComoAprovado?: string;
+    /**
+     * Conta também POR DIA, de `desde` até o fim da janela (o alerta de conflito, decisão A). `comRascunhos`: as linhas
+     * dos cronogramas em rascunho entram (marcadas `rascunho`) — quem monta um rascunho enxerga os outros (decisão J).
+     */
+    diario?: { desde: Dia; comRascunhos: boolean };
   } = {},
 ): Promise<CargaDaEquipe> {
   const nSemanas = opcoes.semanas ?? 12;
@@ -244,8 +255,16 @@ export async function cargaDaEquipe(
   // Ausências por dia e o MOTIVO por semana (D8: férias e jornada são aviso, nunca mexem em data).
   const ausencias = new Map<string, Set<Dia>>();
   const motivos = new Map<string, Map<string, string[]>>();
+  const motivosDia = new Map<string, string[]>();
+  const anotarDia = (userId: string, dia: Dia, motivo: string) => {
+    const k = `${userId}|${dia}`;
+    const lista = motivosDia.get(k) ?? [];
+    if (!lista.includes(motivo)) lista.push(motivo);
+    motivosDia.set(k, lista);
+  };
   const anotar = (userId: string, dia: Dia, motivo: string) => {
     if (dia < inicio || dia > fim) return;
+    anotarDia(userId, dia, motivo);
     ausencias.set(userId, (ausencias.get(userId) ?? new Set()).add(dia));
     const porSemana = motivos.get(userId) ?? new Map<string, string[]>();
     const s = chaveSemanaIso(dia);
@@ -275,6 +294,7 @@ export async function cargaDaEquipe(
         const s = chaveSemanaIso(dia);
         porSemana.set(s, [...(porSemana.get(s) ?? []), `feriado (${nome})`]);
         motivos.set(p.userId, porSemana);
+        anotarDia(p.userId, dia, `feriado (${nome})`);
       }
     }
   }
@@ -300,6 +320,21 @@ export async function cargaDaEquipe(
 
   // ── Sobrecargas e sugestões ─────────────────────────────────────────────
   const sobrecargas = detectarSobrecargas(parcelas, capacidade, { semanas, motivosReducao: motivos });
+
+  // Por dia (só linhas de cronograma: a alocação digitada não tem dia nem tarefa).
+  const sobrecargasDiarias = opcoes.diario
+    ? detectarSobrecargasPorDia(
+        [
+          ...parcelasDiariasDasLinhas(linhasCarga, cal),
+          ...(opcoes.diario.comRascunhos ? parcelasDiariasDasLinhas(linhasRascunho, cal, true) : []),
+        ],
+        (userId, dia) => {
+          const p = porPessoa.get(userId);
+          return p ? capacidadeHorasNoDia(dia, p, cal) : 0;
+        },
+        { desde: opcoes.diario.desde, ate: fim, motivos: (userId, dia) => motivosDia.get(`${userId}|${dia}`) ?? [] },
+      )
+    : [];
 
   const contextos = new Map<string, ContextoProjeto>();
   for (const projetoId of aprovados) {
@@ -409,14 +444,16 @@ export async function cargaDaEquipe(
     projetosEmRascunho: emRascunho,
     pessoas: saida,
     sobrecargas: comSugestao,
+    sobrecargasDiarias,
     demandaPerfis: [...demanda.values()],
   };
 }
 
 /**
- * Conflitos de recurso DESTE projeto, de hoje até o fim dele (no máximo um ano): as semanas em que alguém com hora aqui
- * passa da capacidade somando todos os projetos. Rascunho conta como se aprovado ("e se eu aprovar assim?"); os outros
- * projetos entram como em `/recursos` (aprovados pelas linhas, rascunhos fora, alocação digitada fora).
+ * Conflitos de recurso DESTE projeto, de hoje até o fim dele (no máximo um ano): os DIAS em que alguém com hora aqui
+ * passa da capacidade do dia somando os outros projetos (pool de recursos, decisão A). Rascunho conta como se aprovado
+ * ("e se eu aprovar assim?") e enxerga os aprovados E os outros rascunhos; o aprovado não recebe alerta por causa de
+ * rascunho (decisão J). Alocação digitada fica fora.
  *
  * `verCargaDaEquipe: false` (quem não tem `recursos:ver`) tira o nome dos outros projetos — o escopo de dados da pessoa
  * pode não incluí-los — e o motivo da semana menor (férias, abono: dado de RH do colega).
@@ -430,8 +467,15 @@ export async function conflitosDeRecursosDoProjeto(
   const hoje = opcoes.hoje ?? diaLocal(new Date());
   const semanas = semanasAteOFim(hoje, plano.resultado.fimProjeto);
   if (semanas === 0) return [];
-  const carga = await cargaDaEquipe({ semanas, hoje, incluirDigitada: false, contarComoAprovado: projetoId });
-  return conflitosDoProjeto(carga.sobrecargas, projetoId, {
+  const cronograma = await prisma.cronogramaProjeto.findUnique({ where: { projetoId }, select: { aprovado: true } });
+  const carga = await cargaDaEquipe({
+    semanas,
+    hoje,
+    incluirDigitada: false,
+    contarComoAprovado: projetoId,
+    diario: { desde: hoje, comRascunhos: !cronograma?.aprovado },
+  });
+  return conflitosDoProjeto(carga.sobrecargasDiarias, projetoId, {
     nomes: new Map(carga.pessoas.map((p) => [p.userId, p.nome])),
     linhas: carga.rotulos.linhas,
     projetos: Object.fromEntries(Object.entries(carga.rotulos.projetos).map(([id, p]) => [id, `${p.codigo} — ${p.nome}`])),

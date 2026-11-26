@@ -143,6 +143,29 @@ As ações abaixo, menos **Nova tarefa**, ficam no **⋯** do cabeçalho.
 - **Herdar responsáveis** — preenche, em cada linha ainda **sem ninguém**, os responsáveis da
   disciplina dela. O que já tem gente não é tocado.
 
+**Horas automáticas.** Quem entra numa tarefa para executá-la (projetista, modelador, estagiário, engenheiro), pela
+herança ou escolhido na célula **Recursos**, já recebe as **horas previstas**, marcadas como **h (auto)**. A tarefa tem um
+total de **dias úteis × 8 h**, e esse total se divide entre as pessoas pela **jornada** e pela **dedicação** de cada uma:
+
+| Tarefa de 5 dias (40 h) | Fica assim |
+|---|---|
+| Duas pessoas de 8 h, as duas a 100% | 20 h cada |
+| Uma delas a 50% na disciplina | 13,33 h e 26,67 h |
+| Uma de 8 h e um estagiário de 6 h, os dois a 100% | 22,85 h e 17,15 h |
+| Uma pessoa sozinha | 40 h (se passar da jornada dela, aparece o conflito) |
+
+- Mudou a duração, entrou ou saiu alguém, mudou a dedicação: as horas automáticas se refazem sozinhas.
+- **Digitar** as horas de uma pessoa fixa aquele valor; ele sai do total e o resto se divide entre os automáticos.
+  Digitar **0** volta ao automático.
+- Quem acompanha, revisa ou aprova (coordenador, revisor, aprovador) entra com zero, como antes.
+- Atribuições anteriores a esta mudança ficam como estavam: sem hora, até alguém digitar.
+- Tarefa concluída não muda mais.
+
+**Dedicação na disciplina.** No painel do **agrupamento da disciplina** (duplo clique na linha da disciplina), a seção
+**Dedicação na disciplina** lista os responsáveis com o percentual de cada um **nesta disciplina deste projeto** ("a
+Mireli está a 50% na Elétrica do X"). Vazio = o padrão do cadastro de [Recursos](recursos.md), que não muda por aqui. A
+dedicação só pesa a divisão das horas automáticas.
+
 ### O painel da linha
 
 **Duplo clique** numa linha (ou **Enter** com ela selecionada, ou **Abrir** no menu) abre o **painel da linha** à
@@ -322,12 +345,20 @@ arquitetura"), para separar "atrasado por nós" de "atrasado esperando o cliente
    [Recursos](recursos.md)).
 
 **Conflito de recurso.** A faixa mostra **"N conflitos de recurso"** quando uma pessoa com horas neste projeto passa
-da capacidade numa semana, somando todos os projetos com cronograma aprovado — de hoje até o fim do projeto. Em
-rascunho, este projeto já entra na conta como se estivesse aprovado. Cada conflito diz a pessoa, a semana, as horas
-planejadas × disponíveis e de onde vem a carga (aqui e em cada outro projeto; o nome dos outros projetos e o motivo de
-uma semana menor, como férias, só aparecem para quem vê [Recursos](recursos.md)). **Ver na tabela** filtra as tarefas
-deste projeto naquela semana. É só aviso: não bloqueia a aprovação e não muda data. A conta é por **semana** e usa as
-**horas previstas**: pessoa sem horas na tarefa não entra.
+da **jornada do dia** somando os outros projetos — de hoje até o fim do projeto. A conta é **por dia**: o choque de um
+dia só aparece mesmo com o resto da semana folgado. Dias seguidos da mesma pessoa com os mesmos projetos viram um
+trecho ("Mireli · 26/11 a 27/11 (2 dias): até 14h em 8h de jornada").
+
+- **Em rascunho**, este projeto já entra na conta como se estivesse aprovado, e enxerga os aprovados **e os outros
+  rascunhos** (marcados "(rascunho)").
+- **Aprovado** não ganha conflito por causa de rascunho de outro projeto.
+- Cada trecho diz de onde vem a carga (aqui e em cada outro projeto; o nome dos outros projetos e o motivo de um dia
+  menor, como férias ou feriado, só aparecem para quem vê [Recursos](recursos.md)). **Ver na tabela** filtra as tarefas
+  deste projeto naquele trecho.
+- Na coluna **Recursos** da tabela (aparece com **Compacta** desligado), o **nome** de quem está em conflito fica em
+  vermelho; passe o mouse para ver os dias. A linha não muda de cor: o vermelho da linha continua sendo atraso.
+- É só aviso: não bloqueia a aprovação e não muda data. Usa as **horas previstas**: pessoa sem horas na tarefa não
+  entra.
 
 Ao aprovar, o sistema:
 

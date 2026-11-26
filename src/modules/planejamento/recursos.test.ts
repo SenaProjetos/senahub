@@ -4,6 +4,7 @@ import {
   capacidadeHorasNoDia,
   capacidadePorSemana,
   detectarSobrecargas,
+  detectarSobrecargasPorDia,
   diasEntre,
   distribuirHoras,
   ehEtapaDeTerceiro,
@@ -16,6 +17,7 @@ import {
   parcelasDaAlocacaoDigitada,
   parcelasDasLinhas,
   parcelasDePerfis,
+  parcelasDiariasDasLinhas,
   pessoasSemHoras,
   regraDoRecursoExterno,
   tituloDoCard,
@@ -461,5 +463,52 @@ describe("tituloDoCard (Fase A, A3)", () => {
   it("sem fase, ou com fase em branco, o título é o nome da linha", () => {
     expect(tituloDoCard("Modelagem", null)).toBe("Modelagem");
     expect(tituloDoCard("Modelagem", "  ")).toBe("Modelagem");
+  });
+});
+
+describe("sobrecarga por dia (pool de recursos, decisão A)", () => {
+  const linha = (extra: Partial<LinhaCarga> = {}): LinhaCarga => ({
+    id: "x",
+    projetoId: "X",
+    tipoEap: "atv",
+    ehResumo: false,
+    duracaoDias: 3,
+    status: "nin",
+    inicio: "2026-09-14",
+    fim: "2026-09-16",
+    atribuicoes: [{ id: "a1", userId: "mireli", papel: "pro", horas: 24 }],
+    ...extra,
+  });
+  const capacidade = (userId: string, dia: string) => capacidadeHorasNoDia(dia, pessoa(userId), comFeriado);
+
+  it("parcelas por dia útil, marcadas como rascunho quando pedido", () => {
+    const p = parcelasDiariasDasLinhas([linha()], cal, true);
+    expect(p.map((x) => [x.dia, x.horas, x.rascunho])).toEqual([
+      ["2026-09-14", 8, true],
+      ["2026-09-15", 8, true],
+      ["2026-09-16", 8, true],
+    ]);
+  });
+
+  it("o choque de um dia aparece mesmo com a semana folgada (o caso que a conta semanal perdia)", () => {
+    const x = linha();
+    const y = linha({ id: "y", projetoId: "Y", inicio: "2026-09-16", fim: "2026-09-17", duracaoDias: 2, atribuicoes: [{ id: "a2", userId: "mireli", papel: "pro", horas: 16 }] });
+    const parcelas = parcelasDiariasDasLinhas([x, y], cal);
+    const semFeriado = (userId: string, dia: string) => capacidadeHorasNoDia(dia, pessoa(userId), cal);
+    const s = detectarSobrecargasPorDia(parcelas, semFeriado, { desde: "2026-09-14", ate: "2026-09-20" });
+    expect(s.map((d) => [d.dia, d.carga, d.capacidade, d.excesso])).toEqual([["2026-09-16", 16, 8, 8]]);
+    expect(s[0].parcelas.map((p) => p.projetoId).sort()).toEqual(["X", "Y"]);
+    // A semana: 40 h de 40 h — sem sobrecarga semanal.
+    expect(detectarSobrecargas(parcelasDasLinhas([x, y], cal), new Map([["mireli", capacidadePorSemana(diasEntre("2026-09-14", "2026-09-20"), pessoa("mireli"), cal)]]), { semanas: ["2026-W38"] })).toEqual([]);
+  });
+
+  it("feriado zera a capacidade do dia e o motivo vem junto; fora da janela não conta", () => {
+    const s = detectarSobrecargasPorDia(parcelasDiariasDasLinhas([linha()], comFeriado), capacidade, {
+      desde: "2026-09-15",
+      ate: "2026-09-30",
+      motivos: () => ["feriado (teste)"],
+    });
+    // 24 h em 2 dias úteis (16 é feriado): 12 h por dia contra 8 h.
+    expect(s.map((d) => [d.dia, d.carga, d.motivosReducao])).toEqual([["2026-09-15", 12, ["feriado (teste)"]]]);
   });
 });
