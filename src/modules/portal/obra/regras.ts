@@ -91,6 +91,27 @@ export function motivoListaDeObras(
   return null;
 }
 
+/**
+ * `editarUsuario` numa conta de obra: a entrada pede cliente, perfil, superusuário, permissão extra ou sócio? Qualquer texto
+ * não vazio conta — inclusive só espaços, que a escrita gravaria como veio.
+ */
+export function pedeAcessoDeCliente(i: {
+  clienteId?: string;
+  perfilId?: string;
+  superUsuario?: boolean;
+  gereRh?: boolean;
+  moderaChat?: boolean;
+  ehSocio?: boolean;
+}): boolean {
+  return !!i.clienteId || !!i.perfilId || i.superUsuario === true || i.gereRh === true || i.moderaChat === true || i.ehSocio === true;
+}
+
+/** "Acesso até" (dias `YYYY-MM-DD`): data NOVA no passado é recusada; a mesma já gravada (mesmo vencida) passa. */
+export function motivoAcessoAte(o: { novo: string | null; anterior: string | null; hoje: string }): string | null {
+  if (o.novo === null || o.novo === o.anterior) return null;
+  return o.novo < o.hoje ? MOTIVO_ACESSO_ATE_PASSADO : null;
+}
+
 /** Nome da empresa aparado, 1–120 caracteres; fora disso `null`. */
 export function normalizarEmpresa(s: string): string | null {
   const t = s.trim();

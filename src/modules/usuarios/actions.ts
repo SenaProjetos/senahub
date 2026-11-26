@@ -14,6 +14,7 @@ import {
 import { smtpConfigurado } from "@/lib/mail";
 import { enviarLinkPeloAdmin } from "@/modules/auth/redefinir-senha-service";
 import { exigirNaoEhContaObra } from "@/modules/portal/obra/service";
+import { pedeAcessoDeCliente } from "@/modules/portal/obra/regras";
 import { diaDeSaoPaulo } from "@/lib/data";
 import {
   criarUsuarioSchema,
@@ -182,14 +183,8 @@ export const editarUsuario = defineAction(
 
     // Conta de obra (spec 2026-11-25): nunca recebe cliente, perfil, permissão, superusuário nem sócio — é o que mantém as
     // áreas do cliente fechadas para ela. Só o nome passa por aqui; o resto é `salvarContaObra`.
-    const daCliente =
-      !!input.clienteId?.trim() ||
-      !!input.perfilId?.trim() ||
-      input.superUsuario === true ||
-      input.gereRh === true ||
-      input.moderaChat === true ||
-      input.ehSocio === true;
-    if (externo && daCliente) await exigirNaoEhContaObra(input.id);
+    // Vale para qualquer tipo: uma conta de obra que tivesse virado interna por outro caminho continua barrada.
+    if (pedeAcessoDeCliente(input)) await exigirNaoEhContaObra(input.id);
 
     await prisma.user.update({
       where: { id: input.id },

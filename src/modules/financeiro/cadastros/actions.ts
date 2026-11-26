@@ -8,6 +8,7 @@ import { exigirCamposValidos } from "@/lib/campos/exigir";
 import { motivoCategoriaInvalida } from "@/modules/financeiro/categorias-regras";
 import { ensureCanalSocios, type SincroniaCanal } from "@/modules/chat/service";
 import { notificarNovosMembros, emitParaUsuario } from "@/lib/socket";
+import { exigirNaoEhContaObra } from "@/modules/portal/obra/service";
 import {
   categoriaSchema,
   tipoCustoCategoriaSchema,
@@ -219,6 +220,10 @@ function propagarGrupoSocios(s: SincroniaCanal) {
 export const criarSocio = defineAction(
   { ...base, acao: "criar-socio", entidade: "Socio", schema: socioSchema },
   async (i) => {
+    // Conta externa nunca é sócia (mesma regra do cadastro de usuários); a conta de obra tem a frase própria.
+    await exigirNaoEhContaObra(i.userId);
+    const alvo = await prisma.user.findUnique({ where: { id: i.userId }, select: { tipo: true } });
+    if (alvo?.tipo === "externo") throw new ActionError("Cliente do portal não pode ser sócio.");
     const existe = await prisma.socio.findUnique({ where: { userId: i.userId } });
     if (existe?.ativo) throw new ActionError("Usuário já é sócio.");
     // Registro inativo (desativado no cadastro de usuários): reativa preservando retiradas.

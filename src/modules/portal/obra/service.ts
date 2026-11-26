@@ -4,13 +4,13 @@ import { ActionError } from "@/lib/with-action";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { criarUsuarioComCredencial } from "@/lib/auth-admin";
 import {
-  MOTIVO_ACESSO_ATE_PASSADO,
   MOTIVO_CLIENTE_DA_CONTA,
   MOTIVO_CONTA_OBRA,
   MOTIVO_CONTA_OBRA_MUDOU,
   MOTIVO_EMPRESA,
   MOTIVO_OBRA_NAO_ENCONTRADA,
   deveReativarPorAcessoAte,
+  motivoAcessoAte,
   motivoListaDeObras,
   normalizarEmpresa,
 } from "./regras";
@@ -32,13 +32,19 @@ const dataDoDia = (dia: string) => new Date(`${dia}T00:00:00.000Z`);
 const diaDaData = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 /** O que criar e editar conferem antes de gravar qualquer coisa. Devolve os valores já normalizados. */
-async function validar(i: { empresa: string; clienteId?: string; projetoIds: string[]; acessoAte?: string }) {
+async function validar(
+  i: { empresa: string; clienteId?: string; projetoIds: string[]; acessoAte?: string },
+  gravado: { acessoAte: string | null; clienteId: string | null } = { acessoAte: null, clienteId: null },
+) {
   const empresa = normalizarEmpresa(i.empresa);
   if (!empresa) throw new ActionError(MOTIVO_EMPRESA);
   const acessoAte = i.acessoAte?.trim() || null;
-  if (acessoAte && acessoAte < diaDeSaoPaulo()) throw new ActionError(MOTIVO_ACESSO_ATE_PASSADO);
+  // Só data NOVA no passado é recusada: a mesma já gravada (vencida) não trava editar a empresa ou as obras.
+  const motivoData = motivoAcessoAte({ novo: acessoAte, anterior: gravado.acessoAte, hoje: diaDeSaoPaulo() });
+  if (motivoData) throw new ActionError(motivoData);
   const clienteId = i.clienteId?.trim() || null;
-  if (clienteId) {
+  // Cliente inativo só é recusado quando muda: a conta "do cliente" desativado ainda se edita (tirar obras, data).
+  if (clienteId && clienteId !== gravado.clienteId) {
     const cliente = await prisma.cliente.findUnique({ where: { id: clienteId }, select: { ativo: true } });
     if (!cliente?.ativo) throw new ActionError(MOTIVO_CLIENTE_DA_CONTA);
   }
@@ -87,11 +93,11 @@ export async function criarContaObraNoBanco(i: CriarContaObraInput, autorId: str
  * "Obra que atrasou": data nova numa conta desligada pelo vencimento a reativa, guardando a data.
  */
 export async function salvarContaObraNoBanco(i: SalvarContaObraInput, autorId: string): Promise<{ userId: string; reativada: boolean }> {
-  const conta = await prisma.contaObra.findUnique({ where: { userId: i.userId }, select: { id: true } });
+  const conta = await prisma.contaObra.findUnique({ where: { userId: i.userId }, select: { id: true, clienteId: true } });
   if (!conta) throw new ActionError(MOTIVO_OBRA_NAO_ENCONTRADA);
-  const v = await validar(i);
   const user = await prisma.user.findUnique({ where: { id: i.userId }, select: { ativo: true, acessoAte: true } });
   if (!user) throw new ActionError(MOTIVO_OBRA_NAO_ENCONTRADA);
+  const v = await validar(i, { acessoAte: diaDaData(user.acessoAte), clienteId: conta.clienteId });
   const reativar = deveReativarPorAcessoAte({
     ativo: user.ativo,
     acessoAteAntes: diaDaData(user.acessoAte),

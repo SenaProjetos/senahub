@@ -90,6 +90,8 @@ async function limpar() {
   await prisma.projetoMembro.deleteMany({});
   await prisma.projeto.deleteMany({});
   await prisma.contatoCliente.deleteMany({});
+  // Conta de obra "do cliente" segura o cliente (FK Restrict): sai antes; o usuário cai logo abaixo.
+  await prisma.contaObra.deleteMany({});
   await prisma.cliente.deleteMany({});
   await prisma.qualidadeSnapshot.deleteMany({});
   await prisma.dashboardSnapshot.deleteMany({});

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { MSG_PORTAL } from "../acesso-regras";
 import {
+  MOTIVO_ACESSO_ATE_PASSADO,
+  motivoAcessoAte,
+  pedeAcessoDeCliente,
   MOTIVO_OBRA_DE_OUTRO_CLIENTE,
   MOTIVO_OBRA_NAO_ENCONTRADA,
   decidirAcessoObra,
@@ -111,6 +114,35 @@ describe("normalizarEmpresa", () => {
   it("vazio ou longo demais: null", () => {
     expect(normalizarEmpresa("   ")).toBeNull();
     expect(normalizarEmpresa("x".repeat(121))).toBeNull();
+  });
+});
+
+describe("pedeAcessoDeCliente (editarUsuario numa conta de obra)", () => {
+  it("só o nome passa; cliente, perfil, superusuário, extras e sócio pedem a trava — inclusive texto só com espaços", () => {
+    expect(pedeAcessoDeCliente({})).toBe(false);
+    expect(pedeAcessoDeCliente({ clienteId: "", perfilId: "", superUsuario: false, gereRh: false, moderaChat: false, ehSocio: false })).toBe(false);
+    expect(pedeAcessoDeCliente({ clienteId: "c1" })).toBe(true);
+    expect(pedeAcessoDeCliente({ clienteId: "  " })).toBe(true);
+    expect(pedeAcessoDeCliente({ perfilId: "p1" })).toBe(true);
+    expect(pedeAcessoDeCliente({ superUsuario: true })).toBe(true);
+    expect(pedeAcessoDeCliente({ gereRh: true })).toBe(true);
+    expect(pedeAcessoDeCliente({ moderaChat: true })).toBe(true);
+    expect(pedeAcessoDeCliente({ ehSocio: true })).toBe(true);
+  });
+});
+
+describe("motivoAcessoAte", () => {
+  const hoje = "2026-11-25";
+
+  it("data de hoje em diante, vazia ou igual à gravada (mesmo vencida) passa", () => {
+    expect(motivoAcessoAte({ novo: hoje, anterior: null, hoje })).toBeNull();
+    expect(motivoAcessoAte({ novo: null, anterior: "2026-11-01", hoje })).toBeNull();
+    expect(motivoAcessoAte({ novo: "2026-11-01", anterior: "2026-11-01", hoje })).toBeNull();
+  });
+
+  it("data nova no passado é recusada", () => {
+    expect(motivoAcessoAte({ novo: "2026-11-24", anterior: null, hoje })).toBe(MOTIVO_ACESSO_ATE_PASSADO);
+    expect(motivoAcessoAte({ novo: "2026-11-02", anterior: "2026-11-01", hoje })).toBe(MOTIVO_ACESSO_ATE_PASSADO);
   });
 });
 

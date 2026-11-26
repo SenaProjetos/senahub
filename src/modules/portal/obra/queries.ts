@@ -14,6 +14,7 @@ import { ROTULO_SITUACAO } from "@/modules/uploads/revisao-marcada";
 import { uploadsComBloqueioDeDownload } from "@/modules/uploads/ciclo/service";
 import type { UsuarioDaSessao } from "../acesso";
 import { acessoDaObraAoProjeto } from "./acesso";
+import { semMotivoDoCliente } from "./conteudo";
 import { obrasValidas } from "./regras";
 
 export type ProjetoParaContaObra = { id: string; rotulo: string; detalhe: string; clienteId: string };
@@ -59,7 +60,8 @@ async function ultimaLiberacao(projetoId: string): Promise<string | null> {
     where: {
       tipo: "liberado_obra",
       removidoEm: null,
-      OR: [{ origem: null }, { origem: { not: "migracao" } }],
+      // `NOT` e não `origem: { not }`: a guarda das origens de Documento barra o literal nesse formato (e aqui é ControleRevisao).
+      OR: [{ origem: null }, { NOT: { origem: "migracao" } }],
       revisao: { documento: { disciplina: { projetoId } } },
     },
     orderBy: { aplicadoEm: "desc" },
@@ -129,7 +131,8 @@ export async function obraParaVer(
   if (!acesso.ok) return null;
   const projeto = await prisma.projeto.findUnique({ where: { id: projetoId }, select: { id: true, codigo: true, nome: true, endereco: true } });
   if (!projeto) return null;
-  return { projeto, conteudo: await conteudoDoAlcance(acesso.alcance) };
+  // O motivo da marca "Em revisão" é o comentário do cliente: a construtora vê a marca, nunca o texto.
+  return { projeto, conteudo: semMotivoDoCliente(await conteudoDoAlcance(acesso.alcance)) };
 }
 
 /** A prancha (PDF) para o visualizador da obra: só da pasta da obra e sem bloqueio de download. Sem pedidos. */

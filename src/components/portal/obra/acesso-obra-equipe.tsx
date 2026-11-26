@@ -17,7 +17,7 @@ export function AcessoObraEquipe({ contas, podeGerir }: { contas: ContaObraDoPro
         <CardTitle className="text-base">Acesso de obra</CardTitle>
         {podeGerir && (
           <Link href="/configuracoes/usuarios" className="text-sm text-primary underline-offset-4 hover:underline">
-            Gerenciar contas
+            Gerenciar contas de obra
           </Link>
         )}
       </CardHeader>

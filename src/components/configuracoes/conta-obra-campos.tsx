@@ -45,7 +45,7 @@ export function ContaObraCampos({
         />
       </div>
       <div className="space-y-1.5">
-        <Label>É do cliente</Label>
+        <Label htmlFor="obra-cliente">É do cliente</Label>
         <Select
           value={valor.clienteId || "__fora"}
           onValueChange={(v) => {
@@ -57,7 +57,7 @@ export function ContaObraCampos({
             onChange({ ...valor, clienteId, projetoIds });
           }}
         >
-          <SelectTrigger aria-label="É do cliente">
+          <SelectTrigger id="obra-cliente">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -71,8 +71,8 @@ export function ContaObraCampos({
         </Select>
         <p className="text-xs text-muted-foreground">Gente do próprio cliente que cuida só da obra: escolha o cliente.</p>
       </div>
-      <div className="space-y-1.5">
-        <Label>Obras</Label>
+      <div role="group" aria-labelledby="obra-obras" className="space-y-1.5">
+        <Label id="obra-obras">Obras</Label>
         <SeletorMultiplo
           opcoes={opcoes}
           selecionados={valor.projetoIds}

@@ -13,6 +13,8 @@
  */
 import type { Contratacao, Prisma, Setor, TipoUsuario } from "@/generated/prisma/client";
 import { inicioDoDiaUtc } from "@/lib/data";
+import { ActionError } from "@/lib/with-action";
+import { MOTIVO_CONTA_OBRA } from "@/modules/portal/obra/regras";
 import { agenteDoNovoVinculo } from "@/modules/usuarios/vinculo/agente-integracao";
 import { inicioDoVinculoPelaAdmissao } from "@/modules/usuarios/vinculo/admissao";
 
@@ -44,6 +46,8 @@ export async function aplicarVinculo(
   dados: NovoVinculo,
   opcoes: { motivoFimAnterior?: string } = {},
 ) {
+  // Conta de obra (spec 2026-11-25) nunca ganha vínculo: o vínculo grava `tipo = interno` e abriria a área da equipe.
+  if (await db.contaObra.findUnique({ where: { userId }, select: { id: true } })) throw new ActionError(MOTIVO_CONTA_OBRA);
   const anterior = await db.vinculo.findFirst({
     where: { userId, ativo: true },
     orderBy: { dataInicio: "desc" },

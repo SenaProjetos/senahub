@@ -74,15 +74,16 @@ async function main() {
     return c;
   };
   const novoProjeto = async (clienteId: string, sufixo: string) => {
+    // Sem `include` dentro da transação (Prisma 7 + adapter-pg): as disciplinas são lidas depois do commit.
     const p = await prisma.$transaction(async (tx) => {
       const { ano, sequencial, codigo } = await proximoCodigoProjeto(tx);
       return tx.projeto.create({
         data: { ano, sequencial, codigo, tipo: "particular", nome: `${tag}_${sufixo}`, clienteId, disciplinas: { create: [{ disciplinaTextoLegado: "Estrutural", ordem: 0 }] } },
-        include: { disciplinas: true },
       });
     });
     projetos.push(p.id);
-    return { ...p, disciplinaId: p.disciplinas[0].id };
+    const disciplina = await prisma.disciplina.findFirstOrThrow({ where: { projetoId: p.id }, select: { id: true } });
+    return { ...p, disciplinaId: disciplina.id };
   };
   /** Documento com N revisões, um upload validado por revisão (`ext` = pdf | ifc). */
   const documento = async (disciplinaId: string, nome: string, ext: "pdf" | "ifc", revisoes: number) => {
@@ -276,6 +277,15 @@ async function main() {
     );
     await prisma.cliente.update({ where: { id: cA.id }, data: { ativo: false } });
     check("cliente da conta do cliente inativo: nada", (await obrasParaLista(doCliente.id)).length === 0);
+    check(
+      "conta do cliente com o cliente inativo ainda se edita (cliente que não mudou não é recusado)",
+      (await erroDe(async () =>
+        salvarContaObraNoBanco(
+          { userId: doCliente.id, versao: await versao(doCliente.id), name: `${tag} Obra do cliente`, empresa: "Equipe de obra A", clienteId: cA.id, projetoIds: [pA1.id], acessoAte: "" },
+          autor.id,
+        ),
+      )) === null,
+    );
     await prisma.cliente.update({ where: { id: cA.id }, data: { ativo: true } });
 
     // ── "Acesso até": obra que atrasou ──────────────────────
@@ -288,6 +298,16 @@ async function main() {
     );
     const reativada = await prisma.user.findUniqueOrThrow({ where: { id: doCliente.id }, select: { ativo: true, acessoAte: true } });
     check("\"Acesso até\" novo reativa a conta vencida, guardando a data", r.reativada && reativada.ativo && reativada.acessoAte?.toISOString().slice(0, 10) === futuro);
+    await prisma.user.update({ where: { id: doCliente.id }, data: { acessoAte: new Date(`${somarDiasIso(hoje, -5)}T00:00:00.000Z`) } });
+    check(
+      "\"Acesso até\" vencido e igual ao gravado não trava editar a empresa",
+      (await erroDe(async () =>
+        salvarContaObraNoBanco(
+          { userId: doCliente.id, versao: await versao(doCliente.id), name: `${tag} Obra do cliente`, empresa: "Equipe de obra A2", clienteId: cA.id, projetoIds: [pA1.id], acessoAte: somarDiasIso(hoje, -5) },
+          autor.id,
+        ),
+      )) === null,
+    );
     check(
       "\"Acesso até\" no passado é recusado",
       (await erroDe(async () =>

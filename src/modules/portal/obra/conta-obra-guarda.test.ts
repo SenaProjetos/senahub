@@ -50,6 +50,17 @@ describe("conta de obra nunca ganha cliente, perfil ou permissão", () => {
   it("editar usuário, reativar e criar override conferem a conta de obra", () => {
     expect(ler("modules/usuarios/actions.ts")).toContain("exigirNaoEhContaObra(");
     expect(ler("modules/perfis/overrides-actions.ts")).toContain("exigirNaoEhContaObra(");
+    expect(ler("modules/usuarios/actions.ts")).toContain("pedeAcessoDeCliente(");
+  });
+
+  it("vínculo (RH) nunca transforma a conta de obra em conta interna", () => {
+    expect(ler("modules/usuarios/vinculo/service.ts")).toContain("MOTIVO_CONTA_OBRA");
+    // A trava do editarUsuario vale para qualquer tipo (a conta pode ter virado interna por outro caminho).
+    expect(ler("modules/usuarios/actions.ts")).not.toContain("externo && pedeAcessoDeCliente(");
+  });
+
+  it("cadastro de sócio no Financeiro recusa conta externa (cliente do portal ou obra)", () => {
+    expect(ler("modules/financeiro/cadastros/actions.ts")).toContain("exigirNaoEhContaObra(");
   });
 
   it("a fusão de clientes leva a conta de obra do cliente junto", () => {
