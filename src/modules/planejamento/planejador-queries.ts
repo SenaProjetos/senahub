@@ -6,7 +6,16 @@ import { diaLocal } from "@/modules/ponto/engine";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import type { ActionContext } from "@/lib/with-action";
 import { cargaDaEquipe } from "./recursos-queries";
-import { montarCalendarioComNomes } from "./agenda";
+import { montarCalendarioComNomes, paraDia } from "./agenda";
+import { ENCERRADA } from "./recursos";
+import {
+  mapaDeSucessoras,
+  resumoDasSeguintes,
+  seguintesDaLinha,
+  type EdicaoDoProjeto,
+  type LinhaParaSeguintes,
+  type SeguintesDaBarra,
+} from "./planejador-acoes";
 import {
   DIAS_DA_ESCALA,
   janelaDoPlanejador,
@@ -31,6 +40,13 @@ export type PlanejadorDaTela = Planejador & {
   dedicacoes: Record<string, DedicacaoNaTela[]> | null;
   /** Todas as pessoas da carga, para o filtro (a lista não encolhe quando uma está escolhida). */
   pessoas: { userId: string; nome: string }[];
+  /**
+   * Arrastar (parte 4): só para quem monta cronograma (`planejamento:gerir`). Por projeto com barra na janela; projeto
+   * fora do escopo vem `editavel: false` ("Sem permissão neste projeto").
+   */
+  edicao: Record<string, EdicaoDoProjeto> | null;
+  /** As seguintes de cada linha editável (a pergunta "Mover também as seguintes?"). */
+  seguintes: Record<string, SeguintesDaBarra> | null;
 };
 
 /**
@@ -40,7 +56,7 @@ export type PlanejadorDaTela = Planejador & {
  */
 export async function planejadorDaEquipe(
   viewer: Viewer,
-  opcoes: { escala: EscalaPlanejador; inicio?: Dia; filtros?: FiltrosDoPlanejador; editarDedicacao: boolean },
+  opcoes: { escala: EscalaPlanejador; inicio?: Dia; filtros?: FiltrosDoPlanejador; editarDedicacao: boolean; editarPlano?: boolean },
 ): Promise<PlanejadorDaTela> {
   const hoje = diaLocal(new Date());
   const janela = janelaDoPlanejador(opcoes.escala, opcoes.inicio ?? hoje);
@@ -91,8 +107,59 @@ export async function planejadorDaEquipe(
     }
   }
 
+  let edicao: Record<string, EdicaoDoProjeto> | null = null;
+  let seguintes: Record<string, SeguintesDaBarra> | null = null;
+  if (opcoes.editarPlano) {
+    const ids = planejador.projetos.map((p) => p.id);
+    const noEscopo = new Set(
+      (await prisma.projeto.findMany({ where: { AND: [{ id: { in: ids } }, escopoProjeto(viewer)] }, select: { id: true } })).map((p) => p.id),
+    );
+    const cronogramas = await prisma.cronogramaProjeto.findMany({ where: { projetoId: { in: ids } }, select: { projetoId: true, aprovado: true, emRevisao: true } });
+    const coordeno = new Set(
+      (
+        await prisma.projetoMembro.findMany({
+          where: { userId: viewer.id, projetoId: { in: ids }, papel: { contains: "coord", mode: "insensitive" } },
+          select: { projetoId: true },
+        })
+      ).map((m) => m.projetoId),
+    );
+    edicao = {};
+    for (const id of ids) {
+      const c = cronogramas.find((x) => x.projetoId === id);
+      // Fora do escopo, só "sem permissão": nem a situação do cronograma sai.
+      edicao[id] = noEscopo.has(id)
+        ? { editavel: true, aprovado: c?.aprovado ?? false, emRevisao: c?.emRevisao ?? false, souCoordenador: coordeno.has(id) }
+        : { editavel: false, aprovado: false, emRevisao: false, souCoordenador: false };
+    }
+
+    const editaveis = [...noEscopo];
+    const [vinculos, linhasDb] = await Promise.all([
+      prisma.eapDependencia.findMany({ where: { tarefa: { projetoId: { in: editaveis } } }, select: { tarefaId: true, predecessoraId: true } }),
+      prisma.eapTarefa.findMany({
+        where: { projetoId: { in: editaveis } },
+        select: { id: true, nome: true, status: true, inicioReal: true, restricaoData: true },
+      }),
+    ]);
+    const linhas = new Map<string, LinhaParaSeguintes>(
+      linhasDb.map((l) => [
+        l.id,
+        { id: l.id, nome: l.nome, restricaoData: l.restricaoData ? paraDia(l.restricaoData) : null, aberta: !ENCERRADA.has(l.status) && l.inicioReal == null },
+      ]),
+    );
+    seguintes = {};
+    const sucessoras = mapaDeSucessoras(vinculos);
+    const barras = [...planejador.faixas.flatMap((f) => f.barras), ...planejador.semNinguem.barras];
+    for (const b of barras) {
+      if (!noEscopo.has(b.projetoId) || seguintes[b.linhaId]) continue;
+      const s = seguintesDaLinha(b.linhaId, sucessoras, linhas);
+      if (s.todas.length > 0) seguintes[b.linhaId] = resumoDasSeguintes(s, linhas);
+    }
+  }
+
   return {
     ...planejador,
+    edicao,
+    seguintes,
     janela,
     escala: opcoes.escala,
     hoje,

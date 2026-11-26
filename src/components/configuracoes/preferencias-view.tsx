@@ -71,6 +71,7 @@ export function PreferenciasView({
   notifEtapaProxima: notifEtapaProximaInicial,
   notifAtividadeConcluida: notifAtividadeConcluidaInicial,
   notifConflitoRecurso: notifConflitoRecursoInicial,
+  notifAlteracaoCronograma: notifAlteracaoCronogramaInicial,
   notifPedidoRevisaoCliente: notifPedidoRevisaoClienteInicial,
   notifMensagemCliente: notifMensagemClienteInicial,
   notifAprovacaoEntrega: notifAprovacaoEntregaInicial,
@@ -109,6 +110,7 @@ export function PreferenciasView({
   notifEtapaProxima: boolean;
   notifAtividadeConcluida: boolean;
   notifConflitoRecurso: boolean;
+  notifAlteracaoCronograma: boolean;
   notifPedidoRevisaoCliente: boolean;
   notifMensagemCliente: boolean;
   notifAprovacaoEntrega: boolean;
@@ -148,6 +150,7 @@ export function PreferenciasView({
   const [notifEtapaProxima, setNotifEtapaProxima] = useState(notifEtapaProximaInicial);
   const [notifAtividadeConcluida, setNotifAtividadeConcluida] = useState(notifAtividadeConcluidaInicial);
   const [notifConflitoRecurso, setNotifConflitoRecurso] = useState(notifConflitoRecursoInicial);
+  const [notifAlteracaoCronograma, setNotifAlteracaoCronograma] = useState(notifAlteracaoCronogramaInicial);
   const [notifPedidoRevisaoCliente, setNotifPedidoRevisaoCliente] = useState(notifPedidoRevisaoClienteInicial);
   const [notifMensagemCliente, setNotifMensagemCliente] = useState(notifMensagemClienteInicial);
   const [notifAprovacaoEntrega, setNotifAprovacaoEntrega] = useState(notifAprovacaoEntregaInicial);
@@ -376,6 +379,13 @@ export function PreferenciasView({
       descricao: "Para a coordenação: uma data real ou a Data de Status de outro projeto pôs alguém do seu cronograma aprovado acima da jornada.",
       valor: notifConflitoRecurso,
       set: setNotifConflitoRecurso,
+    },
+    {
+      chave: "notif_alteracao_cronograma",
+      titulo: "Mudança no cronograma por outra pessoa",
+      descricao: "Para a coordenação: alguém que não coordena o projeto mudou o início de uma tarefa ou trocou a pessoa na tela por pessoa de Recursos.",
+      valor: notifAlteracaoCronograma,
+      set: setNotifAlteracaoCronograma,
     },
     {
       chave: "notif_pedido_revisao_cliente",

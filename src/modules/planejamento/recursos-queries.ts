@@ -114,6 +114,8 @@ export type LinhaAgendada = {
   /** Cronograma em rascunho (cinza na tela). */
   rascunho: boolean;
   marco: boolean;
+  /** Tem início real: a data vem dele, não se arrasta (parte 4). */
+  iniciada: boolean;
   /** Etapa de terceiro (o recurso Externo): fica fora das faixas de pessoa e da faixa "sem ninguém". */
   deTerceiro: boolean;
   /** Pessoas na linha (perfil e Externo fora). */
@@ -242,6 +244,7 @@ export async function cargaDaEquipe(
         fim: agendada.fim,
         rascunho: !ehAprovado.has(l.projetoId),
         marco: l.tipoEap === "mrc",
+        iniciada: l.inicioReal != null,
         deTerceiro: l.atribuicoes.some((a) => a.papel === "ext"),
         pessoas: l.atribuicoes
           .filter((a): a is typeof a & { userId: string } => a.userId != null && a.papel !== "ext")

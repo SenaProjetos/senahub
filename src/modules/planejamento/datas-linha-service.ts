@@ -16,17 +16,19 @@ import { duracaoPeloTermino, moverRestricoes } from "./datas-linha";
 export const MOTIVO_DATA_DE_AGRUPAMENTO = "Agrupamento: o início e o término vêm das tarefas de dentro.";
 export const MOTIVO_TERMINO_FIXADO = "Esta linha tem o término fixado por uma restrição. Tire a restrição para mudar o término pela duração.";
 
-async function carregarLinha(id: string) {
-  const t = await prisma.eapTarefa.findUnique({ where: { id }, select: { projetoId: true, tipoEap: true, restricaoTipo: true, _count: { select: { filhas: true } } } });
+type Db = Prisma.TransactionClient | typeof prisma;
+
+async function carregarLinha(id: string, db: Db = prisma) {
+  const t = await db.eapTarefa.findUnique({ where: { id }, select: { projetoId: true, tipoEap: true, restricaoTipo: true, _count: { select: { filhas: true } } } });
   if (!t) throw new ActionError("Tarefa não encontrada.");
   if (t._count.filhas > 0) throw new ActionError(MOTIVO_DATA_DE_AGRUPAMENTO);
   return t;
 }
 
 /** O início digitado: grava a restrição "não iniciar antes de" (no lugar da que a linha tivesse); a duração se mantém. */
-export async function definirInicioDaLinha(p: { id: string; data: Dia }): Promise<{ projetoId: string }> {
-  const t = await carregarLinha(p.id);
-  await prisma.eapTarefa.update({ where: { id: p.id }, data: { restricaoTipo: "iniciar_nao_antes_de", restricaoData: paraDataUtc(p.data) } });
+export async function definirInicioDaLinha(p: { id: string; data: Dia }, db: Db = prisma): Promise<{ projetoId: string }> {
+  const t = await carregarLinha(p.id, db);
+  await db.eapTarefa.update({ where: { id: p.id }, data: { restricaoTipo: "iniciar_nao_antes_de", restricaoData: paraDataUtc(p.data) } });
   return { projetoId: t.projetoId };
 }
 

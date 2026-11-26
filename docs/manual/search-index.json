@@ -886,7 +886,11 @@
         "carga planejada",
         "sobrecarga",
         "heatmap",
-        "filtros"
+        "filtros",
+        "por pessoa",
+        "arrastar barra",
+        "trocar pessoa da tarefa",
+        "planejador de equipe"
       ],
       "palavrasChave": [
         "recursos",

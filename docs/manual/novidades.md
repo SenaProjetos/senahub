@@ -52,6 +52,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   outro superusuário.
 - O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
 
+## Arrastar na tela por pessoa (novembro/2026)
+
+- Em **Recursos → Por pessoa**, quem monta cronograma agora **arrasta a barra**: para o lado muda o início (no rascunho ou
+  com a revisão aberta), para a faixa de outra pessoa troca a pessoa (livre também no aprovado), e da faixa "Tarefas sem
+  ninguém" para alguém atribui a tarefa. Sempre com confirmação; as predecessoras são respeitadas e, quando há datas
+  fixadas depois, a tela pergunta se elas andam junto.
+- Clicar numa barra abre um painel que faz o mesmo sem arrastar.
+- Quando quem mexe não coordena o projeto, a coordenação é avisada.
+
 ## Aviso de conflito ao registrar o andamento (novembro/2026)
 
 - Ao registrar uma **data real** ou a **Data de Status** no cronograma, se isso empurrar alguém para cima de outro

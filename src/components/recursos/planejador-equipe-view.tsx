@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { useState, type CSSProperties } from "react";
+import { useRef, useState, useTransition, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ChevronDown, ChevronLeft, ChevronRight, Percent, Users } from "lucide-react";
 import type { PlanejadorDaTela } from "@/modules/planejamento/planejador-queries";
 import {
@@ -14,6 +15,15 @@ import {
   type EscalaPlanejador,
 } from "@/modules/planejamento/planejador-equipe";
 import { FUNDO_COR_PROJETO } from "@/modules/planejamento/cor-projeto";
+import {
+  MOTIVO_TIRAR_PESSOA,
+  diasDoArrasto,
+  motivoParaNaoMoverData,
+  motivoParaNaoTrocarPessoa,
+  traduzirMotivoDoServidor,
+} from "@/modules/planejamento/planejador-acoes";
+import { moverBarraNoPlanejador, trocarPessoaNoPlanejadorAction } from "@/modules/planejamento/planejador-actions";
+import { ConfirmarMudancaDialog, PainelDaBarra, type MudancaPendente } from "@/components/recursos/planejador-barra";
 import { dataCurta } from "@/lib/dias-iso";
 import { useSetParams } from "@/lib/use-set-param";
 import { cn } from "@/lib/utils";
@@ -26,6 +36,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const TODOS = "__todos";
+/** A faixa "sem ninguém" no arrasto (as faixas de pessoa usam o id da pessoa). */
+const FAIXA_SEM = "__sem";
+/** Quanto o mouse anda antes de virar arrasto (abaixo disso é clique). */
+const LIMIAR_ARRASTO = 5;
 /** Largura de um dia, por escala. */
 const PX_DIA: Record<EscalaPlanejador, number> = { dias: 44, semanas: 12 };
 const ALTURA_BARRA = 22;
@@ -55,9 +69,11 @@ function textoDoDia(nome: string, c: DiaDeConflito): string {
   return [cabeca, ...linhas, ...motivo].join("\n");
 }
 
+type Arrasto = { chave: string; dx: number; dy: number; alvo: string | null };
+
 function tituloDaBarra(b: BarraDoPlanejador, pessoa: string | null): string {
   const quando = b.inicio === b.fim ? dataCurta(b.inicio) : `${dataCurta(b.inicio)} a ${dataCurta(b.fim)}`;
-  const partes = [`${b.codigoProjeto} · ${b.nome}`, b.rascunho ? "rascunho" : "aprovado", quando];
+  const partes = [`${b.codigoProjeto} · ${b.nome}${b.marco ? " (marco)" : ""}`, b.rascunho ? "rascunho" : "aprovado", quando];
   if (pessoa) partes.push(b.horas > 0 ? `${horas(b.horas)} de ${pessoa}` : pessoa);
   if (b.disciplina) partes.push(b.disciplina);
   return partes.join(" — ");
@@ -66,7 +82,9 @@ function tituloDaBarra(b: BarraDoPlanejador, pessoa: string | null): string {
 /**
  * Tela por pessoa de Recursos (pool de recursos, parte 2 — o "Planejador de Equipe" do MS Project): uma faixa por pessoa
  * com todas as tarefas dela em todos os cronogramas, empilhadas quando se sobrepõem; o dia acima da jornada hachurado em
- * vermelho; rascunho em cinza tracejado; no fim, as tarefas sem ninguém. Só leitura: a barra abre o cronograma do projeto.
+ * vermelho; rascunho em cinza tracejado; no fim, as tarefas sem ninguém. Quem monta cronograma arrasta a barra (parte 4):
+ * para o lado muda o início (rascunho ou revisão aberta), para outra faixa troca a pessoa, sempre com confirmação. Clicar
+ * abre o painel da barra, que faz o mesmo sem arrastar (teclado e toque).
  */
 export function PlanejadorEquipeView({
   dados,
@@ -76,7 +94,15 @@ export function PlanejadorEquipeView({
   filtros: { disciplina: string | null; projetoId: string | null; userId: string | null };
 }) {
   const setParams = useSetParams();
+  const router = useRouter();
   const [semNinguemAberto, setSemNinguemAberto] = useState(true);
+  const [aberta, setAberta] = useState<string | null>(null);
+  const [arrasto, setArrasto] = useState<Arrasto | null>(null);
+  const [mudanca, setMudanca] = useState<MudancaPendente | null>(null);
+  const [gravando, startGravar] = useTransition();
+  /** Depois de um arrasto o navegador ainda manda o clique: ele não pode abrir o painel da barra. */
+  const suprimirClique = useRef(false);
+  const nomeDe = new Map(dados.pessoas.map((p) => [p.userId, p.nome]));
   const px = PX_DIA[dados.escala];
   const totalDias = Math.round((Date.parse(`${dados.janela.ate}T00:00:00Z`) - Date.parse(`${dados.janela.de}T00:00:00Z`)) / 86_400_000) + 1;
   const dias = Array.from({ length: totalDias }, (_, i) => somarDias(dados.janela.de, i));
@@ -95,31 +121,149 @@ export function PlanejadorEquipeView({
     </>
   );
 
-  const desenharBarras = (barras: readonly BarraDoPlanejador[], pessoa: string | null) =>
+  /** O arrasto terminou: decide se é troca de pessoa (outra faixa) ou de data (mesma faixa) e pede confirmação. */
+  function aoSoltar(b: BarraDoPlanejador, origem: string, alvo: string | null, dias: number) {
+    const projeto = dados.edicao?.[b.projetoId];
+    if (alvo && alvo !== origem) {
+      const motivo = alvo === FAIXA_SEM ? MOTIVO_TIRAR_PESSOA : motivoParaNaoTrocarPessoa(projeto, b.pessoasDaLinha, alvo);
+      if (motivo) return void toast.error(motivo);
+      const de = origem === FAIXA_SEM ? null : { userId: origem, nome: nomeDe.get(origem) ?? "Pessoa" };
+      return setMudanca({ tipo: "pessoa", barra: b, de, para: { userId: alvo, nome: nomeDe.get(alvo) ?? "Pessoa" } });
+    }
+    if (dias === 0) return;
+    const motivo = motivoParaNaoMoverData(projeto, b);
+    if (motivo) return void toast.error(motivo);
+    setMudanca({ tipo: "data", barra: b, inicio: somarDias(b.inicio, dias) });
+  }
+
+  /** Arrasto com o mouse (no toque, o toque abre o painel da barra, que faz o mesmo sem arrastar). */
+  function iniciarArrasto(e: ReactPointerEvent<HTMLButtonElement>, b: BarraDoPlanejador, origem: string) {
+    suprimirClique.current = false;
+    if (!dados.edicao || e.pointerType !== "mouse" || e.button !== 0) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const faixas = [...document.querySelectorAll<HTMLElement>("[data-faixa]")].map((el) => ({ id: el.dataset.faixa ?? "", r: el.getBoundingClientRect() }));
+    const faixaEm = (y: number) => faixas.find((f) => y >= f.r.top && y < f.r.bottom)?.id ?? null;
+    let andou = false;
+    const parar = () => {
+      window.removeEventListener("pointermove", mover);
+      window.removeEventListener("pointerup", soltar);
+      window.removeEventListener("pointercancel", cancelar);
+    };
+    const mover = (ev: PointerEvent) => {
+      const dx = ev.clientX - x0;
+      const dy = ev.clientY - y0;
+      if (!andou && Math.hypot(dx, dy) < LIMIAR_ARRASTO) return;
+      andou = true;
+      setArrasto({ chave: b.chave, dx, dy, alvo: faixaEm(ev.clientY) });
+    };
+    const soltar = (ev: PointerEvent) => {
+      parar();
+      if (!andou) return;
+      // O clique que vem logo depois do soltar não abre o painel; se ele não vier (soltou fora da barra), a trava some.
+      suprimirClique.current = true;
+      setTimeout(() => (suprimirClique.current = false), 0);
+      setArrasto(null);
+      aoSoltar(b, origem, faixaEm(ev.clientY), diasDoArrasto(ev.clientX - x0, px));
+    };
+    const cancelar = () => {
+      parar();
+      setArrasto(null);
+    };
+    window.addEventListener("pointermove", mover);
+    window.addEventListener("pointerup", soltar);
+    window.addEventListener("pointercancel", cancelar);
+  }
+
+  function confirmar(moverSeguintes: boolean) {
+    const m = mudanca;
+    if (!m) return;
+    startGravar(async () => {
+      if (m.tipo === "data") {
+        const r = await moverBarraNoPlanejador({ id: m.barra.linhaId, inicio: m.inicio, moverSeguintes });
+        if (!r.ok) return void toast.error(traduzirMotivoDoServidor(r.error));
+        if (r.data.inicio !== r.data.pedido) {
+          toast.info(`A tarefa começa em ${dataCurta(r.data.inicio)}.`, { description: "Uma predecessora termina depois, ou o dia pedido não é útil." });
+        } else toast.success(`Início mudado para ${dataCurta(r.data.inicio)}.`);
+        if (r.data.movidas > 0) {
+          toast.info(r.data.movidas === 1 ? "1 data fixada das seguintes andou junto." : `${r.data.movidas} datas fixadas das seguintes andaram junto.`);
+        }
+      } else {
+        const r = await trocarPessoaNoPlanejadorAction({ tarefaId: m.barra.linhaId, de: m.de?.userId ?? null, para: m.para.userId });
+        if (!r.ok) return void toast.error(traduzirMotivoDoServidor(r.error));
+        toast.success(m.de ? `${m.para.nome} entrou no lugar de ${m.de.nome}.` : `Tarefa atribuída a ${m.para.nome}.`);
+      }
+      setMudanca(null);
+      router.refresh();
+    });
+  }
+
+  const desenharBarras = (barras: readonly BarraDoPlanejador[], pessoa: { userId: string; nome: string } | null) =>
     barras.map((b) => {
       const pos = posicaoNaJanela(b.inicio, b.fim, dados.janela);
       if (!pos) return null;
-      const titulo = tituloDaBarra(b, pessoa);
+      const titulo = tituloDaBarra(b, pessoa?.nome ?? null);
+      const origem = pessoa?.userId ?? FAIXA_SEM;
+      const edicao = dados.edicao?.[b.projetoId];
+      const arrastando = arrasto?.chave === b.chave ? arrasto : null;
+      const diasNoArrasto = arrastando && (arrastando.alvo ?? origem) === origem ? diasDoArrasto(arrastando.dx, px) : 0;
       return (
-        <Link
+        <Popover
           key={b.chave}
-          href={`/planejamento/${b.projetoId}`}
-          title={titulo}
-          aria-label={`${titulo}. Abrir o cronograma`}
-          className={cn(
-            "absolute z-10 flex items-center overflow-hidden rounded-sm px-1.5 text-xs font-medium whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-            pessoa === null || b.rascunho
-              ? "border border-dashed border-muted-foreground/70 bg-background text-muted-foreground"
-              : cn(FUNDO_COR_PROJETO[b.cor], "text-white"),
-          )}
-          style={{ left: pos.inicio * px + 1, width: Math.max(pos.dias * px - 3, 10), top: 6 + b.nivel * ANDAR, height: ALTURA_BARRA }}
+          open={aberta === b.chave}
+          onOpenChange={(o) => {
+            if (o && suprimirClique.current) {
+              suprimirClique.current = false;
+              return;
+            }
+            setAberta(o ? b.chave : null);
+          }}
         >
-          <span className="truncate">
-            {b.marco && "◆ "}
-            {b.codigoProjeto} · {b.nome}
-            {b.rascunho && " (rascunho)"}
-          </span>
-        </Link>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                title={titulo}
+                aria-label={`${titulo}. ${edicao?.editavel ? "Abrir para mudar o início ou a pessoa" : "Abrir detalhes"}`}
+                onPointerDown={(e) => iniciarArrasto(e, b, origem)}
+                className={cn(
+                  "absolute z-10 flex items-center overflow-hidden rounded-sm px-1.5 text-left text-xs font-medium whitespace-nowrap select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                  pessoa === null || b.rascunho
+                    ? "border border-dashed border-muted-foreground/70 bg-background text-muted-foreground"
+                    : cn(FUNDO_COR_PROJETO[b.cor], "text-white"),
+                  edicao?.editavel && "pointer-fine:cursor-grab",
+                  arrastando && "z-40 cursor-grabbing opacity-90 shadow-lg ring-2 ring-primary",
+                )}
+                style={{
+                  left: pos.inicio * px + 1,
+                  width: Math.max(pos.dias * px - 3, 10),
+                  top: 6 + b.nivel * ANDAR,
+                  height: ALTURA_BARRA,
+                  ...(arrastando ? { transform: `translate(${arrastando.dx}px, ${arrastando.dy}px)` } : {}),
+                }}
+              />
+            }
+          >
+            <span className="truncate">
+              {diasNoArrasto !== 0 && <strong>{dm(somarDias(b.inicio, diasNoArrasto))} · </strong>}
+              {b.marco && <span aria-hidden>◆ </span>}
+              {b.codigoProjeto} · {b.nome}
+              {b.rascunho && " (rascunho)"}
+            </span>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-80 max-w-[calc(100vw-2rem)] p-0" aria-label={`${b.codigoProjeto} · ${b.nome}`}>
+            <PainelDaBarra
+              barra={b}
+              pessoa={pessoa}
+              edicao={dados.edicao ? edicao : undefined}
+              pessoas={dados.pessoas}
+              onMudar={(m) => {
+                setAberta(null);
+                setMudanca(m);
+              }}
+            />
+          </PopoverContent>
+        </Popover>
       );
     });
 
@@ -127,7 +271,11 @@ export function PlanejadorEquipeView({
     <div className="space-y-3">
       <CabecalhoPagina
         titulo="Recursos"
-        descricao="Tudo o que cada pessoa faz em todos os cronogramas, dia a dia; para mudar uma data, edite a EAP do projeto."
+        descricao={
+          dados.edicao
+            ? "Tudo o que cada pessoa faz em todos os cronogramas, dia a dia; clique numa barra (ou arraste) para mudar o início ou a pessoa."
+            : "Tudo o que cada pessoa faz em todos os cronogramas, dia a dia; clique numa barra para ver a tarefa."
+        }
       />
       <AbasRecursos atual="pessoa" />
 
@@ -299,7 +447,7 @@ export function PlanejadorEquipeView({
                             render={
                               <button
                                 type="button"
-                                className="rounded-sm bg-destructive/10 px-1.5 py-0.5 text-left text-[11px] font-medium text-destructive-text hover:bg-destructive/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                className="min-h-6 rounded-sm bg-destructive/10 px-1.5 py-0.5 text-left text-[11px] font-medium text-destructive-text hover:bg-destructive/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               />
                             }
                           >
@@ -322,7 +470,7 @@ export function PlanejadorEquipeView({
                             render={
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[11px] text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                className="inline-flex min-h-6 items-center gap-0.5 rounded-sm px-1 py-0.5 text-[11px] text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 aria-label={`Dedicação de ${f.nome} nas disciplinas`}
                               />
                             }
@@ -351,7 +499,11 @@ export function PlanejadorEquipeView({
                       )}
                     </div>
                   </div>
-                  <div className="relative shrink-0" style={{ width: largura, minHeight: altura }}>
+                  <div
+                    data-faixa={f.userId}
+                    className={cn("relative shrink-0", arrasto?.alvo === f.userId && "bg-primary/5 outline-2 -outline-offset-2 outline-primary")}
+                    style={{ width: largura, minHeight: altura }}
+                  >
                     {fundoDosDias}
                     {f.conflitos.map((c) => {
                       const i = dias.indexOf(c.dia);
@@ -366,7 +518,7 @@ export function PlanejadorEquipeView({
                         />
                       );
                     })}
-                    {desenharBarras(f.barras, f.nome)}
+                    {desenharBarras(f.barras, { userId: f.userId, nome: f.nome })}
                   </div>
                 </div>
               );
@@ -396,7 +548,11 @@ export function PlanejadorEquipeView({
                       <p className="text-sm font-medium">Sem responsável</p>
                       <p className="text-xs text-muted-foreground">Não entram na carga</p>
                     </div>
-                    <div className="relative shrink-0" style={{ width: largura, minHeight: Math.max(1, dados.semNinguem.niveis) * ANDAR + 12 }}>
+                    <div
+                      data-faixa={FAIXA_SEM}
+                      className="relative shrink-0"
+                      style={{ width: largura, minHeight: Math.max(1, dados.semNinguem.niveis) * ANDAR + 12 }}
+                    >
                       {fundoDosDias}
                       {desenharBarras(dados.semNinguem.barras, null)}
                     </div>
@@ -407,6 +563,15 @@ export function PlanejadorEquipeView({
           </div>
         </div>
       )}
+
+      <ConfirmarMudancaDialog
+        mudanca={mudanca}
+        edicao={mudanca ? dados.edicao?.[mudanca.barra.projetoId] : undefined}
+        seguintes={mudanca ? dados.seguintes?.[mudanca.barra.linhaId] : undefined}
+        pendente={gravando}
+        onConfirmar={confirmar}
+        onCancelar={() => setMudanca(null)}
+      />
     </div>
   );
 }

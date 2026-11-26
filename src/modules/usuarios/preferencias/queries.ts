@@ -70,6 +70,7 @@ export async function carregarPreferenciasDaConta(userId: string) {
     notifEtapaProxima: prefs.notif_etapa_proxima !== false,
     notifAtividadeConcluida: prefs.notif_atividade_concluida !== false,
     notifConflitoRecurso: prefs.notif_conflito_recurso !== false,
+    notifAlteracaoCronograma: prefs.notif_alteracao_cronograma !== false,
     notifPedidoRevisaoCliente: prefs.notif_pedido_revisao_cliente !== false,
     notifMensagemCliente: prefs.notif_mensagem_cliente !== false,
     notifAprovacaoEntrega: prefs.notif_aprovacao_entrega !== false,

@@ -118,7 +118,8 @@ Ver [Cronograma: equipe, horas e custo](cronograma-equipe-e-custo.md).
 ## Por pessoa
 
 Inspirada no **Planejador de Equipe** do MS Project: **uma faixa por pessoa** com tudo o que ela faz em **todos os
-cronogramas**, dia a dia (`/recursos/por-pessoa`). É **só leitura**: clicar numa barra abre o cronograma do projeto.
+cronogramas**, dia a dia (`/recursos/por-pessoa`). Clicar numa barra abre o painel dela (a tarefa, **Abrir o
+cronograma** e, para quem monta cronograma, mudar o início e trocar a pessoa).
 
 - **Barras:** código do projeto + nome da tarefa, na **cor do projeto** (automática, ou a escolhida em **Editar
   projeto**). Passe o mouse para ver o nome completo, as datas e as horas da pessoa. Tarefas que se sobrepõem ficam
@@ -137,6 +138,27 @@ cronogramas**, dia a dia (`/recursos/por-pessoa`). É **só leitura**: clicar nu
   conflito.
 - Etapa de terceiro (recurso Externo) ainda não aparece aqui.
 
+### Arrastar uma barra
+
+Para quem monta cronograma (`planejamento:gerir`), nos projetos que a pessoa enxerga. Toda mudança pede confirmação e
+passa pelas mesmas regras da EAP (e o **Ctrl+Z** do cronograma desfaz).
+
+- **Para o lado: muda o início.** Vale no **rascunho** ou com a **revisão aberta**. Num cronograma **aprovado** sem revisão
+  a barra não se move e a tela diz para abrir **Revisar planejamento** (a revisão fecha com nova linha de base e motivo).
+  Tarefa que **já começou** não muda: a data vem do início real.
+- O novo início vira a data fixada "não iniciar antes de", como digitar o início na tabela. As **predecessoras** são
+  respeitadas: se uma termina depois, a tarefa começa quando ela terminar (a tela avisa o dia de fato). As **seguintes**
+  pelo vínculo andam junto. Quando alguma seguinte tem **data fixada**, a confirmação pergunta **"Mover também as
+  seguintes?"**: sim leva essas datas os mesmos dias úteis; **Só esta tarefa** deixa onde estão.
+- **Para a faixa de outra pessoa: troca a pessoa.** Livre também no aprovado, sem revisão e sem mudar a linha de base. As
+  horas automáticas são recalculadas pela jornada e pela dedicação de quem entra; horas digitadas vão junto.
+- **Da faixa "Tarefas sem ninguém" para uma pessoa: atribui** a tarefa, com as horas preenchidas pela duração.
+- **Sem permissão** no projeto (outro projeto, ou sem `planejamento:gerir`): a barra não se move e a tela diz "Sem
+  permissão neste projeto".
+- Quem **não coordena** o projeto (Gerência, administrativo) e muda uma data ou uma pessoa: a **coordenação** do projeto
+  recebe uma notificação. Quem fez não recebe. Desliga em **Preferências → Mudança no cronograma por outra pessoa**.
+- Sem mouse (teclado ou toque): o painel da barra faz o mesmo — **Início** + **Mover**, e **Trocar … por** + **Trocar**.
+
 ## Cadastro do recurso
 
 - **Adicionar recurso** (só quem gere Recursos) transforma um usuário em recurso, com **capacidade**
@@ -153,6 +175,7 @@ cronogramas**, dia a dia (`/recursos/por-pessoa`). É **só leitura**: clicar nu
 | Ação | Permissão |
 | --- | --- |
 | Ver as visões, os filtros e pedir **sugestões** | `recursos:ver` |
+| Arrastar barras na tela Por pessoa (início e pessoa) | `planejamento:gerir` + ver o projeto |
 | Adicionar e editar o recurso (capacidade, cor) | `recursos:gerir` |
 | Custo por hora | `financeiro:ver` para ver, `financeiro:gerir` para editar |
 | Mudar a carga (atribuir pessoas e horas, atrasar, passar) | `planejamento:gerir`, na EAP do projeto |

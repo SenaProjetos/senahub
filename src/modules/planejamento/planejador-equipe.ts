@@ -4,7 +4,8 @@
  * acima da jornada marcado e, no fim, a faixa das tarefas sem ninguém.
  *
  * PURO e seguro no cliente: recebe as linhas agendadas, as pessoas e as sobrecargas DIÁRIAS que `cargaDaEquipe` já
- * calcula (a mesma régua do alerta do cronograma) e monta o que a tela desenha. Só leitura: nada aqui muda data.
+ * calcula (a mesma régua do alerta do cronograma) e monta o que a tela desenha. Nada aqui grava: o arrasto (parte 4) tem as
+ * regras em `planejador-acoes.ts` e escreve pelos serviços da EAP.
  */
 import type { Dia } from "@/lib/calendario-trabalho";
 import { corDoProjeto, type CorProjeto } from "./cor-projeto";
@@ -22,6 +23,8 @@ export type LinhaDoPlanejador = {
   fim: Dia;
   rascunho: boolean;
   marco: boolean;
+  /** Tem início real (a data não se arrasta). Ausente = não. */
+  iniciada?: boolean;
   deTerceiro: boolean;
   pessoas: readonly { userId: string; horas: number }[];
 };
@@ -42,6 +45,9 @@ export type BarraDoPlanejador = {
   fim: Dia;
   rascunho: boolean;
   marco: boolean;
+  iniciada: boolean;
+  /** Todas as pessoas da linha (trocar para quem já está nela é recusado). */
+  pessoasDaLinha: string[];
   /** Horas da pessoa nesta linha (0 na faixa "sem ninguém"). */
   horas: number;
   cor: CorProjeto;
@@ -139,6 +145,8 @@ export function montarPlanejador(entrada: {
       fim: l.fim,
       rascunho: l.rascunho,
       marco: l.marco,
+      iniciada: l.iniciada ?? false,
+      pessoasDaLinha: l.pessoas.map((x) => x.userId),
       horas,
       cor: corDoProjeto({ id: l.projetoId, cor: p.cor }),
       nivel: 0,

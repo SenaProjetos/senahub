@@ -171,6 +171,16 @@ projeto de origem só para quem tem `recursos:ver`. A tela de quem gravou abre "
 sempre), então o dia da própria conclusão não vira conflito; o que aparece é o que ainda falta fazer. O início real gravado
 pelo ponto não dispara (não é registro do planejamento). `npm run smoke:aviso-cascata`.
 
+Parte 4 feita no mesmo branch: a barra da tela por pessoa é um botão que abre um painel (a tarefa, "Abrir o cronograma",
+mudar o início e trocar a pessoa — o caminho de teclado e toque) e, com o mouse, se arrasta. Regras puras em
+`planejador-acoes.ts` (mesmas frases da tela e do servidor), escritas em `planejador-service.ts`, actions em
+`planejador-actions.ts` (`planejamento:gerir` + escopo + passo de desfazer). Data = `definirInicioDaLinha` (o alfinete),
+só com `exigirPlanoEditavelDaLinha` (rascunho ou revisão aberta), recusada em tarefa começada; "Mover também as seguintes"
+só aparece quando alguma seguinte pelos vínculos tem data fixada, e leva essas datas os mesmos dias úteis
+(`moverRestricoes`) — as outras já andam pelo vínculo. Pessoa = a atribuição muda de dono (horas automáticas
+recalculadas); da faixa sem ninguém nasce atribuição automática de projetista. Quem não é coordenador do projeto avisa a
+coordenação (categoria `alteracao_cronograma`; sem coordenador, ninguém). `npm run smoke:arrasto-planejador`.
+
 
 1. Dedicação por disciplina, cor por projeto, horas automáticas, conflito por dia (chip, aprovação, nome vermelho na EAP).
 2. Tela por pessoa, só leitura.
