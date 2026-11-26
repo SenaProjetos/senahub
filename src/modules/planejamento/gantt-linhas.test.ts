@@ -214,6 +214,10 @@ describe("textoRecursos", () => {
     expect(textoRecursos([{ nome: null, papel: "ext", rotuloPapel: "Externo" }], true)).toBe("terceiro");
   });
 
+  it("a etapa de terceiro com parceiro diz quem é (pool de recursos, parte 6)", () => {
+    expect(textoRecursos([{ nome: null, papel: "ext", rotuloPapel: "Externo", parceiro: "Eqp. Climatização" }], true)).toBe("terceiro: Eqp. Climatização");
+  });
+
   it("quem da casa acompanha a etapa de terceiro aparece depois da marca", () => {
     expect(
       textoRecursos(

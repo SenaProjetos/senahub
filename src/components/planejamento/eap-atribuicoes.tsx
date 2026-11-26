@@ -17,6 +17,7 @@ import {
   type Papel,
   type TipoLinha,
 } from "@/modules/planejamento/recursos";
+import { rotuloDoExterno } from "@/modules/planejamento/parceiros/regras";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,14 +30,18 @@ import {
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 const PERFIL = "__perfil";
+const SEM_PARCEIRO = "__sem";
+
+/** Parceiro externo ativo que pode nomear a etapa de terceiro (pool de recursos, parte 6). */
+export type ParceiroParaEscolha = { id: string; nome: string; disciplina: string | null };
 
 /**
  * Como a atribuição se chama na lista. O "Externo" não é uma vaga de projetista: é a marca de
  * que a linha é executada fora da casa, e dizer "(perfil) Externo" faria parecer que falta
- * escalar alguém.
+ * escalar alguém. Com parceiro, diz quem ("Externo: Eqp. Climatização").
  */
-const rotuloAtribuicao = (a: { nome: string | null; papel: Papel }) =>
-  a.papel === "ext" ? "Externo (etapa de terceiro)" : (a.nome ?? `(perfil) ${ROTULO_PAPEL[a.papel]}`);
+const rotuloAtribuicao = (a: { nome: string | null; papel: Papel; parceiro?: string | null }) =>
+  a.papel === "ext" ? `${rotuloDoExterno(a.parceiro)} (etapa de terceiro)` : (a.nome ?? `(perfil) ${ROTULO_PAPEL[a.papel]}`);
 
 export type AtribuicaoEditavel = {
   id: string;
@@ -48,6 +53,9 @@ export type AtribuicaoEditavel = {
   /** Horas preenchidas pelo sistema (pool de recursos). Digitar fixa; zero volta ao automático. */
   automatica?: boolean;
   principal: boolean;
+  /** Só no Externo: o parceiro que dá nome à etapa de terceiro. */
+  parceiroId?: string | null;
+  parceiro?: string | null;
 };
 
 export type LinhaParaAtribuicoes = {
@@ -70,9 +78,11 @@ export type LinhaParaAtribuicoes = {
 export function EapAtribuicoes({
   linha,
   pessoas,
+  parceiros = [],
 }: {
   linha: LinhaParaAtribuicoes;
   pessoas: { id: string; name: string; image: string | null }[];
+  parceiros?: ParceiroParaEscolha[];
 }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -144,7 +154,7 @@ export function EapAtribuicoes({
     });
   }
 
-  function salvarCampo(a: AtribuicaoEditavel, patch: Partial<Pick<AtribuicaoEditavel, "papel" | "horas">>) {
+  function salvarCampo(a: AtribuicaoEditavel, patch: Partial<Pick<AtribuicaoEditavel, "papel" | "horas" | "parceiroId">>) {
     start(async () => {
       const r = await salvarAtribuicao({
         id: a.id,
@@ -154,6 +164,7 @@ export function EapAtribuicoes({
         // Só manda as horas quando a pessoa as editou: reenviar o valor carregado sobrescreveria uma conta automática
         // mais nova (outra pessoa mudou a linha depois que a tela abriu).
         ...(patch.horas !== undefined ? { horasPrevistas: patch.horas } : {}),
+        ...(patch.parceiroId !== undefined ? { parceiroId: patch.parceiroId } : {}),
       });
       if (!r.ok) toast.error(r.error);
       setVersao((v) => v + 1);
@@ -208,6 +219,7 @@ export function EapAtribuicoes({
               atribuicao={a}
               podeHoras={aceitaHoras}
               pending={pending}
+              parceiros={parceiros}
               onSalvarCampo={(patch) => salvarCampo(a, patch)}
               onTornarPrincipal={() => tornarPrincipal(a)}
               onRemover={() => remover(a)}
@@ -281,6 +293,7 @@ function LinhaAtribuicao({
   atribuicao,
   podeHoras,
   pending,
+  parceiros,
   onSalvarCampo,
   onTornarPrincipal,
   onRemover,
@@ -288,7 +301,8 @@ function LinhaAtribuicao({
   atribuicao: AtribuicaoEditavel;
   podeHoras: boolean;
   pending: boolean;
-  onSalvarCampo: (patch: Partial<Pick<AtribuicaoEditavel, "papel" | "horas">>) => void;
+  parceiros: ParceiroParaEscolha[];
+  onSalvarCampo: (patch: Partial<Pick<AtribuicaoEditavel, "papel" | "horas" | "parceiroId">>) => void;
   onTornarPrincipal: () => void;
   onRemover: () => void;
 }) {
@@ -317,6 +331,9 @@ function LinhaAtribuicao({
         {atribuicao.principal && <Star className="size-3 shrink-0 fill-warning text-warning" aria-label="Principal" />}
       </span>
       <span className="flex shrink-0 items-center gap-1.5">
+        {externo && (
+          <SeletorDeParceiro atribuicao={atribuicao} parceiros={parceiros} pending={pending} onEscolher={(parceiroId) => onSalvarCampo({ parceiroId })} />
+        )}
         {externo ? null : (
         <Select value={atribuicao.papel} onValueChange={(v) => v && v !== atribuicao.papel && onSalvarCampo({ papel: v as Papel })}>
           <SelectTrigger className="h-7 w-32 text-[11px]" disabled={pending}>
@@ -364,5 +381,42 @@ function LinhaAtribuicao({
         </Button>
       </span>
     </li>
+  );
+}
+
+/**
+ * Quem é o terceiro (pool de recursos, parte 6): o parceiro cadastrado em Recursos → Parceiros externos. O arquivado só
+ * aparece se já é o desta etapa (a tarefa segue com o nome).
+ */
+function SeletorDeParceiro({
+  atribuicao,
+  parceiros,
+  pending,
+  onEscolher,
+}: {
+  atribuicao: AtribuicaoEditavel;
+  parceiros: ParceiroParaEscolha[];
+  pending: boolean;
+  onEscolher: (parceiroId: string | null) => void;
+}) {
+  const atual = atribuicao.parceiroId ?? null;
+  const opcoes = atual && !parceiros.some((p) => p.id === atual) ? [{ id: atual, nome: `${atribuicao.parceiro ?? "Parceiro"} (arquivado)`, disciplina: null }, ...parceiros] : parceiros;
+  return (
+    <Select value={atual ?? SEM_PARCEIRO} onValueChange={(v) => v && v !== (atual ?? SEM_PARCEIRO) && onEscolher(v === SEM_PARCEIRO ? null : v)}>
+      <SelectTrigger className="h-7 w-44 text-[11px]" disabled={pending} aria-label="Parceiro externo da etapa de terceiro">
+        <SelectValue>{atual ? (opcoes.find((p) => p.id === atual)?.nome ?? "Parceiro") : "Sem nome (Externo)"}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={SEM_PARCEIRO} className="text-[11px]">
+          Sem nome (Externo)
+        </SelectItem>
+        {opcoes.map((p) => (
+          <SelectItem key={p.id} value={p.id} className="text-[11px]">
+            {p.nome}
+            {p.disciplina ? ` · ${p.disciplina}` : ""}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }

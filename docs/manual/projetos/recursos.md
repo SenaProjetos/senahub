@@ -27,10 +27,11 @@ A tela é **somente leitura**. Quem atribui pessoas e horas é a **EAP do projet
 - Menu → **Gestão** → **Recursos** (`/recursos`). Exige `recursos:ver`.
 - Nos perfis padrão, disponível ao Coordenador e ao Administrativo.
 
-## Duas abas: Visão geral e Por pessoa
+## Abas: Visão geral, Por pessoa e Parceiros externos
 
-Logo abaixo do título, **Visão geral** é a tela de sempre (matriz, heatmap, carga real e planejada, descritas abaixo) e
-**Por pessoa** é a linha do tempo de cada pessoa (veja [Por pessoa](#por-pessoa)).
+Logo abaixo do título, **Visão geral** é a tela de sempre (matriz, heatmap, carga real e planejada, descritas abaixo),
+**Por pessoa** é a linha do tempo de cada pessoa (veja [Por pessoa](#por-pessoa)) e **Parceiros externos** é o cadastro
+de quem executa a etapa de terceiro (veja [Parceiros externos](#parceiros-externos)).
 
 ## Filtros
 
@@ -136,7 +137,10 @@ cronograma** e, para quem monta cronograma, mudar o início e trocar a pessoa).
   cadastro não muda.
 - O aviso de conflito do cronograma tem **Ver na tela por pessoa**, que abre esta tela só com a pessoa, na semana do
   conflito.
-- Etapa de terceiro (recurso Externo) ainda não aparece aqui.
+- **Parceiros externos:** cada parceiro tem uma faixa própria, depois das pessoas, com o selo **"Só prazos · sem horas e
+  sem alerta"** e as etapas de terceiro com o nome dele. Não entra na carga nem acusa conflito. Os ativos aparecem mesmo
+  sem tarefa na janela. O filtro de pessoa os tira. A etapa de terceiro **sem nome** (Externo sem parceiro) continua fora
+  desta tela.
 
 ### Arrastar uma barra
 
@@ -158,6 +162,22 @@ passa pelas mesmas regras da EAP (e o **Ctrl+Z** do cronograma desfaz).
 - Quem **não coordena** o projeto (Gerência, administrativo) e muda uma data ou uma pessoa: a **coordenação** do projeto
   recebe uma notificação. Quem fez não recebe. Desliga em **Preferências → Mudança no cronograma por outra pessoa**.
 - Sem mouse (teclado ou toque): o painel da barra faz o mesmo — **Início** + **Mover**, e **Trocar … por** + **Trocar**.
+- Na faixa de um **parceiro externo** só muda o início (mesmas regras). O parceiro se troca na EAP, e arrastar a barra
+  para a faixa de uma pessoa (ou de uma pessoa para a faixa do parceiro) é recusado com o motivo.
+
+## Parceiros externos
+
+Cadastro simples de quem executa a **etapa de terceiro** fora da casa (por exemplo, a equipe de climatização), em
+**Recursos → Parceiros externos** (`/recursos/parceiros`). Uma lista só, para todos os projetos.
+
+- **Novo parceiro:** nome e disciplina (opcional). O nome não se repete, nem com maiúsculas diferentes.
+- Na EAP, a linha marcada como **Etapa de terceiro** ganha a escolha do parceiro (Pessoas e horas da linha). A coluna
+  Recursos passa a dizer **terceiro: Eqp. Climatização**, e o Planejamento geral **Externo: Eqp. Climatização**. Externo
+  **sem nome** continua valendo.
+- Continua **sem horas, sem card e sem alerta de carga**. O que a casa controla é o prazo.
+- **Arquivar** tira o parceiro das escolhas da EAP. As tarefas que já o têm seguem com o nome. **Excluir** só vale para
+  parceiro que não está em nenhuma tarefa.
+- Duplicar o projeto e colar um bloco de linhas levam o parceiro junto, salvo o arquivado.
 
 ## Cadastro do recurso
 
@@ -177,6 +197,9 @@ passa pelas mesmas regras da EAP (e o **Ctrl+Z** do cronograma desfaz).
 | Ver as visões, os filtros e pedir **sugestões** | `recursos:ver` |
 | Arrastar barras na tela Por pessoa (início e pessoa) | `planejamento:gerir` + ver o projeto |
 | Adicionar e editar o recurso (capacidade, cor) | `recursos:gerir` |
+| Ver os parceiros externos | `recursos:ver` |
+| Cadastrar, editar, arquivar e excluir parceiro externo | `recursos:gerir` |
+| Escolher o parceiro da etapa de terceiro | `planejamento:gerir`, na EAP do projeto |
 | Custo por hora | `financeiro:ver` para ver, `financeiro:gerir` para editar |
 | Mudar a carga (atribuir pessoas e horas, atrasar, passar) | `planejamento:gerir`, na EAP do projeto |
 

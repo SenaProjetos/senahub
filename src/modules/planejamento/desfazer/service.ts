@@ -46,7 +46,7 @@ export async function lerEstadoDoPlano(db: Db, projetoId: string): Promise<Estad
     // JSON ida e volta: data vira ISO e Decimal vira texto — o formato que o passo guarda.
     linhas: JSON.parse(JSON.stringify(linhas)) as LinhaFoto[],
     dependencias: dependencias.map((d): DependenciaFoto => ({ id: d.id, tarefaId: d.tarefaId, predecessoraId: d.predecessoraId, tipo: d.tipo, lagDias: d.lagDias.toString() })),
-    atribuicoes: atribuicoes.map((a): AtribuicaoFoto => ({ id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel, horasPrevistas: a.horasPrevistas.toString(), principal: a.principal, horasAutomaticas: a.horasAutomaticas })),
+    atribuicoes: atribuicoes.map((a): AtribuicaoFoto => ({ id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel, horasPrevistas: a.horasPrevistas.toString(), principal: a.principal, horasAutomaticas: a.horasAutomaticas, parceiroId: a.parceiroId })),
     parcelas,
     baselineLinhas,
     // O histórico de % cai em cascade com a linha: vai na foto para voltar com ela (o Valor Agregado de uma Data de
@@ -236,11 +236,38 @@ async function restaurar(tx: Prisma.TransactionClient, projetoId: string, plano:
 
   // Pessoas: apagar → atualizar (principal=false primeiro: o índice parcial só admite um por linha) → criar.
   if (plano.apagarAtribuicoes.length > 0) await tx.eapAtribuicao.deleteMany({ where: { id: { in: plano.apagarAtribuicoes } } });
+  // Parceiro excluído depois da foto (só se exclui sem uso): a etapa volta como Externo sem nome, em vez de a FK derrubar
+  // o desfazer inteiro.
+  const parceirosDaFoto = [
+    ...new Set(
+      [...plano.atualizarAtribuicoes.map((u) => u.campos.parceiroId), ...plano.criarAtribuicoes.map((a) => a.parceiroId)].filter(
+        (x): x is string => typeof x === "string",
+      ),
+    ),
+  ];
+  const parceirosQueExistem = new Set(
+    parceirosDaFoto.length > 0 ? (await tx.parceiroExterno.findMany({ where: { id: { in: parceirosDaFoto } }, select: { id: true } })).map((p) => p.id) : [],
+  );
+  const parceiroValido = (id: string | null | undefined) => (id && parceirosQueExistem.has(id) ? id : null);
   const atualizacoes = [...plano.atualizarAtribuicoes].sort((a, b) => Number(a.campos.principal === true) - Number(b.campos.principal === true));
-  for (const u of atualizacoes) await tx.eapAtribuicao.update({ where: { id: u.id }, data: u.campos as Prisma.EapAtribuicaoUncheckedUpdateInput });
+  for (const u of atualizacoes) {
+    const campos = "parceiroId" in u.campos ? { ...u.campos, parceiroId: parceiroValido(u.campos.parceiroId) } : u.campos;
+    await tx.eapAtribuicao.update({ where: { id: u.id }, data: campos as Prisma.EapAtribuicaoUncheckedUpdateInput });
+  }
   const criacoes = [...plano.criarAtribuicoes].sort((a, b) => Number(a.principal) - Number(b.principal));
   for (const a of criacoes) {
-    await tx.eapAtribuicao.create({ data: { id: a.id, tarefaId: a.tarefaId, userId: a.userId, papel: a.papel as never, horasPrevistas: a.horasPrevistas, principal: a.principal, horasAutomaticas: a.horasAutomaticas ?? false } });
+    await tx.eapAtribuicao.create({
+      data: {
+        id: a.id,
+        tarefaId: a.tarefaId,
+        userId: a.userId,
+        papel: a.papel as never,
+        horasPrevistas: a.horasPrevistas,
+        principal: a.principal,
+        horasAutomaticas: a.horasAutomaticas ?? false,
+        parceiroId: a.papel === "ext" ? parceiroValido(a.parceiroId) : null,
+      },
+    });
   }
 
   // `updateMany` com `null`: só religa o que continua solto, e não falha se o contrato foi apagado.

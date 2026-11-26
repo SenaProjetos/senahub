@@ -1,6 +1,7 @@
 "use client";
 
 import { RecursosDaCelula } from "@/components/planejamento/recursos-celula";
+import type { ParceiroParaEscolha } from "@/components/planejamento/eap-atribuicoes";
 import { sinalDaLinha } from "@/modules/planejamento/sinais-linha";
 import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import { brl } from "@/lib/utils";
@@ -117,6 +118,7 @@ export function EapWorkspace({
   tarefas,
   disciplinas,
   pessoas,
+  parceiros = [],
   temLinhaBase,
   custoTotal,
   podeGerir,
@@ -148,6 +150,8 @@ export function EapWorkspace({
     responsaveis?: { userId: string; nome: string; dedicacao: number | null; padrao: number }[];
   }[];
   pessoas: { id: string; name: string; image: string | null; contratacao?: string | null; habilidades?: string[] }[];
+  /** Parceiros externos ativos, para nomear a etapa de terceiro (pool de recursos, parte 6). */
+  parceiros?: ParceiroParaEscolha[];
   temLinhaBase: boolean;
   /** F7.1: custo previsto do projeto. `null` = o viewer não vê custo (coluna oculta). */
   custoTotal: CustoLinha | null;
@@ -1125,6 +1129,7 @@ export function EapWorkspace({
           projetoId={projeto.id}
           disciplinas={disciplinas}
           pessoas={pessoas}
+          parceiros={parceiros}
           planoTravado={travado}
           linhasDaArvore={linhasDaArvore}
           dependenciasDaArvore={dependenciasDaArvore}

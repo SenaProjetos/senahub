@@ -8,6 +8,7 @@ import type { ActionContext } from "@/lib/with-action";
 import { cargaDaEquipe } from "./recursos-queries";
 import { montarCalendarioComNomes, paraDia } from "./agenda";
 import { ENCERRADA } from "./recursos";
+import { parceirosParaEscolha } from "./parceiros/queries";
 import {
   mapaDeSucessoras,
   resumoDasSeguintes,
@@ -67,6 +68,7 @@ export async function planejadorDaEquipe(
     diario: { desde: janela.de, comRascunhos: true },
     comLinhas: true,
   });
+  const parceiros = await parceirosParaEscolha();
   const planejador = montarPlanejador({
     linhas: carga.linhasAgendadas,
     pessoas: carga.pessoas.map((p) => ({ userId: p.userId, nome: p.nome, horasPorDia: p.horasPorDia, disciplinas: p.disciplinas })),
@@ -75,6 +77,7 @@ export async function planejadorDaEquipe(
     linhasNomes: carga.rotulos.linhas,
     janela,
     filtros: opcoes.filtros,
+    parceiros,
   });
 
   // O mesmo calendário que agenda as linhas (feriados importados + nacionais calculados + recesso).
@@ -148,7 +151,7 @@ export async function planejadorDaEquipe(
     );
     seguintes = {};
     const sucessoras = mapaDeSucessoras(vinculos);
-    const barras = [...planejador.faixas.flatMap((f) => f.barras), ...planejador.semNinguem.barras];
+    const barras = [...planejador.faixas.flatMap((f) => f.barras), ...planejador.parceiros.flatMap((f) => f.barras), ...planejador.semNinguem.barras];
     for (const b of barras) {
       if (!noEscopo.has(b.projetoId) || seguintes[b.linhaId]) continue;
       const s = seguintesDaLinha(b.linhaId, sucessoras, linhas);

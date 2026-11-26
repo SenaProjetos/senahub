@@ -193,6 +193,15 @@ O motor roda uma vez por projeto: `cargaDaEquipe` ganhou a opção `planos`. Sa�
 na decisão 10: a busca por nome, as situações concluído, arquivado e cancelado, o filtro "Com atraso" e o Gantt de Controle
 (linha de base). `npm run smoke:planejamento-geral`.
 
+Parte 6 feita no mesmo branch (migração `20261127120000_pool_recursos_parceiro_externo`): `ParceiroExterno` (nome único
+sem caixa por índice `lower(btrim(nome))`, disciplina do catálogo opcional, ativo) e `EapAtribuicao.parceiroId` (FK Restrict,
+CHECK só no papel `ext`). Cadastro em Recursos → Parceiros externos (`/recursos/parceiros`, ver = `recursos:ver`, escrever =
+`recursos:gerir`, regras em `parceiros/regras.ts`). Na EAP, a linha Externo do painel escolhe o parceiro
+(`salvarAtribuicao.parceiroId`; o arquivado só fica onde já estava). A coluna Recursos diz "terceiro: X"; o Planejamento
+geral diz "Externo: X". A tela por pessoa ganha a faixa do parceiro (os ativos sempre, o arquivado com tarefa), onde só muda o
+início. O Ctrl+Z, o duplicar projeto e o colar bloco levam o parceiro (o arquivado não entra em tarefa nova).
+`npm run smoke:parceiro-externo`.
+
 
 1. Dedicação por disciplina, cor por projeto, horas automáticas, conflito por dia (chip, aprovação, nome vermelho na EAP).
 2. Tela por pessoa, só leitura.

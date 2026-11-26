@@ -74,6 +74,10 @@ lista como **Externo (etapa de terceiro)**, sem pessoa e sem horas — não é u
 alguém, é a marca de que **quem executa está fora**. Para desmarcar, use a lixeira dessa linha da
 lista.
 
+Para dizer **quem** é o terceiro, escolha o **parceiro externo** na própria linha da lista (cadastro em Recursos →
+Parceiros externos). A linha vira **Externo: Eqp. Climatização**, e o parceiro ganha uma faixa própria em Recursos → Por
+pessoa, só com os prazos. Sem parceiro, continua **Externo** sem nome.
+
 Pode haver **gente da casa junto**: o coordenador que acompanha a aprovação na prefeitura fica na
 linha com zero hora, e a linha continua sendo de terceiro (não gera card e não cobra hora). O
 verificador **não** cobra responsável de etapa de terceiro.

@@ -251,10 +251,12 @@ export function lerPercentual(texto: string): { ok: true; valor: number } | { ok
  * Quem da casa acompanha a etapa aparece depois da marca ("terceiro; Maria").
  */
 export function textoRecursos(
-  atribuicoes: readonly { nome: string | null; papel?: string; rotuloPapel: string }[],
+  atribuicoes: readonly { nome: string | null; papel?: string; rotuloPapel: string; parceiro?: string | null }[],
   deTerceiro: boolean,
 ): string {
   const daCasa = atribuicoes.filter((a) => a.papel !== "ext").map((a) => a.nome ?? `(${a.rotuloPapel})`);
-  if (deTerceiro) return ["terceiro", ...daCasa].join("; ");
+  // Pool de recursos, parte 6: a etapa de terceiro com nome diz quem ("terceiro: Eqp. Climatização").
+  const parceiro = atribuicoes.find((a) => a.papel === "ext")?.parceiro;
+  if (deTerceiro) return [parceiro ? `terceiro: ${parceiro}` : "terceiro", ...daCasa].join("; ");
   return daCasa.join("; ");
 }

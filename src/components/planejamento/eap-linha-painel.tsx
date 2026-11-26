@@ -10,7 +10,7 @@ import type { Vinculo } from "@/modules/planejamento/gantt-linhas";
 import { rotuloHoras } from "@/modules/planejamento/progresso-sugerido";
 import { disciplinaParaLinhaNova, propagacaoDeDisciplina } from "@/modules/planejamento/disciplina-linha";
 import { MOTIVO_PLANO_TRAVADO } from "@/modules/planejamento/trava-plano";
-import { EapAtribuicoes } from "@/components/planejamento/eap-atribuicoes";
+import { EapAtribuicoes, type ParceiroParaEscolha } from "@/components/planejamento/eap-atribuicoes";
 import { DedicacaoDaDisciplina, type ResponsavelComDedicacao } from "@/components/planejamento/dedicacao-disciplina";
 import { textoConcluidaPeloPlanejado } from "@/components/planejamento/execucao-dialog";
 import { PredecessorasDialog } from "@/components/planejamento/predecessoras-dialog";
@@ -123,6 +123,7 @@ export function EapLinhaPainel({
   projetoId,
   disciplinas,
   pessoas,
+  parceiros = [],
   planoTravado,
   linhasDaArvore,
   dependenciasDaArvore,
@@ -147,6 +148,8 @@ export function EapLinhaPainel({
     responsaveis?: ResponsavelComDedicacao[];
   }[];
   pessoas: { id: string; name: string; image: string | null }[];
+  /** Parceiros externos ativos (pool de recursos, parte 6). */
+  parceiros?: ParceiroParaEscolha[];
   planoTravado: boolean;
   linhasDaArvore: readonly LinhaDaArvore[];
   dependenciasDaArvore: readonly { tarefaId: string; predecessoraId: string }[];
@@ -831,7 +834,7 @@ export function EapLinhaPainel({
                   {linha.trabalhoHoras != null ? ` de ${rotuloHoras(linha.trabalhoHoras)} previstas` : " (sem horas previstas)"}.
                 </p>
               )}
-              <EapAtribuicoes linha={linha} pessoas={pessoas} />
+              <EapAtribuicoes linha={linha} pessoas={pessoas} parceiros={parceiros} />
               <p className="text-[11px] text-muted-foreground">Pessoas e horas gravam na hora.</p>
             </Secao>
           )}

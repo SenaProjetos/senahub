@@ -18,6 +18,11 @@ export const MOTIVO_APROVADO_SEM_REVISAO =
 export const MOTIVO_JA_COMECOU = "A tarefa já começou: a data vem do início real (Atualizar tarefa, no cronograma).";
 export const MOTIVO_JA_NA_TAREFA = "Esta pessoa já está nesta tarefa.";
 export const MOTIVO_TIRAR_PESSOA = "Para tirar a pessoa da tarefa sem pôr outra, use a coluna Recursos da EAP.";
+/** Pool de recursos, parte 6: a faixa do parceiro externo só mostra prazos; quem executa se escolhe na EAP. */
+export const MOTIVO_TAREFA_DE_PARCEIRO = "Etapa de terceiro: o parceiro se troca na EAP (Pessoas e horas da linha); aqui só muda o início.";
+export const MOTIVO_PASSAR_A_PARCEIRO = "Para passar a tarefa a um parceiro externo, marque a etapa de terceiro na EAP.";
+/** Prefixo da faixa do parceiro no arrasto (as faixas de pessoa usam o id da pessoa). */
+export const FAIXA_PARCEIRO = "__parceiro:";
 
 /** O que a tela sabe do projeto de uma barra (só para quem pode montar cronograma). */
 export type EdicaoDoProjeto = {

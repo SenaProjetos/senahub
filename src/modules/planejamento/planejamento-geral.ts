@@ -98,6 +98,8 @@ export type LinhaGeral = {
   perfis: string[];
   /** Etapa de terceiro (o recurso Externo). */
   externo: boolean;
+  /** O parceiro que dá nome à etapa de terceiro (pool de recursos, parte 6); nulo = Externo sem nome. */
+  parceiro: string | null;
 };
 
 export type ProjetoGeral = {
@@ -124,7 +126,7 @@ export type LinhaBruta = {
   encerrada: boolean;
   progresso: number;
   disciplina: string | null;
-  atribuicoes: { userId: string | null; nome: string | null; papel: string; rotuloPapel: string }[];
+  atribuicoes: { userId: string | null; nome: string | null; papel: string; rotuloPapel: string; parceiro?: string | null }[];
 };
 
 /** As linhas de um projeto na ordem da árvore, com o EDT, as pessoas (e o conflito de cada uma) e as vagas sem pessoa. */
@@ -160,6 +162,7 @@ export function montarLinhasDoProjeto(linhas: readonly LinhaBruta[], conflitos: 
       responsaveis,
       perfis,
       externo: t.atribuicoes.some((a) => a.papel === "ext"),
+      parceiro: t.atribuicoes.find((a) => a.papel === "ext")?.parceiro ?? null,
     };
   });
 }

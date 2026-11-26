@@ -26,7 +26,21 @@ export type LinhaDoPlanejador = {
   /** Tem início real (a data não se arrasta). Ausente = não. */
   iniciada?: boolean;
   deTerceiro: boolean;
+  /** O parceiro da etapa de terceiro (pool de recursos, parte 6). Ausente ou nulo = Externo sem nome (sem faixa). */
+  parceiro?: { id: string; nome: string } | null;
   pessoas: readonly { userId: string; horas: number }[];
+};
+
+/** Parceiro externo cadastrado (os ativos têm faixa mesmo sem tarefa na janela). */
+export type ParceiroDoPlanejador = { id: string; nome: string; disciplina: string | null };
+
+/** A faixa de um parceiro externo: só prazos, sem horas, sem carga e sem alerta (decisão 4). */
+export type FaixaDoParceiro = {
+  parceiroId: string;
+  nome: string;
+  disciplina: string | null;
+  barras: BarraDoPlanejador[];
+  niveis: number;
 };
 
 export type PessoaDoPlanejador = { userId: string; nome: string; horasPorDia: number; disciplinas: readonly string[] };
@@ -79,6 +93,8 @@ export type FaixaDaPessoa = {
 
 export type Planejador = {
   faixas: FaixaDaPessoa[];
+  /** Faixas dos parceiros externos, depois das pessoas (some com o filtro de pessoa). */
+  parceiros: FaixaDoParceiro[];
   semNinguem: { barras: BarraDoPlanejador[]; niveis: number };
   /** Projetos com barra na janela (a legenda e o filtro de cronograma). */
   projetos: { id: string; codigo: string; nome: string; cor: CorProjeto; rascunho: boolean }[];
@@ -115,15 +131,22 @@ export function montarPlanejador(entrada: {
   linhasNomes: Readonly<Record<string, { nome: string }>>;
   janela: { de: Dia; ate: Dia };
   filtros?: FiltrosDoPlanejador;
+  /** Parceiros externos ativos (pool de recursos, parte 6). */
+  parceiros?: readonly ParceiroDoPlanejador[];
 }): Planejador {
   const { de, ate } = entrada.janela;
   const f = entrada.filtros ?? {};
-  const naJanela = entrada.linhas.filter((l) => !l.deTerceiro && l.fim >= de && l.inicio <= ate);
+  const naJanelaTodas = entrada.linhas.filter((l) => l.fim >= de && l.inicio <= ate);
+  // A etapa de terceiro não entra na faixa de ninguém da casa; com parceiro, vai para a faixa dele.
+  const naJanela = naJanelaTodas.filter((l) => !l.deTerceiro);
+  const deParceiro = naJanelaTodas.filter((l) => l.deTerceiro && l.parceiro);
 
   const projetoDe = (id: string) => entrada.projetos[id] ?? { codigo: "?", nome: "Projeto", cor: null };
-  const disciplinas = [...new Set(naJanela.map((l) => l.disciplina).filter((d): d is string => !!d))].sort((a, b) => a.localeCompare(b));
+  const disciplinas = [...new Set([...naJanela, ...deParceiro].map((l) => l.disciplina).filter((d): d is string => !!d))].sort((a, b) =>
+    a.localeCompare(b),
+  );
   const projetosVistos = new Map<string, { id: string; codigo: string; nome: string; cor: CorProjeto; rascunho: boolean }>();
-  for (const l of naJanela) {
+  for (const l of [...naJanela, ...deParceiro]) {
     const p = projetoDe(l.projetoId);
     projetosVistos.set(l.projetoId, { id: l.projetoId, codigo: p.codigo, nome: p.nome, cor: corDoProjeto({ id: l.projetoId, cor: p.cor }), rascunho: l.rascunho });
   }
@@ -132,10 +155,10 @@ export function montarPlanejador(entrada: {
     (!f.disciplina || (l.disciplina != null && semAcento(l.disciplina) === semAcento(f.disciplina))) && (!f.projetoId || l.projetoId === f.projetoId);
   const filtradas = naJanela.filter(passa);
 
-  const barra = (l: LinhaDoPlanejador, userId: string | null, horas: number): BarraDoPlanejador => {
+  const barra = (l: LinhaDoPlanejador, userId: string | null, horas: number, chave?: string): BarraDoPlanejador => {
     const p = projetoDe(l.projetoId);
     return {
-      chave: `${l.id}:${userId ?? "-"}`,
+      chave: chave ?? `${l.id}:${userId ?? "-"}`,
       linhaId: l.id,
       projetoId: l.projetoId,
       codigoProjeto: p.codigo,
@@ -206,8 +229,30 @@ export function montarPlanejador(entrada: {
   faixas.sort((a, b) => a.nome.localeCompare(b.nome));
   const niveisSemNinguem = empilhar(semNinguem);
 
+  // Parceiros: os ativos sempre (como as pessoas com recurso ativo), o arquivado só com tarefa na janela. O filtro de pessoa
+  // tira todos; o de disciplina ou cronograma deixa só quem tem barra.
+  const porParceiro = new Map<string, { nome: string; barras: BarraDoPlanejador[] }>();
+  for (const l of deParceiro.filter(passa)) {
+    const pc = l.parceiro!;
+    const atual = porParceiro.get(pc.id) ?? { nome: pc.nome, barras: [] };
+    atual.barras.push(barra(l, null, 0, `${l.id}:parceiro:${pc.id}`));
+    porParceiro.set(pc.id, atual);
+  }
+  const cadastro = new Map((entrada.parceiros ?? []).map((p) => [p.id, p]));
+  const parceiros: FaixaDoParceiro[] = [];
+  if (!f.userId) {
+    for (const id of new Set([...cadastro.keys(), ...porParceiro.keys()])) {
+      const barras = porParceiro.get(id)?.barras ?? [];
+      if (filtrando && barras.length === 0) continue;
+      const c = cadastro.get(id);
+      parceiros.push({ parceiroId: id, nome: c?.nome ?? porParceiro.get(id)!.nome, disciplina: c?.disciplina ?? null, barras, niveis: empilhar(barras) });
+    }
+  }
+  parceiros.sort((a, b) => a.nome.localeCompare(b.nome));
+
   return {
     faixas,
+    parceiros,
     semNinguem: { barras: semNinguem, niveis: niveisSemNinguem },
     projetos: [...projetosVistos.values()].sort((a, b) => a.codigo.localeCompare(b.codigo)),
     disciplinas,

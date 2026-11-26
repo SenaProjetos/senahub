@@ -14,6 +14,7 @@ import { comPassoDaAction, projetoDaAtribuicao, projetoDaLinha } from "./desfaze
 import { exigirPlanoEditavel } from "./trava-plano-service";
 import { noEscopoDoProjeto } from "./escopo";
 import { definirDedicacao } from "@/modules/projetos/responsaveis-service";
+import { motivoParaEscolherParceiro } from "./parceiros/regras";
 
 /**
  * Recursos na linha da EAP (F5 — D17, D18, D22, D23, D41). Mesma permissão de quem monta
@@ -75,6 +76,11 @@ const salvarSchema = z.object({
     .min(0, "As horas não podem ser negativas.")
     .max(99999, "Horas acima do limite.")
     .optional(),
+  /**
+   * O nome da etapa de terceiro (pool de recursos, parte 6): só no papel `ext`. Ausente = não mexe; `null` = Externo sem
+   * nome.
+   */
+  parceiroId: z.string().min(1).nullable().optional(),
 });
 
 export const salvarAtribuicao = defineAction(
@@ -106,6 +112,15 @@ export const salvarAtribuicao = defineAction(
       if (jaExterna) throw new ActionError("Esta linha já está marcada como etapa de terceiro.");
     }
     if (i.userId) await pessoaAtiva(i.userId);
+    // O parceiro: só na etapa de terceiro, e o arquivado só fica se já era o desta atribuição.
+    const atualParceiro = i.id ? ((await prisma.eapAtribuicao.findUnique({ where: { id: i.id }, select: { parceiroId: true } }))?.parceiroId ?? null) : null;
+    // Ausente = não mexe (`undefined` no update): reescrever o valor lido fora da transação apagaria a troca de outra pessoa.
+    const parceiroNoUpdate = i.papel !== "ext" ? null : i.parceiroId;
+    if (i.parceiroId != null) {
+      const parceiro = await prisma.parceiroExterno.findUnique({ where: { id: i.parceiroId }, select: { ativo: true } });
+      const motivo = motivoParaEscolherParceiro({ papel: i.papel, parceiro, atual: atualParceiro, escolhido: i.parceiroId });
+      if (motivo) throw new ActionError(motivo);
+    }
 
     try {
       const id = await prisma.$transaction(async (tx) => {
@@ -130,6 +145,8 @@ export const salvarAtribuicao = defineAction(
               papel: i.papel,
               horasPrevistas: depois.horas,
               horasAutomaticas: depois.automatica,
+              // Deixou de ser Externo: o nome do parceiro sai junto (o banco recusaria — CHECK).
+              parceiroId: parceiroNoUpdate,
               ...(i.userId == null ? { principal: false } : {}),
             },
           });
@@ -142,6 +159,7 @@ export const salvarAtribuicao = defineAction(
               papel: i.papel,
               horasPrevistas: horasDigitadas,
               horasAutomaticas: nasceAutomatica({ userId: i.userId, papel: i.papel, horas: horasDigitadas }),
+              parceiroId: i.papel === "ext" ? (i.parceiroId ?? null) : null,
             },
             select: { id: true },
           });
@@ -156,6 +174,8 @@ export const salvarAtribuicao = defineAction(
       return { id };
     } catch (e) {
       if (ehDuplicada(e)) throw new ActionError("Esta pessoa já está nesta linha com esse papel.");
+      // O parceiro escolhido foi excluído entre a conferência e a gravação (só se exclui sem uso).
+      if ((e as { code?: unknown } | null)?.code === "P2003") throw new ActionError("Parceiro não encontrado.");
       throw e;
     }
     },

@@ -59,6 +59,7 @@ npm run smoke:pool-recursos   # pool de recursos (parte 1): horas automáticas (
 npm run smoke:aviso-cascata   # aviso em cascata (pool de recursos, parte 3): data real/Data de Status que cria conflito novo lista aprovados e rascunhos, avisa só a coordenação do aprovado afetado (sem quem gravou), o já existente e o % não disparam
 npm run smoke:arrasto-planejador   # arrasto na tela por pessoa (pool, parte 4): alfinete + seguintes com data fixada, trava do aprovado e revisão, tarefa começada, troca/atribuição com horas automáticas, aviso à coordenação só de quem não coordena
 npm run smoke:planejamento-geral  # Planejamento geral (pool, parte 5): projetos que entram (cancelado fora), conflito por linha (aprovado só com aprovados, rascunho com tudo), EDT, filtros e contador, conflito só no período
+npm run smoke:parceiro-externo  # parceiro externo (pool, parte 6): nome único sem caixa (também no banco), só no Externo (CHECK), excluir só sem uso (Restrict), arquivado fora das escolhas, faixa própria sem horas, nome no Planejamento geral
 npm run smoke:impacto-ausencia  # aviso de férias/abono × alocação (só leitura): janela de hoje em diante, digitada × cronograma (D17)
 npm run smoke:ciclo-rh       # listas de entrada/saída: prazo pela âncora, um aberto por tipo (índice parcial), quem marca o quê, lembrete 1×/dia, recontratação
 npm run smoke:pedido-dados   # "Atualize seus dados" + reconfirmação anual: faixa, um aberto por pessoa, CPF/RG ao RH, fechamento (restaura a pessoa)

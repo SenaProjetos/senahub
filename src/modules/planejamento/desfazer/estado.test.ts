@@ -106,6 +106,17 @@ describe("planoDeRestauracao", () => {
     expect(p.apagarLinhas).toEqual(["A"]);
   });
 
+  it("o parceiro da etapa de terceiro entra na impressão e volta no desfazer (pool de recursos, parte 6)", () => {
+    const ext = (parceiroId?: string | null) => atr("te", "A", { userId: null, papel: "ext", horasPrevistas: "0", principal: false, parceiroId });
+    const comParceiro = estado({ linhas: [linha("A", null)], atribuicoes: [ext("clima")] });
+    const semParceiro = estado({ linhas: [linha("A", null)], atribuicoes: [ext(null)] });
+    expect(impressaoDoPlano(comParceiro)).not.toBe(impressaoDoPlano(semParceiro));
+    // Foto de antes do campo (ausente) = sem parceiro: mesma impressão.
+    expect(impressaoDoPlano(estado({ linhas: [linha("A", null)], atribuicoes: [ext(undefined)] }))).toBe(impressaoDoPlano(semParceiro));
+    expect(planoDeRestauracao(semParceiro, comParceiro).atualizarAtribuicoes).toEqual([{ id: "te", campos: { parceiroId: "clima" } }]);
+    expect(planoDeRestauracao(comParceiro, semParceiro).atualizarAtribuicoes).toEqual([{ id: "te", campos: { parceiroId: null } }]);
+  });
+
   it("atualiza só os campos do plano que diferem", () => {
     const atual = estado({ linhas: [linha("A", null, { nome: "Novo", ordem: 3, progresso: 90 })] });
     const antes = estado({ linhas: [linha("A", null, { nome: "Velho", ordem: 1, progresso: 10 })] });

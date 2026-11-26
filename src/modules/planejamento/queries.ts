@@ -54,6 +54,9 @@ const INCLUDE_LINHA = {
       horasAutomaticas: true,
       principal: true,
       user: { select: { name: true, image: true } },
+      // Pool de recursos, parte 6: o nome da etapa de terceiro.
+      parceiroId: true,
+      parceiro: { select: { nome: true } },
     },
     orderBy: [{ principal: "desc" }, { createdAt: "asc" }],
   },
@@ -347,6 +350,9 @@ function mapearTarefaDTO(
       /** Pool de recursos (decisão 2): as horas são do sistema (dias úteis × 8 h ÷ jornada × dedicação). */
       automatica: a.horasAutomaticas,
       principal: a.principal,
+      /** Só no Externo: o parceiro que dá nome à etapa de terceiro (pool de recursos, parte 6). */
+      parceiroId: a.parceiroId,
+      parceiro: a.parceiro?.nome ?? null,
     })),
     // ── F6: o que o ponto e o card já sabem desta linha ──
     /** Horas APONTADAS no ponto nesta linha (via o card gerado dela); o "real" do previsto × real. */

@@ -82,11 +82,16 @@ export async function colarBloco(p: {
       inicioPrevisto: true,
       fimPrevisto: true,
       predecessoras: { select: { predecessoraId: true, tipo: true, lagDias: true } },
-      atribuicoes: { select: { papel: true } },
+      atribuicoes: { select: { papel: true, parceiroId: true, parceiro: { select: { ativo: true } } } },
     },
   });
   const porId = new Map(origem.map((l) => [l.id, l]));
-  const linhasOrigem = bloco.map((id) => porId.get(id)!).map((l) => ({ ...l, deTerceiro: ehEtapaDeTerceiro(l.atribuicoes) }));
+  const linhasOrigem = bloco.map((id) => porId.get(id)!).map((l) => ({
+    ...l,
+    deTerceiro: ehEtapaDeTerceiro(l.atribuicoes),
+    // Parceiro arquivado não entra em tarefa nova (só fica onde já estava).
+    parceiroId: l.atribuicoes.find((a) => a.papel === "ext" && a.parceiro?.ativo)?.parceiroId ?? null,
+  }));
 
   // Disciplina das linhas coladas (A1): com o destino numa disciplina, TODA linha colada toma a dela. Sem disciplina no destino
   // (a raiz, ou um agrupamento como "Gestão"), cada linha FICA com a que tinha: colar o bloco "Elétrica" no topo, abaixo de

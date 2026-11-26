@@ -118,6 +118,8 @@ export type LinhaAgendada = {
   iniciada: boolean;
   /** Etapa de terceiro (o recurso Externo): fica fora das faixas de pessoa e da faixa "sem ninguém". */
   deTerceiro: boolean;
+  /** O parceiro que dá nome à etapa de terceiro (pool de recursos, parte 6): a faixa dele na tela por pessoa. */
+  parceiro: { id: string; nome: string } | null;
   /** Pessoas na linha (perfil e Externo fora). */
   pessoas: { userId: string; horas: number }[];
 };
@@ -221,7 +223,7 @@ export async function cargaDaEquipe(
         inicioReal: true,
         disciplinaId: true,
         disciplina: { select: { disciplinaId: true, disciplinaTextoLegado: true, catalogo: { select: { nome: true } } } },
-        atribuicoes: { select: { id: true, userId: true, papel: true, horasPrevistas: true } },
+        atribuicoes: { select: { id: true, userId: true, papel: true, horasPrevistas: true, parceiro: { select: { id: true, nome: true } } } },
       },
     }),
     Promise.all(comLinhas.map(async (id) => [id, opcoes.planos?.has(id) ? (opcoes.planos.get(id) ?? null) : await planoDoProjeto(id)] as const)),
@@ -248,6 +250,7 @@ export async function cargaDaEquipe(
         marco: l.tipoEap === "mrc",
         iniciada: l.inicioReal != null,
         deTerceiro: l.atribuicoes.some((a) => a.papel === "ext"),
+        parceiro: l.atribuicoes.find((a) => a.papel === "ext")?.parceiro ?? null,
         pessoas: l.atribuicoes
           .filter((a): a is typeof a & { userId: string } => a.userId != null && a.papel !== "ext")
           .map((a) => ({ userId: a.userId, horas: Number(a.horasPrevistas) })),

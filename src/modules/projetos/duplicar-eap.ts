@@ -38,6 +38,8 @@ export type LinhaEapOrigem = {
   predecessoras: { predecessoraId: string; tipo: TipoVinculoEap; lagDias: Prisma.Decimal | number | string }[];
   /** Tem o recurso "Externo" (etapa de terceiro)? Calculado com `ehEtapaDeTerceiro`. */
   deTerceiro: boolean;
+  /** O parceiro que dá nome à etapa de terceiro (pool de recursos, parte 6): vai junto na cópia. Ausente = sem nome. */
+  parceiroId?: string | null;
 };
 
 export type ContextoClonagemEap = {
@@ -108,6 +110,7 @@ export function clonarEap(
       tarefaId: ctx.novaLinha.get(t.id)!.id,
       papel: "ext",
       horasPrevistas: 0,
+      parceiroId: t.parceiroId ?? null,
     }));
 
   return { linhas: novasLinhas, dependencias, atribuicoesExternas };

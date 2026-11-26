@@ -52,7 +52,7 @@ export async function planejamentoGeral(periodo: Periodo, hoje: Dia): Promise<Pl
         inicioPrevisto: true,
         fimPrevisto: true,
         disciplina: { select: { disciplinaTextoLegado: true, catalogo: { select: { nome: true } } } },
-        atribuicoes: { select: { userId: true, papel: true, user: { select: { name: true } } } },
+        atribuicoes: { select: { userId: true, papel: true, user: { select: { name: true } }, parceiro: { select: { nome: true } } } },
       },
     }),
     Promise.all(ids.map(async (id) => [id, await planoDoProjeto(id)] as const)),
@@ -99,6 +99,7 @@ export async function planejamentoGeral(periodo: Periodo, hoje: Dia): Promise<Pl
               nome: x.user?.name ?? null,
               papel: x.papel,
               rotuloPapel: ROTULO_PAPEL[x.papel as Papel] ?? x.papel,
+              parceiro: x.parceiro?.nome ?? null,
             })),
           };
         }),

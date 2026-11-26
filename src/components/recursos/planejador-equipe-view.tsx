@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, ChevronLeft, ChevronRight, Percent, Users } from "lucide-react";
+import { Building2, ChevronDown, ChevronLeft, ChevronRight, Percent, Users } from "lucide-react";
 import type { PlanejadorDaTela } from "@/modules/planejamento/planejador-queries";
 import {
   deslocarJanela,
@@ -16,6 +16,9 @@ import {
 } from "@/modules/planejamento/planejador-equipe";
 import { FUNDO_COR_PROJETO } from "@/modules/planejamento/cor-projeto";
 import {
+  FAIXA_PARCEIRO,
+  MOTIVO_PASSAR_A_PARCEIRO,
+  MOTIVO_TAREFA_DE_PARCEIRO,
   MOTIVO_TIRAR_PESSOA,
   diasDoArrasto,
   motivoParaNaoMoverData,
@@ -124,6 +127,8 @@ export function PlanejadorEquipeView({
   /** O arrasto terminou: decide se é troca de pessoa (outra faixa) ou de data (mesma faixa) e pede confirmação. */
   function aoSoltar(b: BarraDoPlanejador, origem: string, alvo: string | null, dias: number) {
     const projeto = dados.edicao?.[b.projetoId];
+    if (alvo && alvo !== origem && origem.startsWith(FAIXA_PARCEIRO)) return void toast.error(MOTIVO_TAREFA_DE_PARCEIRO);
+    if (alvo && alvo !== origem && alvo.startsWith(FAIXA_PARCEIRO)) return void toast.error(MOTIVO_PASSAR_A_PARCEIRO);
     if (alvo && alvo !== origem) {
       const motivo = alvo === FAIXA_SEM ? MOTIVO_TIRAR_PESSOA : motivoParaNaoTrocarPessoa(projeto, b.pessoasDaLinha, alvo);
       if (motivo) return void toast.error(motivo);
@@ -198,12 +203,17 @@ export function PlanejadorEquipeView({
     });
   }
 
-  const desenharBarras = (barras: readonly BarraDoPlanejador[], pessoa: { userId: string; nome: string } | null) =>
+  const desenharBarras = (
+    barras: readonly BarraDoPlanejador[],
+    pessoa: { userId: string; nome: string } | null,
+    /** Faixa de parceiro externo (parte 6): só prazos, a pessoa não se troca aqui. */
+    parceiro?: { id: string; nome: string },
+  ) =>
     barras.map((b) => {
       const pos = posicaoNaJanela(b.inicio, b.fim, dados.janela);
       if (!pos) return null;
-      const titulo = tituloDaBarra(b, pessoa?.nome ?? null);
-      const origem = pessoa?.userId ?? FAIXA_SEM;
+      const titulo = tituloDaBarra(b, pessoa?.nome ?? (parceiro ? `Externo: ${parceiro.nome}` : null));
+      const origem = parceiro ? `${FAIXA_PARCEIRO}${parceiro.id}` : (pessoa?.userId ?? FAIXA_SEM);
       const edicao = dados.edicao?.[b.projetoId];
       const arrastando = arrasto?.chave === b.chave ? arrasto : null;
       const diasNoArrasto = arrastando && (arrastando.alvo ?? origem) === origem ? diasDoArrasto(arrastando.dx, px) : 0;
@@ -224,11 +234,11 @@ export function PlanejadorEquipeView({
               <button
                 type="button"
                 title={titulo}
-                aria-label={`${titulo}. ${edicao?.editavel ? "Abrir para mudar o início ou a pessoa" : "Abrir detalhes"}`}
+                aria-label={`${titulo}. ${edicao?.editavel ? (parceiro ? "Abrir para mudar o início" : "Abrir para mudar o início ou a pessoa") : "Abrir detalhes"}`}
                 onPointerDown={(e) => iniciarArrasto(e, b, origem)}
                 className={cn(
                   "absolute z-10 flex items-center overflow-hidden rounded-sm px-1.5 text-left text-xs font-medium whitespace-nowrap select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
-                  pessoa === null || b.rascunho
+                  (pessoa === null && !parceiro) || b.rascunho
                     ? "border border-dashed border-muted-foreground/70 bg-background text-muted-foreground"
                     : cn(FUNDO_COR_PROJETO[b.cor], "text-white"),
                   edicao?.editavel && "pointer-fine:cursor-grab",
@@ -255,6 +265,7 @@ export function PlanejadorEquipeView({
             <PainelDaBarra
               barra={b}
               pessoa={pessoa}
+              parceiro={parceiro?.nome}
               edicao={dados.edicao ? edicao : undefined}
               pessoas={dados.pessoas}
               onMudar={(m) => {
@@ -376,7 +387,7 @@ export function PlanejadorEquipeView({
         </span>
       </div>
 
-      {dados.faixas.length === 0 && dados.semNinguem.barras.length === 0 ? (
+      {dados.faixas.length === 0 && dados.parceiros.length === 0 && dados.semNinguem.barras.length === 0 ? (
         <EmptyState
           icon={Users}
           title="Nenhuma tarefa nesta janela"
@@ -501,7 +512,11 @@ export function PlanejadorEquipeView({
                   </div>
                   <div
                     data-faixa={f.userId}
-                    className={cn("relative shrink-0", arrasto?.alvo === f.userId && "bg-primary/5 outline-2 -outline-offset-2 outline-primary")}
+                    className={cn(
+                      "relative shrink-0",
+                      // A barra de parceiro não troca de faixa: sem destaque de destino.
+                      arrasto?.alvo === f.userId && !arrasto.chave.includes(":parceiro:") && "bg-primary/5 outline-2 -outline-offset-2 outline-primary",
+                    )}
                     style={{ width: largura, minHeight: altura }}
                   >
                     {fundoDosDias}
@@ -519,6 +534,35 @@ export function PlanejadorEquipeView({
                       );
                     })}
                     {desenharBarras(f.barras, { userId: f.userId, nome: f.nome })}
+                  </div>
+                </div>
+              );
+            })}
+
+            {dados.parceiros.map((p) => {
+              const altura = Math.max(1, p.niveis) * ANDAR + 12;
+              const faixa = `${FAIXA_PARCEIRO}${p.parceiroId}`;
+              return (
+                <div key={p.parceiroId} className="flex border-b last:border-b-0" role="group" aria-label={`Externo: ${p.nome}`}>
+                  <div className={cn("sticky left-0 z-20 shrink-0 space-y-0.5 border-r bg-card px-2 py-1.5", COLUNA_PESSOA)} style={{ minHeight: altura }}>
+                    <p className="flex items-center gap-1 truncate text-sm font-medium" title={`Externo: ${p.nome}`}>
+                      <Building2 className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="truncate">{p.nome}</span>
+                    </p>
+                    {p.disciplina && (
+                      <p className="truncate text-xs text-muted-foreground" title={p.disciplina}>
+                        {p.disciplina}
+                      </p>
+                    )}
+                    <p className="inline-block rounded-sm border border-dashed px-1 text-[11px] text-muted-foreground">Só prazos · sem horas e sem alerta</p>
+                  </div>
+                  <div
+                    data-faixa={faixa}
+                    className="relative shrink-0"
+                    style={{ width: largura, minHeight: altura }}
+                  >
+                    {fundoDosDias}
+                    {desenharBarras(p.barras, null, { id: p.parceiroId, nome: p.nome })}
                   </div>
                 </div>
               );

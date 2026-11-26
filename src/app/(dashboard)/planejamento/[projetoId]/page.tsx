@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { parceirosParaEscolha } from "@/modules/planejamento/parceiros/queries";
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -80,6 +81,8 @@ export default async function PlanejamentoProjetoPage({
   const opcoesDisciplinas = podeGerir ? await opcoesParaGerarDisciplinas(projetoId) : [];
   const impedimentoApagar = podeGerir && tarefas.length > 0 ? await impedimentoParaApagarEapDoProjeto(projetoId) : null;
   const ultimoPasso = podeGerir ? await rotuloDoUltimoPasso(projetoId, user.id) : null;
+  // Pool de recursos, parte 6: os parceiros externos que nomeiam a etapa de terceiro (só quem monta a EAP escolhe).
+  const parceiros = podeGerir ? await parceirosParaEscolha() : [];
   // "Salvar como modelo": o tipo de empreendimento é opcional, mas a lista vem do servidor (só quem monta a EAP precisa).
   const tiposEmpreendimento = podeGerir && tarefas.length > 0
     ? await prisma.tipoEmpreendimento.findMany({ where: { ativo: true }, select: { id: true, nome: true }, orderBy: [{ ordem: "asc" }, { nome: "asc" }] })
@@ -92,6 +95,7 @@ export default async function PlanejamentoProjetoPage({
         tarefas={tarefas}
         disciplinas={disciplinas}
         pessoas={pessoas}
+        parceiros={parceiros}
         temLinhaBase={temLinhaBase}
         custoTotal={custoTotal}
         podeGerir={podeGerir}

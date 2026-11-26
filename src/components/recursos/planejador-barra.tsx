@@ -6,6 +6,7 @@ import type { Dia } from "@/lib/calendario-trabalho";
 import type { BarraDoPlanejador } from "@/modules/planejamento/planejador-equipe";
 import {
   MOTIVO_SEM_PERMISSAO_NO_PROJETO,
+  MOTIVO_TAREFA_DE_PARCEIRO,
   motivoParaNaoMoverData,
   motivoParaNaoTrocarPessoa,
   textoDasSeguintes,
@@ -35,13 +36,16 @@ const periodo = (b: Pick<BarraDoPlanejador, "inicio" | "fim">) => (b.inicio === 
 export function PainelDaBarra({
   barra,
   pessoa,
+  parceiro,
   edicao,
   pessoas,
   onMudar,
 }: {
   barra: BarraDoPlanejador;
-  /** Dono da faixa (`null` = faixa "sem ninguém"). */
+  /** Dono da faixa (`null` = faixa "sem ninguém" ou de parceiro). */
   pessoa: { userId: string; nome: string } | null;
+  /** Nome do parceiro externo, na faixa dele (parte 6): a pessoa não se troca aqui. */
+  parceiro?: string;
   /** `undefined` = quem olha não monta cronograma (só leitura). */
   edicao: EdicaoDoProjeto | undefined;
   pessoas: readonly { userId: string; nome: string }[];
@@ -63,6 +67,7 @@ export function PainelDaBarra({
         <p className="text-xs text-muted-foreground">
           {barra.rascunho ? "Rascunho" : "Aprovado"} · {periodo(barra)}
           {pessoa && barra.horas > 0 ? ` · ${horasTxt(barra.horas)} de ${pessoa.nome}` : ""}
+          {parceiro ? ` · Externo: ${parceiro}` : ""}
           {barra.disciplina ? ` · ${barra.disciplina}` : ""}
         </p>
         <Link
@@ -104,6 +109,9 @@ export function PainelDaBarra({
               </div>
             )}
           </div>
+          {parceiro ? (
+            <p className="border-t pt-3 text-xs text-muted-foreground">{MOTIVO_TAREFA_DE_PARCEIRO}</p>
+          ) : (
           <div className="space-y-1.5 border-t pt-3">
             <Label htmlFor={`${idBase}-pessoa`}>{pessoa ? `Trocar ${pessoa.nome} por` : "Atribuir a"}</Label>
             {opcoes.length === 0 ? (
@@ -137,8 +145,11 @@ export function PainelDaBarra({
               </div>
             )}
           </div>
+          )}
           <p id={`${idBase}-dica`} className="text-xs text-muted-foreground pointer-coarse:hidden">
-            Com o mouse, também dá para arrastar a barra: para o lado muda o início; para a faixa de outra pessoa, troca a pessoa.
+            {parceiro
+              ? "Com o mouse, também dá para arrastar a barra para o lado: muda o início."
+              : "Com o mouse, também dá para arrastar a barra: para o lado muda o início; para a faixa de outra pessoa, troca a pessoa."}
           </p>
         </>
       )}

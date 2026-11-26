@@ -1133,6 +1133,8 @@ model DisciplinaCatalogo {
   secoesProposta    PropostaSecao[]
   /// Itens de tabela de preço que já apontam para este catálogo (CRM F1.20).
   itensTabelaPreco  ItemTabelaPreco[]
+  /// Parceiros externos desta disciplina (pool de recursos, parte 6).
+  parceirosExternos ParceiroExterno[]
   /// Disciplinas de projeto que já apontam para este catálogo (CRM F1.19c).
   disciplinas       Disciplina[]
   /// Modelos de EAP desta disciplina (`ModeloEap.disciplinaCatalogoId`).
@@ -5385,6 +5387,12 @@ model EapAtribuicao {
   /// Quem aparece no card e nos filtros (D41). Um por linha, e só pessoa.
   principal Boolean @default(false)
 
+  /// O NOME da etapa de terceiro (pool de recursos, parte 6 — decisão 4): "Externo: Eqp. Climatização". Só no papel
+  /// `ext` (CHECK `eap_atribuicao_parceiro_so_externo`); nulo = Externo sem nome, que continua valendo. `Restrict`: o
+  /// parceiro em uso se arquiva, não se exclui.
+  parceiroId String?
+  parceiro   ParceiroExterno? @relation(fields: [parceiroId], references: [id], onDelete: Restrict)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -5394,7 +5402,27 @@ model EapAtribuicao {
   /// continua barrada.
   @@unique([tarefaId, userId, papel])
   @@index([userId])
+  @@index([parceiroId])
   @@map("eap_atribuicao")
+}
+
+/// Parceiro externo (pool de recursos, parte 6 — decisão 4): quem executa a etapa de terceiro fora da casa (a equipe de
+/// climatização, a concessionária). Cadastro simples, lista única para todos os projetos, mantida por quem gere Recursos
+/// (`recursos:gerir`). Sem horas, sem carga e sem alerta: na tela por pessoa tem faixa própria, só com os prazos. Nome
+/// único sem diferença de maiúscula (índice `parceiro_externo_nome_unico`, fora deste arquivo).
+model ParceiroExterno {
+  id           String              @id @default(cuid())
+  nome         String
+  disciplinaId String?
+  disciplina   DisciplinaCatalogo? @relation(fields: [disciplinaId], references: [id], onDelete: SetNull)
+  /// Arquivado = some das escolhas da EAP; as tarefas que já o têm seguem com o nome.
+  ativo        Boolean             @default(true)
+  atribuicoes  EapAtribuicao[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([disciplinaId])
+  @@map("parceiro_externo")
 }
 
 /// Pessoa como recurso de planejamento (multiplicador de capacidade, custo/hora, cor).

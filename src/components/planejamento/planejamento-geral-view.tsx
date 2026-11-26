@@ -17,6 +17,7 @@ import {
 } from "@/modules/planejamento/planejamento-geral";
 import { montarEscala, ZOOMS_GANTT, type EscalaGantt, type ZoomGantt } from "@/modules/planejamento/gantt-escala";
 import { FUNDO_COR_PROJETO } from "@/modules/planejamento/cor-projeto";
+import { rotuloDoExterno } from "@/modules/planejamento/parceiros/regras";
 import { CabecalhoEscala, HEAD_H, ROW_H } from "@/components/planejamento/gantt-barra";
 import { AbasPlanejamento } from "@/components/planejamento/abas-planejamento";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
@@ -110,7 +111,7 @@ function Responsaveis({ l, periodo }: { l: LinhaGeral; periodo: { de: string; at
     );
   }
   for (const [i, perfil] of l.perfis.entries()) itens.push(<span key={`p${i}`} className="text-muted-foreground">({perfil})</span>);
-  if (l.externo) itens.push(<span key="ext" className="text-muted-foreground">Externo</span>);
+  if (l.externo) itens.push(<span key="ext" className="text-muted-foreground">{rotuloDoExterno(l.parceiro)}</span>);
   if (itens.length === 0) return <span className="text-muted-foreground">—</span>;
   return (
     <>

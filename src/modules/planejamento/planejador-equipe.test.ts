@@ -144,3 +144,38 @@ describe("resumoDoConflitoDaPessoa", () => {
     expect(resumoDoConflitoDaPessoa([c, { ...c, dia: "2026-11-27", rascunhos: ["Z"] }], dc)).toBe("2 dias de conflito, desde 26/11 · com Z (rascunho)");
   });
 });
+
+describe("montarPlanejador — parceiros externos (pool de recursos, parte 6)", () => {
+  const clima = { id: "clima", nome: "Eqp. Climatização" };
+  const linhas = [
+    linha({ id: "x1" }),
+    linha({ id: "t1", projetoId: "X", nome: "Projeto de climatização", disciplina: "Climatização", pessoas: [], deTerceiro: true, parceiro: clima }),
+    linha({ id: "t2", projetoId: "Y", nome: "Aprovação prefeitura", pessoas: [], deTerceiro: true, parceiro: null }),
+    linha({ id: "t3", projetoId: "Y", nome: "Laudo", pessoas: [], deTerceiro: true, parceiro: { id: "velho", nome: "Laudos Ltda" } }),
+  ];
+  const parceiros = [
+    { id: "clima", nome: "Eqp. Climatização", disciplina: "Climatização" },
+    { id: "vazio", nome: "Concessionária", disciplina: null },
+  ];
+  const base = { linhas, pessoas, sobrecargas: [], projetos, linhasNomes: {}, janela, parceiros };
+
+  it("a etapa de terceiro com parceiro vai para a faixa dele, sem horas; sem parceiro fica fora; ativo sem tarefa tem faixa; arquivado só com tarefa", () => {
+    const p = montarPlanejador(base);
+    expect(p.parceiros.map((f) => [f.nome, f.barras.map((b) => b.linhaId)])).toEqual([
+      ["Concessionária", []],
+      ["Eqp. Climatização", ["t1"]],
+      ["Laudos Ltda", ["t3"]],
+    ]);
+    expect(p.parceiros[1].barras[0].horas).toBe(0);
+    expect(p.parceiros[1].barras[0].chave).toBe("t1:parceiro:clima");
+    // Nem na faixa "sem ninguém" nem na de pessoa.
+    expect(p.semNinguem.barras.map((b) => b.linhaId)).not.toContain("t1");
+    expect(p.semNinguem.barras.map((b) => b.linhaId)).not.toContain("t2");
+    expect(p.disciplinas).toContain("Climatização");
+  });
+
+  it("filtro de disciplina deixa só quem tem barra; filtro de pessoa tira todos os parceiros", () => {
+    expect(montarPlanejador({ ...base, filtros: { disciplina: "Climatização" } }).parceiros.map((f) => f.nome)).toEqual(["Eqp. Climatização"]);
+    expect(montarPlanejador({ ...base, filtros: { userId: "mireli" } }).parceiros).toEqual([]);
+  });
+});

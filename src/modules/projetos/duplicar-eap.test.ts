@@ -100,7 +100,12 @@ describe("clonarEap", () => {
 
   it('a marca de etapa de terceiro vai junto (é o que a linha É), as pessoas não', () => {
     const r = clonarEap([linha("a", { deTerceiro: true }), linha("b")], contexto(["a", "b"]));
-    expect(r.atribuicoesExternas).toEqual([{ tarefaId: "n-a", papel: "ext", horasPrevistas: 0 }]);
+    expect(r.atribuicoesExternas).toEqual([{ tarefaId: "n-a", papel: "ext", horasPrevistas: 0, parceiroId: null }]);
+  });
+
+  it("o parceiro da etapa de terceiro vai junto na cópia (pool de recursos, parte 6)", () => {
+    const r = clonarEap([linha("a", { deTerceiro: true, parceiroId: "clima" })], contexto(["a"]));
+    expect(r.atribuicoesExternas).toEqual([{ tarefaId: "n-a", papel: "ext", horasPrevistas: 0, parceiroId: "clima" }]);
   });
 
   it("dependências levam tipo e defasagem, e só entre linhas copiadas", () => {

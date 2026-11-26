@@ -60,8 +60,8 @@ export async function duplicarProjetoNoBanco(
       eapTarefas: {
         orderBy: { ordem: "asc" },
         select: {
-          // Só o papel: a marca de etapa de terceiro vai junto na cópia; as PESSOAS, não.
-          atribuicoes: { select: { papel: true } },
+          // Só o papel (e o parceiro dela): a marca de etapa de terceiro vai junto na cópia; as PESSOAS, não.
+          atribuicoes: { select: { papel: true, parceiroId: true, parceiro: { select: { ativo: true } } } },
           id: true,
           parentId: true,
           disciplinaId: true,
@@ -195,7 +195,12 @@ export async function duplicarProjetoNoBanco(
       const novaLinha = new Map(
         origem.eapTarefas.map((t, i) => [t.id, { id: randomUUID(), idCorporativo: idsCorporativos[i] }] as const),
       );
-      const origemComMarca = origem.eapTarefas.map((t) => ({ ...t, deTerceiro: ehEtapaDeTerceiro(t.atribuicoes) }));
+      const origemComMarca = origem.eapTarefas.map((t) => ({
+        ...t,
+        deTerceiro: ehEtapaDeTerceiro(t.atribuicoes),
+        // Parceiro arquivado não entra em tarefa nova (só fica onde já estava).
+        parceiroId: t.atribuicoes.find((a) => a.papel === "ext" && a.parceiro?.ativo)?.parceiroId ?? null,
+      }));
       const { linhas, dependencias, atribuicoesExternas } = clonarEap(origemComMarca, {
         projetoId: criado.id,
         disciplinaNova: dMap,

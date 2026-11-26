@@ -41,6 +41,8 @@ export type AtribuicaoFoto = {
   principal: boolean;
   /** Pool de recursos (26/11/2026). Ausente nas fotos de antes: a restauração não mexe na marca. */
   horasAutomaticas?: boolean;
+  /** Pool de recursos, parte 6: o parceiro da etapa de terceiro. Ausente nas fotos de antes = sem parceiro. */
+  parceiroId?: string | null;
 };
 
 /** `EapProgressoRegistro`: o histórico de % que o Valor Agregado de uma Data de Status passada lê (cascade com a linha). */
@@ -87,7 +89,17 @@ export function impressaoDoPlano(e: EstadoPlano): string {
     linhas: porId(e.linhas).map((l) => [l.id, ...CAMPOS_DO_PLANO.map((c) => norm(c, l[c]))]),
     deps: porId(e.dependencias).map((d) => [d.id, d.tarefaId, d.predecessoraId, d.tipo, num(d.lagDias)]),
     // A marca de horas automáticas só entra quando ligada: a impressão das fotos de antes dela (todas desligadas) não muda.
-    atribs: porId(e.atribuicoes).map((a) => [a.id, a.tarefaId, a.userId, a.papel, num(a.horasPrevistas), a.principal, ...(a.horasAutomaticas ? [true] : [])]),
+    // O parceiro idem: só entra quando há um, e as fotos de antes dele seguem com a mesma impressão.
+    atribs: porId(e.atribuicoes).map((a) => [
+      a.id,
+      a.tarefaId,
+      a.userId,
+      a.papel,
+      num(a.horasPrevistas),
+      a.principal,
+      ...(a.horasAutomaticas ? [true] : []),
+      ...(a.parceiroId ? [`parceiro:${a.parceiroId}`] : []),
+    ]),
   });
 }
 
@@ -209,6 +221,7 @@ export function planoDeRestauracao(atual: EstadoPlano, antes: EstadoPlano): Plan
     if (h.principal !== a.principal) campos.principal = a.principal;
     // Foto de antes do campo (26/11/2026): naquela época nenhuma atribuição era automática.
     if ((h.horasAutomaticas ?? false) !== (a.horasAutomaticas ?? false)) campos.horasAutomaticas = a.horasAutomaticas ?? false;
+    if ((h.parceiroId ?? null) !== (a.parceiroId ?? null)) campos.parceiroId = a.parceiroId ?? null;
     if (Object.keys(campos).length > 0) atualizarAtribuicoes.push({ id: a.id, campos });
   }
 

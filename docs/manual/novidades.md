@@ -52,6 +52,14 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
   outro superusuário.
 - O texto do e-mail pode ser ajustado em **Configurações → E-mails** (grupo **Acesso**).
 
+## Parceiros externos (novembro/2026)
+
+- Em **Recursos**, a nova aba **Parceiros externos** cadastra quem executa a etapa de terceiro fora da casa (nome e
+  disciplina). Quem gere Recursos cadastra, arquiva e exclui.
+- Na EAP, a etapa de terceiro ganha a escolha do parceiro: "Externo: Eqp. Climatização". Externo sem nome continua
+  valendo.
+- Em **Recursos → Por pessoa**, cada parceiro tem uma faixa própria, só com os prazos: sem horas, sem carga e sem alerta.
+
 ## Planejamento geral (novembro/2026)
 
 - O **Planejamento** ganhou duas abas: **Planejamento geral** e **Projetos individuais** (os cartões de sempre). O
