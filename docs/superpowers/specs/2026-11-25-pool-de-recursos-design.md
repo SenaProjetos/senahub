@@ -19,23 +19,29 @@ Levantamento original: `2026-11-24-pool-de-recursos-levantamento.md`.
 | Onde fica o cadastro do parceiro | Em Recursos, aba "Parceiros externos", com `recursos:gerir`. Sem permissão nova. |
 | Cor automática dos projetos que já existem | A cor automática é CALCULADA do projeto (sempre a mesma para o mesmo projeto), não gravada. Só a troca manual é gravada. Assim todo projeto, antigo ou novo, já tem cor no dia da entrega, sem rodar carga. |
 
-## 2. Perguntas que ainda voltam ao Ryan
+## 2. Respostas do Ryan (26/11/2026)
 
-1. **Conta das horas automáticas (cenário B).** Lendo "proporcional à dedicação", a conta é
-   `horas da pessoa = duração × jornada da pessoa × dedicação da pessoa ÷ soma das dedicações`.
-   - Mireli e João Vitor a 100%, 5 dias de 8 h: **20 h cada** (4 h por dia).
-   - Mireli passa a 50%: Mireli **13,3 h** (2,7 h por dia) e João Vitor **26,7 h** (5,3 h por dia).
-   Efeito: baixar a dedicação da Mireli SOBE as horas do João Vitor (o trabalho da tarefa fica em 40 h). É isso? A outra
-   leitura é cada um ficar com `duração × jornada × dedicação ÷ número de responsáveis`: Mireli 10 h, João Vitor 20 h, e a
-   tarefa passa a ter 30 h.
-2. **Jornadas diferentes.** Com a fórmula acima, Mireli (8 h) e um estagiário (6 h), ambos a 100%, ficam com 20 h e 15 h.
-   Serve?
-3. **"Coordenador edita só o seu projeto".** Hoje, quem tem permissão de montar cronograma edita todo projeto em que é
-   membro da equipe, com qualquer papel. Proposta: manter assim. Se o Ricardo é coordenador do Y e projetista no X, ele
-   edita os dois. Se for para editar só onde é coordenador, é regra nova.
-4. **Aviso à coordenação quando a Gerência ou o administrativo mexe num projeto** (já listado por ele como aberto).
+1. **Divisão das horas: leitura (a).** A tarefa tem um total fixo de horas, e a divisão entre os responsáveis segue a
+   dedicação. Se a dedicação de um cai, as horas dos outros sobem.
+2. **Total e jornadas diferentes.** O total da tarefa é `duração em dias úteis × 8 h` (expediente comercial), seja qual for
+   a jornada de quem está nela. O total se divide pelo peso de cada pessoa, e o peso é `jornada da pessoa × dedicação`:
+   `horas da pessoa = total × peso da pessoa ÷ soma dos pesos`.
+   - Mireli e João Vitor, 8 h e 100%, 5 dias: total 40 h, **20 h cada**.
+   - Mireli a 50%: pesos 4 e 8, Mireli **13,3 h** e João Vitor **26,7 h**.
+   - Mireli (8 h) e estagiário (6 h), ambos a 100%: pesos 8 e 6, Mireli **22,9 h** e estagiário **17,1 h**.
+3. **Edição: leitura (a).** Fica como hoje: quem pode montar cronograma edita todo projeto em cuja equipe está, com qualquer
+   papel. Nada muda em permissão.
+4. **Aviso à coordenação: sim.** Quando alguém que não é coordenador do projeto (Gerência, administrativo) arrasta uma barra
+   ou troca a pessoa de uma tarefa desse projeto, a coordenação do projeto recebe aviso. Quem fez a mudança não recebe.
+5. **Itens 5 a 7 (nomes no Planejamento geral, faixa da pessoa, "Larguras padrão")**: sem objeção. Valem as propostas da
+   seção 4.
+6. **Data limite**: não informada.
 
-Enquanto essas não voltam, a parte 1 não fecha a conta das horas. O resto anda.
+**Consequência a confirmar com o Ryan (não bloqueia o início):** pessoa sozinha na tarefa recebe o total inteiro. Um
+estagiário de 6 h sozinho numa tarefa de 5 dias fica com 40 h (8 h por dia) e aparece em conflito todos os dias. O mesmo
+acontece com a Mireli a 50% sozinha (8 h por dia contra 4 h). O sistema não muda a duração sozinho: o conflito aparece e
+quem planeja decide (aumentar a duração, pôr mais alguém ou digitar as horas). Pela regra, isso é o esperado, mas vale
+confirmar antes da entrega.
 
 ## 3. Escolhas técnicas
 
@@ -47,6 +53,8 @@ Enquanto essas não voltam, a parte 1 não fecha a conta das horas. O resto anda
 - `Alocacao` (a matriz antiga, por projeto) não é usada: é por projeto e não por disciplina.
 
 ### 3.2 Horas automáticas (decisões B e 2)
+- Conta: seção 2, itens 1 e 2 (`total = dias úteis × 8 h`, dividido por `jornada × dedicação`). Função pura, em centésimos
+  de hora; o resto do arredondamento vai para a última pessoa, para a soma bater com o total.
 - `EapAtribuicao` ganha a marca "horas automáticas" (sim/não). Atribuição NOVA de pessoa nasce automática; digitar horas
   desliga a marca (horas digitadas vencem, regra B).
 - Atribuição automática é recalculada quando muda a duração da linha, a dedicação ou o conjunto de responsáveis da linha,
