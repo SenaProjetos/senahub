@@ -57,6 +57,7 @@ export default async function PlanejamentoProjetoPage({
     valorAgregado,
     preferencias,
     conflitosRecursos,
+    verProjeto,
   ] = await Promise.all([
     eapDoProjeto(projetoId, { verCusto, verDatas }),
     can(user, "planejamento", "gerir"),
@@ -73,6 +74,8 @@ export default async function PlanejamentoProjetoPage({
     getPreferencias(user.id),
     // Pedido da equipe (2026-11-24): quem está em outro projeto na mesma semana, antes de aprovar e durante o controle.
     verDatas ? conflitosDeRecursosDoProjeto(projetoId, { verCargaDaEquipe: verRecursos }) : Promise.resolve([]),
+    // Atalho da EAP para os cards das disciplinas: a ficha do projeto exige `projetos:ver` (mesmo escopo de projeto).
+    can(user, "projetos", "ver"),
   ]);
 
   // Decisão #5: o seletor de modelo só aparece com a EAP vazia e para quem monta — e a prévia (quantas
@@ -109,6 +112,7 @@ export default async function PlanejamentoProjetoPage({
         qualidade={qualidade}
         conflitosRecursos={conflitosRecursos}
         verRecursos={verRecursos}
+        verProjeto={verProjeto}
         previasModelos={previasModelos}
         opcoesDisciplinas={opcoesDisciplinas}
         impedimentoApagar={impedimentoApagar}

@@ -13,8 +13,10 @@ import {
   Rocket,
   CalendarCheck,
   ExternalLink,
+  LayoutGrid,
   X,
 } from "lucide-react";
+import { useTelaAPartirDe } from "@/lib/use-tela-larga";
 import {
   aplicarAoProjeto,
   avancarEapTarefa,
@@ -134,6 +136,7 @@ export function EapWorkspace({
   qualidade,
   conflitosRecursos = [],
   verRecursos = false,
+  verProjeto = false,
   previasModelos = [],
   opcoesDisciplinas = [],
   impedimentoApagar = null,
@@ -183,6 +186,8 @@ export function EapWorkspace({
   conflitosRecursos?: ConflitoRecurso[];
   /** `recursos:ver` — o alerta de conflito leva para `/recursos`. */
   verRecursos?: boolean;
+  /** `projetos:ver` — atalho da EAP para os cards das disciplinas do projeto (`/projetos/[id]/disciplinas`). */
+  verProjeto?: boolean;
   /**
    * Decisão #5: modelos de EAP com a prévia já calculada para ESTE projeto. Vem vazio quando a EAP já
    * tem linha, quem olha não monta EAP, ou não há modelo cadastrado — e aí o botão não aparece.
@@ -650,6 +655,9 @@ export function EapWorkspace({
     });
   }
 
+  // Mesmo corte do `lg:` do botão "Disciplinas" na barra: abaixo dele o atalho vai para o `⋯` do cabeçalho.
+  const telaDoBotao = useTelaAPartirDe("(min-width: 64rem)");
+  const atalhoDisciplinas = verProjeto && !noProjeto;
   const itensDoMenu = itensDoPlanejamento({
     projetoId: projeto.id,
     podeGerir,
@@ -659,6 +667,9 @@ export function EapWorkspace({
     disciplinasSemEap: opcoesDisciplinas.length,
     planoTravado: travado,
     impedimentoApagar,
+    // Atalho para as disciplinas: na tela larga é botão da barra (abaixo); em tela pequena, item deste menu. Na aba EAP do
+    // projeto as abas já levam às disciplinas, então só no Planejamento.
+    verProjeto: atalhoDisciplinas && !telaDoBotao,
   });
 
   /** O `⋯` do cabeçalho (descritor `itensDoPlanejamento`). Os confirms ficam dentro de cada ação, antes de gravar. */
@@ -830,6 +841,18 @@ export function EapWorkspace({
     <>
       {podeGerir && <DesfazerBotao projetoId={projeto.id} rotulo={ultimoPasso} travado={travado} compacto />}
       {verRecursos && <AtalhoPoolRecursos projetoId={projeto.id} compacto />}
+      {atalhoDisciplinas && (
+        // Só a partir do `lg:`; abaixo, o mesmo atalho é item do `⋯` do cabeçalho (`telaDoBotao`).
+        <Button
+          size="sm"
+          variant="outline"
+          className="hidden h-7 lg:inline-flex"
+          title="Abrir os cards das disciplinas deste projeto"
+          render={<Link href={`/projetos/${projeto.id}/disciplinas`} />}
+        >
+          <LayoutGrid className="size-3.5" aria-hidden /> Disciplinas
+        </Button>
+      )}
       {noProjeto && (
         <>
           <Button size="sm" variant="outline" render={<Link href={`/planejamento/${projeto.id}`} />}>
@@ -854,7 +877,7 @@ export function EapWorkspace({
           trilha={[
             { href: "/", label: "Início" },
             { href: "/planejamento", label: "Planejamento" },
-            { label: projeto.codigo },
+            verProjeto ? { href: `/projetos/${projeto.id}`, label: projeto.codigo } : { label: projeto.codigo },
           ]}
           acoes={
             <>

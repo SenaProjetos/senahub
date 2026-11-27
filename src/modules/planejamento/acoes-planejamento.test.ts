@@ -9,6 +9,7 @@ import {
   ACAO_REAGENDAR,
   ACAO_SALVAR_MODELO,
   MOTIVO_DISCIPLINAS_COM_EAP,
+  LINK_DISCIPLINAS_PROJETO,
   MOTIVO_EAP_VAZIA,
   itensDoPlanejamento,
 } from "./acoes-planejamento";
@@ -76,5 +77,14 @@ describe("itensDoPlanejamento", () => {
     expect(acao(itensDoPlanejamento({ ...base, disciplinasSemEap: 0 }), ACAO_GERAR_DISCIPLINAS).desabilitado).toBe(MOTIVO_DISCIPLINAS_COM_EAP);
     const itens = itensDoPlanejamento({ ...base, impedimentoApagar: "Cronograma aprovado não se apaga." });
     expect(acao(itens, ACAO_APAGAR_EAP).desabilitado).toBe("Cronograma aprovado não se apaga.");
+  });
+
+  it("quem vê projetos: o atalho para as disciplinas abre o menu, separado do resto, e leva à aba Disciplinas", () => {
+    const itens = itensDoPlanejamento({ ...base, verProjeto: true });
+    expect(ids(itens).slice(0, 3)).toEqual([LINK_DISCIPLINAS_PROJETO, "—", ACAO_NOVAS_TAREFAS]);
+    expect(itens[0]).toMatchObject({ tipo: "link", href: "/projetos/p1/disciplinas" });
+    expect(ids(itensDoPlanejamento(base))).not.toContain(LINK_DISCIPLINAS_PROJETO);
+    // Quem só consulta e não vê datas: o atalho fica sozinho, sem separador sobrando.
+    expect(ids(itensDoPlanejamento({ ...base, verProjeto: true, podeGerir: false, verDatas: false }))).toEqual([LINK_DISCIPLINAS_PROJETO]);
   });
 });

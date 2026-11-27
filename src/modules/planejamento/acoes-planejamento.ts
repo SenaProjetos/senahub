@@ -1,4 +1,4 @@
-import { BookmarkPlus, CalendarClock, CheckCheck, Download, FileText, ListPlus, ListTree, Trash2, UsersRound } from "lucide-react";
+import { BookmarkPlus, CalendarClock, CheckCheck, Download, FileText, LayoutGrid, ListPlus, ListTree, Trash2, UsersRound } from "lucide-react";
 
 import { limparSeparadores, type AcaoItem } from "@/components/ui/acoes";
 import { MOTIVO_PLANO_TRAVADO } from "./trava-plano";
@@ -16,6 +16,7 @@ export const ACAO_HERDAR = "planejamento-herdar-responsaveis";
 export const ACAO_APLICAR = "planejamento-aplicar-ao-projeto";
 export const ACAO_SALVAR_MODELO = "planejamento-salvar-modelo";
 export const ACAO_APAGAR_EAP = "planejamento-apagar-eap";
+export const LINK_DISCIPLINAS_PROJETO = "planejamento-disciplinas-projeto";
 
 export const MOTIVO_EAP_VAZIA = "A EAP ainda não tem linhas.";
 export const MOTIVO_DISCIPLINAS_COM_EAP = "Todas as disciplinas já têm tarefa na EAP.";
@@ -35,11 +36,20 @@ export function itensDoPlanejamento(ctx: {
   planoTravado: boolean;
   /** Por que "Apagar EAP" não pode (`null` = pode) — a mesma frase da action. */
   impedimentoApagar: string | null;
+  /**
+   * `projetos:ver`, fora da aba EAP do projeto (lá as abas já levam às disciplinas): atalho para os cards das disciplinas
+   * (`/projetos/[id]/disciplinas`), sempre o primeiro item.
+   */
+  verProjeto?: boolean;
 }): AcaoItem[] {
   const vazia = ctx.temTarefas ? undefined : MOTIVO_EAP_VAZIA;
   const travada = ctx.planoTravado ? MOTIVO_PLANO_TRAVADO : undefined;
   const itens: AcaoItem[] = [];
 
+  if (ctx.verProjeto) {
+    itens.push({ tipo: "link", id: LINK_DISCIPLINAS_PROJETO, rotulo: "Abrir disciplinas do projeto", icone: LayoutGrid, href: `/projetos/${ctx.projetoId}/disciplinas` });
+    itens.push({ tipo: "separador", id: "sep-projeto" });
+  }
   if (ctx.podeGerir) {
     itens.push({ tipo: "acao", id: ACAO_NOVAS_TAREFAS, rotulo: "Novas tarefas (colar lista)", icone: ListPlus, desabilitado: travada, dica: "Cole várias tarefas de uma vez, uma por linha" });
     itens.push({ tipo: "separador", id: "sep-exportar" });
