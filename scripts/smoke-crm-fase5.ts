@@ -1442,7 +1442,7 @@ async function main() {
   const resultadoF512 = await aceitarProposta(pF512.id, user.id);
   const projetoF512 = await prisma.projeto.findUnique({
     where: { id: resultadoF512.projetoId },
-    select: { valorContrato: true, membros: { select: { userId: true, papel: true } } },
+    select: { valorContrato: true, membros: { select: { userId: true } } },
   });
   check(
     "(a) projeto nasceu com valorContrato = valor final da proposta (15000)",
@@ -1450,10 +1450,8 @@ async function main() {
     `${projetoF512?.valorContrato}`,
   );
   check(
-    "(a) projeto nasceu com o responsável da negociação como coordenador (equipe)",
-    projetoF512?.membros.length === 1 &&
-      projetoF512.membros[0].userId === user.id &&
-      projetoF512.membros[0].papel === "coordenador",
+    "(a) projeto nasceu com o responsável da negociação na equipe",
+    projetoF512?.membros.length === 1 && projetoF512.membros[0].userId === user.id,
     JSON.stringify(projetoF512?.membros),
   );
 

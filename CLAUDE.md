@@ -742,7 +742,9 @@ corte usam `calcularRateioLegado`; todo leitor passa por `calcularRateioDoMes`. 
   mês terminado fecha; recalcular é só para mês fechado no cálculo antigo; mês de cálculo antigo não compara custo na divergência.
 - **Custo em reais só para quem pode** (`lib/custo-visivel.ts`): `podeVerCusto` = superusuário, sócio ou `ponto:custo`; a decisão é do
   SERVIDOR (o dado sai nulo), nunca da tela. Horas por disciplina: `projetos/horas-disciplina-queries.ts`.
-- **Papel e responsáveis**: papel do membro em lista fixa (`projetos/papeis.ts`); `substituirResponsaveis` é o ÚNICO escritor de
+- **Coordenação e responsáveis**: `ProjetoMembro` não tem papel (saiu em 2026-11-27); a coordenação do projeto é o perfil de acesso
+  Coordenador que enxerga o projeto — equipe, responsável de disciplina ou escopo global (aí coordena todos) — numa regra só
+  (`projetos/coordenacao.ts` + `coordenacao-queries.ts`: `coordenadoresDoProjeto`, nunca uma busca por texto no papel); `substituirResponsaveis` é o ÚNICO escritor de
   `DisciplinaResponsavel` (grava `DisciplinaResponsavelHistorico`; guarda em `responsaveis-guarda.test.ts`).
 - **Folha → Financeiro** (`rh/folha/fechamento-service.ts` + `lancamentos-da-folha.ts` puro): o fechamento lança o líquido CLT (Salários),
   bolsa, INSS/IRRF retidos e FGTS (dia 20 do mês seguinte, dia útil anterior; no 13º, INSS/IRRF no dia 20 do PRÓPRIO mês) e

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { Dia } from "@/lib/calendario-trabalho";
 import { diaLocal } from "@/modules/ponto/engine";
 import { escopoProjeto } from "@/modules/projetos/queries";
+import { projetosQueCoordeno } from "@/modules/projetos/coordenacao-queries";
 import type { ActionContext } from "@/lib/with-action";
 import { cargaDaEquipe } from "./recursos-queries";
 import { montarCalendarioComNomes, paraDia } from "./agenda";
@@ -118,14 +119,7 @@ export async function planejadorDaEquipe(
       (await prisma.projeto.findMany({ where: { AND: [{ id: { in: ids } }, escopoProjeto(viewer)] }, select: { id: true } })).map((p) => p.id),
     );
     const cronogramas = await prisma.cronogramaProjeto.findMany({ where: { projetoId: { in: ids } }, select: { projetoId: true, aprovado: true, emRevisao: true } });
-    const coordeno = new Set(
-      (
-        await prisma.projetoMembro.findMany({
-          where: { userId: viewer.id, projetoId: { in: ids }, papel: { contains: "coord", mode: "insensitive" } },
-          select: { projetoId: true },
-        })
-      ).map((m) => m.projetoId),
-    );
+    const coordeno = await projetosQueCoordeno(viewer, ids);
     edicao = {};
     for (const id of ids) {
       const c = cronogramas.find((x) => x.projetoId === id);

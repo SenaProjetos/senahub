@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { diaDeSaoPaulo } from "@/lib/data";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { coordenadoresPorProjeto } from "@/modules/projetos/coordenacao-queries";
 import { montarCalendario } from "./agenda";
 import { etapasParaAvisar, textoAvisoEtapa, type LinhaDeEtapa } from "./etapa-proxima";
 
@@ -12,8 +13,8 @@ import { etapasParaAvisar, textoAvisoEtapa, type LinhaDeEtapa } from "./etapa-pr
  * Aviso da etapa que vem (reunião de 08/10/2026, decisão 4) — o lado com I/O de `etapa-proxima.ts`.
  *
  * Só cronograma APROVADO de projeto em andamento: em rascunho as datas ainda mudam e o card nem
- * existe. Destinatários: quem tem atividade na etapa + a coordenação do projeto (`ProjetoMembro`
- * com papel de coordenador). Categoria `etapa_proxima` (opt-out em Preferências).
+ * existe. Destinatários: quem tem atividade na etapa + a coordenação do projeto
+ * (`coordenadoresPorProjeto`: perfil Coordenador que enxerga o projeto). Categoria `etapa_proxima` (opt-out em Preferências).
  *
  * `notificar` entra como parâmetro para o smoke rodar o mesmo código sem disparar notificação.
  */
@@ -81,17 +82,14 @@ export async function avisarEtapasProximas(
 
   const etapaPorId = new Map(etapas.map((e) => [e.id, e]));
   const projetoIds = [...new Set(aAvisar.map((x) => etapaPorId.get(x.disciplinaEtapaId)!.disciplina.projeto.id))];
-  const coordenadores = await prisma.projetoMembro.findMany({
-    where: { projetoId: { in: projetoIds }, papel: { contains: "coord", mode: "insensitive" } },
-    select: { projetoId: true, userId: true },
-  });
+  const coordenadores = await coordenadoresPorProjeto(projetoIds);
 
   let avisadas = 0;
   let jaAvisadas = 0;
   for (const x of aAvisar) {
     const e = etapaPorId.get(x.disciplinaEtapaId)!;
     const projeto = e.disciplina.projeto;
-    const destino = [...x.pessoas, ...coordenadores.filter((c) => c.projetoId === projeto.id).map((c) => c.userId)];
+    const destino = [...new Set([...x.pessoas, ...(coordenadores.get(projeto.id) ?? [])])];
     if (destino.length === 0) continue;
 
     const chave = { disciplinaEtapaId: e.id, inicio: new Date(`${x.inicio}T00:00:00Z`) };

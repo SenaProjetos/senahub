@@ -290,8 +290,8 @@ async function main() {
     }
     await prisma.projetoMembro.createMany({
       data: [
-        { projetoId: projeto.id, userId: supervisor.id, papel: "coordenador" },
-        { projetoId: projeto.id, userId: projetistas[pi % projetistas.length].id, papel: "projetista" },
+        { projetoId: projeto.id, userId: supervisor.id },
+        { projetoId: projeto.id, userId: projetistas[pi % projetistas.length].id },
       ],
       skipDuplicates: true,
     });

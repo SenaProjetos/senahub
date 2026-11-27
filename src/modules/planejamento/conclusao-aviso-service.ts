@@ -5,6 +5,7 @@ import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { destinatariosDaConclusao, textoConclusao } from "./conclusao-aviso";
 import { whereAudiencia } from "@/lib/audiencias";
+import { coordenadoresDoProjeto } from "@/modules/projetos/coordenacao-queries";
 
 /**
  * Avisa quem valida quando o responsável conclui o card de uma atividade da EAP — o lado com I/O de
@@ -29,14 +30,11 @@ export async function avisarCardConcluido(
     if (!linha || linha.progresso >= 100) return { avisados: 0 };
 
     const [coord, gestores] = await Promise.all([
-      prisma.projetoMembro.findMany({
-        where: { projetoId: card.projetoId, papel: { contains: "coord", mode: "insensitive" } },
-        select: { userId: true },
-      }),
+      coordenadoresDoProjeto(card.projetoId),
       prisma.user.findMany({ where: whereAudiencia("global"), select: { id: true } }),
     ]);
     const destino = destinatariosDaConclusao({
-      coordenadores: coord.map((c) => c.userId),
+      coordenadores: coord,
       gestores: gestores.map((g) => g.id),
       autorId: p.autorId,
     });

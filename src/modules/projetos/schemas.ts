@@ -1,4 +1,3 @@
-import { PAPEIS_PROJETO } from "@/modules/projetos/papeis";
 import { z } from "zod";
 import { ABAS_CONFIGURAVEIS } from "@/modules/projetos/abas";
 import { PAINEIS_PROJETO } from "@/modules/projetos/painel-layout";
@@ -97,8 +96,8 @@ export const registrarRevisaoSchema = z.object({
 
 export const membrosProjetoSchema = z.object({
   projetoId: z.string().min(1),
-  // Papel em lista fixa (decisão 25 do rateio).
-  membros: z.array(z.object({ userId: z.string().min(1), papel: z.enum(PAPEIS_PROJETO, { error: "Escolha um papel da lista." }).optional().nullable() })),
+  // Sem papel desde 2026-11-27: a coordenação é o perfil de acesso Coordenador (`projetos/coordenacao.ts`).
+  membros: z.array(z.object({ userId: z.string().min(1) })),
 });
 
 export const duplicarProjetoSchema = z.object({

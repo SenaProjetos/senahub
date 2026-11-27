@@ -1,22 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { destinatariosDaEquipe, ehPapelDeCoordenacao, podeVerConversa, type FatosAudiencia } from "./audiencia";
+import { coordenaOProjeto, destinatariosDaEquipe, podeVerConversa, type FatosAudiencia } from "./audiencia";
 
 const base: FatosAudiencia = {
   ativo: true,
   tipo: "interno",
   superUsuario: false,
   escopoGlobalPerfil: false,
-  papelNoProjeto: null,
   perfilChave: null,
   enxergaProjeto: false,
 };
 
 describe("podeVerConversa", () => {
-  it("projetista membro do projeto não vê", () => {
-    expect(podeVerConversa({ ...base, papelNoProjeto: "projetista", enxergaProjeto: true })).toBe(false);
-  });
-  it("coordenador do projeto vê", () => {
-    expect(podeVerConversa({ ...base, papelNoProjeto: "coordenador", enxergaProjeto: true })).toBe(true);
+  it("membro do projeto sem perfil Coordenador não vê", () => {
+    expect(podeVerConversa({ ...base, perfilChave: "projetista_pj", enxergaProjeto: true })).toBe(false);
   });
   it("perfil coordenador sem enxergar o projeto não vê", () => {
     expect(podeVerConversa({ ...base, perfilChave: "coordenador", enxergaProjeto: false })).toBe(false);
@@ -29,18 +25,27 @@ describe("podeVerConversa", () => {
     expect(podeVerConversa({ ...base, superUsuario: true })).toBe(true);
   });
   it("externo nunca vê, nem superUsuario", () => {
-    expect(podeVerConversa({ ...base, tipo: "externo", superUsuario: true, escopoGlobalPerfil: true, papelNoProjeto: "coordenador" })).toBe(false);
+    expect(podeVerConversa({ ...base, tipo: "externo", superUsuario: true, escopoGlobalPerfil: true, perfilChave: "coordenador", enxergaProjeto: true })).toBe(false);
   });
   it("inativo não vê", () => {
     expect(podeVerConversa({ ...base, ativo: false, superUsuario: true })).toBe(false);
   });
 });
 
-describe("ehPapelDeCoordenacao", () => {
-  it("só o papel coordenador", () => {
-    expect(ehPapelDeCoordenacao("coordenador")).toBe(true);
-    expect(ehPapelDeCoordenacao("projetista")).toBe(false);
-    expect(ehPapelDeCoordenacao(null)).toBe(false);
+describe("coordenaOProjeto", () => {
+  it("perfil Coordenador que enxerga o projeto coordena", () => {
+    expect(coordenaOProjeto({ ...base, perfilChave: "coordenador", enxergaProjeto: true })).toBe(true);
+  });
+  it("sem enxergar, outro perfil, externo ou inativo não coordena", () => {
+    expect(coordenaOProjeto({ ...base, perfilChave: "coordenador", enxergaProjeto: false })).toBe(false);
+    expect(coordenaOProjeto({ ...base, perfilChave: "clt", enxergaProjeto: true })).toBe(false);
+    expect(coordenaOProjeto({ ...base, tipo: "externo", perfilChave: "coordenador", enxergaProjeto: true })).toBe(false);
+    expect(coordenaOProjeto({ ...base, ativo: false, perfilChave: "coordenador", enxergaProjeto: true })).toBe(false);
+  });
+  it("escopo global sem perfil Coordenador vê a conversa mas não coordena", () => {
+    const f = { ...base, escopoGlobalPerfil: true, perfilChave: "administrativo", enxergaProjeto: true };
+    expect(podeVerConversa(f)).toBe(true);
+    expect(coordenaOProjeto(f)).toBe(false);
   });
 });
 

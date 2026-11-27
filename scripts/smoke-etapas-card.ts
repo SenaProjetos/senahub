@@ -11,6 +11,7 @@ import type { notificarMuitos } from "../src/lib/notificar";
 import { semearEtapasPadrao } from "../src/modules/projetos/etapas-service";
 import { listarTiposEmpreendimento } from "../src/modules/projetos/tipos-empreendimento/queries";
 import { desfazerEnvioEtapa, enviarEtapaParaAnalise } from "../src/modules/projetos/envio-etapa-service";
+import { coordenadoresDoProjeto } from "../src/modules/projetos/coordenacao-queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -104,15 +105,20 @@ async function main() {
 
     // ── 2. Enviar para análise ──
     await prisma.disciplinaResponsavel.create({ data: { disciplinaId: dPredio.id, userId: proj.id } });
-    await prisma.projetoMembro.create({ data: { projetoId: predio.id, userId: coord.id, papel: "Coordenador" } });
-    await prisma.projetoMembro.create({ data: { projetoId: predio.id, userId: membro.id, papel: "projetista" } });
+    // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`). O do smoke não tem escopo
+    // global; um Coordenador com escopo global no banco coordena todos os projetos e entra na conta como `globais`.
+    const globais = await coordenadoresDoProjeto(predio.id);
+    await prisma.user.update({ where: { id: coord.id }, data: { perfil: { connect: { chave: "coordenador" } } } });
+    await prisma.permissaoUsuario.create({ data: { userId: coord.id, recurso: "escopo", acao: "global", permitido: false, motivo: "smoke" } });
+    await prisma.projetoMembro.create({ data: { projetoId: predio.id, userId: coord.id } });
+    await prisma.projetoMembro.create({ data: { projetoId: predio.id, userId: membro.id } });
     const ep = await prisma.disciplinaEtapa.findFirstOrThrow({ where: { disciplinaId: dPredio.id, etapa: { sigla: "PL" } }, select: { id: true } });
 
     check("quem não é responsável não envia", (await erroDe(() => enviarEtapaParaAnalise({ etapaId: ep.id, userId: membro.id, notificar })))?.includes("responsável") === true);
     await enviarEtapaParaAnalise({ etapaId: ep.id, userId: proj.id, notificar });
     const depois = await prisma.disciplinaEtapa.findUniqueOrThrow({ where: { id: ep.id }, select: { status: true, entregueEm: true } });
     check("responsável envia: etapa fica Entregue, com data", depois.status === "entregue" && depois.entregueEm != null, depois);
-    check("avisa a coordenação — não o membro comum nem quem enviou", JSON.stringify(envios[0]?.userIds) === JSON.stringify([coord.id]), envios[0]);
+    check("avisa a coordenação — não o membro comum nem quem enviou", JSON.stringify([...(envios[0]?.userIds ?? [])].sort()) === JSON.stringify([...new Set([coord.id, ...globais])].sort()), envios[0]);
     check("enviar de novo é recusado", (await erroDe(() => enviarEtapaParaAnalise({ etapaId: ep.id, userId: proj.id, notificar })))?.includes("já foi enviada") === true);
 
     // ── 3. Desfazer ──

@@ -20,6 +20,12 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Equipe do projeto sem papel (novembro/2026)
+
+- A janela **Equipe do projeto** não pede mais o papel de cada pessoa: é só escolher quem faz parte.
+- Quem coordena o projeto passou a ser quem tem o **perfil de acesso Coordenador** e enxerga o projeto. Quem tem
+  acesso a todos os projetos coordena todos e recebe os avisos de coordenação de cada um.
+
 ## Horas da tarefa mais fáceis de preencher (novembro/2026)
 
 - **Perfil sem pessoa também ganha horas automáticas**: "(perfil) Projetista" numa tarefa de 10 dias já entra com 80 h.

@@ -165,12 +165,17 @@ async function main() {
     const contaA2 = await novaConta(cliA.id, "a2");
     const contaB = await novaConta(cliB.id, "b1");
     const contaInativo = await novaConta(cliInativo.id, "inat");
-    const coordU = await novoInterno("coord");
+    // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`); o escopo global já vem negado.
+    const comoCoordenador = async <T extends { id: string }>(u: T) => {
+      await prisma.user.update({ where: { id: u.id }, data: { perfil: { connect: { chave: "coordenador" } } } });
+      return u;
+    };
+    const coordU = await comoCoordenador(await novoInterno("coord"));
     const projetistaU = await novoInterno("projetista");
     const financeiroU = await novoInterno("financeiro");
-    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: coordU.id, papel: "coordenador" } });
-    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: projetistaU.id, papel: "projetista" } });
-    await prisma.projetoMembro.create({ data: { projetoId: projInativo.id, userId: coordU.id, papel: "coordenador" } });
+    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: coordU.id } });
+    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: projetistaU.id } });
+    await prisma.projetoMembro.create({ data: { projetoId: projInativo.id, userId: coordU.id } });
     const coord: Equipe = { userId: coordU.id, nome: coordU.name };
     const projetista: Equipe = { userId: projetistaU.id, nome: projetistaU.name };
     const c1: Conta = { userId: contaA1.id, nome: contaA1.name };
@@ -430,8 +435,8 @@ async function main() {
     const compOutra = await gravarComprovante({ aprovacaoId: a9.id, quem: coord, caminho: `smoke/${tag}-c9.pdf`, nome: "c9.pdf", tamanho: 10, tipo: "application/pdf" });
     check("comprovante inexistente recusa", (await motivoDe(() => porFora("nao-existe"))) === MOTIVO_COMPROVANTE);
     check("comprovante de outro pacote recusa", (await motivoDe(() => porFora(compOutra.comprovanteId))) === MOTIVO_COMPROVANTE);
-    const outroCoordU = await novoInterno("coord2");
-    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: outroCoordU.id, papel: "coordenador" } });
+    const outroCoordU = await comoCoordenador(await novoInterno("coord2"));
+    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: outroCoordU.id } });
     const compAlheio = await gravarComprovante({ aprovacaoId: a8.id, quem: { userId: outroCoordU.id, nome: outroCoordU.name }, caminho: `smoke/${tag}-c8b.pdf`, nome: "c8b.pdf", tamanho: 10, tipo: "application/pdf" });
     check("comprovante enviado por outra pessoa recusa", (await motivoDe(() => porFora(compAlheio.comprovanteId))) === MOTIVO_COMPROVANTE);
     const comp8Caminho = `smoke/${tag}-c8.pdf`;
@@ -465,8 +470,8 @@ async function main() {
       apagados >= 2 && sobrou.length === 1 && sobrou[0].id === comp8.comprovanteId,
     );
     // Coordenador de OUTRO projeto: não baixa o comprovante nem cancela pedido daqui.
-    const coordQ = await novoInterno("coordq");
-    await prisma.projetoMembro.create({ data: { projetoId: outroProj.id, userId: coordQ.id, papel: "coordenador" } });
+    const coordQ = await comoCoordenador(await novoInterno("coordq"));
+    await prisma.projetoMembro.create({ data: { projetoId: outroProj.id, userId: coordQ.id } });
     check("coordenador de outro projeto: comprovante = null", (await comprovanteParaEquipe(comp8.comprovanteId, coordQ.id)) === null);
     check("coordenador de outro projeto não cancela", (await motivoDe(() => cancelarAprovacao({ aprovacaoId: a9.id, quem: { userId: coordQ.id, nome: coordQ.name } }))) === MOTIVO_NAO_ENCONTRADO);
 

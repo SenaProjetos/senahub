@@ -113,16 +113,21 @@ async function main() {
     const joana = await novaConta(cliA.id, "Joana Prado", "joana");
     const contaB = await novaConta(cliB.id, "Bia Souza", "bia");
     const contaInativo = await novaConta(cliInativo.id, "Inês Inativa", "ines");
-    const coordU = await novoInterno("Carlos Mendes", "coord");
+    // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`); o escopo global já vem negado.
+    const comoCoordenador = async <T extends { id: string }>(u: T) => {
+      await prisma.user.update({ where: { id: u.id }, data: { perfil: { connect: { chave: "coordenador" } } } });
+      return u;
+    };
+    const coordU = await comoCoordenador(await novoInterno("Carlos Mendes", "coord"));
     const projetistaU = await novoInterno("Pedro Projetista", "projetista");
     const foraU = await novoInterno("Fora do Projeto", "fora");
-    for (const [p, u, papel] of [
-      [proj.id, coordU.id, "coordenador"],
-      [proj.id, projetistaU.id, "projetista"],
-      [projRascunho.id, coordU.id, "coordenador"],
-      [projInativo.id, coordU.id, "coordenador"],
+    for (const [p, u] of [
+      [proj.id, coordU.id],
+      [proj.id, projetistaU.id],
+      [projRascunho.id, coordU.id],
+      [projInativo.id, coordU.id],
     ] as const) {
-      await prisma.projetoMembro.create({ data: { projetoId: p, userId: u, papel } });
+      await prisma.projetoMembro.create({ data: { projetoId: p, userId: u } });
     }
 
     // ── EAP: 4 marcos com parcela de contrato + cronograma aprovado + BL-00 ──

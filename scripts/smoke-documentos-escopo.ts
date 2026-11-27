@@ -77,7 +77,7 @@ async function criarProjeto(sufixo: string, donoId: string, responsavelId: strin
         tipo: "particular",
         nome: `${TAG}_proj_${sufixo}`,
         clienteId: cliente.id,
-        membros: { create: [{ userId: donoId, papel: "coordenador" }] },
+        membros: { create: [{ userId: donoId }] },
         disciplinas: {
           create: [
             {

@@ -1,6 +1,5 @@
 "use client";
 
-import { PAPEIS_PROJETO, ROTULO_PAPEL, type PapelProjeto } from "@/modules/projetos/papeis";
 import type { Contratacao } from "@/generated/prisma/enums";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -18,13 +17,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Interno = { id: string; name: string; contratacao: Contratacao | null; cargo: string | null };
-/** `papel` vazio = "Sem papel". */
-type MembroLocal = { userId: string; papel: string };
-const SEM_PAPEL = "__sem_papel";
 
 export function EquipeManager({
   projetoId,
@@ -34,38 +29,30 @@ export function EquipeManager({
 }: {
   projetoId: string;
   internos: Interno[];
-  membrosAtuais: { userId: string; papel: string | null }[];
+  membrosAtuais: string[];
   compacto?: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
-  const [membros, setMembros] = useState<MembroLocal[]>([]);
+  const [membros, setMembros] = useState<string[]>([]);
   const [busca, setBusca] = useState("");
 
   function abrir() {
-    // Papel fora da lista fixa (dado antigo) aparece como "Sem papel" e é regravado como tal ao salvar.
-    setMembros(membrosAtuais.map((m) => ({ userId: m.userId, papel: m.papel && (PAPEIS_PROJETO as readonly string[]).includes(m.papel) ? m.papel : "" })));
+    setMembros(membrosAtuais);
     setBusca("");
     setOpen(true);
   }
 
   function toggle(userId: string) {
-    setMembros((prev) => {
-      if (prev.some((m) => m.userId === userId)) return prev.filter((m) => m.userId !== userId);
-      return [...prev, { userId, papel: "" }];
-    });
-  }
-
-  function setPapel(userId: string, papel: string) {
-    setMembros((prev) => prev.map((m) => (m.userId === userId ? { ...m, papel } : m)));
+    setMembros((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]));
   }
 
   function salvar() {
     start(async () => {
       const res = await definirMembros({
         projetoId,
-        membros: membros.map((m) => ({ userId: m.userId, papel: (PAPEIS_PROJETO as readonly string[]).includes(m.papel) ? (m.papel as PapelProjeto) : null })),
+        membros: membros.map((userId) => ({ userId })),
       });
       if (res.ok) {
         toast.success("Equipe atualizada.");
@@ -77,7 +64,7 @@ export function EquipeManager({
     });
   }
 
-  const selecionados = new Set(membros.map((m) => m.userId));
+  const selecionados = new Set(membros);
 
   return (
     <>
@@ -103,8 +90,8 @@ export function EquipeManager({
           <DialogHeader>
             <DialogTitle>Equipe do projeto</DialogTitle>
             <DialogDescription>
-              Adicione membros e defina o papel de cada um. Responsáveis de disciplinas
-              entram na equipe automaticamente.
+              Adicione as pessoas da equipe. Responsáveis de disciplinas entram na equipe
+              automaticamente. Quem tem o perfil de acesso Coordenador coordena o projeto.
             </DialogDescription>
           </DialogHeader>
 
@@ -116,6 +103,7 @@ export function EquipeManager({
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar por nome…"
+                aria-label="Buscar pessoa por nome"
                 className="h-8 text-sm"
               />
               <div className="max-h-40 divide-y overflow-y-auto rounded-sm border">
@@ -141,25 +129,12 @@ export function EquipeManager({
 
               {membros.length > 0 && (
                 <div className="divide-y rounded-sm border">
-                  {membros.map((m) => {
-                    const u = internos.find((x) => x.id === m.userId);
+                  {membros.map((userId) => {
+                    const u = internos.find((x) => x.id === userId);
                     return (
-                      <div key={m.userId} className="flex items-center gap-2 p-2">
-                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{u?.name ?? m.userId}</span>
-                        <Select value={m.papel || SEM_PAPEL} onValueChange={(v) => setPapel(m.userId, !v || v === SEM_PAPEL ? "" : v)}>
-                          <SelectTrigger size="sm" className="w-44" aria-label={`Papel de ${u?.name ?? "membro"}`}>
-                            <SelectValue placeholder="Papel" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={SEM_PAPEL}>Sem papel</SelectItem>
-                            {PAPEIS_PROJETO.map((p) => (
-                              <SelectItem key={p} value={p}>
-                                {ROTULO_PAPEL[p]}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <button type="button" onClick={() => toggle(m.userId)} aria-label={`Remover ${u?.name ?? "membro"} da equipe`} className="text-muted-foreground hover:text-destructive">
+                      <div key={userId} className="flex items-center gap-2 p-2">
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{u?.name ?? "Usuário inativo"}</span>
+                        <button type="button" onClick={() => toggle(userId)} aria-label={`Remover ${u?.name ?? "membro"} da equipe`} className="rounded-sm text-muted-foreground outline-none hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring">
                           <X className="size-3.5" />
                         </button>
                       </div>

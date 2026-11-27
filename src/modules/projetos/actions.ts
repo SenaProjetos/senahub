@@ -66,12 +66,14 @@ import { motivoCodigoTravado } from "@/modules/projetos/cadastro-disciplina";
 import { versaoVigenteHoje } from "@/modules/projetos/nomenclatura/versoes-queries";
 import { MOTIVO_STATUS_DAS_FASES, statusVemDasFases } from "./status-pelas-fases";
 import { recalcularStatusDisciplina, travarDisciplina } from "./status-pelas-fases-service";
+import { PERFIL_COORDENADOR } from "./coordenacao";
 
 
 /**
  * Após remover responsáveis de uma disciplina, tira da "Equipe do projeto" (ProjetoMembro)
- * quem não responde por nenhuma outra disciplina do projeto — exceto membros com papel
- * explícito, que foram adicionados deliberadamente pelo EquipeManager.
+ * quem não responde por nenhuma outra disciplina do projeto — exceto quem tem o perfil
+ * Coordenador, que coordena o projeto por estar na equipe (`projetos/coordenacao.ts`; até
+ * 2026-11-27 a exceção era o papel explícito do membro, que saiu).
  */
 async function podarMembrosSemVinculo(
   tx: Prisma.TransactionClient,
@@ -87,7 +89,7 @@ async function podarMembrosSemVinculo(
   const podar = removidosIds.filter((id) => !aindaSet.has(id));
   if (podar.length > 0) {
     await tx.projetoMembro.deleteMany({
-      where: { projetoId, userId: { in: podar }, papel: null },
+      where: { projetoId, userId: { in: podar }, NOT: { user: { perfil: { chave: PERFIL_COORDENADOR } } } },
     });
   }
 }
@@ -665,11 +667,10 @@ export const definirMembros = defineAction(
     entidadeId: (d, i) => ((d ?? i) as { projetoId: string }).projetoId,
   },
   noEscopoDoProjeto(async (i) => i.projetoId, async (input) => {
-    // P-04: grava papel por membro.
     await prisma.$transaction([
       prisma.projetoMembro.deleteMany({ where: { projetoId: input.projetoId } }),
       prisma.projetoMembro.createMany({
-        data: input.membros.map((m) => ({ projetoId: input.projetoId, userId: m.userId, papel: m.papel ?? null })),
+        data: input.membros.map((m) => ({ projetoId: input.projetoId, userId: m.userId })),
         skipDuplicates: true,
       }),
     ]);
@@ -799,7 +800,7 @@ export const editarDisciplinasEmMassa = defineAction(
           await sincronizarPagamentosPorDisciplinaId(tx, disciplinaId, ctx.user.id);
         }
         // Mesma poda dos outros caminhos: quem saiu e não responde por mais nada no projeto sai da
-        // equipe (sem papel explícito) — senão continuaria podendo marcar horas no projeto (R2).
+        // equipe (salvo o perfil Coordenador) — senão continuaria podendo marcar horas no projeto (R2).
         await podarMembrosSemVinculo(tx, input.projetoId, [...sairam]);
       });
       // Quem saiu da disciplina sai também do chat dela (e do projeto, se não tem outro vínculo).
@@ -1069,7 +1070,7 @@ export const excluirDisciplina = defineAction(
     await prisma.$transaction(async (tx) => {
       await tx.disciplina.delete({ where: { id: input.disciplinaId } });
       // Mesma poda do editarDisciplina: responsáveis que só existiam nesta disciplina
-      // saem da equipe (ProjetoMembro sem papel explícito).
+      // saem da equipe (salvo o perfil Coordenador).
       await podarMembrosSemVinculo(
         tx,
         disciplina.projetoId,

@@ -37,6 +37,7 @@ import {
 } from "../src/modules/portal/mensagens/service";
 import { conversaParaCliente, conversaParaEquipe, conversasDaEquipe } from "../src/modules/portal/mensagens/queries";
 import { avisarMensagemNova, type AvisarMensagem } from "../src/modules/portal/mensagens/avisos";
+import { coordenadoresDoProjeto } from "../src/modules/projetos/coordenacao-queries";
 import {
   MOTIVO_ANEXOS_MAX,
   MOTIVO_DECISAO_JA_MARCADA,
@@ -129,8 +130,7 @@ async function main() {
     };
     const override = (userId: string, recurso: string, acao: string, permitido: boolean) =>
       prisma.permissaoUsuario.create({ data: { userId, recurso, acao, permitido, motivo: `smoke ${tag}` } });
-    const membro = (projetoId: string, userId: string, papel: string) =>
-      prisma.projetoMembro.create({ data: { projetoId, userId, papel } });
+    const membro = (projetoId: string, userId: string) => prisma.projetoMembro.create({ data: { projetoId, userId } });
 
     const cliA = await novoCliente("cliA");
     const cliB = await novoCliente("cliB");
@@ -151,9 +151,10 @@ async function main() {
     const perfilCoord = await prisma.perfilAcesso.findUnique({ where: { chave: "coordenador" }, select: { id: true } });
     if (!perfilCoord) throw new Error("perfil 'coordenador' não existe no banco de dev (rode npm run db:seed)");
 
-    const coord = await novoInterno("coord");
+    // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`).
+    const coord = await novoInterno("coord", perfilCoord.id);
     const projetista = await novoInterno("projetista");
-    const coordOutro = await novoInterno("coordoutro");
+    const coordOutro = await novoInterno("coordoutro", perfilCoord.id);
     // Perfil Coordenador sem escopo global (override nega): vê só o que o escopo de dados mostra.
     const perfilSemVer = await novoInterno("perfilsemver", perfilCoord.id);
     const perfilVendo = await novoInterno("perfilvendo", perfilCoord.id);
@@ -164,16 +165,19 @@ async function main() {
     const gestor = await novoInterno("gestor");
     await override(gestor.id, "escopo", "global", true);
     await override(gestor.id, "notificacoes", "gestao", true);
-    const coordCorrida = await novoInterno("coordcorrida");
+    const coordCorrida = await novoInterno("coordcorrida", perfilCoord.id);
     await override(coordCorrida.id, "escopo", "global", false);
     await override(coordCorrida.id, "notificacoes", "gestao", false);
 
-    await membro(projP.id, coord.id, "coordenador");
-    await membro(projP.id, projetista.id, "projetista");
-    await membro(projP.id, perfilVendo.id, "projetista");
-    await membro(projQ.id, coordOutro.id, "coordenador");
-    await membro(projSemCoord.id, projetista.id, "projetista");
-    await membro(projCorrida.id, coordCorrida.id, "coordenador");
+    // Um Coordenador com escopo global no banco coordena todos os projetos (decisão do dono, 2026-11-27): entra nas
+    // contas como `globais` (nenhum usuário do smoke tem escopo global como Coordenador).
+    const globais = await coordenadoresDoProjeto(projSemCoord.id);
+    await membro(projP.id, coord.id);
+    await membro(projP.id, projetista.id);
+    await membro(projP.id, perfilVendo.id);
+    await membro(projQ.id, coordOutro.id);
+    await membro(projSemCoord.id, projetista.id);
+    await membro(projCorrida.id, coordCorrida.id);
 
     const cliente = (u: { id: string; name: string }): Autor => ({ userId: u.id, nome: u.name, lado: "cliente" });
     const equipe = (u: { id: string; name: string }): Autor => ({ userId: u.id, nome: u.name, lado: "equipe" });
@@ -204,23 +208,29 @@ async function main() {
     limpar();
     const r1 = await avisarMensagemNova(m1.mensagemId, deps);
     check(
-      "[avisos] cliente escreve: coordenador membro recebe sino e e-mail (template equipe→cliente certo, sem o texto)",
-      sinosDe(coord.id) === 1 &&
-        sinos.find((s) => s.userId === coord.id)?.categoria === "mensagem_cliente" &&
-        sinos.find((s) => s.userId === coord.id)?.href === `/projetos/${projP.id}/cliente` &&
-        emailsPara(coord.email) === 1 &&
-        emails[0]?.slug === "portal-mensagem-cliente" &&
-        emails[0]?.vars.autor === contaA1.name &&
-        emails[0]?.vars.projeto === projP.nome &&
-        emails[0]?.vars.url.endsWith(`/projetos/${projP.id}/cliente`) &&
+      "[avisos] cliente escreve: a coordenação (perfil Coordenador que enxerga o projeto) recebe sino e e-mail (template equipe→cliente certo, sem o texto)",
+      [coord, perfilVendo].every(
+        (u) =>
+          sinosDe(u.id) === 1 &&
+          sinos.find((s) => s.userId === u.id)?.categoria === "mensagem_cliente" &&
+          sinos.find((s) => s.userId === u.id)?.href === `/projetos/${projP.id}/cliente` &&
+          emailsPara(u.email) === 1,
+      ) &&
+        emails.every(
+          (e) =>
+            e.slug === "portal-mensagem-cliente" &&
+            e.vars.autor === contaA1.name &&
+            e.vars.projeto === projP.nome &&
+            e.vars.url.endsWith(`/projetos/${projP.id}/cliente`),
+        ) &&
         !JSON.stringify(emails).includes("revestimento") &&
         !JSON.stringify(sinos).includes("revestimento") &&
-        r1.sinos === 1 &&
-        r1.emails === 1,
+        r1.sinos === 2 + globais.length &&
+        r1.emails === 2 + globais.length,
     );
     check(
-      "[avisos] projetista, coordenador de outro projeto, perfil Coordenador (vendo ou não) e o próprio autor: sem sino nem e-mail",
-      [projetista, coordOutro, perfilSemVer, perfilVendo, contaA1, contaA2, gestor].every((u) => sinosDe(u.id) === 0 && emailsPara(u.email) === 0),
+      "[avisos] projetista, coordenador de outro projeto, perfil Coordenador sem ver o projeto e o próprio autor: sem sino nem e-mail",
+      [projetista, coordOutro, perfilSemVer, contaA1, contaA2, gestor].every((u) => sinosDe(u.id) === 0 && emailsPara(u.email) === 0),
     );
     check(
       "[socket] 'portal-conversa' com só o projetoId para a audiência e as contas do cliente; nunca projetista, outro coordenador, perfil sem ver ou outro cliente",
@@ -286,8 +296,14 @@ async function main() {
     limpar();
     await avisarMensagemNova(mSem.mensagemId, deps);
     check(
-      "[avisos] projeto sem coordenador: o gestor global recebe; projetista e o autor não",
-      sinosDe(gestor.id) === 1 && emailsPara(gestor.email) === 1 && sinosDe(projetista.id) === 0 && sinosDe(contaA2.id) === 0,
+      globais.length === 0
+        ? "[avisos] projeto sem coordenador: o gestor global recebe; projetista e o autor não"
+        : "[avisos] projeto sem ninguém da coordenação na equipe: o Coordenador de escopo global (o banco tem) recebe, não o gestor; projetista e o autor não",
+      (globais.length === 0
+        ? sinosDe(gestor.id) === 1 && emailsPara(gestor.email) === 1
+        : globais.every((id) => sinosDe(id) === 1) && sinosDe(gestor.id) === 0) &&
+        sinosDe(projetista.id) === 0 &&
+        sinosDe(contaA2.id) === 0,
     );
 
     // ── dez mensagens da equipe = um e-mail por conta ───────────────────────────────────────

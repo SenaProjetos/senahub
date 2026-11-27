@@ -226,7 +226,7 @@ function Conteudo({ alvo, fechar }: { alvo: AlvoLink; fechar: () => void }) {
               ))}
               {previa.coordenador && (
                 <p>
-                  <span className="text-muted-foreground">Vai incluir como coordenador:</span> {previa.coordenador.nome}
+                  <span className="text-muted-foreground">Vai incluir na equipe:</span> {previa.coordenador.nome}
                 </p>
               )}
               {previa.preencheTexto.length === 0 && previa.mantemTexto.length === 0 && !previa.coordenador && (

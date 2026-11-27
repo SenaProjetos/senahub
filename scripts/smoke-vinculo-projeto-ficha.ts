@@ -112,7 +112,7 @@ async function main() {
     check("4b. valor e área preenchidos", Number(p1depois?.valorContrato) === 150000 && Number(p1depois?.areaM2) === 320.5);
     check("4c. 2 documentos na Geral (origem interno), categoria Comercial", docs.length === 2 && docs.every((d) => d.origem === "interno" && d.categoria === "Comercial"));
     check("4d. exibirEmRecebidos só no marcado", docs.filter((d) => d.exibirEmRecebidos).length === 1 && docs.find((d) => d.exibirEmRecebidos)?.nome === "Solicitacao");
-    check("4e. coordenador criado como membro", (await prisma.projetoMembro.count({ where: { projetoId: p1.id, userId: usuario.id, papel: "coordenador" } })) === 1);
+    check("4e. responsável da ficha criado como membro", (await prisma.projetoMembro.count({ where: { projetoId: p1.id, userId: usuario.id } })) === 1);
     check("4f. evento na timeline da ficha", (await prisma.atividade.count({ where: { negociacaoId: ficha.id, descricao: { contains: "linkado" } } })) === 1);
     check("4g. resultado informa 2 arquivos", r1.arquivos === 2 && r1.coordenadorCriado);
 

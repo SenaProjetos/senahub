@@ -9,6 +9,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import type { notificarMuitos } from "../src/lib/notificar";
 import { avisarCardConcluido } from "../src/modules/planejamento/conclusao-aviso-service";
+import { coordenadoresDoProjeto } from "../src/modules/projetos/coordenacao-queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -50,21 +51,38 @@ async function main() {
     prisma.tarefa.create({ data: { titulo, statusId: status.id, projetoId, criadorId: resp.id, eapTarefaId: eapTarefaId ?? null } });
 
   try {
-    await prisma.projetoMembro.create({ data: { projetoId: comCoord.id, userId: coord.id, papel: "Coordenador" } });
+    // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`): o do smoke, sem escopo
+    // global, coordena só o projeto em que está na equipe. Um Coordenador com escopo global no banco coordena
+    // TODOS os projetos (decisão do dono, 2026-11-27), então entra em toda conta como `globais`.
+    await prisma.user.update({ where: { id: coord.id }, data: { perfil: { connect: { chave: "coordenador" } } } });
+    await prisma.permissaoUsuario.create({ data: { userId: coord.id, recurso: "escopo", acao: "global", permitido: false, motivo: "smoke" } });
+    await prisma.projetoMembro.create({ data: { projetoId: comCoord.id, userId: coord.id } });
+    const globais = await coordenadoresDoProjeto(semCoord.id);
+    const esperado = (autorId: string, ...ids: string[]) => [...new Set([...ids, ...globais])].filter((id) => id !== autorId).sort();
 
     const l1 = await linha(comCoord.id, "Modelagem");
     const c1 = await card(comCoord.id, "Modelagem", l1.id);
     let x = await rodar(c1.id);
-    check("avisa a coordenação do projeto, na categoria atividade_concluida", JSON.stringify(x.envio?.userIds) === JSON.stringify([coord.id]) && x.envio?.categoria === "atividade_concluida", x.envio);
+    check("avisa a coordenação do projeto, na categoria atividade_concluida", JSON.stringify(x.envio?.userIds) === JSON.stringify(esperado(resp.id, coord.id)) && x.envio?.categoria === "atividade_concluida", x.envio);
     check("o título diz a atividade", x.envio?.titulo === "Atividade concluída: Modelagem", x.envio?.titulo);
 
     x = await rodar(c1.id, coord.id);
-    check("quem concluiu não é avisado do que ele mesmo fez", x.r.avisados === 0 && !x.envio, x);
+    check(
+      "quem concluiu não é avisado do que ele mesmo fez",
+      globais.length === 0 ? x.r.avisados === 0 && !x.envio : !x.envio?.userIds.includes(coord.id) && JSON.stringify(x.envio?.userIds) === JSON.stringify(esperado(coord.id)),
+      x,
+    );
 
     const l2 = await linha(semCoord.id, "Documentação");
     const c2 = await card(semCoord.id, "Documentação", l2.id);
     x = await rodar(c2.id);
-    check("sem coordenador no projeto, cai nos gestores (admin/supervisor)", x.envio?.userIds.includes(gestor.id) === true && !x.envio.userIds.includes(resp.id), x.envio);
+    check(
+      globais.length === 0 ? "sem coordenador no projeto, cai nos gestores (admin/supervisor)" : "sem ninguém na equipe, avisa o Coordenador de escopo global (o banco tem)",
+      globais.length === 0
+        ? x.envio?.userIds.includes(gestor.id) === true && !x.envio.userIds.includes(resp.id)
+        : JSON.stringify(x.envio?.userIds) === JSON.stringify(esperado(resp.id)),
+      x.envio,
+    );
 
     const c3 = await card(comCoord.id, "Card manual");
     x = await rodar(c3.id);

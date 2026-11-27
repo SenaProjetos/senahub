@@ -20,6 +20,7 @@ import { diaLocal } from "../src/modules/ponto/engine";
 import { planoDoProjeto } from "../src/modules/planejamento/agenda";
 import { avisarCascata, fotoAntesDaDataReal, fotoAntesDaDataStatus } from "../src/modules/planejamento/cascata-service";
 import { registrarExecucaoNaLinha } from "../src/modules/planejamento/execucao-service";
+import { coordenadoresDoProjeto } from "../src/modules/projetos/coordenacao-queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -80,14 +81,22 @@ async function main() {
   const X = await novoProjeto("X");
   const Y = await novoProjeto("Y");
   const projetos = [P.id, Q.id, W.id, X.id, Y.id];
+  // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`). Os do smoke não têm escopo
+  // global; um Coordenador com escopo global no banco coordena todos os projetos e entra na conta como `globais`.
+  const globais = await coordenadoresDoProjeto(P.id);
+  const esperados = (...ids: string[]) => JSON.stringify([...new Set([...ids, ...globais])].sort());
+  for (const u of [coordP, coordQ, coordW, autor]) {
+    await prisma.user.update({ where: { id: u.id }, data: { perfil: { connect: { chave: "coordenador" } } } });
+    await prisma.permissaoUsuario.create({ data: { userId: u.id, recurso: "escopo", acao: "global", permitido: false, motivo: "smoke" } });
+  }
   await prisma.projetoMembro.createMany({
     data: [
-      { projetoId: P.id, userId: coordP.id, papel: "coordenador" },
-      { projetoId: Q.id, userId: coordQ.id, papel: "coordenador" },
+      { projetoId: P.id, userId: coordP.id },
+      { projetoId: Q.id, userId: coordQ.id },
       // Quem grava também coordena o Q: não recebe o aviso do que ele mesmo fez.
-      { projetoId: Q.id, userId: autor.id, papel: "coordenador" },
-      { projetoId: W.id, userId: coordW.id, papel: "coordenador" },
-      { projetoId: Y.id, userId: coordQ.id, papel: "Coordenação" },
+      { projetoId: Q.id, userId: autor.id },
+      { projetoId: W.id, userId: coordW.id },
+      { projetoId: Y.id, userId: coordQ.id },
     ],
   });
 
@@ -126,7 +135,7 @@ async function main() {
     check("a coordenação do Q foi avisada (e a tela diz isso)", comQ?.coordenacaoAvisada === true, comQ);
     check(
       "um aviso só, para a coordenação do Q, sem quem gravou e sem a coordenação do P e do W",
-      envios.length === 1 && JSON.stringify(envios[0].userIds) === JSON.stringify([coordQ.id]),
+      envios.length === 1 && JSON.stringify(envios[0].userIds) === esperados(coordQ.id),
       envios,
     );
     check(
@@ -163,15 +172,17 @@ async function main() {
     check("a Data de Status de hoje empurra o trabalho não feito do X para depois dela", depoisX1 != null && depoisX1.inicio > antesX1.inicio, { antesX1, depoisX1 });
     const avisoDs = await avisarCascata({ antes: antesDs, origem: "data_status", autorId: autor.id, verCargaDaEquipe: async () => true, enviar });
     check(
-      "o X encosta no Y: conflito novo, origem Data de Status, coordenação do Y (papel \"Coordenação\") avisada",
+      "o X encosta no Y: conflito novo, origem Data de Status, coordenação do Y avisada",
       avisoDs?.origem === "data_status" && avisoDs.conflitos.some((c) => c.outro?.codigo === Y.codigo && c.coordenacaoAvisada) &&
-        envios.length === 1 && envios[0].href === `/planejamento/${Y.id}` && JSON.stringify(envios[0].userIds) === JSON.stringify([coordQ.id]),
+        envios.length === 1 && envios[0].href === `/planejamento/${Y.id}` && JSON.stringify(envios[0].userIds) === esperados(coordQ.id),
       { avisoDs, envios },
     );
     check("a mesma Data de Status de novo não dispara", (await fotoAntesDaDataStatus(X.id, hoje)) === null);
 
     // ── 4. Sem recursos:ver ─────────────────────────────────────────────────
     envios.length = 0;
+    // O perfil Coordenador pode dar recursos:ver; aqui a coordenação do Y fica sem, para o texto sem o projeto de origem.
+    const semVer = await prisma.permissaoUsuario.create({ data: { userId: coordQ.id, recurso: "recursos", acao: "ver", permitido: false, motivo: "smoke" } });
     await prisma.cronogramaProjeto.update({ where: { projetoId: X.id }, data: { dataStatus: null } });
     const antesSem = await fotoAntesDaDataStatus(X.id, hoje);
     await prisma.cronogramaProjeto.update({ where: { projetoId: X.id }, data: { dataStatus: d(hoje) } });
@@ -181,11 +192,13 @@ async function main() {
       (avisoSem?.conflitos.length ?? 0) > 0 && avisoSem!.conflitos.every((c) => c.outro === null),
       avisoSem,
     );
+    const paraQ = envios.filter((e) => e.userIds.includes(coordQ.id));
     check(
       "o aviso à coordenação sem recursos:ver não cita o projeto de origem",
-      envios.length === 1 && /em outro cronograma/.test(envios[0].corpo ?? "") && !(envios[0].corpo ?? "").includes(X.codigo),
+      paraQ.length === 1 && /em outro cronograma/.test(paraQ[0].corpo ?? "") && !(paraQ[0].corpo ?? "").includes(X.codigo),
       envios,
     );
+    await prisma.permissaoUsuario.delete({ where: { id: semVer.id } });
 
     // ── 5. Coordenação que desligou o aviso ─────────────────────────────────
     envios.length = 0;
@@ -195,8 +208,12 @@ async function main() {
     await prisma.cronogramaProjeto.update({ where: { projetoId: X.id }, data: { dataStatus: d(hoje) } });
     const avisoOpt = await avisarCascata({ antes: antesOpt, origem: "data_status", autorId: autor.id, verCargaDaEquipe: async () => true, enviar });
     check(
-      "a única coordenação desligou o aviso: ninguém recebe e a tela não diz \"foi avisada\"",
-      (avisoOpt?.conflitos.length ?? 0) > 0 && avisoOpt!.conflitos.every((c) => !c.coordenacaoAvisada) && envios.length === 0,
+      globais.length === 0
+        ? "a única coordenação desligou o aviso: ninguém recebe e a tela não diz \"foi avisada\""
+        : "a coordenação da equipe desligou o aviso: só o Coordenador de escopo global (o banco tem) recebe",
+      globais.length === 0
+        ? (avisoOpt?.conflitos.length ?? 0) > 0 && avisoOpt!.conflitos.every((c) => !c.coordenacaoAvisada) && envios.length === 0
+        : (avisoOpt?.conflitos.length ?? 0) > 0 && envios.length === 1 && JSON.stringify(envios[0].userIds) === JSON.stringify([...globais].sort()),
       { avisoOpt, envios },
     );
   } finally {

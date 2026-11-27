@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { podeAtuarEmDisciplinaAlheia } from "@/lib/permissions";
 import { podeEscreverNaCoordenacao, podeEscreverNoDiario, podeGerirEntrada } from "./acesso";
-import { ehCoordenador } from "@/modules/projetos/papeis";
+import { coordenoOProjeto } from "@/modules/projetos/coordenacao-queries";
 import type { SessionUser } from "@/lib/session";
 
 export type EntradaDiario = {
@@ -85,10 +85,9 @@ export type DiarioCoordenacao = {
   entradas: EntradaCoordenacao[];
 };
 
-/** Coordenador DESTE projeto: papel `coordenador` como membro OU perfil de acesso coordenador. */
+/** Coordenador DESTE projeto: perfil de acesso Coordenador que enxerga o projeto (`coordenacao.ts`). */
 export async function ehCoordenadorDoProjeto(user: SessionUser, projetoId: string): Promise<boolean> {
-  const membro = await prisma.projetoMembro.findFirst({ where: { projetoId, userId: user.id }, select: { papel: true } });
-  return ehCoordenador({ papelNoProjeto: membro?.papel ?? null, perfilChave: user.perfilChave });
+  return coordenoOProjeto(user, projetoId);
 }
 
 /**

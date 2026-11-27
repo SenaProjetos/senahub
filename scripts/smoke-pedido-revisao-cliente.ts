@@ -48,6 +48,7 @@ import { MOTIVO_SEM_ESCALA } from "../src/modules/portal/pedido-revisao/conversa
 import { criarPendenciaNoTx } from "../src/modules/projetos/pendencias/criar-service";
 import { existeArquivo, removerArquivo, salvarArquivo } from "../src/lib/storage";
 import type { SessionUser } from "../src/lib/session";
+import { coordenadoresDoProjeto } from "../src/modules/projetos/coordenacao-queries";
 import { refDocumento } from "../src/modules/coordenacao/modelo-ref";
 import { criarApontamentoCoordenacaoNoTx } from "../src/modules/coordenacao/apontamento-service";
 import { MAX_PEDIDOS_AGUARDANDO, MOTIVO_PRANCHA_RETIRADA } from "../src/modules/portal/pedido-revisao/regras";
@@ -387,20 +388,35 @@ async function main() {
     const notificarMuitosFalso = async (ids: string[], n: { titulo: string; href?: string }, o?: { categoria?: string }) => {
       sinos.push({ ids, titulo: n.titulo, href: n.href, categoria: o?.categoria });
     };
+    // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`). Um Coordenador com escopo
+    // global do banco de dev coordena todos os projetos, então os ids são conferidos por inclusão, não por igualdade.
+    const coordenadorDoSmoke = async (sufixo: string, perms: [string, string, boolean][]) => {
+      const u = await prisma.user.create({
+        data: { name: `${tag} ${sufixo}`, email: `${tag.toLowerCase()}_${sufixo}@smoke.local`, tipo: "interno", perfil: { connect: { chave: "coordenador" } } },
+      });
+      usuarios.push(u.id);
+      for (const [recurso, acao, permitido] of [["escopo", "global", false], ...perms] as [string, string, boolean][]) {
+        await prisma.permissaoUsuario.create({ data: { userId: u.id, recurso, acao, permitido, motivo: "smoke" } });
+      }
+      return u;
+    };
     const semCoord = await avisarPedidoNovo(pm.id, notificarMuitosFalso);
     const gestoresIds = sinos[0]?.ids ?? [];
-    await prisma.projetoMembro.create({ data: { projetoId: p1.id, userId: coord.id, papel: "coordenador" } });
+    const coordP1 = await coordenadorDoSmoke("coordp1", [["arquivos", "alterar_status", true]]);
+    await prisma.projetoMembro.create({ data: { projetoId: p1.id, userId: coordP1.id } });
     sinos.length = 0;
     const comCoord = await avisarPedidoNovo(pm.id, notificarMuitosFalso);
+    const coordenacaoP1 = await coordenadoresDoProjeto(p1.id);
     check(
       "pedido novo avisa a coordenação (ou gestores sem coordenador)",
       semCoord.avisados > 0 &&
         gestoresIds.length > 0 &&
-        comCoord.avisados === 1 &&
-        JSON.stringify(sinos[0]?.ids) === JSON.stringify([coord.id]) &&
+        (sinos[0]?.ids ?? []).includes(coordP1.id) &&
+        (sinos[0]?.ids ?? []).every((id) => coordenacaoP1.includes(id)) &&
+        comCoord.avisados === (sinos[0]?.ids ?? []).length &&
         sinos[0]?.categoria === "pedido_revisao_cliente" &&
         sinos[0]?.href === `/arquivos/pedidos-cliente/${pm.id}`,
-      { semCoord, comCoord, sinos },
+      { semCoord, comCoord, sinos, coordenacaoP1 },
     );
     const sinoCliente: { id: string; titulo: string }[] = [];
     const emails: { to: string; slug: string; vars: Record<string, string> }[] = [];
@@ -428,14 +444,13 @@ async function main() {
     check("sem SMTP: só o sino", semSmtp.sino && !semSmtp.email);
 
     // ── quem não pode abrir a fila não recebe o sino ──
-    const semPerm = await prisma.user.create({ data: { name: `${tag} sem permissão`, email: `${tag.toLowerCase()}_semperm@smoke.local`, tipo: "interno" } });
-    usuarios.push(semPerm.id);
-    await prisma.projetoMembro.create({ data: { projetoId: p1.id, userId: semPerm.id, papel: "coordenador" } });
+    const semPerm = await coordenadorDoSmoke("semperm", [["arquivos", "alterar_status", false]]);
+    await prisma.projetoMembro.create({ data: { projetoId: p1.id, userId: semPerm.id } });
     sinos.length = 0;
     await avisarPedidoNovo(pm.id, notificarMuitosFalso);
     check(
       "coordenador sem arquivos:alterar_status não recebe o aviso do pedido",
-      JSON.stringify(sinos[0]?.ids) === JSON.stringify([coord.id]),
+      (sinos[0]?.ids ?? []).includes(coordP1.id) && !(sinos[0]?.ids ?? []).includes(semPerm.id),
       sinos[0]?.ids,
     );
 
@@ -707,13 +722,21 @@ async function main() {
       // Responsável da disciplina com arquivos:alterar_status + coordenacao:gerir, mas sem ver todas as disciplinas: a
       // fila não lhe mostra o pedido 3D, então ele também não decide (nem baixa anexo). Coordenador só com
       // alterar_status: não recebe o aviso do pedido 3D.
+      // Perfil Coordenador (é da coordenação do projeto) com as permissões do perfil trocadas pelas listadas: o que não
+      // está na lista é negado, para o caso não depender do que o perfil semente do banco concede.
+      const PERMS_DO_3D: [string, string][] = [
+        ["projetos", "ver"],
+        ["arquivos", "alterar_status"],
+        ["arquivos", "ver_todas_disciplinas"],
+        ["coordenacao", "gerir"],
+        ["coordenacao", "ver"],
+      ];
       const pessoaCom = async (sufixo: string, perms: [string, string][]) => {
-        const u = await prisma.user.create({ data: { name: `${tag} ${sufixo}`, email: `${tag.toLowerCase()}_${sufixo}@smoke.local`, tipo: "interno" } });
-        usuarios.push(u.id);
-        for (const [recurso, acao] of perms) {
-          await prisma.permissaoUsuario.create({ data: { userId: u.id, recurso, acao, permitido: true, motivo: "smoke" } });
-        }
-        await prisma.projetoMembro.create({ data: { projetoId: p3d.id, userId: u.id, papel: "coordenador" } });
+        const u = await coordenadorDoSmoke(
+          sufixo,
+          PERMS_DO_3D.map(([recurso, acao]) => [recurso, acao, perms.some(([r, a]) => r === recurso && a === acao)]),
+        );
+        await prisma.projetoMembro.create({ data: { projetoId: p3d.id, userId: u.id } });
         return u;
       };
       const resp = await pessoaCom("resp", [
@@ -728,7 +751,7 @@ async function main() {
         ["arquivos", "alterar_status"],
         ["arquivos", "ver_todas_disciplinas"],
       ]);
-      await prisma.projetoMembro.create({ data: { projetoId: p3d.id, userId: coord.id, papel: "coordenador" } });
+      const coord3d = await pessoaCom("coord3d", PERMS_DO_3D);
       const filaResp = await pedidosParaCoordenacao(sessao(resp.id, false), "aguardando");
       check(
         "responsável de disciplina sem ver todas: pedido 3D fora da fila e recusado no aceite/recusa (passa na muralha da revisão)",
@@ -742,7 +765,7 @@ async function main() {
       });
       check(
         "aviso do pedido 3D: só coordenador com coordenacao:gerir e todas as disciplinas",
-        JSON.stringify(sinosAud[0]) === JSON.stringify([coord.id]) && !sinosAud.flat().includes(semGerir.id) && !sinosAud.flat().includes(resp.id),
+        (sinosAud[0] ?? []).includes(coord3d.id) && !sinosAud.flat().includes(semGerir.id) && !sinosAud.flat().includes(resp.id),
         sinosAud,
       );
 

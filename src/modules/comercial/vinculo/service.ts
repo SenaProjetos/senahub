@@ -79,7 +79,7 @@ export async function vincularProjetoNaFicha(user: SessionUser, input: EntradaVi
 
       if (plano.coordenadorId) {
         await tx.projetoMembro.createMany({
-          data: [{ projetoId: input.projetoId, userId: plano.coordenadorId, papel: "coordenador" }],
+          data: [{ projetoId: input.projetoId, userId: plano.coordenadorId }],
           skipDuplicates: true,
         });
       }

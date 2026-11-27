@@ -4,26 +4,25 @@ import { prisma } from "@/lib/prisma";
 import { podeVerCusto } from "@/lib/custo-visivel";
 import type { SubjectAutorizacao } from "@/lib/permissions";
 import { minutosSessao } from "@/modules/ponto/format";
-import { ehCoordenador } from "@/modules/projetos/papeis";
+import { ehPerfilCoordenador } from "@/modules/projetos/coordenacao";
 import { montarHorasPorDisciplina, type LinhaHoras } from "@/modules/projetos/horas-disciplina";
 
 /**
  * Horas por disciplina do projeto (R5 do rateio; decisões 16 e 19): orçado = horas da PRIMEIRA linha de
  * base (só linhas-folha), planejado = horas das atribuições da EAP de hoje, realizado = sessões do ponto
  * com a disciplina. O que cada um vê é decidido aqui (servidor): coordenador vê por pessoa; os demais,
- * só as próprias e o total; reais só para quem pode ver custo. Quem chama já conferiu o acesso ao projeto.
+ * só as próprias e o total (coordenação = `projetos/coordenacao.ts`); reais só para quem pode ver custo. Quem chama já conferiu o acesso ao projeto.
  */
 export async function horasPorDisciplina(
   viewer: SubjectAutorizacao & { ehSocio: boolean; perfilChave: string | null },
   projetoId: string,
 ): Promise<{ linhas: LinhaHoras[]; temLinhaDeBase: boolean; podeVerCusto: boolean }> {
-  const [disciplinas, membro, primeiraBase, atribuicoes, sessoes, custoVisivel] = await Promise.all([
+  const [disciplinas, primeiraBase, atribuicoes, sessoes, custoVisivel] = await Promise.all([
     prisma.disciplina.findMany({
       where: { projetoId },
       orderBy: { ordem: "asc" },
       select: { id: true, disciplinaTextoLegado: true, catalogo: { select: { nome: true } } },
     }),
-    prisma.projetoMembro.findFirst({ where: { projetoId, userId: viewer.id }, select: { papel: true } }),
     prisma.eapBaseline.findFirst({ where: { projetoId }, orderBy: { numero: "asc" }, select: { id: true } }),
     prisma.eapAtribuicao.findMany({
       // Atribuição só existe em linha de atividade; resumo é soma e contaria duas vezes.
@@ -58,7 +57,8 @@ export async function horasPorDisciplina(
     planejado: atribuicoes.map((a) => ({ disciplinaId: a.tarefa.disciplinaId!, horas: Number(a.horasPrevistas) })),
     realizado: sessoes.map((s) => ({ disciplinaId: s.disciplinaId!, userId: s.userId, nome: s.user.name, minutos: minutosSessao(s.inicio, s.fim) })),
     custo,
-    viewer: { userId: viewer.id, coordenador: ehCoordenador({ papelNoProjeto: membro?.papel ?? null, perfilChave: viewer.perfilChave }), podeVerCusto: custoVisivel },
+    // Coordenação = perfil Coordenador que enxerga o projeto; quem chama já conferiu que enxerga.
+    viewer: { userId: viewer.id, coordenador: ehPerfilCoordenador(viewer.perfilChave), podeVerCusto: custoVisivel },
   });
   return { linhas, temLinhaDeBase: !!primeiraBase, podeVerCusto: custoVisivel };
 }

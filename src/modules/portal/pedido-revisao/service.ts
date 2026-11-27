@@ -11,6 +11,7 @@ import { copiarArquivo, removerArquivo, salvarArquivo } from "@/lib/storage";
 import type { SessionUser } from "@/lib/session";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { destinatariosDaConclusao } from "@/modules/planejamento/conclusao-aviso";
+import { coordenadoresDoProjeto } from "@/modules/projetos/coordenacao-queries";
 import { acessoDoUsuarioAoProjetoDoPortal, type UsuarioDaSessao } from "@/modules/portal/acesso";
 import { uploadLiberadoNoAlcance } from "@/modules/projetos/arquivos/link-publico";
 import {
@@ -739,7 +740,7 @@ export async function anexoParaBaixar(
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Pedido novo: sino para a coordenação do projeto (membros com papel de coordenação; sem nenhum, os gestores — mesma
+ * Pedido novo: sino para a coordenação do projeto (perfil Coordenador que enxerga o projeto; sem nenhum, os gestores — mesma
  * regra de `destinatariosDaConclusao`), categoria `pedido_revisao_cliente`. `notificar` entra como parâmetro para o
  * smoke rodar sem disparar nada.
  */
@@ -780,11 +781,7 @@ export async function avisarPedidoNovo(
       }
       return podem;
     };
-    const membros = await prisma.projetoMembro.findMany({
-      where: { projetoId: p.projetoId, papel: { contains: "coord", mode: "insensitive" } },
-      select: { userId: true },
-    });
-    const coord = (await quemAbre(membros.map((m) => m.userId))).map((userId) => ({ userId }));
+    const coord = (await quemAbre(await coordenadoresDoProjeto(p.projetoId))).map((userId) => ({ userId }));
     const gestores =
       coord.length > 0
         ? []

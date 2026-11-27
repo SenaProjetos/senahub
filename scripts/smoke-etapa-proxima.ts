@@ -12,6 +12,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import type { notificarMuitos } from "../src/lib/notificar";
 import { avisarEtapasProximas } from "../src/modules/planejamento/etapa-proxima-service";
+import { coordenadoresDoProjeto } from "../src/modules/projetos/coordenacao-queries";
 
 let falhas = 0;
 function check(nome: string, ok: boolean, detalhe?: unknown) {
@@ -61,8 +62,13 @@ async function main() {
     const disciplina = await prisma.disciplina.create({ data: { projetoId: projeto.id, disciplinaTextoLegado: "Estrutural" } });
     const etapa = await prisma.disciplinaEtapa.create({ data: { disciplinaId: disciplina.id, etapaId: fase.id, percentual: 100, ordem: 0 } });
     await prisma.cronogramaProjeto.create({ data: { projetoId: projeto.id, inicioProjeto: d("2026-10-05"), aprovado: false } });
-    await prisma.projetoMembro.create({ data: { projetoId: projeto.id, userId: coord.id, papel: "Coordenador" } });
-    await prisma.projetoMembro.create({ data: { projetoId: projeto.id, userId: membroComum.id, papel: "projetista" } });
+    // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`). O do smoke não tem escopo
+    // global; um Coordenador com escopo global no banco coordena todos os projetos e entra na conta como `globais`.
+    const globais = await coordenadoresDoProjeto(projeto.id);
+    await prisma.user.update({ where: { id: coord.id }, data: { perfil: { connect: { chave: "coordenador" } } } });
+    await prisma.permissaoUsuario.create({ data: { userId: coord.id, recurso: "escopo", acao: "global", permitido: false, motivo: "smoke" } });
+    await prisma.projetoMembro.create({ data: { projetoId: projeto.id, userId: coord.id } });
+    await prisma.projetoMembro.create({ data: { projetoId: projeto.id, userId: membroComum.id } });
 
     const linha = (nome: string, inicio: string) =>
       prisma.eapTarefa.create({
@@ -95,7 +101,7 @@ async function main() {
     // ── 3. Na janela: atividade + coordenação, sem o membro comum ──
     x = await rodar();
     check("2 dias úteis antes avisa uma vez", x.meus.length === 1, x.meus);
-    check("vai para quem tem atividade e para a coordenação, não para membro comum", JSON.stringify(x.meus[0]?.userIds) === JSON.stringify([maria.id, coord.id].sort()), x.meus[0]);
+    check("vai para quem tem atividade e para a coordenação, não para membro comum", JSON.stringify(x.meus[0]?.userIds) === JSON.stringify([...new Set([maria.id, coord.id, ...globais])].sort()), x.meus[0]);
     check("o título diz disciplina e etapa", x.meus[0]?.titulo === `Próxima etapa: Estrutural · ${fase.nome}`, x.meus[0]?.titulo);
     const reservas = await prisma.avisoEtapaEnviado.count({ where: { disciplinaEtapaId: etapa.id } });
     check("grava a reserva da etapa", reservas === 1, reservas);

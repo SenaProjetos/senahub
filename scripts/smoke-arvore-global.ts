@@ -112,7 +112,7 @@ async function main() {
       return tx.projeto.create({
         data: {
           ano, sequencial, codigo, tipo: "particular", nome: `${TAG}_proj`, clienteId: cliente.id,
-          membros: { create: [{ userId: dono.id, papel: "coordenador" }] },
+          membros: { create: [{ userId: dono.id }] },
           disciplinas: {
             create: [
               { disciplinaTextoLegado: "Estrutural", ordem: 0, responsaveis: { create: [{ userId: dono.id }] } },

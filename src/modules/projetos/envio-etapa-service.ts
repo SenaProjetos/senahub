@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ActionError } from "@/lib/action-error";
 import { notificarMuitos } from "@/lib/notificar";
 import { formatarCodigo } from "@/modules/projetos/numbering";
+import { coordenadoresDoProjeto } from "./coordenacao-queries";
 import { avisarSeDisciplinaEntregue, recalcularStatusDisciplina, travarDisciplina } from "./status-pelas-fases-service";
 import { MOTIVO_NAO_RESPONSAVEL, STATUS_AO_DESFAZER, motivoParaDesfazerEnvio, motivoParaEnviar } from "./envio-etapa";
 
@@ -11,8 +12,8 @@ import { MOTIVO_NAO_RESPONSAVEL, STATUS_AO_DESFAZER, motivoParaDesfazerEnvio, mo
  * "Enviei os documentos desta etapa para análise" — o lado com I/O de `envio-etapa.ts`.
  *
  * Escrita condicionada ao status lido (`updateMany`): dois cliques, ou a coordenação aprovando no
- * mesmo instante, não passam um por cima do outro. Avisa a coordenação do projeto (`ProjetoMembro`
- * com papel de coordenador) e os responsáveis da disciplina, categoria `aprovacao_disciplina`.
+ * mesmo instante, não passam um por cima do outro. Avisa a coordenação do projeto
+ * (`coordenadoresDoProjeto`: perfil Coordenador que enxerga o projeto) e os responsáveis da disciplina, categoria `aprovacao_disciplina`.
  * `notificar` entra como parâmetro para o smoke rodar sem disparar notificação.
  */
 const MOTIVO_MUDOU = "A etapa mudou enquanto você olhava. Recarregue a página e tente de novo.";
@@ -40,12 +41,9 @@ async function lerEtapa(etapaId: string) {
 }
 
 async function destinatarios(projetoId: string, responsaveis: readonly string[], autorId: string) {
-  const coord = await prisma.projetoMembro.findMany({
-    where: { projetoId, papel: { contains: "coord", mode: "insensitive" } },
-    select: { userId: true },
-  });
+  const coord = await coordenadoresDoProjeto(projetoId);
   // Quem enviou (ou desfez) não é avisado do que ele mesmo fez.
-  return [...new Set([...responsaveis, ...coord.map((c) => c.userId)])].filter((id) => id !== autorId);
+  return [...new Set([...responsaveis, ...coord])].filter((id) => id !== autorId);
 }
 
 type Opcoes = { etapaId: string; userId: string; notificar?: typeof notificarMuitos };

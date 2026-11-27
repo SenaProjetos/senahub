@@ -8,7 +8,8 @@ import { emitParaUsuario } from "@/lib/socket";
 import { whereAudiencia } from "@/lib/audiencias";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { filtrarPorCategoria } from "@/modules/usuarios/preferencias/queries";
-import { destinatariosDaEquipe, ehPapelDeCoordenacao } from "./audiencia";
+import { destinatariosDaEquipe } from "./audiencia";
+import { coordenadoresDoProjeto } from "@/modules/projetos/coordenacao-queries";
 import { EVENTO_CONVERSA, precisaDeEmail } from "./regras";
 import { audienciaDoProjeto, contasDoClienteDoProjeto } from "./service";
 
@@ -130,11 +131,7 @@ export async function avisarMensagemNova(
 
   if (m.lado === "cliente") {
     const audiencia = new Set(audienciaIds);
-    const membros = await prisma.projetoMembro.findMany({
-      where: { projetoId: projeto.id, user: { ativo: true, tipo: "interno" } },
-      select: { userId: true, papel: true },
-    });
-    const coordenadores = membros.filter((x) => ehPapelDeCoordenacao(x.papel) && audiencia.has(x.userId)).map((x) => x.userId);
+    const coordenadores = (await coordenadoresDoProjeto(projeto.id)).filter((id) => audiencia.has(id));
     const globais =
       coordenadores.length > 0
         ? []

@@ -7,7 +7,8 @@ import { can } from "@/lib/permissions";
 import { whereAudiencia, wherePermissao } from "@/lib/audiencias";
 import { escopoProjeto } from "@/modules/projetos/queries";
 import { acessoDoUsuarioAoProjetoDoPortal } from "@/modules/portal/acesso";
-import { PAPEL_COORDENADOR, podeVerConversa, type FatosAudiencia } from "./audiencia";
+import { ehPerfilCoordenador, PERFIL_COORDENADOR } from "@/modules/projetos/coordenacao";
+import { podeVerConversa, type FatosAudiencia } from "./audiencia";
 import {
   MOTIVO_DECISAO_JA_MARCADA,
   MOTIVO_DECISAO_NAO_MARCADA,
@@ -51,12 +52,7 @@ export async function fatosDaAudiencia(
     where: { id: { in: ids } },
     select: { id: true, ativo: true, tipo: true, superUsuario: true, perfilId: true, perfil: { select: { chave: true } } },
   });
-  const membros = await prisma.projetoMembro.findMany({
-    where: { userId: { in: ids }, projetoId: { in: projs } },
-    select: { userId: true, projetoId: true, papel: true },
-  });
-  const papel = new Map(membros.map((m) => [`${m.userId}:${m.projetoId}`, m.papel ?? null]));
-  const fatos = new Map<string, { base: Omit<FatosAudiencia, "papelNoProjeto" | "enxergaProjeto">; enxerga: Set<string> }>();
+  const fatos = new Map<string, { base: Omit<FatosAudiencia, "enxergaProjeto">; enxerga: Set<string> }>();
   for (const u of pessoas) {
     const escopoGlobalPerfil = await can(u, "escopo", "global");
     const enxerga =
@@ -84,7 +80,7 @@ export async function fatosDaAudiencia(
   return (userId, projetoId) => {
     const f = fatos.get(userId);
     if (!f) return null;
-    return { ...f.base, papelNoProjeto: papel.get(`${userId}:${projetoId}`) ?? null, enxergaProjeto: f.enxerga.has(projetoId) };
+    return { ...f.base, enxergaProjeto: f.enxerga.has(projetoId) };
   };
 }
 
@@ -102,7 +98,7 @@ export async function audienciaDoProjeto(projetoId: string): Promise<string[]> {
         whereAudiencia("global"),
         wherePermissao("escopo", "global"),
         { projetosMembro: { some: { projetoId } } },
-        { perfil: { chave: "coordenador" } },
+        { perfil: { chave: PERFIL_COORDENADOR } },
       ],
     },
     select: { id: true },
@@ -122,9 +118,9 @@ export async function podeVerConversaDoProjeto(userId: string, projetoId: string
 
 /**
  * A pessoa é audiência da conversa de ALGUM projeto? (lista "Mensagens de clientes" e o botão em Projetos.)
- * `podeVerConversa` só cresce com o papel e com o enxergar, então perguntar no melhor caso — coordenador de algum
- * projeto, enxerga algum projeto — é o mesmo que "existe um projeto em que ela vê". `coordenadorDeAlgum` liga o
- * filtro "Só os projetos em que sou coordenador" da lista.
+ * `podeVerConversa` só cresce com o enxergar, então perguntar no melhor caso — enxerga algum projeto — é o mesmo que
+ * "existe um projeto em que ela vê". `coordenadorDeAlgum` (perfil Coordenador que enxerga algum projeto, a mesma regra de
+ * `coordenaOProjeto`) liga o filtro "Só os projetos em que sou coordenador" da lista.
  */
 export async function audienciaDeAlgumProjeto(userId: string): Promise<{ audiencia: boolean; coordenadorDeAlgum: boolean }> {
   const u = await prisma.user.findUnique({
@@ -132,7 +128,6 @@ export async function audienciaDeAlgumProjeto(userId: string): Promise<{ audienc
     select: { id: true, ativo: true, tipo: true, superUsuario: true, perfilId: true, perfil: { select: { chave: true } } },
   });
   if (!u) return { audiencia: false, coordenadorDeAlgum: false };
-  const coordenadorDeAlgum = (await prisma.projetoMembro.count({ where: { userId, papel: PAPEL_COORDENADOR } })) > 0;
   const escopoGlobalPerfil = await can(u, "escopo", "global");
   const base = {
     ativo: u.ativo,
@@ -140,16 +135,17 @@ export async function audienciaDeAlgumProjeto(userId: string): Promise<{ audienc
     superUsuario: u.superUsuario,
     escopoGlobalPerfil,
     perfilChave: u.perfil?.chave ?? null,
-    papelNoProjeto: coordenadorDeAlgum ? PAPEL_COORDENADOR : null,
   };
-  if (podeVerConversa({ ...base, enxergaProjeto: false })) return { audiencia: true, coordenadorDeAlgum };
-  // Só o perfil Coordenador ainda depende de enxergar um projeto pelo escopo de dados.
-  if (base.perfilChave !== "coordenador" || !u.ativo || u.tipo !== "interno") return { audiencia: false, coordenadorDeAlgum };
+  const coordenador = u.ativo && u.tipo === "interno" && ehPerfilCoordenador(base.perfilChave);
+  // Escopo global enxerga todos os projetos: vê todas as conversas e, sendo Coordenador, coordena todos.
+  if (podeVerConversa({ ...base, enxergaProjeto: false })) return { audiencia: true, coordenadorDeAlgum: coordenador };
+  // Sem escopo global, só o perfil Coordenador vê — e só se enxerga algum projeto pelo escopo de dados.
+  if (!coordenador) return { audiencia: false, coordenadorDeAlgum: false };
   const algum = await prisma.projeto.findFirst({
     where: escopoProjeto({ id: u.id, superUsuario: u.superUsuario, escopoGlobalPerfil, tipo: u.tipo }),
     select: { id: true },
   });
-  return { audiencia: podeVerConversa({ ...base, enxergaProjeto: algum !== null }), coordenadorDeAlgum };
+  return { audiencia: algum !== null, coordenadorDeAlgum: algum !== null };
 }
 
 // ── Lado do cliente ─────────────────────────────────────────────────────────────────────────

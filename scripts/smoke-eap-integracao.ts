@@ -66,7 +66,7 @@ async function cenario(nomeTipo: string, esperadas: string[]) {
     data: {
       codigo: `${n}`, ano: 2026, sequencial: n, nome: `${tag}-${nomeTipo}`, clienteId: cliente.id, tipo: "particular",
       tipoEmpreendimentoId: tipo.id, prazoContrato: d("2027-06-30"), prazoPlanejado: d("2027-06-30"),
-      membros: { create: [{ userId: coord.id, papel: "Coordenador" }, { userId: resp.id }] },
+      membros: { create: [{ userId: coord.id }, { userId: resp.id }] },
     },
   });
 

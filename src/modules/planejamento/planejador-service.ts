@@ -11,6 +11,7 @@ import { exigirPlanoEditavel } from "./trava-plano-service";
 import { definirInicioDaLinha } from "./datas-linha-service";
 import { ENCERRADA, linhaAceitaAtribuicao } from "./recursos";
 import { nasceAutomatica } from "./horas-automaticas";
+import { coordenadoresDoProjeto } from "@/modules/projetos/coordenacao-queries";
 import { ocuparVagaDoPerfilNoTx, recalcularHorasAutomaticas } from "./horas-automaticas-service";
 import { sincronizarCards, sincronizarPrincipal } from "./recursos-service";
 import {
@@ -173,11 +174,7 @@ export async function avisarCoordenacaoDaMudanca(
   enviar: Enviar = notificarMuitos,
 ): Promise<number> {
   try {
-    const coord = await prisma.projetoMembro.findMany({
-      where: { projetoId: p.projetoId, papel: { contains: "coord", mode: "insensitive" }, user: { ativo: true } },
-      select: { userId: true },
-    });
-    const ids = coord.map((c) => c.userId);
+    const ids = await coordenadoresDoProjeto(p.projetoId);
     if (ids.length === 0 || ids.includes(p.autorId)) return 0;
     const [projeto, autor] = [
       await prisma.projeto.findUnique({ where: { id: p.projetoId }, select: { codigo: true } }),

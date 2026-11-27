@@ -19,6 +19,7 @@ import { planoDoProjeto, reagendarProjeto } from "../src/modules/planejamento/ag
 import { MOTIVO_PLANO_TRAVADO } from "../src/modules/planejamento/trava-plano";
 import { MOTIVO_JA_COMECOU, MOTIVO_JA_NA_TAREFA } from "../src/modules/planejamento/planejador-acoes";
 import { recalcularHorasAutomaticas } from "../src/modules/planejamento/horas-automaticas-service";
+import { coordenadoresDoProjeto } from "../src/modules/projetos/coordenacao-queries";
 import {
   avisarCoordenacaoDaMudanca,
   moverLinhaNoPlanejador,
@@ -74,7 +75,12 @@ async function main() {
   const P = await novoProjeto("P");
   const A = await novoProjeto("A");
   const projetos = [P.id, A.id];
-  await prisma.projetoMembro.createMany({ data: [{ projetoId: P.id, userId: coord.id, papel: "coordenador" }, { projetoId: A.id, userId: coord.id, papel: "Coordenação" }] });
+  // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`). O do smoke não tem escopo global;
+  // um Coordenador com escopo global no banco coordena todos os projetos e entra na conta como `globais`.
+  const globais = await coordenadoresDoProjeto(P.id);
+  await prisma.user.update({ where: { id: coord.id }, data: { perfil: { connect: { chave: "coordenador" } } } });
+  await prisma.permissaoUsuario.create({ data: { userId: coord.id, recurso: "escopo", acao: "global", permitido: false, motivo: "smoke" } });
+  await prisma.projetoMembro.createMany({ data: [{ projetoId: P.id, userId: coord.id }, { projetoId: A.id, userId: coord.id }] });
 
   const linha = (projetoId: string, nome: string, duracaoDias: number, extra: Record<string, unknown> = {}) =>
     prisma.eapTarefa.create({
@@ -192,7 +198,9 @@ async function main() {
     );
     check(
       "quem não coordena trocou a pessoa: a coordenação recebe, com os nomes, categoria alteracao_cronograma",
-      avisados === 1 && JSON.stringify(envios[0]?.userIds) === JSON.stringify([coord.id]) && envios[0]?.categoria === "alteracao_cronograma" &&
+      avisados === 1 + globais.length &&
+        JSON.stringify([...(envios[0]?.userIds ?? [])].sort()) === JSON.stringify([coord.id, ...globais].sort()) &&
+        envios[0]?.categoria === "alteracao_cronograma" &&
         (envios[0]?.corpo ?? "").includes(`trocou ${mireli.name} por ${joao.name}`),
       envios,
     );
@@ -201,7 +209,11 @@ async function main() {
     check("o coordenador mexeu no próprio projeto: ninguém é avisado", doCoord === 0 && envios.length === 0, envios);
     await prisma.projetoMembro.deleteMany({ where: { projetoId: P.id } });
     const semCoord = await avisarCoordenacaoDaMudanca({ projetoId: P.id, autorId: gerencia.id, mudanca: { tipo: "data", tarefa: "Modelagem", inicio: "2026-12-18" } }, enviar);
-    check("projeto sem coordenador: ninguém é avisado", semCoord === 0 && envios.length === 0, envios);
+    check(
+      globais.length === 0 ? "projeto sem coordenador: ninguém é avisado" : "projeto sem ninguém na equipe: só o Coordenador de escopo global (o banco tem) é avisado",
+      globais.length === 0 ? semCoord === 0 && envios.length === 0 : semCoord === globais.length,
+      envios,
+    );
   } finally {
     await prisma.notificacao.deleteMany({ where: { userId: { in: pessoas } } });
     await prisma.tarefa.deleteMany({ where: { projetoId: { in: projetos } } });

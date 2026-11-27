@@ -112,11 +112,12 @@ Cada disciplina passa por um ciclo de status:
 
 - **Responsáveis** por disciplina: definidos por quem tem `projetos:gerir`; ao atribuir,
   a pessoa é notificada.
-- **Membros** do projeto: equipe com papel, escolhido numa lista fixa — **Coordenador**, **Gerente**,
-  **Analista**, **Projetista**, **Apoio**, **Estagiário** ou **Consultor externo** (ou **Sem papel**);
-  sincroniza os canais de chat do projeto. O papel aparece ao lado do nome na **Visão Geral**. Só o papel
-  Coordenador dá acesso às horas de cada pessoa por disciplina; **Gerente** e **Analista** identificam a
-  função da pessoa na equipe, sem dar acesso extra.
+- **Membros** do projeto: a equipe, montada em **Equipe do projeto** (só os nomes, sem papel); sincroniza os
+  canais de chat do projeto. Responsáveis de disciplina já contam como equipe.
+- **Coordenação do projeto:** quem tem o **perfil de acesso Coordenador** e enxerga o projeto — está na equipe,
+  é responsável de uma disciplina ou tem acesso a todos os projetos (aí coordena todos). É ela que recebe os
+  avisos do projeto (etapa chegando, atividade concluída, documentos enviados, pedidos e mensagens do cliente,
+  conflito de recurso, mudança no cronograma), escreve no diário da coordenação e vê as horas de cada pessoa.
 - O **histórico de responsáveis** de cada disciplina é guardado (quem entrou, quem saiu e quando): corrigir o
   ponto de um dia antigo usa quem era responsável naquele dia.
 - **Revisões (R0, R1, …):** qualquer **responsável** ou gestor registra uma revisão com
@@ -267,7 +268,7 @@ A Visão Geral traz o bloco **Horas por disciplina**: para cada disciplina, as h
 linha de base do cronograma), **planejadas** (atribuições da EAP de hoje) e **realizadas** (ponto), com uma
 barra do consumo — verde até 85%, amarela perto do limite e vermelha acima do orçado.
 
-- **Coordenador** (papel no projeto ou perfil de coordenação) abre cada disciplina e vê as horas **por pessoa**;
+- **Coordenador** (perfil de acesso Coordenador) abre cada disciplina e vê as horas **por pessoa**;
   os demais veem só as próprias horas, com o total da disciplina inteiro.
 - A coluna **Custo** (em reais) só aparece para o administrador, os sócios e quem recebeu a permissão de custo.
 - Sem linha de base (cronograma não aprovado), o orçado aparece como "—".

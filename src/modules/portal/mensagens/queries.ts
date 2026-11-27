@@ -1,7 +1,7 @@
 import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { PAPEL_COORDENADOR, podeVerConversa } from "./audiencia";
+import { coordenaOProjeto, podeVerConversa } from "./audiencia";
 import { aguardandoResposta, ladoOposto, ROTULO_DECISAO_PORTAL, type LadoMensagem } from "./regras";
 import { contaPodeVerConversa, contasDoClienteDoProjeto, fatosDaAudiencia, podeVerConversaDoProjeto } from "./service";
 import type { DecisaoDeAtaDTO } from "@/modules/portal/atas/decisoes";
@@ -176,7 +176,7 @@ async function montarConversa(projetoId: string, userId: string, meuLado: LadoMe
 
 /**
  * "Mensagens de clientes": as conversas de todos os projetos de que a pessoa é audiência, aguardando resposta
- * primeiro, depois a mais recente. `soMinhas` = só os projetos em que ela é membro coordenador.
+ * primeiro, depois a mais recente. `soMinhas` = só os projetos que ela coordena (`coordenaOProjeto`).
  */
 export async function conversasDaEquipe(
   userId: string,
@@ -185,7 +185,6 @@ export async function conversasDaEquipe(
   const conversas = await prisma.conversaPortal.findMany({
     where: {
       ultimaMensagemEm: { not: null },
-      ...(filtro.soMinhas ? { projeto: { membros: { some: { userId, papel: PAPEL_COORDENADOR } } } } : {}),
     },
     select: {
       id: true,
@@ -199,7 +198,7 @@ export async function conversasDaEquipe(
   const fatos = await fatosDaAudiencia([userId], conversas.map((c) => c.projetoId));
   const visiveis = conversas.filter((c) => {
     const f = fatos(userId, c.projetoId);
-    return f !== null && podeVerConversa(f);
+    return f !== null && podeVerConversa(f) && (!filtro.soMinhas || coordenaOProjeto(f));
   });
   if (visiveis.length === 0) return [];
 

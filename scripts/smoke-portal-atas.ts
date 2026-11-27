@@ -112,12 +112,17 @@ async function main() {
     const outraConta = await novaConta(cliA.id, "Marcos Lima", "marcos");
     const contaB = await novaConta(cliB.id, "Bia Souza", "bia");
     const contaInativo = await novaConta(cliInativo.id, "Inês Inativa", "ines");
-    const coordU = await novoInterno("Carlos Mendes", "coord");
+    // Coordenação = perfil Coordenador que enxerga o projeto (`projetos/coordenacao.ts`); o escopo global já vem negado.
+    const comoCoordenador = async <T extends { id: string }>(u: T) => {
+      await prisma.user.update({ where: { id: u.id }, data: { perfil: { connect: { chave: "coordenador" } } } });
+      return u;
+    };
+    const coordU = await comoCoordenador(await novoInterno("Carlos Mendes", "coord"));
     const projetistaU = await novoInterno("Pedro Projetista", "projetista");
     const foraU = await novoInterno("Fora do Projeto", "fora");
-    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: coordU.id, papel: "coordenador" } });
-    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: projetistaU.id, papel: "projetista" } });
-    await prisma.projetoMembro.create({ data: { projetoId: projInativo.id, userId: coordU.id, papel: "coordenador" } });
+    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: coordU.id } });
+    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: projetistaU.id } });
+    await prisma.projetoMembro.create({ data: { projetoId: projInativo.id, userId: coordU.id } });
     const coord: Equipe = { userId: coordU.id, nome: coordU.name };
     const projetista: Equipe = { userId: projetistaU.id, nome: projetistaU.name };
     const cJoana = { userId: joana.id, nome: joana.name };

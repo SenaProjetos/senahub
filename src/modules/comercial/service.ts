@@ -724,7 +724,7 @@ export async function registrarVersaoExterna(
  *
  * ── F5.12: as lacunas que sobraram da conversão ────────────────────────────────────────────
  * "equipe" e "financeiro" fecham aqui — `valorContrato` gravado no `Projeto` (mesma soma que já
- * virava `valorNegociado`) e um `ProjetoMembro` (`coordenador`) a partir de
+ * virava `valorNegociado`) e um `ProjetoMembro` (a pessoa na equipe) a partir de
  * `Negociacao.responsavelId`, quando existe. "cronograma" (EAP) fica de FORA — nada na proposta
  * diz que tarefas o projeto tem nem quando; inventar EAP seria escrever regra de negócio que
  * ninguém pediu. Responsável POR DISCIPLINA também fica de fora, mesmo motivo: a proposta não
@@ -739,7 +739,7 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
       itens: { orderBy: { ordem: "asc" }, include: { disciplina: { select: { nome: true } } } },
       cliente: { select: { nome: true, statusOverride: true } },
       // F5.2 — de qual negociação esta proposta nasceu. `null` nas históricas.
-      // F5.12 — `responsavelId` vira o coordenador inicial do projeto (`ProjetoMembro`).
+      // F5.12 — `responsavelId` entra na equipe do projeto (`ProjetoMembro`).
       negociacao: {
         select: {
           id: true,
@@ -837,7 +837,8 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
       },
     });
 
-    // F5.12 — "equipe": o responsável da negociação vira o coordenador inicial do projeto.
+    // F5.12 — "equipe": o responsável da negociação entra na equipe do projeto (coordena se tiver o perfil
+    // Coordenador — `projetos/coordenacao.ts`; o papel do membro saiu em 2026-11-27).
     // Só isso é dado real; responsável POR DISCIPLINA não tem fonte nenhuma na proposta (nada diz
     // quem faz o Estrutural) — inventar aqui escreveria mentira que `/recursos` e o pagamento de
     // projetista leriam como verdade. DEVE entrar na transação: `ensureCanaisProjeto` (fora dela,
@@ -845,7 +846,7 @@ export async function aceitarProposta(propostaId: string, autorId?: string) {
     // fora do canal na primeira sincronização.
     if (p.negociacao?.responsavelId) {
       await tx.projetoMembro.create({
-        data: { projetoId: projeto.id, userId: p.negociacao.responsavelId, papel: "coordenador" },
+        data: { projetoId: projeto.id, userId: p.negociacao.responsavelId },
       });
     }
     // §8.5, metade 2 de 2. `projeto.id` vem do RETORNO do create acima — nunca de um valor

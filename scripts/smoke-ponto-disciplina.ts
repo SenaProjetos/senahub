@@ -79,7 +79,7 @@ async function main() {
     check("com card aberto no projeto: aceito, disciplina do card", sDani?.disciplinaId === d1.id, sDani?.disciplinaId);
 
     // 4
-    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: caio.id, papel: "coordenador" } });
+    await prisma.projetoMembro.create({ data: { projetoId: proj.id, userId: caio.id } });
     await aplicarBatida({ userId: caio.id, tipo: "entrada", horario: horasAtras(3), projetoId: `__reuniao_externa:${proj.id}`, origem: "app" });
     const sCaio = await prisma.sessaoTrabalho.findFirst({ where: { userId: caio.id, fim: null } });
     check("reunião externa no projeto: sessão com projeto, sem disciplina", sCaio?.tipoAlocacao === "reuniao_externa" && sCaio.projetoId === proj.id && sCaio.disciplinaId === null, sCaio);

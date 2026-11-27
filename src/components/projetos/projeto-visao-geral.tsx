@@ -31,7 +31,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { DisciplinaIcone } from "@/components/projetos/disciplina-icone";
 import { EquipeManager } from "@/components/projetos/equipe-manager";
 import { HorasDisciplinaCard } from "@/components/projetos/horas-disciplina-card";
-import { ROTULO_PAPEL, rotuloPapel } from "@/modules/projetos/papeis";
 import type { LinhaHoras } from "@/modules/projetos/horas-disciplina";
 import { MargemDonut } from "@/components/projetos/margem-donut";
 import { PontoProjeto } from "@/components/ponto/ponto-projeto";
@@ -513,7 +512,7 @@ function DisciplinesTable({ projeto, dados }: { projeto: ProjetoDetalhe; dados: 
 }
 
 type DisciplinaDoMembro = { id: string; nome: string };
-type MembroEquipe = { userId: string; nome: string; contratacao: Contratacao | null; image: string | null; papel: string | null; online: boolean; disciplinas: DisciplinaDoMembro[] };
+type MembroEquipe = { userId: string; nome: string; contratacao: Contratacao | null; image: string | null; online: boolean; disciplinas: DisciplinaDoMembro[] };
 
 function MembroEquipeRow({ membro, projetoId }: { membro: MembroEquipe; projetoId: string }) {
   return (
@@ -525,7 +524,7 @@ function MembroEquipeRow({ membro, projetoId }: { membro: MembroEquipe; projetoI
       </Avatar>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{membro.nome}</p>
-        <p className="truncate text-xs text-muted-foreground">{membro.papel ? (membro.papel in ROTULO_PAPEL ? rotuloPapel(membro.papel) : membro.papel) : rotuloContratacao(membro.contratacao)}</p>
+        <p className="truncate text-xs text-muted-foreground">{rotuloContratacao(membro.contratacao)}</p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         {membro.disciplinas.length > 0 ? (
@@ -563,20 +562,20 @@ function TeamSummary({
   podeGerir,
   internos,
 }: Pick<Props, "projeto" | "podeGerir" | "internos">) {
-  const equipeMap = new Map<string, { nome: string; contratacao: Contratacao | null; image: string | null; papel: string | null; disciplinas: DisciplinaDoMembro[] }>();
+  const equipeMap = new Map<string, { nome: string; contratacao: Contratacao | null; image: string | null; disciplinas: DisciplinaDoMembro[] }>();
   for (const disciplina of projeto.disciplinas) {
     for (const responsavel of disciplina.responsaveis) {
       const atual = equipeMap.get(responsavel.userId);
       if (atual) {
         if (!atual.disciplinas.some((d) => d.id === disciplina.id)) atual.disciplinas.push({ id: disciplina.id, nome: disciplina.disciplinaTextoLegado });
       } else {
-        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, contratacao: responsavel.user.contratacao, image: responsavel.user.image, papel: "projetista", disciplinas: [{ id: disciplina.id, nome: disciplina.disciplinaTextoLegado }] });
+        equipeMap.set(responsavel.userId, { nome: responsavel.user.name, contratacao: responsavel.user.contratacao, image: responsavel.user.image, disciplinas: [{ id: disciplina.id, nome: disciplina.disciplinaTextoLegado }] });
       }
     }
   }
   for (const membro of projeto.membros) {
     const atual = equipeMap.get(membro.userId);
-    equipeMap.set(membro.userId, { nome: membro.user.name, contratacao: membro.user.contratacao, image: membro.user.image, papel: membro.papel ?? atual?.papel ?? null, disciplinas: atual?.disciplinas ?? [] });
+    equipeMap.set(membro.userId, { nome: membro.user.name, contratacao: membro.user.contratacao, image: membro.user.image, disciplinas: atual?.disciplinas ?? [] });
   }
   const onlineIds = new Set(usuariosOnline());
   const equipe = [...equipeMap.entries()]
@@ -599,7 +598,7 @@ function TeamSummary({
             compacto
             projetoId={projeto.id}
             internos={internos}
-            membrosAtuais={projeto.membros.map((membro) => ({ userId: membro.userId, papel: membro.papel ?? null }))}
+            membrosAtuais={projeto.membros.map((membro) => membro.userId)}
           />
         )}
       </CardHeader>

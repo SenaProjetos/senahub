@@ -5,7 +5,8 @@ import { smtpConfigurado } from "@/lib/mail";
 import { enviarEmailTemplate } from "@/lib/email-templates";
 import { whereAudiencia, wherePermissao } from "@/lib/audiencias";
 import { formatarCodigo } from "@/modules/projetos/numbering";
-import { destinatariosDaEquipe, ehPapelDeCoordenacao } from "@/modules/portal/mensagens/audiencia";
+import { destinatariosDaEquipe } from "@/modules/portal/mensagens/audiencia";
+import { coordenadoresDoProjeto } from "@/modules/projetos/coordenacao-queries";
 import { audienciaDoProjeto, contasDoClienteDoProjeto } from "@/modules/portal/mensagens/service";
 import { ROTULO_RESPOSTA, contaComoAceite } from "./regras";
 
@@ -61,14 +62,10 @@ async function notificarSemFalhar(deps: DepsAvisos, ids: string[], n: { titulo: 
   }
 }
 
-/** Coordenadores membros do projeto dentro da audiência; sem nenhum, os de escopo global da audiência. */
+/** A coordenação do projeto (`coordenacao-queries.ts`) dentro da audiência; sem nenhum, os de escopo global da audiência. */
 async function equipeDoProjeto(projetoId: string, autorId: string): Promise<string[]> {
   const audiencia = new Set(await audienciaDoProjeto(projetoId));
-  const membros = await prisma.projetoMembro.findMany({
-    where: { projetoId, user: { ativo: true, tipo: "interno" } },
-    select: { userId: true, papel: true },
-  });
-  const coordenadores = membros.filter((m) => ehPapelDeCoordenacao(m.papel) && audiencia.has(m.userId)).map((m) => m.userId);
+  const coordenadores = (await coordenadoresDoProjeto(projetoId)).filter((id) => audiencia.has(id));
   const globais =
     coordenadores.length > 0
       ? []

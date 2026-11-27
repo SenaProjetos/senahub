@@ -72,7 +72,7 @@ export const linkarProjeto = defineAction(
   async (i, ctx) => {
     await exigirProjetosGerir(ctx.user);
     const r = await vincularProjetoNaFicha(ctx.user, i);
-    // Novo coordenador entra no chat do projeto. Já gravado o link, uma falha aqui não pode virar "erro ao
+    // Novo membro entra no chat do projeto. Já gravado o link, uma falha aqui não pode virar "erro ao
     // linkar" (a nova tentativa daria "já linkado"): registra e segue.
     if (r.coordenadorCriado) {
       try {

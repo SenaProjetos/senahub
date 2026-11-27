@@ -3105,7 +3105,8 @@ model ProjetoMembro {
   projeto   Projeto @relation(fields: [projetoId], references: [id], onDelete: Cascade)
   userId    String
   user      User    @relation(fields: [userId], references: [id])
-  papel     String? // ex.: coordenador, projetista
+  // Sem papel desde 2026-11-27 (decisão do dono): quem coordena é quem tem o perfil de acesso
+  // Coordenador e enxerga o projeto (`modules/projetos/coordenacao.ts`).
 
   @@unique([projetoId, userId])
   @@index([userId])

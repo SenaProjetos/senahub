@@ -4,6 +4,7 @@ import { formatarMesCurto } from "@/lib/utils";
 import { subDays, differenceInCalendarDays } from "date-fns";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { coordenadoresPorProjeto as coordenacaoPorProjeto } from "@/modules/projetos/coordenacao-queries";
 import { fluxoCaixa } from "@/modules/financeiro/caixa/queries";
 import { totalDaCarteira } from "@/modules/financeiro/investimentos/queries";
 import { idsContasDeInvestimento } from "@/modules/financeiro/investimentos/service";
@@ -544,15 +545,20 @@ export async function custoPorDisciplina(de: Date, ate: Date): Promise<CustoDisc
   return [...mapa.values()].sort((a, b) => b.pago - a.pago);
 }
 
-/** Mapa projetoId → nome do coordenador (membro do projeto com papel "coordenador"). */
+/**
+ * Mapa projetoId → nome do coordenador: o primeiro da coordenação do projeto (`coordenacao-queries.ts`,
+ * quem participa do projeto antes de quem só o enxerga pelo escopo global).
+ */
 export async function coordenadoresPorProjeto(ids: string[]): Promise<Record<string, string>> {
   if (ids.length === 0) return {};
-  const membros = await prisma.projetoMembro.findMany({
-    where: { projetoId: { in: ids }, papel: { contains: "coorden", mode: "insensitive" } },
-    include: { user: { select: { name: true } } },
-  });
+  const coordenacao = await coordenacaoPorProjeto(ids);
+  const primeiros = [...new Set([...coordenacao.values()].map((l) => l[0]))];
+  const nomes = new Map((await prisma.user.findMany({ where: { id: { in: primeiros } }, select: { id: true, name: true } })).map((u) => [u.id, u.name]));
   const map: Record<string, string> = {};
-  for (const m of membros) if (!map[m.projetoId]) map[m.projetoId] = m.user.name;
+  for (const [projetoId, lista] of coordenacao) {
+    const nome = nomes.get(lista[0]);
+    if (nome) map[projetoId] = nome;
+  }
   return map;
 }
 

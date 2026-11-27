@@ -2,7 +2,7 @@
  * Smoke das horas por disciplina (R5 do rateio) contra o banco de dev. Cria e apaga os próprios dados.
  *
  *   1. Orçado = linha de base mais antiga (só linha-folha); planejado = atribuições da EAP; realizado = ponto.
- *   2. Coordenador (papel no projeto) vê as horas de cada pessoa; projetista vê só as próprias, com o
+ *   2. Coordenador (perfil Coordenador, que enxerga o projeto) vê as horas de cada pessoa; projetista vê só as próprias, com o
  *      total da disciplina inteiro.
  *   3. Reais: só superusuário/sócio; os outros recebem `custoCent: null`.
  *
@@ -38,7 +38,7 @@ async function main() {
   const disc = await prisma.disciplina.create({ data: { projetoId: proj.id, disciplinaTextoLegado: "Estrutural", status: "em_andamento" } });
 
   try {
-    await prisma.projetoMembro.createMany({ data: [{ projetoId: proj.id, userId: coord.id, papel: "coordenador" }, { projetoId: proj.id, userId: ana.id, papel: "projetista" }] });
+    await prisma.projetoMembro.createMany({ data: [{ projetoId: proj.id, userId: coord.id }, { projetoId: proj.id, userId: ana.id }] });
     const linha = await prisma.eapTarefa.create({ data: { projetoId: proj.id, nome: "Modelagem", tipoEap: "atv", disciplinaId: disc.id, duracaoDias: 5, inicioPrevisto: d("2026-10-01"), fimPrevisto: d("2026-10-07") } });
     await prisma.eapAtribuicao.create({ data: { tarefaId: linha.id, userId: ana.id, horasPrevistas: 40 } });
     const bl = await prisma.eapBaseline.create({ data: { projetoId: proj.id, numero: 0 } });
@@ -57,7 +57,7 @@ async function main() {
       id: u.id, ativo: true, perfilId: null, superUsuario: false, ehSocio: !!u.ehSocio, perfilChave: null, ...extra,
     });
 
-    const doCoord = (await horasPorDisciplina(viewer(coord), proj.id)).linhas[0];
+    const doCoord = (await horasPorDisciplina(viewer(coord, { perfilChave: "coordenador" }), proj.id)).linhas[0];
     check("orçado vem da linha de base MAIS ANTIGA (32h)", doCoord.orcadoMin === 32 * 60, doCoord.orcadoMin);
     check("planejado vem das atribuições da EAP (40h)", doCoord.planejadoMin === 40 * 60, doCoord.planejadoMin);
     check("realizado soma o ponto de todos (6h)", doCoord.realizadoMin === 360, doCoord.realizadoMin);
@@ -70,8 +70,8 @@ async function main() {
 
     const doSocio = (await horasPorDisciplina(viewer({ id: socio.id, ehSocio: true }), proj.id)).linhas[0];
     check("sócio vê os reais (rateio fechado)", doSocio.custoCent === 5000, doSocio.custoCent);
-    const doPerfil = (await horasPorDisciplina(viewer(beto, { perfilChave: "coordenador" }), proj.id)).linhas[0];
-    check("perfil Coordenador também vê cada pessoa", doPerfil.porPessoa.length === 2, doPerfil.porPessoa);
+    const doMembro = (await horasPorDisciplina(viewer(beto), proj.id)).linhas[0];
+    check("sem o perfil Coordenador, só as próprias horas por pessoa", doMembro.porPessoa.length === 1 && doMembro.porPessoa[0].userId === beto.id, doMembro.porPessoa);
   } finally {
     await prisma.rateioHora.deleteMany({ where: { projetoId: proj.id } });
     await prisma.sessaoTrabalho.deleteMany({ where: { userId: { in: ids } } });

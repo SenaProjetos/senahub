@@ -18,7 +18,7 @@ export function podeEscreverNoDiario(params: {
 
 /**
  * Pode escrever no diário da COORDENAÇÃO (entrada sem disciplina, vale para o projeto inteiro):
- * coordenador do projeto (`ehCoordenador`: papel no projeto ou perfil) OU atua em disciplina alheia.
+ * coordenador do projeto (perfil Coordenador que enxerga o projeto, `projetos/coordenacao.ts`) OU atua em disciplina alheia.
  */
 export function podeEscreverNaCoordenacao(params: {
   atuaEmDisciplinaAlheia: boolean;

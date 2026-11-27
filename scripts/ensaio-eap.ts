@@ -141,7 +141,7 @@ async function main() {
         tipoEmpreendimentoId: tipo?.id ?? null,
         prazoContrato: d(dia(120)),
         prazoPlanejado: d(dia(120)),
-        membros: { create: [{ userId: coord, papel: "Coordenador" }, { userId: clt }, { userId: estagiario }, { userId: pj }] },
+        membros: { create: [{ userId: coord }, { userId: clt }, { userId: estagiario }, { userId: pj }] },
       },
     });
     const criadas = new Map<string, string>();

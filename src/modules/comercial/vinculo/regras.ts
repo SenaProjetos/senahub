@@ -62,7 +62,10 @@ export type PlanoCampos = {
   preenche: { valorContrato?: number; areaM2?: number; tipoEmpreendimentoId?: string };
   /** Campos que a ficha tem e o projeto já tinha: ficam como estão. */
   mantem: CampoVinculo[];
-  /** Quem vira coordenador, ou `null` (sem responsável, externo/inativo, ou já é membro). */
+  /**
+   * O responsável da ficha que entra na equipe do projeto, ou `null` (sem responsável, externo/inativo, ou já é
+   * membro). Coordena só se tiver o perfil Coordenador (`projetos/coordenacao.ts`).
+   */
   coordenadorId: string | null;
 };
 

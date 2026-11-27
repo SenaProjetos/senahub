@@ -10,6 +10,7 @@ import { planoDoProjeto } from "./agenda";
 import { cargaDaEquipe } from "./recursos-queries";
 import { semanasAteOFim } from "./conflitos-recursos";
 import { destinatariosDaConclusao } from "./conclusao-aviso";
+import { coordenadoresDoProjeto } from "@/modules/projetos/coordenacao-queries";
 import {
   conflitosNovos,
   diasDoConflito,
@@ -105,15 +106,12 @@ async function avisarCoordenacao(
   enviar: Enviar,
 ): Promise<number> {
   const [coord, gestores] = await Promise.all([
-    // Só coordenador ativo: um coordenador desligado não pode deixar o aviso sem os gestores.
-    prisma.projetoMembro.findMany({
-      where: { projetoId: afetadoId, papel: { contains: "coord", mode: "insensitive" }, user: { ativo: true } },
-      select: { userId: true },
-    }),
+    // Só coordenador ativo (`coordenadoresDoProjeto` já filtra): um desligado não pode deixar o aviso sem os gestores.
+    coordenadoresDoProjeto(afetadoId),
     prisma.user.findMany({ where: whereAudiencia("global"), select: { id: true } }),
   ]);
   // Mesma regra do aviso de atividade concluída: a coordenação; sem coordenador, os gestores. Quem gravou não recebe.
-  const candidatos = destinatariosDaConclusao({ coordenadores: coord.map((c) => c.userId), gestores: gestores.map((g) => g.id), autorId });
+  const candidatos = destinatariosDaConclusao({ coordenadores: coord, gestores: gestores.map((g) => g.id), autorId });
   // Quem desligou "Conflito de recurso no cronograma" não conta: a tela só diz "foi avisada" se alguém recebeu.
   const permitidos = new Set(await filtrarPorCategoria(candidatos, "conflito_recurso"));
   const ativos = candidatos.filter((id) => permitidos.has(id)).map((id) => ({ id }));
