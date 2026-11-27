@@ -46,6 +46,7 @@
     "smoke:lixeira-caminho": "tsx --tsconfig tsconfig.server.json scripts/smoke-lixeira-caminho.ts",
     "smoke:recursos-eap": "tsx --tsconfig tsconfig.server.json scripts/smoke-recursos-eap.ts",
     "smoke:pool-recursos": "tsx --tsconfig tsconfig.server.json scripts/smoke-pool-recursos.ts",
+    "smoke:completar-equipe-base": "tsx --tsconfig tsconfig.server.json scripts/smoke-completar-equipe-base.ts",
     "smoke:aviso-cascata": "tsx --tsconfig tsconfig.server.json scripts/smoke-aviso-cascata.ts",
     "smoke:arrasto-planejador": "tsx --tsconfig tsconfig.server.json scripts/smoke-arrasto-planejador.ts",
     "smoke:planejamento-geral": "tsx --tsconfig tsconfig.server.json scripts/smoke-planejamento-geral.ts",

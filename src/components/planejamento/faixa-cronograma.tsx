@@ -3,7 +3,7 @@
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronRight, Flag, Lock, LockOpen, Pencil } from "lucide-react";
+import { ChevronRight, Flag, Lock, LockOpen, Pencil, UserPlus } from "lucide-react";
 import {
   abrirRevisaoPlanejamento,
   alinharDisciplinaAoAgrupamento,
@@ -19,6 +19,7 @@ import { ConflitosRecursosFaixa, exemplosDosConflitos, resumoDosConflitos } from
 import type { ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos";
 import type { AvisoCascata } from "@/modules/planejamento/cascata";
 import { InicioProjetoDialog } from "@/components/planejamento/inicio-projeto-dialog";
+import { CompletarEquipeBaseDialog } from "@/components/planejamento/completar-equipe-base-dialog";
 import { FAIXA_COR, SaudeCronogramaPainel, iconeDaFaixa, rotuloFaixa, type ComparativoBase } from "@/components/planejamento/saude-cronograma-painel";
 import { formatarData } from "@/lib/utils";
 import { dataCurta } from "@/lib/dias-iso";
@@ -157,6 +158,7 @@ export function FaixaCronograma({
   const [statusAberto, setStatusAberto] = useState(false);
   const [inicioAberto, setInicioAberto] = useState(false);
   const [fecharRevisaoAberto, setFecharRevisaoAberto] = useState(false);
+  const [completarEquipeAberto, setCompletarEquipeAberto] = useState(false);
   const [novaDataStatus, setNovaDataStatus] = useState(dataStatus ?? hoje);
   const [motivoReplan, setMotivoReplan] = useState("");
   const [novoInicio, setNovoInicio] = useState(inicioProjeto ?? hoje);
@@ -403,6 +405,18 @@ export function FaixaCronograma({
                   <LockOpen className="size-3.5" /> Revisar
                 </Button>
               )}
+              {podeAprovar && !emRevisao && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => setCompletarEquipeAberto(true)}
+                  disabled={pending}
+                  title="Quem entrou na equipe depois de aprovar passa a contar nas horas e no custo da linha de base (só atividades não iniciadas; as datas não mudam)"
+                >
+                  <UserPlus className="size-3.5" aria-hidden /> Completar equipe
+                </Button>
+              )}
             </>
           ) : (
             <>
@@ -482,6 +496,8 @@ export function FaixaCronograma({
           )}
         </div>
       )}
+
+      <CompletarEquipeBaseDialog projetoId={projetoId} aberto={completarEquipeAberto} onAbertoChange={setCompletarEquipeAberto} />
 
       <Dialog open={fecharRevisaoAberto} onOpenChange={(o) => !pending && setFecharRevisaoAberto(o)}>
         <DialogContent className="sm:max-w-md">

@@ -20,6 +20,15 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Completar a equipe na linha de base (novembro/2026)
+
+- Dá para **aprovar o cronograma sem ter a equipe toda** e incluir as pessoas depois: quem já está escalado conta na
+  carga desde a aprovação, e quem entra depois também ganha o card e entra na carga na hora. As datas não mudam.
+- Novo botão **Completar equipe** na faixa do cronograma aprovado (quem aprova o cronograma): atualiza **só as horas e o
+  custo** da linha de base com a equipe de hoje, **só nas atividades que ainda não começaram**. Início, término e
+  duração combinados continuam os mesmos, sem versão nova. Pede o motivo e fica registrado. Assim quem entrou depois
+  não aparece como estouro no orçado nem no Valor Agregado.
+
 ## Conta de obra no portal (novembro/2026)
 
 - A construtora ou o engenheiro da obra (ou alguém do cliente que cuida só da obra) agora pode ter **login próprio no

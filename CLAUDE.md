@@ -56,6 +56,7 @@ npm run smoke:portal-modelo3d       # modelos 3D do portal: realinhamento grava 
 npm run smoke:vinculo-projeto-ficha # link projeto × ficha: recusas, só preenche vazio, anexos copiados (apagar o do funil não quebra), corrida sem arquivo órfão, dedupe por hash, desfazer, trava do projeto do aceite
 npm run smoke:recursos-eap    # EAP: herança, horas no motor, cards, carga/sobrecarga, custo previsto, Valor Agregado
 npm run smoke:pool-recursos   # pool de recursos (parte 1): horas automáticas (dias úteis × 8 h ÷ jornada × dedicação), dedicação na disciplina, conflito POR DIA (rascunho enxerga rascunho; aprovado ignora rascunho)
+npm run smoke:completar-equipe-base  # completar a equipe na linha de base: só atividade não iniciada muda horas/custo, agrupamento pela soma, datas/duração/% planejado intactos, sem BL nova, AuditLog com motivo, sem mudança recusa, dois cliques = um, revisão aberta e rascunho recusam
 npm run smoke:aviso-cascata   # aviso em cascata (pool de recursos, parte 3): data real/Data de Status que cria conflito novo lista aprovados e rascunhos, avisa só a coordenação do aprovado afetado (sem quem gravou), o já existente e o % não disparam
 npm run smoke:arrasto-planejador   # arrasto na tela por pessoa (pool, parte 4): alfinete + seguintes com data fixada, trava do aprovado e revisão, tarefa começada, troca/atribuição com horas automáticas, aviso à coordenação só de quem não coordena
 npm run smoke:planejamento-geral  # Planejamento geral (pool, parte 5): projetos que entram (cancelado fora), conflito por linha (aprovado só com aprovados, rascunho com tudo), EDT, filtros e contador, conflito só no período
@@ -658,6 +659,12 @@ Spec + 42 decisions: `docs/superpowers/specs/2026-09-23-planejamento-motor-crono
   re-running `agendar` on `plano.entrada` must pass `plano.dataStatus` too (see `sugestoes-recursos.ts`).
 - `service.ts` — approval freezes `BL-00` (baseline versions, never overwritten), replan, quality verifier
   (`qualidade.ts`), health (`saude.ts`). `EapAtribuicao` = person or perfil with hours (`recursos.ts`, pure).
+- **The one baseline rewrite** (owner 2026-11-26, `orcamento-base.ts` pure + `orcamento-base-service.ts`): "Completar equipe"
+  (`cronograma:aprovar`, approved plan, no open revisão) rewrites ONLY `trabalhoHoras`/`custoPrevisto` of the baseline in force,
+  ONLY on activities not started (`atividadeNaoIniciada`: no `inicioReal`, 0%, `nin|agu|blq`) whose HOURS changed (rate-only
+  change never reopens the frozen cost; today null never erases), groups re-summed (unknown stays
+  null); dates, duration and `avancoPlanejado` never change, no new BL. One transaction: `FOR UPDATE` on the cronograma, each
+  row `updateMany` conditioned on the value read, the not-started/assignment photo re-checked inside it, AuditLog `completar-equipe-na-base` with motivo + antes/depois.
 - Every EAP mutation calls `aposMudarEap` (card sync D24/D32 + receivable forecasts). `custo.ts`: hours ×
   `Recurso.custoHora`, unknown never becomes zero, only for `podeVerFinanceiro`, frozen in the baseline (VP of F8).
 - WBS codes and desvio/baseline exported to Excel via `GET /api/planejamento/[id]/eap-export`.

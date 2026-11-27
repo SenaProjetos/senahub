@@ -378,7 +378,8 @@ registrada"), com um bloco por pessoa e projeto: os dias, a tarefa daqui e a do 
 Ao aprovar, o sistema:
 
 - **congela a linha de base BL-00** — uma foto de cada linha: datas, duração, horas, custo previsto
-  e avanço planejado. Ela **nunca é sobrescrita**;
+  e avanço planejado. As datas, a duração e o avanço planejado **nunca são sobrescritos** (horas e custo, veja
+  "Completar a equipe" abaixo);
 - **cria os cards** no quadro de [Tarefas](tarefas.md) de quem está escalado nas atividades da
   equipe;
 - passa a **calcular a alocação** do projeto pelas horas das linhas, em vez da alocação digitada;
@@ -387,6 +388,32 @@ Ao aprovar, o sistema:
 
 Cronograma **aprovado** mostra o selo **aprovado em … · BL-xx** (a versão mais recente da linha de
 base). Em **rascunho** ainda não existe card nem previsão de recebimento: o cronograma não vale.
+
+### Completar a equipe depois de aprovar
+
+Dá para aprovar sem ter a equipe toda: atividade sem responsável é só um alerta. Quem já está escalado passa a contar
+na carga da equipe e ganha o card, e as pessoas podem ser incluídas depois, com o plano travado. Quem entra depois
+também ganha o card e entra na carga na hora. **As datas não mudam**: as horas saem da duração, nunca o contrário.
+
+O que fica para trás é o **orçamento**: a linha de base congelou as horas e o custo de quem estava escalado no dia da
+aprovação, e é deles que saem o **orçado** de "Horas por disciplina" e o custo planejado do
+[Valor Agregado](valor-agregado.md). Sem ajuste, quem entrou depois apareceria como estouro.
+
+**Completar equipe** (na faixa, ao lado de **Revisar**; quem aprova o cronograma) atualiza **só as horas e o custo**
+da linha de base em vigor com a equipe de hoje:
+
+- **Só nas atividades que ainda não começaram** (sem início real, 0% e não iniciada, aguardando ou bloqueada). A que
+  já está em andamento fica com o orçamento da aprovação — a janela conta quantas ficaram assim.
+- O que conta é a **mudança de horas** (alguém entrou, saiu ou mudou de horas). Aí o custo vem junto, na taxa de hoje.
+  Só reajustar o custo/hora de alguém não reabre o orçamento. Atividade que hoje ficou sem nenhuma hora não apaga o
+  número da linha de base.
+- **Início, término, duração e avanço planejado não mudam**, e não nasce versão nova (BL-01): o combinado de datas
+  continua o mesmo. Os totais dos agrupamentos são refeitos pela soma das atividades.
+- A janela mostra antes → depois de cada atividade (o R$ só para quem vê o financeiro) e pede o **motivo**. Fica
+  registrado no histórico (Auditoria): quem, quando, o motivo e o antes/depois de cada linha.
+- Com **Revisar planejamento** aberto não se usa: a nova linha de base já congela a equipe de hoje.
+- "Horas por disciplina" lê o orçado da **primeira** linha de base (BL-00). Depois de um replanejamento, completar a
+  equipe atualiza a versão em vigor (o Valor Agregado), não a BL-00.
 
 ## 3. Acompanhar
 
