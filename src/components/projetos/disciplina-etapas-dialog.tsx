@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, Layers, Lock, Plus, Trash2 } from "lucide-react";
 import {
@@ -159,13 +158,22 @@ function EditorEtapas({
   dados: Dados;
   setDados: (d: Dados) => void;
 }) {
-  const router = useRouter();
   const confirm = useConfirm();
-  const [pending, start] = useTransition();
-  // Remonta as linhas a cada recarga: o campo guarda o que se digita em estado local, e só a
-  // remontagem traz de volta o que o banco de fato gravou — depois de uma recusa (o campo
-  // mostraria o valor recusado) ou do arredondamento do Decimal(5,2).
-  const [versao, setVersao] = useState(0);
+  // Gravações em FILA, uma de cada vez, e os campos de data e % continuam livres enquanto ela
+  // anda: quem preencheu o início da fase BS já digita o prazo (ou a fase EX) sem esperar a volta
+  // do servidor. Cada gravação lê o estado da etapa NA HORA em que roda (`dadosRef`, já com o que
+  // a anterior gravou) — montar o pedido com a linha da tela no clique mandaria o início antigo
+  // junto com o prazo novo e apagaria o início que acabou de ser salvo.
+  const fila = useRef<Promise<void>>(Promise.resolve());
+  // `dados` só muda por aqui (`recarregar`) enquanto o editor está montado: o diálogo zera e
+  // remonta o editor a cada abertura.
+  const dadosRef = useRef(dados);
+  const [emFila, setEmFila] = useState(0);
+  const pending = emFila > 0;
+  // Remonta SÓ a linha recusada: o campo guarda o que se digita em estado local, e a remontagem
+  // traz de volta o que o banco de fato tem (o campo mostraria o valor recusado). Remontar todas
+  // a cada gravação apagaria o que a pessoa está digitando em outra linha.
+  const [versaoLinha, setVersaoLinha] = useState<Record<string, number>>({});
 
   const usadas = new Set(dados.etapas.map((e) => e.etapaId));
   const livres = dados.fases.filter((f) => !usadas.has(f.id));
@@ -181,17 +189,44 @@ function EditorEtapas({
     return (valor * e.percentual) / 100;
   };
 
-  /** Recarrega depois de gravar — ou de falhar: o prazo consolidado e a ordem vêm do servidor. */
+  /**
+   * Recarrega depois de gravar — ou de falhar: o prazo consolidado e a ordem vêm do servidor.
+   * Sem `router.refresh()`: as actions de etapa chamam `revalidatePath`, e a resposta da própria
+   * action já traz a página redesenhada (o card atrás do diálogo) — o refresh renderizava a página
+   * inteira do projeto uma SEGUNDA vez a cada campo salvo.
+   */
   async function recarregar() {
     const r = await carregarEtapasDisciplina({ disciplinaId });
-    if (r.ok) setDados(r.data);
-    setVersao((v) => v + 1);
-    router.refresh();
+    if (r.ok) {
+      dadosRef.current = r.data;
+      setDados(r.data);
+    }
   }
 
-  function salvar(e: EtapaParaTela, patch: Partial<Pick<EtapaParaTela, "inicio" | "prazo" | "percentual" | "status">>) {
-    const prox = { ...e, ...patch };
-    start(async () => {
+  function recusada(etapaId: string) {
+    setVersaoLinha((v) => ({ ...v, [etapaId]: (v[etapaId] ?? 0) + 1 }));
+  }
+
+  /** Põe um passo na fila: roda depois do anterior, e recarrega os dados ao fim dele. */
+  function enfileirar(passo: () => Promise<void>) {
+    setEmFila((n) => n + 1);
+    fila.current = fila.current.then(async () => {
+      try {
+        await passo();
+        await recarregar();
+      } catch {
+        toast.error("Não foi possível salvar. Tente de novo.");
+      } finally {
+        setEmFila((n) => n - 1);
+      }
+    });
+  }
+
+  function salvar(etapaId: string, patch: Partial<Pick<EtapaParaTela, "inicio" | "prazo" | "percentual" | "status">>) {
+    enfileirar(async () => {
+      const atual = dadosRef.current.etapas.find((x) => x.id === etapaId);
+      if (!atual) return;
+      const prox = { ...atual, ...patch };
       const r = await salvarEtapaDisciplina({
         disciplinaId,
         etapaId: prox.etapaId,
@@ -200,22 +235,23 @@ function EditorEtapas({
         percentual: prox.percentual,
         status: prox.status,
       });
-      if (!r.ok) toast.error(r.error);
-      await recarregar();
+      if (!r.ok) {
+        toast.error(r.error);
+        recusada(etapaId);
+      }
     });
   }
 
   function adicionar(faseId: string) {
-    start(async () => {
+    enfileirar(async () => {
       const r = await salvarEtapaDisciplina({
         disciplinaId,
         etapaId: faseId,
         prazo: null,
         // Pré-preenche o que falta para fechar 100%, em vez de a etapa nascer 0% parecendo válida.
-        percentual: percentualQueFalta(dados.etapas),
+        percentual: percentualQueFalta(dadosRef.current.etapas),
       });
       if (!r.ok) toast.error(r.error);
-      await recarregar();
     });
   }
 
@@ -227,7 +263,7 @@ function EditorEtapas({
       confirmLabel: "Aprovar fase",
     });
     if (!ok) return;
-    start(async () => {
+    enfileirar(async () => {
       const r = await aprovarEtapaDisciplina({ id: e.id });
       if (!r.ok) toast.error(r.error);
       else
@@ -236,7 +272,6 @@ function EditorEtapas({
             ? `Fase ${e.sigla} aprovada — pagamento liberado.`
             : `Fase ${e.sigla} aprovada.`,
         );
-      await recarregar();
     });
   }
 
@@ -250,10 +285,9 @@ function EditorEtapas({
       confirmLabel: "Remover",
     });
     if (!ok) return;
-    start(async () => {
+    enfileirar(async () => {
       const r = await excluirEtapaDisciplina({ id: e.id });
       if (!r.ok) toast.error(r.error);
-      await recarregar();
     });
   }
 
@@ -280,14 +314,14 @@ function EditorEtapas({
             <tbody className="divide-y">
               {dados.etapas.map((e) => (
                 <LinhaEtapa
-                  key={`${e.id}:${versao}`}
+                  key={`${e.id}:${versaoLinha[e.id] ?? 0}`}
                   etapa={e}
                   mostrarValor={valor != null}
                   valorDaFase={valorDaFase(e)}
                   prazoPlanejado={dados.prazoPlanejado}
                   pending={pending}
                   podeAprovar={dados.podeAprovarFase && !dados.pagaInteira}
-                  onSalvar={(patch) => salvar(e, patch)}
+                  onSalvar={(patch) => salvar(e.id, patch)}
                   onAprovar={() => aprovar(e)}
                   onExcluir={() => excluir(e)}
                 />
@@ -314,6 +348,7 @@ function EditorEtapas({
             (o maior entre as etapas)
           </span>
           <span className={somaOk.ok ? "text-success" : "text-warning"}>
+            {pending && <span className="mr-2 text-muted-foreground">Salvando…</span>}
             {somaOk.ok ? "Soma 100%" : somaOk.mensagem}
           </span>
         </div>
@@ -371,10 +406,20 @@ function LinhaEtapa({
   // Prazo e percentual editados localmente e gravados ao sair do campo (ou Enter). Gravar a
   // cada tecla dispararia uma action — e um registro de auditoria — por dígito; no campo de
   // data, pior: apagar um segmento com Backspace já esvazia o valor, e gravar isso zeraria o
-  // prazo da etapa e rebaixaria o da disciplina no meio da digitação.
+  // prazo da etapa e rebaixaria o da disciplina no meio da digitação. Datas e % ficam livres
+  // enquanto uma gravação anda: a fila do editor salva uma de cada vez.
   const [data, setData] = useState(etapa.prazo ?? "");
   const [dataInicio, setDataInicio] = useState(etapa.inicio ?? "");
   const [pct, setPct] = useState(String(etapa.percentual));
+  // O que o banco devolveu muda (gravou, ou arredondou o Decimal(5,2)): o campo passa a mostrá-lo.
+  // Só o campo cujo valor salvo mudou — o que a pessoa digita em outro campo da linha fica.
+  const [salvo, setSalvo] = useState({ prazo: etapa.prazo, inicio: etapa.inicio, percentual: etapa.percentual });
+  if (salvo.prazo !== etapa.prazo || salvo.inicio !== etapa.inicio || salvo.percentual !== etapa.percentual) {
+    if (salvo.prazo !== etapa.prazo) setData(etapa.prazo ?? "");
+    if (salvo.inicio !== etapa.inicio) setDataInicio(etapa.inicio ?? "");
+    if (salvo.percentual !== etapa.percentual) setPct(String(etapa.percentual));
+    setSalvo({ prazo: etapa.prazo, inicio: etapa.inicio, percentual: etapa.percentual });
+  }
 
   function gravarData(input: HTMLInputElement) {
     if (data === (etapa.prazo ?? "")) return;
@@ -425,7 +470,6 @@ function LinhaEtapa({
           onChange={(ev) => setDataInicio(ev.target.value)}
           onBlur={(ev) => gravarInicio(ev.currentTarget)}
           onKeyDown={enterGrava}
-          disabled={pending}
           aria-label={`Início da fase ${etapa.sigla}`}
           className="h-8 w-36 text-xs"
         />
@@ -439,7 +483,6 @@ function LinhaEtapa({
           onChange={(ev) => setData(ev.target.value)}
           onBlur={(ev) => gravarData(ev.currentTarget)}
           onKeyDown={enterGrava}
-          disabled={pending}
           className="h-8 w-36 text-xs"
         />
       </td>
@@ -477,12 +520,15 @@ function LinhaEtapa({
           value={pct}
           onChange={(ev) => setPct(ev.target.value)}
           onBlur={() => {
-            const n = Number(pct.replace(",", "."));
-            if (Number.isFinite(n) && n !== etapa.percentual) onSalvar({ percentual: n });
-            else setPct(String(etapa.percentual));
+            // Duas casas, como o Decimal(5,2) grava: o campo já mostra o que fica salvo.
+            const n = Math.round(Number(pct.replace(",", ".")) * 100) / 100;
+            if (Number.isFinite(n) && n !== etapa.percentual) {
+              setPct(String(n));
+              onSalvar({ percentual: n });
+            } else setPct(String(etapa.percentual));
           }}
           onKeyDown={enterGrava}
-          disabled={pending || etapa.liberada}
+          disabled={etapa.liberada}
           title={etapa.liberada ? "Pagamento da fase já liberado — o percentual está fixado." : undefined}
           className="h-8 w-20 text-xs"
         />
