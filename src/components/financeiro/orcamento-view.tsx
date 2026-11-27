@@ -25,7 +25,7 @@ import { brlInteiro } from "@/lib/utils";
 type Categoria = { id: string; codigo: string; nome: string; tipo: string };
 
 function LinhaRow({ ano, l, podeGerir }: { ano: number; l: LinhaOrcamento; podeGerir: boolean }) {
-  const router = useRouter();
+  // Só esta linha fica ocupada enquanto grava; as outras seguem livres.
   const [pending, start] = useTransition();
   const [valor, setValor] = useState<number | null>(l.planejado || null);
 
@@ -33,9 +33,9 @@ function LinhaRow({ ano, l, podeGerir }: { ano: number; l: LinhaOrcamento; podeG
     const novo = valor ?? 0;
     if (novo === l.planejado) return;
     start(async () => {
+      // Sem router.refresh(): a action chama revalidatePath e a resposta dela já traz a página redesenhada.
       const r = await salvarOrcamentoItem({ ano, categoriaId: l.categoriaId, valorPlanejado: novo });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
+      if (!r.ok) toast.error(r.error);
     });
   }
 
@@ -91,7 +91,6 @@ function Secao({
   categorias: Categoria[];
   podeGerir: boolean;
 }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [novaCat, setNovaCat] = useState("");
   const [novoValor, setNovoValor] = useState<number | null>(null);
@@ -110,7 +109,6 @@ function Secao({
       if (r.ok) {
         setNovaCat("");
         setNovoValor(null);
-        router.refresh();
       } else toast.error(r.error);
     });
   }

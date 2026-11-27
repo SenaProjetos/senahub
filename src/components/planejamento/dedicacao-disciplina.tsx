@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { definirDedicacaoDisciplina } from "@/modules/planejamento/recursos-actions";
 import { Input } from "@/components/ui/input";
@@ -70,7 +69,6 @@ export function LinhaDedicacao({
   dicaId?: string;
 }) {
   const responsavel = { userId, dedicacao: gravada, padrao };
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [valor, setValor] = useState(responsavel.dedicacao == null ? "" : String(responsavel.dedicacao));
   const id = `dedicacao-${disciplinaId}-${responsavel.userId}`;
@@ -85,10 +83,10 @@ export function LinhaDedicacao({
       return;
     }
     start(async () => {
+      // Sem router.refresh(): a action chama revalidatePath e a resposta dela já traz a página redesenhada.
       const r = await definirDedicacaoDisciplina({ disciplinaId, userId: responsavel.userId, dedicacao });
       if (r.ok) {
         toast.success(dedicacao == null ? `${rotulo}: volta ao padrão (${padrao}%).` : `${rotulo}: dedicação ${dedicacao}%.`);
-        router.refresh();
       }
       else {
         toast.error(r.error);

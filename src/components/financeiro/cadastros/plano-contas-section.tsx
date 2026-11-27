@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { criarCategoria, definirTipoCustoCategoria } from "@/modules/financeiro/cadastros/actions";
@@ -39,19 +38,21 @@ function custoHerdado(c: Cat, porId: Map<string, Cat>): TipoCusto {
  * da categoria mãe (sem nada na cadeia, fixo).
  */
 function SeletorCusto({ c, herdado }: { c: Cat; herdado: TipoCusto }) {
-  const router = useRouter();
+  // Só esta categoria fica ocupada enquanto grava; enquanto isso o select mostra o que foi escolhido.
   const [pending, start] = useTransition();
+  const [pedido, setPedido] = useState<string | null>(null);
   function mudar(v: string | null) {
     const tipoCusto = !v || v === HERDA ? null : (v as TipoCusto);
     if (tipoCusto === c.tipoCusto) return;
+    setPedido(v ?? HERDA);
     start(async () => {
+      // Sem router.refresh(): a action chama revalidatePath e a resposta dela já traz a página redesenhada.
       const r = await definirTipoCustoCategoria({ id: c.id, tipoCusto });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
+      if (!r.ok) toast.error(r.error);
     });
   }
   return (
-    <Select value={c.tipoCusto ?? HERDA} onValueChange={mudar} disabled={pending}>
+    <Select value={pending && pedido ? pedido : (c.tipoCusto ?? HERDA)} onValueChange={mudar} disabled={pending}>
       <SelectTrigger className="h-7 w-44 text-xs" aria-label={`Custo de ${c.codigo} ${c.nome}`}>
         <SelectValue />
       </SelectTrigger>
@@ -65,7 +66,6 @@ function SeletorCusto({ c, herdado }: { c: Cat; herdado: TipoCusto }) {
 }
 
 export function PlanoContasSection({ categorias }: { categorias: Cat[] }) {
-  const router = useRouter();
   const [pending, start] = useTransition();
   const [codigo, setCodigo] = useState("");
   const [nome, setNome] = useState("");
@@ -89,7 +89,6 @@ export function PlanoContasSection({ categorias }: { categorias: Cat[] }) {
         toast.success("Conta adicionada.");
         setCodigo("");
         setNome("");
-        router.refresh();
       } else toast.error(r.error);
     });
   }
