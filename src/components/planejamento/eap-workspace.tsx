@@ -39,6 +39,7 @@ import {
 } from "@/modules/planejamento/actions";
 import { execucaoDaCelula } from "@/modules/planejamento/execucao";
 import { herdarResponsaveisDaDisciplina } from "@/modules/planejamento/recursos-actions";
+import { atividadesSemHora } from "@/modules/planejamento/recursos";
 import type { EapTarefaDTO, cronogramaProjetoInfo } from "@/modules/planejamento/queries";
 import type { Achado } from "@/modules/planejamento/qualidade";
 import { conflitosPorLinha, type ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos";
@@ -902,9 +903,8 @@ export function EapWorkspace({
           ultimaBaseline={cronograma.ultimaBaseline}
           versoes={versoes}
           alocacoesTipadas={cronograma.alocacoesTipadas}
-          linhasSemHora={
-            tarefas.filter((t) => !t.ehResumo && t.tipoEap === "atv" && t.trabalhoHoras == null && !t.deTerceiro).length
-          }
+          semHora={atividadesSemHora(tarefas)}
+          onHerdar={podeGerir ? herdar : undefined}
           achados={qualidade.achados}
           nota={qualidade.saude?.nota ?? null}
           faixa={qualidade.saude?.faixa ?? null}

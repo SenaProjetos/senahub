@@ -17,9 +17,11 @@ import {
   type Papel,
   type TipoLinha,
 } from "@/modules/planejamento/recursos";
+import { papelRecebeHorasAutomaticas } from "@/modules/planejamento/horas-automaticas";
 import { rotuloDoExterno } from "@/modules/planejamento/parceiros/regras";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -89,6 +91,9 @@ export function EapAtribuicoes({
   const [pending, start] = useTransition();
   const [novaPessoa, setNovaPessoa] = useState(PERFIL);
   const [novoPapel, setNovoPapel] = useState<Papel>("pro");
+  // Horas de quem entra, já no Adicionar (feedback do planejamento, 26/11/2026: o campo só aparecia depois de adicionar).
+  // Vazio = automático para quem executa (dias úteis × 8 h), zero para quem acompanha.
+  const [novasHoras, setNovasHoras] = useState("");
   // Remonta as linhas a cada resposta do servidor: o campo de horas guarda o que se digita
   // em estado local, e a chave `id:horas` sozinha não muda quando o servidor RECUSA (o valor
   // gravado continua o mesmo) — o campo seguiria mostrando o valor recusado. Mesma lição do
@@ -104,16 +109,26 @@ export function EapAtribuicoes({
   );
   const duplicada = novaPessoa !== PERFIL && jaNoPapel.has(novaPessoa);
 
+  // Texto, não `type="number"`: o campo numérico devolve "" para "1,,5", que viraria 0 (automático) calado.
+  const textoHoras = novasHoras.trim().replace(",", ".");
+  const horasNovas = textoHoras === "" ? 0 : /^\d+(\.\d+)?$/.test(textoHoras) ? Number(textoHoras) : NaN;
+  const horasNovasInvalidas = !Number.isFinite(horasNovas) || horasNovas > 99999;
+  const dicaHorasNovas = papelRecebeHorasAutomaticas(novoPapel)
+    ? `Vazio = automático: ${linha.duracaoDias} dias úteis × 8 h, divididos entre quem executa a linha. Digite para fixar.`
+    : "Quem acompanha, revisa ou aprova: vazio = 0 h.";
+
   function adicionar() {
     start(async () => {
       const r = await salvarAtribuicao({
         tarefaId: linha.id,
         userId: novaPessoa === PERFIL ? null : novaPessoa,
         papel: novoPapel,
-        horasPrevistas: 0,
+        horasPrevistas: aceitaHoras ? horasNovas : 0,
       });
       if (r.ok) {
+        if (r.data.ocupouPerfil) toast.success(`Entrou no lugar do perfil ${ROTULO_PAPEL[novoPapel]} da linha.`);
         setNovaPessoa(PERFIL);
+        setNovasHoras("");
         router.refresh();
       } else toast.error(r.error);
     });
@@ -264,12 +279,30 @@ export function EapAtribuicoes({
             ))}
           </SelectContent>
         </Select>
+        {aceitaHoras && (
+          <span className="flex items-center gap-1">
+            <Input
+              type="text"
+              inputMode="decimal"
+              value={novasHoras}
+              disabled={pending}
+              onChange={(e) => setNovasHoras(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !pending && !duplicada && !horasNovasInvalidas && adicionar()}
+              placeholder={papelRecebeHorasAutomaticas(novoPapel) ? "auto" : "0"}
+              title={dicaHorasNovas}
+              aria-label={`Horas previstas de quem entra. ${dicaHorasNovas}`}
+              aria-invalid={horasNovasInvalidas || undefined}
+              className="h-8 w-16 px-1.5 text-xs"
+            />
+            <span className="text-[10px] text-muted-foreground">h</span>
+          </span>
+        )}
         <Button
           size="sm"
           variant="outline"
-          disabled={pending || duplicada}
+          disabled={pending || duplicada || horasNovasInvalidas}
           onClick={adicionar}
-          title={duplicada ? "Esta pessoa já está nesta linha com esse papel." : undefined}
+          title={duplicada ? "Esta pessoa já está nesta linha com esse papel." : horasNovasInvalidas ? "Horas inválidas." : undefined}
         >
           <Plus className="size-3.5" /> Adicionar
         </Button>
@@ -311,9 +344,14 @@ function LinhaAtribuicao({
   const [horas, setHoras] = useState(String(atribuicao.horas));
   const externo = atribuicao.papel === "ext";
 
+  const podeAuto = podeHoras && papelRecebeHorasAutomaticas(atribuicao.papel);
+
   function gravarHoras() {
     const n = Number(horas.replace(",", "."));
-    if (Number.isFinite(n) && n >= 0 && n !== atribuicao.horas) onSalvarCampo({ horas: n });
+    // Zero num campo que já está em zero também grava quando a hora é digitada: é o "0 volta ao automático" (a
+    // atribuição de antes do pool de recursos nasceu digitada em zero e não tinha outro jeito de ligar a conta).
+    const voltaAoAuto = n === 0 && podeAuto && !atribuicao.automatica;
+    if (Number.isFinite(n) && n >= 0 && (n !== atribuicao.horas || voltaAoAuto)) onSalvarCampo({ horas: n });
     else setHoras(String(atribuicao.horas));
   }
 
@@ -363,7 +401,9 @@ function LinhaAtribuicao({
               title={
                 atribuicao.automatica
                   ? "Horas automáticas: dias úteis × 8 h, divididos pela jornada e pela dedicação de cada um. Digite para fixar; 0 volta ao automático."
-                  : "Horas previstas. 0 volta ao automático."
+                  : podeAuto
+                    ? "Horas previstas. 0 volta ao automático."
+                    : "Horas previstas."
               }
               aria-label={atribuicao.automatica ? "h (auto): horas previstas automáticas" : "Horas previstas"}
               className="h-7 w-16 rounded-sm border bg-background px-1.5 text-[11px] disabled:opacity-50"

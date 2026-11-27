@@ -3,6 +3,7 @@ import {
   atribuicaoAposEditar,
   horasAutomaticasDaLinha,
   nasceAutomatica,
+  perfilQueAPessoaOcupa,
   type AtribuicaoParaHorasAutomaticas,
   type LinhaParaHorasAutomaticas,
   type PesoDaPessoa,
@@ -56,6 +57,25 @@ describe("horasAutomaticasDaLinha — cenários do planejamento (26/11/2026)", (
   });
 });
 
+describe("horasAutomaticasDaLinha — perfil sem pessoa (feedback do planejamento, 26/11/2026)", () => {
+  const perfil = (id: string, p: Partial<AtribuicaoParaHorasAutomaticas> = {}) => auto(id, null as unknown as string, { userId: null, ...p });
+
+  it("perfil sozinho, 10 dias: 80 h", () => {
+    expect(horasAutomaticasDaLinha(linha({ duracaoDias: 10 }), [perfil("p")], pesos({})).get("p")).toBe(80);
+  });
+
+  it("perfil pesa o expediente a 100%: com uma pessoa a 50%, 26,66 h × 13,34 h (o resto do centésimo vai para a última)", () => {
+    const r = horasAutomaticasDaLinha(linha(), [perfil("p"), auto("m", "mireli")], pesos({ mireli: { dedicacao: 0.5 } }));
+    expect(r.get("p")).toBe(26.66);
+    expect(r.get("m")).toBe(13.34);
+  });
+
+  it("hora digitada no perfil sai do total antes de dividir", () => {
+    const r = horasAutomaticasDaLinha(linha(), [perfil("p", { automatica: false, horas: 15 }), auto("m", "mireli")], pesos({}));
+    expect(Object.fromEntries(r)).toEqual({ m: 25 });
+  });
+});
+
 describe("horasAutomaticasDaLinha — o que não muda", () => {
   it("hora digitada de outra pessoa sai do total antes de dividir", () => {
     const r = horasAutomaticasDaLinha(
@@ -71,10 +91,14 @@ describe("horasAutomaticasDaLinha — o que não muda", () => {
     expect(r.get("m")).toBe(0);
   });
 
-  it("perfil, Externo e quem acompanha nunca recebem hora automática, mesmo marcados", () => {
+  it("Externo, quem acompanha e o perfil que não executa nunca recebem hora automática, mesmo marcados", () => {
     const r = horasAutomaticasDaLinha(
       linha(),
-      [auto("p", null as unknown as string, { userId: null }), auto("c", "coord", { papel: "coo" }), auto("x", null as unknown as string, { userId: null, papel: "ext" })],
+      [
+        auto("c", "coord", { papel: "coo" }),
+        auto("x", null as unknown as string, { userId: null, papel: "ext" }),
+        auto("r", null as unknown as string, { userId: null, papel: "rev" }),
+      ],
       pesos({}),
     );
     expect(r.size).toBe(0);
@@ -100,12 +124,44 @@ describe("horasAutomaticasDaLinha — o que não muda", () => {
   });
 });
 
+describe("perfilQueAPessoaOcupa — a pessoa preenche a vaga", () => {
+  const vagas = [
+    { id: "x", userId: null, papel: "ext" as const },
+    { id: "r", userId: null, papel: "rev" as const },
+    { id: "m", userId: "mireli", papel: "pro" as const },
+    { id: "p", userId: null, papel: "pro" as const },
+    { id: "p2", userId: null, papel: "pro" as const },
+  ];
+  it("mesmo papel: o primeiro perfil dele", () => {
+    expect(perfilQueAPessoaOcupa(vagas, "pro")?.id).toBe("p");
+    expect(perfilQueAPessoaOcupa(vagas, "rev")?.id).toBe("r");
+  });
+  it("papel sem perfil: entra como atribuição nova", () => {
+    expect(perfilQueAPessoaOcupa(vagas, "mod")).toBeNull();
+  });
+  it("sem papel (arrasto): o primeiro perfil que executa, nunca o Externo nem o revisor", () => {
+    expect(perfilQueAPessoaOcupa(vagas, null)?.id).toBe("p");
+    expect(perfilQueAPessoaOcupa(vagas.slice(0, 3), null)).toBeNull();
+  });
+  it("Externo nunca é vaga, mesmo pedindo o papel ext", () => {
+    expect(perfilQueAPessoaOcupa(vagas, "ext")).toBeNull();
+  });
+});
+
 describe("quando a atribuição é automática", () => {
   it("nasce automática: pessoa que executa, sem hora digitada", () => {
     expect(nasceAutomatica({ userId: "u", papel: "pro", horas: 0 })).toBe(true);
     expect(nasceAutomatica({ userId: "u", papel: "pro", horas: 12 })).toBe(false);
     expect(nasceAutomatica({ userId: "u", papel: "coo", horas: 0 })).toBe(false);
-    expect(nasceAutomatica({ userId: null, papel: "pro", horas: 0 })).toBe(false);
+    expect(nasceAutomatica({ userId: null, papel: "pro", horas: 0 })).toBe(true);
+    expect(nasceAutomatica({ userId: null, papel: "pro", horas: 12 })).toBe(false);
+    expect(nasceAutomatica({ userId: null, papel: "rev", horas: 0 })).toBe(false);
+    expect(nasceAutomatica({ userId: null, papel: "ext", horas: 0 })).toBe(false);
+  });
+
+  it("perfil: zero volta ao automático; perfil → pessoa (horas ausentes) continua automático", () => {
+    expect(atribuicaoAposEditar({ horas: 0, automatica: false }, { userId: null, papel: "pro", horas: 0 })).toEqual({ horas: 0, automatica: true });
+    expect(atribuicaoAposEditar({ horas: 40, automatica: true }, { userId: "u", papel: "pro" })).toEqual({ horas: 40, automatica: true });
   });
 
   it("depois de editar: digitar outro valor desliga, zero liga, o mesmo valor mantém", () => {

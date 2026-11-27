@@ -2,10 +2,49 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ActionError } from "@/lib/action-error";
 import { gradesEmLote } from "@/modules/rh/escalas/queries";
-import { horasAutomaticasDaLinha, type PesoDaPessoa } from "./horas-automaticas";
+import { atribuicaoAposEditar, horasAutomaticasDaLinha, perfilQueAPessoaOcupa, type PesoDaPessoa } from "./horas-automaticas";
+import type { Papel } from "./recursos";
 
 type Db = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * A pessoa escalada preenche a vaga do perfil da linha (`perfilQueAPessoaOcupa`), em vez de somar uma atribuição que
+ * dividiria as horas com ele. `papel` nulo = o primeiro perfil que executa (o arrasto da tela por pessoa). As horas da
+ * vaga ficam; hora digitada ao escalar vale como digitar na linha; vaga em zero hora vai para o automático (a de antes do
+ * pool nasceu digitada em zero). Condicionado a "ainda perfil": duas pessoas ao mesmo tempo não ocupam a mesma vaga.
+ *
+ * Devolve o id da atribuição ocupada, ou `null` sem vaga (quem chama cria a atribuição nova). Não recalcula as horas:
+ * quem chama já faz isso depois de qualquer mudança nas pessoas da linha.
+ */
+export async function ocuparVagaDoPerfilNoTx(
+  tx: Prisma.TransactionClient,
+  p: { tarefaId: string; userId: string; papel: Papel | null; horasDigitadas: number },
+): Promise<string | null> {
+  if (p.papel === "ext") return null;
+  // A mesma trava da troca na tela por pessoa (`trocarPessoaNoPlanejador`, que já a tem — a trava é reentrante na mesma
+  // transação): dois "Adicionar" ao mesmo tempo se enfileiram, e o segundo relê e cai no próximo perfil ou cria a sua.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"troca-pessoa:" + p.tarefaId}))`;
+  const perfis = await tx.eapAtribuicao.findMany({
+    where: { tarefaId: p.tarefaId, userId: null },
+    select: { id: true, userId: true, papel: true, horasPrevistas: true, horasAutomaticas: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+  });
+  const vaga = perfilQueAPessoaOcupa(perfis, p.papel);
+  if (!vaga) return null;
+  const horasDaVaga = Number(vaga.horasPrevistas);
+  const depois = atribuicaoAposEditar(
+    { horas: horasDaVaga, automatica: vaga.horasAutomaticas },
+    { userId: p.userId, papel: vaga.papel, horas: p.horasDigitadas > 0 ? p.horasDigitadas : horasDaVaga > 0 ? undefined : 0 },
+  );
+  const r = await tx.eapAtribuicao.updateMany({
+    where: { id: vaga.id, userId: null },
+    data: { userId: p.userId, horasPrevistas: depois.horas, horasAutomaticas: depois.automatica },
+  });
+  if (r.count !== 1) throw new ActionError("Outra pessoa acabou de ocupar este perfil. Atualize a tela.");
+  return vaga.id;
+}
 
 /**
  * Regrava as horas das atribuições AUTOMÁTICAS do projeto pela regra de `horas-automaticas.ts` (pool de recursos,

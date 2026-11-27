@@ -10,6 +10,11 @@
  * nasce com zero, como antes. Pessoa sozinha recebe o total inteiro — se isso passa da jornada dela, o conflito aparece e
  * quem planeja decide; o sistema não mexe na duração.
  *
+ * O PERFIL que executa (vaga sem pessoa, "(perfil) Projetista") também recebe (feedback do planejamento, 26/11/2026): quem
+ * escala por perfil antes de saber quem vai fazer aprovava o cronograma com a linha em zero hora. Sem pessoa não há escala
+ * nem dedicação, então o perfil pesa o expediente comercial a 100%; quando a pessoa entra no lugar dele, a mesma
+ * atribuição continua automática e a conta refaz com a jornada e a dedicação dela.
+ *
  * PURO (sem Prisma): `horas-automaticas-service.ts` lê o banco e grava.
  */
 import { ENCERRADA, linhaAceitaHoras, type Papel, type StatusLinha, type TipoLinha } from "./recursos";
@@ -29,9 +34,29 @@ export function papelRecebeHorasAutomaticas(papel: Papel): boolean {
 
 type AtribuicaoNova = { userId: string | null; papel: Papel; horas: number };
 
-/** Uma atribuição NOVA nasce automática quando é pessoa que executa e ninguém digitou hora. */
+/** Peso do perfil sem pessoa: o expediente comercial, a 100% (não há escala nem dedicação para ler). */
+export const PESO_DO_PERFIL: PesoDaPessoa = { jornadaSemanal: JORNADA_SEMANAL_PADRAO, dedicacao: 1 };
+
+/** Uma atribuição NOVA nasce automática quando é pessoa ou perfil que executa e ninguém digitou hora. */
 export function nasceAutomatica(a: AtribuicaoNova): boolean {
-  return a.userId != null && papelRecebeHorasAutomaticas(a.papel) && !(a.horas > 0);
+  return papelRecebeHorasAutomaticas(a.papel) && !(a.horas > 0);
+}
+
+/**
+ * O perfil que a pessoa escalada OCUPA: escalar o João numa linha que tem "(perfil) Projetista" é preencher a vaga, não
+ * somar uma segunda — senão o perfil dividiria as horas automáticas da tarefa com ele. Mesmo papel; sem papel (o arrasto
+ * da tela por pessoa), o primeiro perfil que executa. Na ordem recebida (a de criação). `null` = não há vaga: a pessoa
+ * entra como atribuição nova. A vaga ocupada guarda as horas e a marca de automática (a digitada continua digitada).
+ */
+export function perfilQueAPessoaOcupa<T extends { userId: string | null; papel: Papel }>(
+  atribuicoes: readonly T[],
+  papel: Papel | null,
+): T | null {
+  return (
+    atribuicoes.find(
+      (a) => a.userId == null && a.papel !== "ext" && (papel != null ? a.papel === papel : papelRecebeHorasAutomaticas(a.papel)),
+    ) ?? null
+  );
 }
 
 /**
@@ -47,7 +72,7 @@ export function atribuicaoAposEditar(
   antes: { horas: number; automatica: boolean },
   depois: { userId: string | null; papel: Papel; horas?: number },
 ): { horas: number; automatica: boolean } {
-  const executa = depois.userId != null && papelRecebeHorasAutomaticas(depois.papel);
+  const executa = papelRecebeHorasAutomaticas(depois.papel);
   if (depois.horas === undefined) {
     if (!executa) return { horas: antes.automatica ? 0 : antes.horas, automatica: false };
     return { horas: antes.horas, automatica: antes.automatica };
@@ -95,7 +120,7 @@ export function horasAutomaticasDaLinha(
 ): Map<string, number> {
   const out = new Map<string, number>();
   if (ENCERRADA.has(linha.status)) return out;
-  const automaticas = atribuicoes.filter((a) => a.automatica && a.userId != null && papelRecebeHorasAutomaticas(a.papel));
+  const automaticas = atribuicoes.filter((a) => a.automatica && papelRecebeHorasAutomaticas(a.papel));
   if (automaticas.length === 0) return out;
   if (!linhaAceitaHoras(linha)) {
     for (const a of automaticas) out.set(a.id, 0);
@@ -104,13 +129,14 @@ export function horasAutomaticasDaLinha(
 
   const total = Math.round(linha.duracaoDias * HORAS_DO_EXPEDIENTE * 100);
   const idsAutomaticas = new Set(automaticas.map((a) => a.id));
+  // A hora digitada no perfil também sai do total: ela entra nas horas da linha como a de qualquer pessoa.
   const digitadas = atribuicoes
-    .filter((a) => !idsAutomaticas.has(a.id) && a.userId != null && a.papel !== "ext")
+    .filter((a) => !idsAutomaticas.has(a.id) && a.papel !== "ext")
     .reduce((s, a) => s + Math.round((Number.isFinite(a.horas) && a.horas > 0 ? a.horas : 0) * 100), 0);
   const restante = Math.max(0, total - digitadas);
 
   const pesos = automaticas.map((a) => {
-    const p = pesoDe(a.userId!);
+    const p = a.userId == null ? PESO_DO_PERFIL : pesoDe(a.userId);
     const jornada = p.jornadaSemanal > 0 ? p.jornadaSemanal : JORNADA_SEMANAL_PADRAO;
     const dedicacao = Number.isFinite(p.dedicacao) && p.dedicacao > 0 ? p.dedicacao : 0;
     return jornada * dedicacao;

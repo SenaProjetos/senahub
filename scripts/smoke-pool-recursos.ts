@@ -5,7 +5,9 @@
  *   1. Horas automáticas (decisões B e 2): o herdado nasce automático; o total da tarefa (dias úteis × 8 h) se divide
  *      pela jornada × dedicação; dedicação na disciplina muda a divisão e não mexe no padrão do cadastro; duração nova
  *      recalcula; hora digitada vence e sai do total; zero volta ao automático; estagiário de 6 h pesa menos; linha
- *      concluída não muda; atribuição antiga (sem a marca) fica como está.
+ *      concluída não muda; atribuição antiga (sem a marca) fica como está. Perfil que executa também é automático (o
+ *      expediente a 100%); a pessoa escalada no mesmo papel ocupa a vaga (vaga antiga em zero vira automática); hora
+ *      digitada no perfil sai do total.
  *   2. Conflito por dia (decisões A e J): o choque de UM dia aparece; o rascunho enxerga o aprovado e os outros
  *      rascunhos (marcados); o aprovado não ganha alerta por causa de rascunho.
  *
@@ -14,7 +16,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { herdarResponsaveisNoProjeto } from "../src/modules/planejamento/recursos-service";
-import { recalcularHorasAutomaticas } from "../src/modules/planejamento/horas-automaticas-service";
+import { ocuparVagaDoPerfilNoTx, recalcularHorasAutomaticas } from "../src/modules/planejamento/horas-automaticas-service";
 import { atribuicaoAposEditar, nasceAutomatica } from "../src/modules/planejamento/horas-automaticas";
 import { conflitosDeRecursosDoProjeto } from "../src/modules/planejamento/recursos-queries";
 import { definirDedicacao, substituirResponsaveis } from "../src/modules/projetos/responsaveis-service";
@@ -136,6 +138,52 @@ async function main() {
     await recalcularHorasAutomaticas(prisma, X.id);
     h = await horasDe(B.id);
     check("linha concluída não muda", h[mireli.id]?.horas === 22.85 && h[estag.id]?.horas === 17.15, h);
+
+    // ── 1b. Perfil sem pessoa (feedback do planejamento, 26/11/2026) ───────
+    const D = await prisma.eapTarefa.create({ data: { ...base, parentId: grupo.id, nome: "Modelagem pré forma", tipoEap: "atv", duracaoDias: 10, ordem: 4 } });
+    await prisma.eapAtribuicao.create({
+      data: { tarefaId: D.id, userId: null, papel: "pro", horasAutomaticas: nasceAutomatica({ userId: null, papel: "pro", horas: 0 }) },
+    });
+    await recalcularHorasAutomaticas(prisma, X.id);
+    h = await horasDe(D.id);
+    check("(perfil) Projetista, 10 dias: 80 h automáticas", h.perfil?.horas === 80 && h.perfil?.auto === true, h);
+
+    // Escalar a Mireli como projetista: ocupa a vaga (uma atribuição só), segue automática com o peso dela.
+    const vagaD = await prisma.$transaction(async (tx) => {
+      const id = await ocuparVagaDoPerfilNoTx(tx, { tarefaId: D.id, userId: mireli.id, papel: "pro", horasDigitadas: 0 });
+      await recalcularHorasAutomaticas(tx, X.id);
+      return id;
+    });
+    h = await horasDe(D.id);
+    check(
+      "pessoa escalada no mesmo papel ocupa a vaga do perfil: 1 atribuição, 80 h, automática",
+      vagaD != null && (await prisma.eapAtribuicao.count({ where: { tarefaId: D.id } })) === 1 && h[mireli.id]?.horas === 80 && h[mireli.id]?.auto === true,
+      h,
+    );
+
+    // Papel diferente não ocupa a vaga; vaga antiga (digitada em zero, de antes do pool) vira automática ao ser ocupada.
+    const E = await prisma.eapTarefa.create({ data: { ...base, parentId: grupo.id, nome: "Compatibilização", tipoEap: "atv", duracaoDias: 5, ordem: 5 } });
+    await prisma.eapAtribuicao.create({ data: { tarefaId: E.id, userId: null, papel: "mod" } });
+    const semVaga = await prisma.$transaction((tx) => ocuparVagaDoPerfilNoTx(tx, { tarefaId: E.id, userId: joao.id, papel: "pro", horasDigitadas: 0 }));
+    check("papel diferente do perfil: não ocupa (a pessoa entra como atribuição nova)", semVaga === null);
+    await prisma.$transaction(async (tx) => {
+      await ocuparVagaDoPerfilNoTx(tx, { tarefaId: E.id, userId: joao.id, papel: null, horasDigitadas: 0 });
+      await recalcularHorasAutomaticas(tx, X.id);
+    });
+    h = await horasDe(E.id);
+    check("vaga antiga em zero hora, ocupada pelo arrasto: vira automática, 40 h", h[joao.id]?.horas === 40 && h[joao.id]?.auto === true, h);
+
+    // Hora digitada no perfil sai do total de quem é automático.
+    const F = await prisma.eapTarefa.create({ data: { ...base, parentId: grupo.id, nome: "Detalhes", tipoEap: "atv", duracaoDias: 5, ordem: 6 } });
+    await prisma.eapAtribuicao.createMany({
+      data: [
+        { tarefaId: F.id, userId: null, papel: "pro", horasPrevistas: 15 },
+        { tarefaId: F.id, userId: joao.id, papel: "pro", horasAutomaticas: true },
+      ],
+    });
+    await recalcularHorasAutomaticas(prisma, X.id);
+    h = await horasDe(F.id);
+    check("perfil com 15 h digitadas: João automático fica com 25 h", h.perfil?.horas === 15 && h[joao.id]?.horas === 25, h);
 
     // ── 2. Conflito por dia ────────────────────────────────────────────────
     // Limpa as linhas de 1 e monta: X com a Mireli 8 h/dia de 14 a 18/12; Y com ela 8 h só no dia 16.

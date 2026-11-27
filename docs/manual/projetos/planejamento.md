@@ -157,10 +157,20 @@ total de **dias úteis × 8 h**, e esse total se divide entre as pessoas pela **
 
 - Mudou a duração, entrou ou saiu alguém, mudou a dedicação: as horas automáticas se refazem sozinhas.
 - **Digitar** as horas de uma pessoa fixa aquele valor; ele sai do total e o resto se divide entre os automáticos.
-  Digitar **0** volta ao automático.
+  Digitar **0** volta ao automático (também numa atribuição antiga que está em 0 h).
+- No painel da linha, o campo de horas já aparece ao lado do **Adicionar**: vazio entra no automático, um número entra
+  fixo.
+- **Perfil sem pessoa** que executa ("(perfil) Projetista") também recebe as horas automáticas, como se fosse uma pessoa de
+  8 h a 100%. Quando você escala alguém **no mesmo papel**, a pessoa **ocupa a vaga do perfil** (não fica um perfil e uma
+  pessoa dividindo as horas) e a conta se refaz com a jornada e a dedicação dela. O mesmo vale ao arrastar alguém para
+  uma tarefa na tela por pessoa de Recursos.
 - Quem acompanha, revisa ou aprova (coordenador, revisor, aprovador) entra com zero, como antes.
-- Atribuições anteriores a esta mudança ficam como estavam: sem hora, até alguém digitar.
+- Atribuições anteriores a esta mudança ficam como estavam: sem hora, até alguém digitar (ou digitar 0 para ligar a
+  conta automática).
 - Tarefa concluída não muda mais.
+- Na faixa do cronograma, **"N atividades sem hora"** separa as que estão **sem ninguém escalado** (falta escalar; dá
+  para preencher com o responsável da disciplina dali mesmo) das que **têm gente mas zero hora** (falta digitar), cada
+  uma com **Ver na tabela**. O aviso de aprovar usa a mesma separação.
 
 **Dedicação na disciplina.** No painel do **agrupamento da disciplina** (duplo clique na linha da disciplina), a seção
 **Dedicação na disciplina** lista os responsáveis com o percentual de cada um **nesta disciplina deste projeto** ("a

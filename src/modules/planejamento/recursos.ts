@@ -152,6 +152,24 @@ export function pessoasSemHoras(
   return atribuicoes.filter((a) => a.userId != null && !(a.horas > 0)).length;
 }
 
+/**
+ * As atividades da casa sem NENHUMA hora prevista, separadas pela causa (feedback do planejamento, 26/11/2026: o aviso
+ * de aprovar dizia "24 atividades sem hora" e não dizia onde pôr hora). `semNinguem` = ninguém escalado, nem perfil — o
+ * que falta é escalar; `semHoras` = tem gente (ou perfil) e as horas dão zero — o que falta é digitar a hora. Etapa de
+ * terceiro não entra (zero hora é a resposta certa). Os ids vão para o "Ver na tabela".
+ */
+export function atividadesSemHora(
+  linhas: readonly { id: string; tipoEap: TipoLinha; ehResumo: boolean; deTerceiro: boolean; trabalhoHoras: number | null; atribuicoes: readonly unknown[] }[],
+): { semNinguem: string[]; semHoras: string[] } {
+  const semNinguem: string[] = [];
+  const semHoras: string[] = [];
+  for (const l of linhas) {
+    if (l.ehResumo || l.tipoEap !== "atv" || l.deTerceiro || l.trabalhoHoras != null) continue;
+    (l.atribuicoes.length === 0 ? semNinguem : semHoras).push(l.id);
+  }
+  return { semNinguem, semHoras };
+}
+
 // ─────────────────────────────────────────────────────────────
 // Responsável principal (D41)
 // ─────────────────────────────────────────────────────────────

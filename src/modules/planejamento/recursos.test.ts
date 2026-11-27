@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { criarCalendario } from "@/lib/calendario-trabalho";
 import {
+  atividadesSemHora,
   capacidadeHorasNoDia,
   capacidadePorSemana,
   detectarSobrecargas,
@@ -147,6 +148,30 @@ describe("horasDaLinha — o que o motor pondera", () => {
   it("marco e resumo devolvem undefined: o motor decide", () => {
     expect(horasDaLinha({ ...atv, tipoEap: "mrc", duracaoDias: 0 }, [{ horas: 3 }])).toBeUndefined();
     expect(horasDaLinha({ ...atv, ehResumo: true }, [{ horas: 3 }])).toBeUndefined();
+  });
+});
+
+describe("atividadesSemHora — o aviso de aprovar separa a causa", () => {
+  const l = (id: string, p: Partial<Parameters<typeof atividadesSemHora>[0][number]> = {}) => ({
+    id,
+    tipoEap: "atv" as const,
+    ehResumo: false,
+    deTerceiro: false,
+    trabalhoHoras: null,
+    atribuicoes: [] as unknown[],
+    ...p,
+  });
+  it("sem ninguém × com gente sem hora; estimada, terceiro, marco e agrupamento fora", () => {
+    expect(
+      atividadesSemHora([
+        l("vazia"),
+        l("perfil0", { atribuicoes: [{}] }),
+        l("ok", { atribuicoes: [{}], trabalhoHoras: 40 }),
+        l("terceiro", { atribuicoes: [{}], deTerceiro: true }),
+        l("marco", { tipoEap: "mrc" }),
+        l("grupo", { ehResumo: true }),
+      ]),
+    ).toEqual({ semNinguem: ["vazia"], semHoras: ["perfil0"] });
   });
 });
 

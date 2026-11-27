@@ -9,7 +9,7 @@ import { cargaDaEquipe } from "./recursos-queries";
 import { linhaAceitaAtribuicao, linhaAceitaHoras, regraDoRecursoExterno } from "./recursos";
 import { herdarResponsaveisNoProjeto, sincronizarCards, sincronizarPrincipal } from "./recursos-service";
 import { atribuicaoAposEditar, nasceAutomatica } from "./horas-automaticas";
-import { recalcularHorasAutomaticas } from "./horas-automaticas-service";
+import { ocuparVagaDoPerfilNoTx, recalcularHorasAutomaticas } from "./horas-automaticas-service";
 import { comPassoDaAction, projetoDaAtribuicao, projetoDaLinha } from "./desfazer/passo";
 import { exigirPlanoEditavel } from "./trava-plano-service";
 import { noEscopoDoProjeto } from "./escopo";
@@ -88,7 +88,19 @@ export const salvarAtribuicao = defineAction(
     ...plan,
     acao: "salvar-atribuicao",
     schema: salvarSchema,
-    capturarAntes: async (i) => (i.id ? prisma.eapAtribuicao.findUnique({ where: { id: i.id } }) : null),
+    // Sem id, escalar uma pessoa pode OCUPAR o perfil da linha (um update, não um create): a foto das atribuições da
+    // linha deixa na auditoria que perfil virou pessoa e com que horas.
+    capturarAntes: async (i) =>
+      i.id
+        ? prisma.eapAtribuicao.findUnique({ where: { id: i.id } })
+        : i.userId != null
+          ? {
+              atribuicoesDaLinha: await prisma.eapAtribuicao.findMany({
+                where: { tarefaId: i.tarefaId },
+                select: { id: true, userId: true, papel: true, horasPrevistas: true, horasAutomaticas: true },
+              }),
+            }
+          : null,
   },
   comPassoDaAction(
     { projetoDe: (i) => projetoDaLinha(i.tarefaId), rotulo: () => "Atribuir pessoa ou horas" },
@@ -123,8 +135,14 @@ export const salvarAtribuicao = defineAction(
     }
 
     try {
+      let ocupouPerfil = false;
       const id = await prisma.$transaction(async (tx) => {
         let atribuicaoId: string;
+        // Escalar PESSOA numa linha com perfil do mesmo papel preenche a vaga (não soma uma segunda que dividiria as horas).
+        const vaga =
+          i.id || i.userId == null
+            ? null
+            : await ocuparVagaDoPerfilNoTx(tx, { tarefaId: i.tarefaId, userId: i.userId, papel: i.papel, horasDigitadas });
         if (i.id) {
           const atual = await tx.eapAtribuicao.findUnique({
             where: { id: i.id },
@@ -151,6 +169,9 @@ export const salvarAtribuicao = defineAction(
             },
           });
           atribuicaoId = i.id;
+        } else if (vaga) {
+          atribuicaoId = vaga;
+          ocupouPerfil = true;
         } else {
           const nova = await tx.eapAtribuicao.create({
             data: {
@@ -171,7 +192,7 @@ export const salvarAtribuicao = defineAction(
         return atribuicaoId;
       });
       revProjeto(linha.projetoId);
-      return { id };
+      return { id, ocupouPerfil };
     } catch (e) {
       if (ehDuplicada(e)) throw new ActionError("Esta pessoa já está nesta linha com esse papel.");
       // O parceiro escolhido foi excluído entre a conferência e a gravação (só se exclui sem uso).

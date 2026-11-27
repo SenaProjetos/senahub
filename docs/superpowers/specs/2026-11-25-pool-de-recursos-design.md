@@ -61,7 +61,14 @@ confirmar antes da entrega.
 - Atribuição automática é recalculada (`recalcularHorasAutomaticas`, trava por projeto) no começo de `aposMudarEap` e nas
   actions de pessoas da linha e de dedicação. Atribuição antiga sem horas fica como está (decisão 2).
 - Só quem EXECUTA recebe hora automática (projetista, modelador, estagiário, engenheiro). Quem acompanha, revisa ou aprova
-  nasce com zero; quem passa de executor para revisor sai do automático com zero. Perfil e Externo nunca recebem.
+  nasce com zero; quem passa de executor para revisor sai do automático com zero. Externo nunca recebe.
+- **Perfil que executa recebe** (feedback do Ryan, 26/11/2026 — revoga o "perfil nunca recebe" acima): pesa o expediente
+  comercial a 100% (`PESO_DO_PERFIL`); hora digitada no perfil sai do total. Escalar PESSOA no mesmo papel de um perfil
+  da linha OCUPA a vaga (`ocuparVagaDoPerfilNoTx`, também no arrasto da tela por pessoa, aí o primeiro perfil que
+  executa): a atribuição é a mesma, as horas ficam, vaga em zero vai para o automático.
+- Zero digitado num campo já em zero também grava (é o "0 volta ao automático" das atribuições antigas). A decisão 2
+  (antigas ficam como estão) continua valendo: `npm run eap:horas-automaticas` liga o automático nas antigas em zero
+  hora de uma vez, mas é carga OPCIONAL — só roda com o aval do Ryan, porque revoga a decisão 2.
 - A tela só manda as horas quando a pessoa as editou: reenviar o valor carregado sobrescreveria uma conta mais nova.
 
 ### 3.3 Conflito por dia (decisão A)

@@ -11,7 +11,7 @@ import { exigirPlanoEditavel } from "./trava-plano-service";
 import { definirInicioDaLinha } from "./datas-linha-service";
 import { ENCERRADA, linhaAceitaAtribuicao } from "./recursos";
 import { nasceAutomatica } from "./horas-automaticas";
-import { recalcularHorasAutomaticas } from "./horas-automaticas-service";
+import { ocuparVagaDoPerfilNoTx, recalcularHorasAutomaticas } from "./horas-automaticas-service";
 import { sincronizarCards, sincronizarPrincipal } from "./recursos-service";
 import {
   MOTIVO_JA_COMECOU,
@@ -134,15 +134,19 @@ export async function trocarPessoaNoPlanejador(p: { tarefaId: string; de: string
       // A linha pode ter ganhado alguém enquanto a tela estava aberta: aí não é mais "sem ninguém".
       const alguem = await tx.eapAtribuicao.findFirst({ where: { tarefaId: p.tarefaId, userId: { not: null } }, select: { id: true } });
       if (alguem) throw new ActionError("A tarefa já tem responsável. Atualize a tela.");
-      await tx.eapAtribuicao.create({
-        data: {
-          tarefaId: p.tarefaId,
-          userId: p.para,
-          papel: "pro",
-          horasPrevistas: 0,
-          horasAutomaticas: nasceAutomatica({ userId: p.para, papel: "pro", horas: 0 }),
-        },
-      });
+      // A linha com "(perfil) Projetista": a pessoa preenche a vaga (com as horas dela), não divide as horas com o perfil.
+      const vaga = await ocuparVagaDoPerfilNoTx(tx, { tarefaId: p.tarefaId, userId: p.para, papel: null, horasDigitadas: 0 });
+      if (!vaga) {
+        await tx.eapAtribuicao.create({
+          data: {
+            tarefaId: p.tarefaId,
+            userId: p.para,
+            papel: "pro",
+            horasPrevistas: 0,
+            horasAutomaticas: nasceAutomatica({ userId: p.para, papel: "pro", horas: 0 }),
+          },
+        });
+      }
     }
     await recalcularHorasAutomaticas(tx, linha.projetoId);
     await sincronizarPrincipal(tx, p.tarefaId);

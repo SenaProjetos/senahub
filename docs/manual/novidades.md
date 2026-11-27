@@ -20,6 +20,16 @@ funcionalidade, veja a seção correspondente no [manual](README.md).
 > automaticamente a partir dos commits a cada publicação e lista *todas* as mudanças —
 > inclusive as internas. Esta aqui é a leitura em linguagem do dia a dia.
 
+## Horas da tarefa mais fáceis de preencher (novembro/2026)
+
+- **Perfil sem pessoa também ganha horas automáticas**: "(perfil) Projetista" numa tarefa de 10 dias já entra com 80 h.
+  Quando alguém é escalado no mesmo papel, a pessoa **ocupa a vaga do perfil** e as horas passam a ser dela.
+- O campo de **horas** aparece já no **Adicionar** do painel da linha: vazio = automático, número = fixo.
+- **Digitar 0** liga a conta automática também nas atribuições antigas que estavam em 0 h.
+- A faixa do cronograma mostra **"N atividades sem hora"** separando as **sem ninguém escalado** das **com gente mas
+  sem horas**, com **Ver na tabela** e o atalho de preencher com o responsável da disciplina. O aviso de aprovar diz o
+  mesmo.
+
 ## Completar a equipe na linha de base (novembro/2026)
 
 - Dá para **aprovar o cronograma sem ter a equipe toda** e incluir as pessoas depois: quem já está escalado conta na

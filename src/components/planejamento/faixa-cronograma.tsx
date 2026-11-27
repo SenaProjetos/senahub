@@ -20,6 +20,7 @@ import type { ConflitoRecurso } from "@/modules/planejamento/conflitos-recursos"
 import type { AvisoCascata } from "@/modules/planejamento/cascata";
 import { InicioProjetoDialog } from "@/components/planejamento/inicio-projeto-dialog";
 import { CompletarEquipeBaseDialog } from "@/components/planejamento/completar-equipe-base-dialog";
+import { SemHoraFaixa, descricaoSemHora, type SemHora } from "@/components/planejamento/sem-hora-faixa";
 import { FAIXA_COR, SaudeCronogramaPainel, iconeDaFaixa, rotuloFaixa, type ComparativoBase } from "@/components/planejamento/saude-cronograma-painel";
 import { formatarData } from "@/lib/utils";
 import { dataCurta } from "@/lib/dias-iso";
@@ -101,7 +102,8 @@ export function FaixaCronograma({
   ultimaBaseline,
   versoes,
   alocacoesTipadas,
-  linhasSemHora,
+  semHora,
+  onHerdar,
   achados,
   nota,
   faixa,
@@ -135,8 +137,10 @@ export function FaixaCronograma({
   versoes: VersaoBaseline[];
   /** F5 (D17): quantas alocações digitadas o projeto tem — somem da carga da equipe ao aprovar. */
   alocacoesTipadas: number;
-  /** F5: atividades da casa sem NENHUMA hora estimada — aprovar assim some da carga sem substituir. */
-  linhasSemHora: number;
+  /** F5: atividades da casa sem NENHUMA hora estimada, pela causa (`atividadesSemHora`) — aprovar assim some da carga. */
+  semHora: SemHora;
+  /** "Preencher com o responsável da disciplina" para as sem ninguém. Ausente = quem vê não monta a EAP. */
+  onHerdar?: () => void;
   achados: Achado[];
   nota: number | null;
   faixa: string | null;
@@ -181,6 +185,7 @@ export function FaixaCronograma({
     // E avisa quem fica acima da capacidade somando os outros projetos (pedido da equipe, 2026-11-24): aprovar mesmo assim
     // pode ser escolha consciente, então pergunta — não recusa.
     const conflitos = conflitosRecursos.length;
+    const linhasSemHora = semHora.semNinguem.length + semHora.semHoras.length;
     if (alocacoesTipadas > 0 || linhasSemHora > 0 || conflitos > 0) {
       const ok = await confirm({
         title:
@@ -196,9 +201,7 @@ export function FaixaCronograma({
           alocacoesTipadas > 0
             ? `${alocacoesTipadas} alocação(ões) digitada(s) deste projeto deixam de contar na carga da equipe — a partir daqui ela vem das horas das linhas.`
             : null,
-          linhasSemHora > 0
-            ? `${linhasSemHora} atividade(s) da equipe ainda não têm nenhuma hora prevista. Sem hora, elas não entram na carga de ninguém nem no custo.`
-            : null,
+          linhasSemHora > 0 ? descricaoSemHora(semHora) : null,
         ]
           .filter(Boolean)
           .join(" "),
@@ -377,6 +380,8 @@ export function FaixaCronograma({
         </button>
 
         <ConflitosRecursosFaixa conflitos={conflitosRecursos} verRecursos={verRecursos} onVerNaTabela={onVerNaTabela} />
+
+        <SemHoraFaixa semHora={semHora} onVerNaTabela={onVerNaTabela} onHerdar={onHerdar} />
 
         <Separador />
 

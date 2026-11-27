@@ -88,6 +88,7 @@
     "smoke:progresso-historico": "tsx --tsconfig tsconfig.server.json scripts/smoke-progresso-historico.ts",
     "smoke:concluir-pelo-planejado": "tsx --tsconfig tsconfig.server.json scripts/smoke-concluir-pelo-planejado.ts",
     "eap:concluir-pelo-planejado": "tsx --tsconfig tsconfig.server.json scripts/concluir-pelo-planejado.ts",
+    "eap:horas-automaticas": "tsx --tsconfig tsconfig.server.json scripts/horas-automaticas-antigas.ts",
     "smoke:execucao-real": "tsx --tsconfig tsconfig.server.json scripts/smoke-execucao-real.ts",
     "smoke:inicio-pelo-ponto": "tsx --tsconfig tsconfig.server.json scripts/smoke-inicio-pelo-ponto.ts",
     "eap:inicio-pelo-ponto": "tsx --tsconfig tsconfig.server.json scripts/inicio-real-pelo-ponto.ts",
