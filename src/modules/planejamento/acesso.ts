@@ -35,6 +35,10 @@ export async function podeVerDatasDoPlanejamento(user: SubjectAutorizacao & { eh
  * mesma regra de `requirePermission`) e vê as datas do planejamento — a tela é linha do tempo.
  */
 export async function podeVerPlanejamentoGeral(user: SubjectAutorizacao & { ehSocio?: boolean }): Promise<boolean> {
-  const veRecursos = (await can(user, "recursos", "ver")) || (!!user.ehSocio && (await canRole("supervisor", "recursos", "ver")));
-  return veRecursos && (await podeVerDatasDoPlanejamento(user));
+  return (await podeVerRecursos(user)) && (await podeVerDatasDoPlanejamento(user));
+}
+
+/** Quem abre Recursos (`recursos:ver`, com o piso de sócio — a mesma regra de `requirePermission` das telas de `/recursos`). */
+export async function podeVerRecursos(user: SubjectAutorizacao & { ehSocio?: boolean }): Promise<boolean> {
+  return (await can(user, "recursos", "ver")) || (!!user.ehSocio && (await canRole("supervisor", "recursos", "ver")));
 }

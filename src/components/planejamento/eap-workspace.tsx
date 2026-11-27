@@ -57,6 +57,7 @@ import { ColarTarefasDialog } from "@/components/planejamento/colar-tarefas-dial
 import { PredecessorasDialog } from "@/components/planejamento/predecessoras-dialog";
 import { SalvarComoModeloDialog } from "@/components/planejamento/modelos/salvar-como-modelo-dialog";
 import { DesfazerBotao } from "@/components/planejamento/desfazer-botao";
+import { AtalhoPoolRecursos } from "@/components/planejamento/atalho-pool-recursos";
 import { GerarEapDisciplinasDialog } from "@/components/planejamento/modelos/gerar-eap-disciplinas-dialog";
 import type { OpcaoDeDisciplina } from "@/modules/planejamento/modelos/disciplina-service";
 import { montarGrade, type Vinculo } from "@/modules/planejamento/gantt-linhas";
@@ -841,6 +842,7 @@ export function EapWorkspace({
   const barraFim = (
     <>
       {podeGerir && <DesfazerBotao projetoId={projeto.id} rotulo={ultimoPasso} travado={travado} compacto />}
+      {verRecursos && <AtalhoPoolRecursos projetoId={projeto.id} compacto />}
       {noProjeto && (
         <>
           <Button size="sm" variant="outline" render={<Link href={`/planejamento/${projeto.id}`} />}>

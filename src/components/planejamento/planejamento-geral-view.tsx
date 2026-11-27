@@ -20,6 +20,7 @@ import { FUNDO_COR_PROJETO } from "@/modules/planejamento/cor-projeto";
 import { rotuloDoExterno } from "@/modules/planejamento/parceiros/regras";
 import { CabecalhoEscala, HEAD_H, ROW_H } from "@/components/planejamento/gantt-barra";
 import { AbasPlanejamento } from "@/components/planejamento/abas-planejamento";
+import { AtalhoPoolRecursos } from "@/components/planejamento/atalho-pool-recursos";
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -190,6 +191,7 @@ export function PlanejamentoGeralView({ dados }: { dados: PlanejamentoGeralDaTel
       <CabecalhoPagina
         titulo="Planejamento"
         descricao="Todos os cronogramas, aprovados e rascunhos, só para ver; clique numa pessoa para abrir a faixa dela em Recursos."
+        acoes={<AtalhoPoolRecursos />}
       />
       <AbasPlanejamento atual="geral" />
 

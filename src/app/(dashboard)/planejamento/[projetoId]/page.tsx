@@ -12,7 +12,7 @@ import {
   qualidadeDoProjeto,
   pessoasParaAtribuicao,
 } from "@/modules/planejamento/queries";
-import { podeVerDatasDoPlanejamento } from "@/modules/planejamento/acesso";
+import { podeVerDatasDoPlanejamento, podeVerRecursos } from "@/modules/planejamento/acesso";
 import { EapWorkspace } from "@/components/planejamento/eap-workspace";
 import { PlanoVsReal } from "@/components/planejamento/plano-vs-real";
 import { ValorAgregadoPainel } from "@/components/planejamento/valor-agregado-painel";
@@ -42,7 +42,7 @@ export default async function PlanejamentoProjetoPage({
   // Decisão #3: quem só consulta vê a estrutura, sem datas — o servidor nem busca o que só existe por causa delas.
   const verDatas = await podeVerDatasDoPlanejamento(user);
   // Conflito de recurso cita OUTROS projetos: o nome deles só para quem enxerga a carga da equipe (`/recursos`).
-  const verRecursos = await can(user, "recursos", "ver");
+  const verRecursos = await podeVerRecursos(user);
 
   const [
     { tarefas, disciplinas, temLinhaBase, custoTotal, calendario },

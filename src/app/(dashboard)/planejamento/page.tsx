@@ -4,8 +4,9 @@ import Link from "next/link";
 import { Rocket, ListTree } from "lucide-react";
 import { requirePermission } from "@/lib/session";
 import { projetosComPlano } from "@/modules/planejamento/queries";
-import { podeVerDatasDoPlanejamento, podeVerPlanejamentoGeral } from "@/modules/planejamento/acesso";
+import { podeVerDatasDoPlanejamento, podeVerPlanejamentoGeral, podeVerRecursos } from "@/modules/planejamento/acesso";
 import { AbasPlanejamento } from "@/components/planejamento/abas-planejamento";
+import { AtalhoPoolRecursos } from "@/components/planejamento/atalho-pool-recursos";
 import { formatarCodigo } from "@/modules/projetos/numbering";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +23,14 @@ export default async function PlanejamentoPage() {
   const projetos = await projetosComPlano(user, { verDatas });
   // Decisão 7 do pool de recursos: o Planejamento geral é de quem vê Recursos (e as datas).
   const verGeral = await podeVerPlanejamentoGeral(user);
+  const verRecursos = await podeVerRecursos(user);
 
   return (
     <div className="space-y-6">
       <CabecalhoPagina
         titulo="Planejamento"
         descricao="EAP e cronograma (gantt) por projeto, com linha de base. Selecione um projeto."
+        acoes={verRecursos ? <AtalhoPoolRecursos /> : undefined}
       />
       {verGeral && <AbasPlanejamento atual="projetos" />}
 
