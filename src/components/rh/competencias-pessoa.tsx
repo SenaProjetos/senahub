@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 import { BadgeCheck, GraduationCap, Plus } from "lucide-react";
 import { declararMeuNivel, definirNivelPessoa, removerMinhaHabilidade } from "@/modules/rh/habilidades/actions";
@@ -16,6 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatarData } from "@/lib/utils";
+import { useGravacaoPorItem } from "@/lib/use-gravacao-por-item";
 
 type Item = CompetenciasDaPessoa["competencias"][number];
 
@@ -34,22 +34,21 @@ export function CompetenciasPessoa({
   modo: "gestor" | "self" | "leitura";
   quemId: string;
 }) {
-  const router = useRouter();
   const confirm = useConfirm();
-  const [pending, start] = useTransition();
+  // Cada competência grava sozinha e só ela fica ocupada: dá para acertar o nível da próxima sem esperar.
+  const g = useGravacaoPorItem();
   const [nova, setNova] = useState<{ habilidadeId: string; nivel: string }>({ habilidadeId: "", nivel: "" });
   const ehPropria = userId === quemId;
   const disponiveis = dados.catalogo.filter((h) => !dados.competencias.some((c) => c.habilidadeId === h.id));
 
   function gravarNivel(c: { habilidadeId: string }, nivel: number | null, validar: boolean) {
-    start(async () => {
+    g.rodar(c.habilidadeId, async () => {
       const r =
         modo === "self"
           ? await declararMeuNivel({ habilidadeId: c.habilidadeId, nivel: nivel ?? 1 })
           : await definirNivelPessoa({ userId, habilidadeId: c.habilidadeId, nivel, validar });
       if (r.ok) {
         toast.success(modo === "self" ? "Nível declarado. A coordenação vai validar." : validar ? "Nível validado." : "Nível salvo.");
-        router.refresh();
       } else toast.error(r.error);
     });
   }
@@ -62,10 +61,9 @@ export function CompetenciasPessoa({
     if (acao.id === "validar") gravarNivel(c, c.nivel, true);
     else if (acao.id === "desvalidar") gravarNivel(c, c.nivel, false);
     else if (acao.id === "remover") {
-      start(async () => {
+      g.rodar(c.habilidadeId, async () => {
         const r = await removerMinhaHabilidade({ habilidadeId: c.habilidadeId });
-        if (r.ok) router.refresh();
-        else toast.error(r.error);
+        if (!r.ok) toast.error(r.error);
       });
     }
   }
@@ -106,7 +104,7 @@ export function CompetenciasPessoa({
         </div>
         {podeMudarNivel ? (
           <Select value={c.nivel != null ? String(c.nivel) : ""} onValueChange={(v) => v && gravarNivel(c, Number(v), false)}>
-            <SelectTrigger className="h-8 w-44" aria-label={`Nível em ${c.nome}`} disabled={pending}>
+            <SelectTrigger className="h-8 w-44" aria-label={`Nível em ${c.nome}`} disabled={g.salvando(c.habilidadeId)}>
               <SelectValue placeholder="Nível…" />
             </SelectTrigger>
             <SelectContent>
@@ -157,7 +155,7 @@ export function CompetenciasPessoa({
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" disabled={pending} onClick={adicionar}>
+          <Button size="sm" variant="outline" disabled={!!nova.habilidadeId && g.salvando(nova.habilidadeId)} onClick={adicionar}>
             <Plus className="size-3.5" /> Adicionar
           </Button>
         </div>

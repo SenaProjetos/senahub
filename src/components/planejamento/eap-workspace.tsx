@@ -344,11 +344,13 @@ export function EapWorkspace({
             description: "Disciplina com etapas só recebe prazo de linha que tenha a fase da etapa.",
           });
         }
-        router.refresh();
       } else toast.error(r.error);
     });
   }
 
+  // Sem `router.refresh()` depois das gravações desta tela: toda action da EAP chama `revalidatePath` (`revProjeto`), e a
+  // resposta dela já traz a página redesenhada. O refresh redesenhava tudo de novo — o motor do cronograma rodava duas vezes
+  // por célula editada — e, na mesma fila do roteador, ainda atrasava a gravação seguinte.
   // Cada gravação reagenda o projeto inteiro: a fila garante uma de cada vez — a segunda, disparada em paralelo,
   // trabalharia sobre datas que a primeira ainda vai mudar (Tab/Enter em sequência na tabela faz isso).
   const fila = useRef<Promise<unknown>>(Promise.resolve());
@@ -371,14 +373,12 @@ export function EapWorkspace({
             description: "Depois das predecessoras e num dia útil — a data que você pediu ficou como \"não iniciar antes de\".",
           });
         }
-        router.refresh();
         return null;
       }
       if (e.campo === "termino") {
         const r = await definirTerminoEapTarefa({ id: t.id, data: e.data });
         if (!r.ok) return r.error;
         toast.success(`Duração: ${String(r.data.duracaoDias).replace(".", ",")} ${r.data.duracaoDias === 1 ? "dia útil" : "dias úteis"}.`);
-        router.refresh();
         return null;
       }
       const r = await editarEapTarefa({
@@ -394,7 +394,6 @@ export function EapWorkspace({
       });
       if (!r.ok) return r.error;
       if (r.data.conclusao) toast.success(textoConcluidaPeloPlanejado(r.data.conclusao));
-      router.refresh();
       return null;
     });
   }
@@ -430,7 +429,6 @@ export function EapWorkspace({
       if (r.data.status === "con" && t.status !== "con") toast.success(t.marco ? "Marco concluído." : "Tarefa concluída.");
       achou.fase = r.data.fase;
       achou.cascata = r.data.cascata;
-      router.refresh();
       return null;
     });
     if (achou.fase) await oferecerFase(achou.fase);
@@ -443,7 +441,6 @@ export function EapWorkspace({
     return naFila(async () => {
       const r = await definirPredecessorasDaLinha({ tarefaId: t.id, vinculos });
       if (!r.ok) return r.error;
-      router.refresh();
       return null;
     });
   }
@@ -516,7 +513,6 @@ export function EapWorkspace({
         if (!r.ok) return void toast.error(r.error);
         toast.success(r.data.excluidas === 1 ? "Linha excluída." : `${r.data.excluidas} linhas excluídas.`);
       }
-      router.refresh();
     }).finally(() => setGravandoEstrutura(false));
   }
 
@@ -552,7 +548,6 @@ export function EapWorkspace({
           const r = await inserirEapTarefaAcima({ id: t.id });
           if (!r.ok) return void toast.error(r.error);
           setNovaLinhaId(r.data.id);
-          router.refresh();
         });
         return;
       case ACAO_RECUAR:
@@ -564,14 +559,12 @@ export function EapWorkspace({
               description: "As horas delas deixam de contar — passe as pessoas para as tarefas dentro do agrupamento.",
             });
           }
-          router.refresh();
         });
         return;
       case ACAO_AVANCAR:
         await naFila(async () => {
           const r = await avancarEapTarefa({ id: t.id });
           if (!r.ok) return void toast.error(r.error);
-          router.refresh();
         });
         return;
       case ACAO_MOVER_CIMA:
@@ -579,7 +572,6 @@ export function EapWorkspace({
         await naFila(async () => {
           const r = await moverEapTarefaNoNivel({ id: t.id, direcao: item.id === ACAO_MOVER_CIMA ? -1 : 1 });
           if (!r.ok) return void toast.error(r.error);
-          router.refresh();
         });
         return;
       case ACAO_EXCLUIR:
@@ -587,7 +579,6 @@ export function EapWorkspace({
           const r = await excluirEapTarefa({ id: t.id });
           if (!r.ok) return void toast.error(r.error);
           toast.success("Tarefa excluída.");
-          router.refresh();
         });
         return;
     }
@@ -598,7 +589,6 @@ export function EapWorkspace({
     void naFila(async () => {
       const r = await moverEapTarefa({ id: t.id, alvoId, posicao });
       if (!r.ok) return void toast.error(r.error);
-      router.refresh();
     });
   }
 
@@ -628,7 +618,6 @@ export function EapWorkspace({
       const r = await apagarEap({ projetoId: projeto.id });
       if (!r.ok) return void toast.error(r.error);
       toast.success(`EAP apagada (${r.data.apagadas} linhas).`, { description: "Agora dá para usar outro modelo ou gerar das disciplinas." });
-      router.refresh();
     });
   }
 
@@ -641,7 +630,6 @@ export function EapWorkspace({
             ? `${r.data.criadas} atribuição(ões) herdada(s) da disciplina.`
             : "Nenhuma linha sem responsável para herdar — o que já tem gente não é tocado.",
         );
-        router.refresh();
       } else toast.error(r.error);
     });
   }
@@ -658,7 +646,6 @@ export function EapWorkspace({
             ? { description: `${r.data.ciclosIgnorados} dependência(s) circular(es) foram ignoradas.` }
             : undefined,
         );
-        router.refresh();
       } else toast.error(r.error);
     });
   }

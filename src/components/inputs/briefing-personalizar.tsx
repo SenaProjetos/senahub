@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 import { definirVisibilidadeBriefing } from "@/modules/inputs/actions";
 import type { OcultosBriefing, SecaoBriefing } from "@/modules/inputs/briefing-schema";
 import { cn } from "@/lib/utils";
+import { useGravacaoPorItem } from "@/lib/use-gravacao-por-item";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 
@@ -23,20 +23,25 @@ export function BriefingPersonalizar({
   secoes: SecaoBriefing[];
   ocultos: OcultosBriefing;
 }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
+  // Cada chave grava sozinha e só ela fica ocupada: dá para desmarcar várias seguidas sem esperar o servidor.
+  const g = useGravacaoPorItem();
   const [ocultos, setOcultos] = useState(ocultosIniciais);
 
+  /** Liga/desliga UMA chave sobre o estado atual (não sobre o da hora do clique): outras gravações seguem em curso. */
+  const aplicar = (alvo: "secao" | "campo", chave: string, oculto: boolean) =>
+    setOcultos((o) => {
+      const lista = (alvo === "secao" ? o.secoes : o.campos).filter((c) => c !== chave);
+      const nova = oculto ? [...lista, chave] : lista;
+      return alvo === "secao" ? { ...o, secoes: nova } : { ...o, campos: nova };
+    });
+
   function alternar(alvo: "secao" | "campo", chave: string, oculto: boolean) {
-    const anterior = ocultos;
-    const lista = alvo === "secao" ? ocultos.secoes : ocultos.campos;
-    const nova = oculto ? [...lista, chave] : lista.filter((c) => c !== chave);
-    setOcultos(alvo === "secao" ? { ...ocultos, secoes: nova } : { ...ocultos, campos: nova });
-    start(async () => {
+    aplicar(alvo, chave, oculto);
+    g.rodar(`${alvo}:${chave}`, async () => {
       const r = await definirVisibilidadeBriefing({ projetoId, alvo, chave, oculto });
-      if (r.ok) router.refresh();
-      else {
-        setOcultos(anterior);
+      if (!r.ok) {
+        // Desfaz só esta chave: as outras marcações em curso ficam.
+        aplicar(alvo, chave, !oculto);
         toast.error(r.error);
       }
     });
@@ -60,7 +65,7 @@ export function BriefingPersonalizar({
                 {secaoOculta ? "Seção oculta" : "Seção visível"}
                 <Switch
                   checked={!secaoOculta}
-                  disabled={pending}
+                  disabled={g.salvando(`secao:${secao.id}`)}
                   aria-label={`Mostrar a seção ${secao.titulo}`}
                   onCheckedChange={(v: boolean) => alternar("secao", secao.id, !v)}
                 />
@@ -81,7 +86,7 @@ export function BriefingPersonalizar({
                       <Checkbox
                         className="mt-0.5"
                         checked={!campoOculto}
-                        disabled={pending || secaoOculta}
+                        disabled={g.salvando(`campo:${campo.chave}`) || secaoOculta}
                         onCheckedChange={(v: boolean) => alternar("campo", campo.chave, !v)}
                       />
                       <span className="min-w-0">

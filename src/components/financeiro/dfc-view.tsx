@@ -1,7 +1,7 @@
 "use client";
 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeftRight } from "lucide-react";
@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { brlInteiro } from "@/lib/utils";
+import { useGravacaoPorItem } from "@/lib/use-gravacao-por-item";
 
 const ROTULO: Record<GrupoDFC, string> = {
   operacional: "Operacional",
@@ -40,17 +41,18 @@ export function DfcView({
   subnav?: React.ReactNode;
 }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
+  // Cada categoria grava sozinha e só ela fica ocupada; enquanto grava, o select mostra a atividade escolhida.
+  const g = useGravacaoPorItem();
+  const [pedido, setPedido] = useState<Record<string, string>>({});
   const atual = new Date().getFullYear();
   const anos = [atual + 1, atual, atual - 1, atual - 2];
 
   function classificar(categoriaId: string, grupo: string) {
-    start(async () => {
+    setPedido((p) => ({ ...p, [categoriaId]: grupo }));
+    g.rodar(categoriaId, async () => {
       const r = await classificarDfc({ categoriaId, grupo: grupo as GrupoDFC });
-      if (r.ok) {
-        toast.success("Classificação atualizada.");
-        router.refresh();
-      } else toast.error(r.error);
+      if (r.ok) toast.success("Classificação atualizada.");
+      else toast.error(r.error);
     });
   }
 
@@ -136,9 +138,9 @@ export function DfcView({
                     <span className="font-mono text-xs text-muted-foreground">{c.codigo}</span> {c.nome}
                   </span>
                   <Select
-                    value={c.grupoDfc}
+                    value={g.salvando(c.id) ? (pedido[c.id] ?? c.grupoDfc) : c.grupoDfc}
                     onValueChange={(v) => classificar(c.id, v ?? c.grupoDfc)}
-                    disabled={pending}
+                    disabled={g.salvando(c.id)}
                   >
                     <SelectTrigger className="w-40">
                       <SelectValue />

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Check, SlidersHorizontal } from "lucide-react";
 import { removerAtribuicao, salvarAtribuicao } from "@/modules/planejamento/recursos-actions";
@@ -12,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { AvatarUsuario } from "@/components/ui/avatar-usuario";
 import { cn } from "@/lib/utils";
+import { useGravacaoPorItem } from "@/lib/use-gravacao-por-item";
 
 /**
  * Escolher quem faz a linha direto na célula "Nomes dos recursos" (reunião de 08/10/2026, item 2),
@@ -46,9 +46,9 @@ export function RecursosDaCelula({
   onAbrirLinha?: () => void;
   children: ReactNode;
 }) {
-  const router = useRouter();
   const confirm = useConfirm();
-  const [pending, start] = useTransition();
+  // Só a pessoa clicada fica ocupada: dá para marcar a próxima sem esperar a volta do servidor.
+  const g = useGravacaoPorItem();
   const [busca, setBusca] = useState("");
 
   if (!linhaAceitaAtribuicao(linha).ok || linha.deTerceiro) return <>{children}</>;
@@ -68,14 +68,13 @@ export function RecursosDaCelula({
   const papelPadrao = (p: Pessoa): Papel => (p.contratacao === "estagio" ? "est" : "pro");
 
   function adicionar(p: Pessoa) {
-    start(async () => {
+    g.rodar(p.id, async () => {
       const r = await salvarAtribuicao({ tarefaId: linha.id, userId: p.id, papel: papelPadrao(p), horasPrevistas: 0 });
       if (!r.ok) toast.error(r.error);
-      router.refresh();
     });
   }
 
-  // O confirm vem ANTES do start: dentro da transition o setState do diálogo suspende e trava a tela.
+  // O confirm vem ANTES de gravar: dentro da transition o setState do diálogo suspende e trava a tela.
   async function tirar(p: Pessoa) {
     const ids = linha.atribuicoes.filter((a) => a.userId === p.id).map((a) => a.id);
     const ok = await confirm({
@@ -84,7 +83,7 @@ export function RecursosDaCelula({
       confirmLabel: "Tirar",
     });
     if (!ok) return;
-    start(async () => {
+    g.rodar(p.id, async () => {
       for (const id of ids) {
         const r = await removerAtribuicao({ id });
         if (!r.ok) {
@@ -92,7 +91,6 @@ export function RecursosDaCelula({
           break;
         }
       }
-      router.refresh();
     });
   }
 
@@ -126,7 +124,7 @@ export function RecursosDaCelula({
               <li key={p.id}>
                 <button
                   type="button"
-                  disabled={pending}
+                  disabled={g.salvando(p.id)}
                   onClick={() => (dentro ? void tirar(p) : adicionar(p))}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-60",

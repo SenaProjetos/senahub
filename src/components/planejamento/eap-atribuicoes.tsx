@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Building2, Plus, Star, Trash2 } from "lucide-react";
 import {
@@ -30,8 +29,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useGravacaoPorItem } from "@/lib/use-gravacao-por-item";
 
 const PERFIL = "__perfil";
+const NOVO = "__novo";
 const SEM_PARCEIRO = "__sem";
 
 /** Parceiro externo ativo que pode nomear a etapa de terceiro (pool de recursos, parte 6). */
@@ -86,19 +87,21 @@ export function EapAtribuicoes({
   pessoas: { id: string; name: string; image: string | null }[];
   parceiros?: ParceiroParaEscolha[];
 }) {
-  const router = useRouter();
   const confirm = useConfirm();
-  const [pending, start] = useTransition();
+  // Cada pessoa da linha grava sozinha e só ela fica ocupada: quem acerta as horas de uma já digita as da próxima.
+  // "novo" = o bloco de adicionar (pessoa nova ou etapa de terceiro).
+  const g = useGravacaoPorItem();
+  const pending = g.salvando(NOVO);
   const [novaPessoa, setNovaPessoa] = useState(PERFIL);
   const [novoPapel, setNovoPapel] = useState<Papel>("pro");
   // Horas de quem entra, já no Adicionar (feedback do planejamento, 26/11/2026: o campo só aparecia depois de adicionar).
   // Vazio = automático para quem executa (dias úteis × 8 h), zero para quem acompanha.
   const [novasHoras, setNovasHoras] = useState("");
-  // Remonta as linhas a cada resposta do servidor: o campo de horas guarda o que se digita
-  // em estado local, e a chave `id:horas` sozinha não muda quando o servidor RECUSA (o valor
-  // gravado continua o mesmo) — o campo seguiria mostrando o valor recusado. Mesma lição do
-  // editor de etapas da F4.
-  const [versao, setVersao] = useState(0);
+  // Remonta SÓ a linha recusada: o campo de horas guarda o que se digita em estado local, e o
+  // valor gravado não muda quando o servidor RECUSA — o campo seguiria mostrando o valor recusado.
+  // Remontar todas a cada resposta apagaria (e tiraria o foco de) quem digita em outra linha.
+  const [versaoLinha, setVersaoLinha] = useState<Record<string, number>>({});
+  const recusada = (id: string) => setVersaoLinha((v) => ({ ...v, [id]: (v[id] ?? 0) + 1 }));
 
   const aceita = linhaAceitaAtribuicao(linha);
   const aceitaHoras = linhaAceitaHoras(linha);
@@ -118,7 +121,7 @@ export function EapAtribuicoes({
     : "Quem acompanha, revisa ou aprova: vazio = 0 h.";
 
   function adicionar() {
-    start(async () => {
+    g.rodar(NOVO, async () => {
       const r = await salvarAtribuicao({
         tarefaId: linha.id,
         userId: novaPessoa === PERFIL ? null : novaPessoa,
@@ -129,7 +132,6 @@ export function EapAtribuicoes({
         if (r.data.ocupouPerfil) toast.success(`Entrou no lugar do perfil ${ROTULO_PAPEL[novoPapel]} da linha.`);
         setNovaPessoa(PERFIL);
         setNovasHoras("");
-        router.refresh();
       } else toast.error(r.error);
     });
   }
@@ -141,11 +143,9 @@ export function EapAtribuicoes({
       confirmLabel: "Remover",
     });
     if (!ok) return;
-    start(async () => {
+    g.rodar(a.id, async () => {
       const r = await removerAtribuicao({ id: a.id });
       if (!r.ok) toast.error(r.error);
-      setVersao((v) => v + 1);
-      router.refresh();
     });
   }
 
@@ -154,23 +154,22 @@ export function EapAtribuicoes({
    * hora. Quem desmarca é o mesmo botão de remover da linha da lista.
    */
   function marcarTerceiro() {
-    start(async () => {
+    g.rodar(NOVO, async () => {
       const r = await salvarAtribuicao({ tarefaId: linha.id, userId: null, papel: "ext", horasPrevistas: 0 });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
+      if (!r.ok) toast.error(r.error);
     });
   }
 
   function tornarPrincipal(a: AtribuicaoEditavel) {
-    start(async () => {
+    g.rodar(a.id, async () => {
       const r = await definirPrincipal({ id: a.id });
       if (!r.ok) toast.error(r.error);
-      router.refresh();
     });
   }
 
   function salvarCampo(a: AtribuicaoEditavel, patch: Partial<Pick<AtribuicaoEditavel, "papel" | "horas" | "parceiroId">>) {
-    start(async () => {
+    // `a` é a linha da tela: a pessoa fica ocupada enquanto grava, então não sai um segundo pedido dela com o papel velho.
+    g.rodar(a.id, async () => {
       const r = await salvarAtribuicao({
         id: a.id,
         tarefaId: linha.id,
@@ -181,9 +180,10 @@ export function EapAtribuicoes({
         ...(patch.horas !== undefined ? { horasPrevistas: patch.horas } : {}),
         ...(patch.parceiroId !== undefined ? { parceiroId: patch.parceiroId } : {}),
       });
-      if (!r.ok) toast.error(r.error);
-      setVersao((v) => v + 1);
-      router.refresh();
+      if (!r.ok) {
+        toast.error(r.error);
+        recusada(a.id);
+      }
     });
   }
 
@@ -205,7 +205,7 @@ export function EapAtribuicoes({
                 {a.userId ? <AvatarUsuario nome={a.nome ?? ""} image={a.image} size="sm" className="size-5 shrink-0" /> : null}
                 {rotuloAtribuicao(a)}
               </span>
-              <Button size="icon-sm" variant="ghost" aria-label="Remover" disabled={pending} onClick={() => remover(a)}>
+              <Button size="icon-sm" variant="ghost" aria-label="Remover" disabled={g.salvando(a.id)} onClick={() => remover(a)}>
                 <Trash2 className="size-3.5" />
               </Button>
             </li>
@@ -230,10 +230,10 @@ export function EapAtribuicoes({
         <ul className="divide-y rounded-sm border">
           {linha.atribuicoes.map((a) => (
             <LinhaAtribuicao
-              key={`${a.id}:${a.horas}:${versao}`}
+              key={`${a.id}:${versaoLinha[a.id] ?? 0}`}
               atribuicao={a}
               podeHoras={aceitaHoras}
-              pending={pending}
+              pending={g.salvando(a.id)}
               parceiros={parceiros}
               onSalvarCampo={(patch) => salvarCampo(a, patch)}
               onTornarPrincipal={() => tornarPrincipal(a)}
@@ -342,6 +342,14 @@ function LinhaAtribuicao({
   // Horas em estado local, gravadas no blur/Enter — mesma razão do editor de etapas: gravar
   // a cada tecla dispara uma action (e um registro de auditoria) por dígito.
   const [horas, setHoras] = useState(String(atribuicao.horas));
+  // As horas desta pessoa mudam no servidor também pela gravação de OUTRA (as automáticas se dividem entre quem
+  // executa): o campo passa a mostrar o valor novo — mas não no meio da digitação, que o sobrescreveria.
+  const [horasVistas, setHorasVistas] = useState(atribuicao.horas);
+  const [editando, setEditando] = useState(false);
+  if (!editando && horasVistas !== atribuicao.horas) {
+    setHorasVistas(atribuicao.horas);
+    setHoras(String(atribuicao.horas));
+  }
   const externo = atribuicao.papel === "ext";
 
   const podeAuto = podeHoras && papelRecebeHorasAutomaticas(atribuicao.papel);
@@ -396,7 +404,13 @@ function LinhaAtribuicao({
               value={horas}
               disabled={pending || !podeHoras}
               onChange={(e) => setHoras(e.target.value)}
-              onBlur={gravarHoras}
+              onFocus={() => setEditando(true)}
+              onBlur={() => {
+                setEditando(false);
+                // O que o servidor tinha ao sair do campo já foi visto: o que se digitou é o que vale (e grava).
+                setHorasVistas(atribuicao.horas);
+                gravarHoras();
+              }}
               onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               title={
                 atribuicao.automatica

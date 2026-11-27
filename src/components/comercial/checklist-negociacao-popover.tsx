@@ -1,13 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ListChecks } from "lucide-react";
 import { alternarChecklistItem } from "@/modules/comercial/actions";
 import type { CardNegociacao } from "@/modules/comercial/queries";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useGravacaoPorItem } from "@/lib/use-gravacao-por-item";
 
 /**
  * Checklist SOFT por estágio (F7.6, roadmap #14) — badge no card + popover pra marcar. NUNCA
@@ -21,14 +21,17 @@ export function ChecklistNegociacaoPopover({
   negociacaoId: string;
   checklist: NonNullable<CardNegociacao["checklist"]>;
 }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
+  // Cada item marca sozinho e só ele fica ocupado. A action ALTERNA (não recebe o valor): o item fica travado
+  // enquanto grava, então dois cliques seguidos no mesmo item não se desfazem. Enquanto grava, a caixinha mostra
+  // o que foi pedido.
+  const g = useGravacaoPorItem();
+  const [pedido, setPedido] = useState<Record<string, boolean>>({});
 
-  function alternar(itemId: string) {
-    start(async () => {
+  function alternar(itemId: string, marcar: boolean) {
+    setPedido((p) => ({ ...p, [itemId]: marcar }));
+    g.rodar(itemId, async () => {
       const r = await alternarChecklistItem({ negociacaoId, itemId });
-      if (r.ok) router.refresh();
-      else toast.error(r.error);
+      if (!r.ok) toast.error(r.error);
     });
   }
 
@@ -62,9 +65,9 @@ export function ChecklistNegociacaoPopover({
               className="flex cursor-pointer items-start gap-2 rounded-sm px-1 py-0.5 text-xs hover:bg-muted"
             >
               <Checkbox
-                checked={it.marcado}
-                disabled={pending}
-                onCheckedChange={() => alternar(it.id)}
+                checked={g.salvando(it.id) ? (pedido[it.id] ?? it.marcado) : it.marcado}
+                disabled={g.salvando(it.id)}
+                onCheckedChange={() => alternar(it.id, !it.marcado)}
                 className="mt-0.5"
               />
               <span className={it.marcado ? "text-muted-foreground line-through" : ""}>

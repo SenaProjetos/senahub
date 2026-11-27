@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Laptop } from "lucide-react";
 import { cancelarCiclo, marcarItemCiclo } from "@/modules/rh/ciclo/actions";
@@ -18,6 +17,9 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { dataCurta } from "@/lib/dias-iso";
 import { formatarData } from "@/lib/utils";
+import { useGravacaoPorItem } from "@/lib/use-gravacao-por-item";
+
+const CICLO = "__ciclo";
 
 export type QuemMarca = { id: string; ehRh: boolean; ehTi: boolean };
 type Item = CicloTela["itens"][number];
@@ -42,20 +44,22 @@ export function CicloCartao({
   hrefFicha?: string | null;
   equipamentos?: EquipamentoDaPessoa[];
 }) {
-  const router = useRouter();
   const confirm = useConfirm();
-  const [pending, start] = useTransition();
+  // Cada item marca sozinho e só ele fica ocupado: dá para marcar o próximo sem esperar a volta do servidor.
+  // A caixinha mostra o que foi pedido enquanto grava (senão parece que o clique não pegou).
+  const g = useGravacaoPorItem();
+  const [pedido, setPedido] = useState<Record<string, boolean>>({});
   const [evidencia, setEvidencia] = useState<{ item: Item; texto: string } | null>(null);
   const p = progresso(ciclo.itens);
   const atrasados = ciclo.itens.filter((i) => i.atrasado).length;
   const acoesCiclo = itensDoCiclo(ciclo, { podeGerir, hrefFicha });
 
   function marcar(item: Item, concluido: boolean, texto?: string | null) {
-    start(async () => {
+    setPedido((p) => ({ ...p, [item.id]: concluido }));
+    g.rodar(item.id, async () => {
       const r = await marcarItemCiclo({ id: item.id, concluido, ...(texto !== undefined ? { evidencia: texto } : {}) });
       if (r.ok) {
         if (r.data.status === "concluido") toast.success("Lista concluída.");
-        router.refresh();
       } else toast.error(r.error);
     });
   }
@@ -71,12 +75,10 @@ export function CicloCartao({
       });
       if (!ok) return;
     }
-    start(async () => {
+    g.rodar(CICLO, async () => {
       const r = await cancelarCiclo({ id: ciclo.id });
-      if (r.ok) {
-        toast.success("Lista cancelada.");
-        router.refresh();
-      } else toast.error(r.error);
+      if (r.ok) toast.success("Lista cancelada.");
+      else toast.error(r.error);
     });
   }
 
@@ -99,8 +101,8 @@ export function CicloCartao({
         render={<li className="group flex items-start gap-2.5 rounded-sm px-2 py-1.5 hover:bg-muted/40 data-[popup-open]:bg-muted/30" />}
       >
         <Checkbox
-          checked={item.concluido}
-          disabled={!podeMarcar || pending}
+          checked={g.salvando(item.id) ? (pedido[item.id] ?? item.concluido) : item.concluido}
+          disabled={!podeMarcar || g.salvando(item.id) || g.salvando(CICLO)}
           onCheckedChange={(v) => marcar(item, v === true)}
           aria-label={`${item.concluido ? "Reabrir" : "Marcar como feito"}: ${item.descricao}`}
           className="mt-0.5"
@@ -210,7 +212,7 @@ export function CicloCartao({
               Cancelar
             </Button>
             <Button
-              disabled={pending}
+              disabled={!!evidencia && g.salvando(evidencia.item.id)}
               onClick={() => {
                 if (!evidencia) return;
                 marcar(evidencia.item, evidencia.item.concluido, evidencia.texto);

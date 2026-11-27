@@ -1,8 +1,7 @@
 "use client";
 
 import { CabecalhoPagina } from "@/components/shell/cabecalho-pagina";
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { toast } from "sonner";
 import { FileText } from "lucide-react";
 import { salvarPadraoDocumento } from "@/modules/documentos/actions";
@@ -16,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useGravacaoPorItem } from "@/lib/use-gravacao-por-item";
 
 const NONE = "__none";
 
@@ -27,16 +27,16 @@ type Fonte = {
 };
 
 export function PadroesDocumentoView({ fontes }: { fontes: Fonte[] }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
+  // Cada fonte grava sozinha e só ela fica ocupada; enquanto grava, o select mostra o modelo escolhido.
+  const g = useGravacaoPorItem();
+  const [pedido, setPedido] = useState<Record<string, string>>({});
 
   function salvar(fonte: string, modeloId: string) {
-    start(async () => {
+    setPedido((p) => ({ ...p, [fonte]: modeloId }));
+    g.rodar(fonte, async () => {
       const r = await salvarPadraoDocumento({ fonte, modeloId: modeloId === NONE ? "" : modeloId });
-      if (r.ok) {
-        toast.success("Modelo padrão atualizado.");
-        router.refresh();
-      } else toast.error(r.error);
+      if (r.ok) toast.success("Modelo padrão atualizado.");
+      else toast.error(r.error);
     });
   }
 
@@ -64,9 +64,9 @@ export function PadroesDocumentoView({ fontes }: { fontes: Fonte[] }) {
               <div key={f.id} className="flex flex-wrap items-center justify-between gap-3">
                 <Label className="text-sm font-medium">{f.label}</Label>
                 <Select
-                  value={f.padrao || NONE}
+                  value={g.salvando(f.id) ? (pedido[f.id] ?? (f.padrao || NONE)) : f.padrao || NONE}
                   onValueChange={(v) => salvar(f.id, v ?? NONE)}
-                  disabled={pending}
+                  disabled={g.salvando(f.id)}
                 >
                   <SelectTrigger className="w-72">
                     <SelectValue />
